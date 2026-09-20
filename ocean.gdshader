@@ -30,10 +30,18 @@ uniform float foam_depth : hint_range(0.0, 8.0) = 0.45;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 uniform float foam_scale : hint_range(0.5, 40.0) = 9.0;
 
-group_uniforms Surface;
-uniform float sparkle_scale : hint_range(1.0, 400.0) = 160.0;
-uniform float sparkle_strength : hint_range(0.0, 1.0) = 0.35;
-uniform float wave_speed : hint_range(0.0, 2.0) = 0.25;
+group_uniforms Waves;
+// Thin white crest lines, as in the reference swatches: contours of a moving wave field,
+// not a noise pattern. Noise gives speckle; the reference is long sweeping strokes.
+uniform float crest_width : hint_range(0.005, 0.3) = 0.035;
+uniform float crest_scale : hint_range(0.005, 0.2) = 0.055;
+uniform float wave_speed : hint_range(0.0, 2.0) = 0.35;
+
+group_uniforms Caustics;
+// The web of bright lines over sand in the "Shallow (sand)" swatch: cell edges, fading out
+// as the water deepens because you can only see them on the bottom.
+uniform float caustic_scale : hint_range(0.01, 2.0) = 0.55;
+uniform float caustic_strength : hint_range(0.0, 1.0) = 0.30;
 
 varying vec3 world_position;
 
@@ -57,8 +65,41 @@ float noise(vec2 p) {
 }
 
 
-float fbm(vec2 p) {
-	return noise(p) * 0.65 + noise(p * 2.17 + 13.7) * 0.35;
+vec2 hash2(vec2 p) {
+	return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+}
+
+
+// A few sine waves crossing at different angles. Its contours are the long curved strokes the
+// reference draws its crests with - a single direction gives corduroy, three reads as sea.
+float wave_field(vec2 p, float t) {
+	float f = sin(dot(p, normalize(vec2(1.0, 0.35))) * crest_scale + t * wave_speed);
+	f += 0.62 * sin(dot(p, normalize(vec2(-0.45, 1.0))) * crest_scale * 1.7 + t * wave_speed * 0.8);
+	f += 0.34 * sin(dot(p, normalize(vec2(0.8, -0.6))) * crest_scale * 2.9 - t * wave_speed * 1.2);
+	return f;
+}
+
+
+// Distance to the nearest cell border, which is what the caustic web in the shallows is.
+float cell_edge(vec2 p, float t) {
+	vec2 cell = floor(p);
+	vec2 local = fract(p);
+	float nearest = 8.0;
+	float second = 8.0;
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 offset = vec2(float(x), float(y));
+			vec2 point = offset + 0.5 + 0.42 * sin(t * 0.6 + 6.2831 * hash2(cell + offset));
+			float d = length(point - local);
+			if (d < nearest) {
+				second = nearest;
+				nearest = d;
+			} else if (d < second) {
+				second = d;
+			}
+		}
+	}
+	return second - nearest;
 }
 
 
@@ -88,25 +129,34 @@ void fragment() {
 	// with range and let the far water stay flat colour.
 	float near = 1.0 - smoothstep(70.0, 350.0, surface);
 	vec2 flow = world_position.xz;
-	// Two scrolling layers so the surface never looks like it is sliding in one direction.
-	float ripple = fbm(flow * (sparkle_scale * 0.01) + vec2(TIME * wave_speed, 0.0))
-			* fbm(flow * (sparkle_scale * 0.013) - vec2(0.0, TIME * wave_speed * 0.8));
+	float field = wave_field(flow, TIME);
 
-	// Foam hugs the shore, where there is almost no water between the surface and the sand.
-	float shore = 1.0 - clamp(water_depth / max(foam_depth, 0.001), 0.0, 1.0);
-	float foam_noise = fbm(flow * (foam_scale * 0.05) + vec2(TIME * foam_speed, TIME * foam_speed * 0.6));
-	// Broken along its length rather than a solid white band: a smooth ribbon reads as a
-	// painted line on the sand, not as surf.
-	float foam = smoothstep(0.45, 0.92, shore * (0.35 + 1.15 * foam_noise));
+	// Contour lines of the wave field: zero on the contour, so a narrow band around it is a
+	// thin white crest. Widened with distance so the lines do not alias into speckle.
+	float far = smoothstep(60.0, 420.0, surface);
+	float ring = abs(fract(field * 0.5) - 0.5) * 2.0;
+	float crest = 1.0 - smoothstep(0.0, crest_width + far * 0.25, ring);
+	crest *= 1.0 - far * 0.75;
+
+	// Caustics only where the bottom is visible; in deep water there is nothing to cast onto.
+	float shallowness = 1.0 - clamp(water_depth / 6.0, 0.0, 1.0);
+	float caustic = 0.0;
+	if (shallowness > 0.01) {
+		float edge = cell_edge(flow * caustic_scale, TIME);
+		caustic = (1.0 - smoothstep(0.0, 0.16, edge)) * shallowness * caustic_strength * (1.0 - far);
+	}
+
+	// The surf line advances and retreats instead of sitting still, which is what reads as a
+	// wave breaking rather than a white edge painted along the sand.
+	float surge = foam_depth * (0.75 + 0.45 * sin(TIME * foam_speed * 2.2 + field * 0.6));
+	float shore = 1.0 - clamp(water_depth / max(surge, 0.001), 0.0, 1.0);
+	float foam = smoothstep(0.25, 0.75, shore);
 
 	vec3 water = mix(shallow_colour, deep_colour, stepped);
+	water = mix(water, foam_colour, clamp(crest * 0.85 + caustic, 0.0, 1.0));
 	ALBEDO = mix(water, foam_colour, foam);
-	ALPHA = mix(mix(shallow_alpha, deep_alpha, stepped), 1.0, foam);
-	ROUGHNESS = mix(0.06, 0.35, foam);
+	ALPHA = mix(mix(shallow_alpha, deep_alpha, stepped), 1.0, max(foam, crest * 0.6));
+	ROUGHNESS = mix(0.10, 0.4, max(foam, crest));
 	METALLIC = 0.0;
-	SPECULAR = 0.6;
-	// A little glitter on the open water, killed under the foam where it would look like grease.
-	EMISSION = vec3(ripple * sparkle_strength * near * (1.0 - foam) * (1.0 - stepped * 0.6));
-	float bump = (ripple - 0.5) * 0.08 * near;
-	NORMAL_MAP = vec3(0.5 + bump, 0.5 + bump, 1.0);
+	SPECULAR = 0.5;
 }
