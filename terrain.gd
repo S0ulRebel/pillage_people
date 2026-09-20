@@ -225,6 +225,10 @@ func _build_mesh() -> void:
 	var material := ShaderMaterial.new()
 	material.shader = load("res://terrain.gdshader")
 	material.set_shader_parameter("sea_y", sea_level())
+	# The shader does its own shading, so it needs to know where the sun is.
+	var sun := get_node_or_null("../Sun") as DirectionalLight3D
+	if sun != null:
+		material.set_shader_parameter("sun_direction", -sun.global_transform.basis.z)
 	mesh_instance.material_override = material
 	add_child(mesh_instance)
 

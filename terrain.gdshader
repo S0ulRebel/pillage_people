@@ -1,5 +1,17 @@
 shader_type spatial;
-render_mode specular_disabled, ambient_light_disabled;
+render_mode unshaded;
+
+// Unshaded, with the shading worked out here rather than by the engine.
+//
+// The reference art is flat colour with the shading drawn into it, and going through Godot's
+// light path made the rendered colours impossible to match: fully lit ground came back as
+// #ffc362 where the swatch it was given was #e8bf87 - red clipped, blue well short. Unshaded,
+// the same colour renders as itself exactly, so the sampled palette arrives intact and the
+// ramp below is the only thing that touches it.
+//
+// The cost is that there are no cast shadows from the engine, which the island does not
+// currently need: in the reference the shadows all come from rocks and trees, and those are
+// objects we have yet to place.
 
 // Cel-shaded terrain.
 //
@@ -15,9 +27,11 @@ uniform int bands : hint_range(2, 6) = 3;
 uniform float band_softness : hint_range(0.0, 0.3) = 0.06;
 // How dark the darkest band gets. Letting it reach 0 gives near-black hillsides, which is
 // the single thing that stops stylised terrain reading as stylised.
-uniform float shadow_floor : hint_range(0.0, 1.0) = 0.36;
+uniform float shadow_floor : hint_range(0.0, 1.0) = 0.66;
 // Shadowed ground should not be grey either - tropical bounce light keeps it colourful.
 uniform vec3 shadow_tint : source_color = vec3(0.42, 0.52, 0.62);
+// Set from the scene's sun so the shading follows the light everything else is lit by.
+uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
 uniform float ambient : hint_range(0.0, 1.0) = 0.16;
 
 group_uniforms Ground;
@@ -117,6 +131,19 @@ void fragment() {
 	ROUGHNESS = mix(1.0, 0.45, wet);
 	SPECULAR = mix(0.2, 0.6, wet);
 
+	// The cel ramp, applied here rather than in light(). At full light it is exactly 1, so
+	// lit ground renders as its own albedo and the sampled colours come out as themselves.
+	float lambert = clamp(dot(normalize(world_normal), normalize(sun_direction)), 0.0, 1.0);
+	float scaled = lambert * float(bands);
+	float index = floor(scaled);
+	float blend = smoothstep(0.5 - band_softness, 0.5 + band_softness, fract(scaled));
+	float toon = mix(shadow_floor, 1.0, (index + blend) / float(bands));
+	// Shaded ground is tinted towards the bounce colour rather than just darkened, which is
+	// what keeps it colourful instead of grey.
+	// Tint towards the bounce colour in shadow, then scale. Written the other way round the
+	// shaded side loses its colour as well as its brightness and the island goes grey-olive.
+	ALBEDO = mix(ALBEDO * shadow_tint, ALBEDO, toon) * mix(shadow_floor, 1.0, toon);
+
 	// Rim light belongs on the island's edge against the sea, so it is limited to steep
 	// ground. Flat ground seen from a low camera is also "facing away" by this measure, and
 	// without the slope test the whole beach lit up and clipped to white.
@@ -125,30 +152,3 @@ void fragment() {
 			* smoothstep(0.30, 0.75, slope);
 }
 
-void light() {
-	// Attenuation folds in before the banding, so a cast shadow becomes another flat band
-	// rather than a black hole: applied afterwards it multiplies the floor away.
-	float lambert = clamp(dot(normalize(NORMAL), normalize(LIGHT)), 0.0, 1.0) * ATTENUATION;
-	// Quantise into flat bands, then ease each step so the edges do not shimmer when the
-	// camera moves across a slope.
-	float scaled = lambert * float(bands);
-	float index = floor(scaled);
-	float blend = smoothstep(0.5 - band_softness, 0.5 + band_softness, fract(scaled));
-	float toon = (index + blend) / float(bands);
-	// Lift the whole ramp: the darkest band keeps most of the albedo instead of going black,
-	// and the shadow tint colours it rather than greying it out.
-	toon = mix(shadow_floor, 1.0, toon);
-
-	// Albedo times the light and nothing more. Mixing in a tint and then adding ambient on
-	// top of that drove lit ground past white - sand was clipping the red channel - while the
-	// shaded side still came out too dark. The ramp carries the shading; the light does not
-	// get to add brightness of its own.
-	// LIGHT_COLOR arrives scaled by pi/2 for a directional light, so writing ALBEDO *
-	// LIGHT_COLOR straight into DIFFUSE_LIGHT renders fully lit ground about 1.57 times too
-	// bright - measured, by rendering a flat 0.5 grey and reading the result back. Undo it,
-	// and lit ground then matches its albedo exactly, which is what makes the sampled
-	// reference colours come out as the colours they were sampled from.
-	const float LIGHT_SCALE = 2.0 / PI;
-	vec3 lit = mix(shadow_tint * ambient, LIGHT_COLOR, toon);
-	DIFFUSE_LIGHT += ALBEDO * lit * LIGHT_SCALE;
-}
