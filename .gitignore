@@ -6,3 +6,8 @@
 .DS_Store
 Thumbs.db
 export_presets.cfg
+
+# Godot import metadata: regenerated per machine, and a guaranteed pull conflict when the
+# project is opened on both a PC and an iPad. The height maps and screenshots are data, not
+# textures - the .gdignore files next to them keep Godot from importing them at all.
+*.import

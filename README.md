@@ -113,6 +113,17 @@ the one you see. Measured against this 1024 height map over 400 m:
 | **257** (current) | 1.56 m | 0.19 m | 3.68 m |
 | 513 | 0.78 m | 0.08 m | 2.39 m |
 
+## Working on two machines (PC + iPad)
+
+Godot writes a `.import` file next to every asset it imports, and the contents differ per
+machine - so with both a PC and an iPad in the same repo, every pull collides on files nobody
+edited. The height maps and the screenshots are data rather than textures (the `.r16` is read
+with `FileAccess`, the PNG fallback with `Image.load_from_file`), so `terrain/` and `docs/`
+each carry a `.gdignore` and Godot leaves them alone. `*.import` is gitignored.
+
+If Working Copy ever says a pull was aborted because of uncommitted changes, check what they
+are first: if they are only `.import`/`.godot` files, discard them and pull again.
+
 ## Notes worth keeping
 
 - **Use the `.r16`, not the PNG.** Godot's image loader converts a 16-bit PNG down to 8-bit,
