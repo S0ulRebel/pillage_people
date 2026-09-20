@@ -43,7 +43,7 @@ uniform vec4 wave_1 = vec4(1.0, 0.25, 0.72, 21.0);
 uniform vec4 wave_2 = vec4(-0.5, 0.9, 0.55, 12.5);
 uniform vec4 wave_3 = vec4(0.75, -0.7, 0.42, 7.0);
 uniform vec4 wave_4 = vec4(-0.85, -0.3, 0.30, 3.6);
-uniform float wave_height : hint_range(0.0, 3.0) = 0.6;
+uniform float wave_height : hint_range(0.0, 3.0) = 0.75;
 uniform float wave_speed : hint_range(0.0, 3.0) = 1.0;
 // Swell flattens as it runs into the shallows, the way real waves do over a shelf. Without
 // this the open-sea swell carries straight up the beach and slices through the sand.
@@ -54,12 +54,15 @@ uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
 // The Jacobian value below which the surface counts as breaking.
 uniform float crest_fold : hint_range(0.0, 1.5) = 0.62;
 uniform float crest_sharpness : hint_range(0.01, 1.0) = 0.22;
+// Where on the wave the crest streak sits, and how wide it is, as a fraction of wave height.
+uniform float crest_line_height : hint_range(0.0, 1.0) = 0.72;
+uniform float crest_line_width : hint_range(0.01, 0.5) = 0.12;
 // Depth of water at which the shore surf starts.
 uniform float foam_depth : hint_range(0.0, 8.0) = 0.7;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 
 group_uniforms Caustics;
-uniform float caustic_strength : hint_range(0.0, 6.0) = 3.0;
+uniform float caustic_strength : hint_range(0.0, 6.0) = 1.6;
 
 varying vec3 world_position;
 varying float sea_bed_depth;
@@ -67,6 +70,7 @@ varying vec3 wave_normal;
 varying float fold;
 varying float curvature;
 varying float crest_rise;
+varying float swell;
 
 
 // One Gerstner wave. Accumulates the displacement, the normal terms and the second-derivative
@@ -113,6 +117,8 @@ void vertex() {
 	// Never all the way to zero: water right at the edge still moves, and with the waves
 	// switched off entirely the shallows go glassy and the caustics vanish with them.
 	float shoal = clamp(sea_bed_depth / shoal_depth, 0.18, 1.0);
+	swell = shoal;
+	float amplitude = wave_height * shoal;
 	vec3 offset = vec3(0.0);
 	vec3 normal_sum = vec3(0.0);
 	float jxx = 0.0;
@@ -124,7 +130,6 @@ void vertex() {
 	float span = length(world - CAMERA_POSITION_WORLD);
 	float detail = 1.0 - smoothstep(120.0, 900.0, span);
 
-	float amplitude = wave_height * shoal;
 	gerstner(wave_1, world.xz, TIME, amplitude, offset, normal_sum, jxx, jzz, jxz);
 	gerstner(wave_2, world.xz, TIME, amplitude, offset, normal_sum, jxx, jzz, jxz);
 	gerstner(wave_3, world.xz, TIME, amplitude * detail, offset, normal_sum, jxx, jzz, jxz);
@@ -138,7 +143,7 @@ void vertex() {
 	reach += wave_2.z / (TAU / max(wave_2.w, 0.01));
 	reach += wave_3.z / (TAU / max(wave_3.w, 0.01));
 	reach += wave_4.z / (TAU / max(wave_4.w, 0.01));
-	crest_rise = offset.y / max(reach * wave_height, 0.0001);
+	crest_rise = offset.y / max(reach * amplitude, 0.0001);
 
 	world += offset;
 	world_position = world;
@@ -151,7 +156,7 @@ void vertex() {
 	// converge, which is the fold that becomes a whitecap.
 	fold = (1.0 - jxx) * (1.0 - jzz) - jxz * jxz;
 	// How sharply the height is curving, which is what focuses light into caustics below.
-	curvature = normal_sum.y;
+	curvature = normal_sum.y / max(reach * amplitude * 0.5, 0.0001);
 }
 
 
@@ -174,7 +179,11 @@ void fragment() {
 
 	// Whitecaps where the surface is folding. This is the wave breaking, not a pattern.
 	float breaking = smoothstep(crest_fold, crest_fold - crest_sharpness, fold);
-	float tops = smoothstep(0.42, 0.80, crest_rise);
+	// A narrow band at a fixed height on the wave, which draws a thin line running along each
+	// crest. Everything-above-a-threshold gives white caps, and on calm water there are none -
+	// the marks in the reference are streaks along the crest, not breaking foam.
+	float line = 1.0 - smoothstep(0.0, crest_line_width, abs(crest_rise - crest_line_height));
+	float tops = line * smoothstep(0.12, 0.45, swell);
 	float crest = max(breaking, tops);
 
 	// Surf along the shore, advancing and retreating so it reads as water running up the sand.
@@ -186,9 +195,12 @@ void fragment() {
 	// that is the bright web; it disappears as the bottom drops away.
 	float visible_bottom = 1.0 - clamp(water_depth / 7.0, 0.0, 1.0);
 	float contact = smoothstep(0.0, 1.2, to_solid);   // soften where the sea meets geometry
-	float caustic = clamp(curvature * caustic_strength, 0.0, 1.0) * visible_bottom;
+	// Sharpened: light focuses into narrow bright lines rather than a broad glow, which is
+	// what makes the web in the reference read as caustics instead of haze.
+	float focus = pow(clamp(curvature, 0.0, 1.0), 2.5);
+	float caustic = clamp(focus * caustic_strength, 0.0, 1.0) * visible_bottom;
 
-	float white = clamp(max(crest, surf) + caustic * 0.55, 0.0, 1.0);
+	float white = clamp(max(crest, surf) + caustic, 0.0, 1.0);
 	vec3 water = mix(shallow_colour, deep_colour, stepped);
 	ALBEDO = mix(water, foam_colour, white);
 	ALPHA = mix(mix(shallow_alpha, deep_alpha, stepped), 1.0, max(surf, crest)) * contact;
