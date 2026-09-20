@@ -15,6 +15,9 @@ extends StaticBody3D
 ## Fraction of the height range that sits under water. make_heightmap.py bakes the same
 ## number into the island, so it has to match or the shoreline lands in the wrong place.
 @export var sea_fraction := 0.10
+## The material, so its colours can be tuned in the inspector instead of only in the shader.
+## Only the values that depend on the scene (sea level, sun) are written from here.
+@export var material: ShaderMaterial
 ## Quads per side. The height map has 1024 samples per side, so anything below that throws
 ## detail away: at 256 each quad swallowed sixteen height samples and the island came out
 ## smooth and faceted no matter what the shading did.
@@ -222,8 +225,8 @@ func _build_mesh() -> void:
 	mesh_instance.mesh = st.commit()
 	# Cel shading is where the stylised look comes from; the vertex colours only supply which
 	# biome each point is in. See terrain.gdshader.
-	var material := ShaderMaterial.new()
-	material.shader = load("res://terrain.gdshader")
+	if material == null:
+		material = load("res://terrain_material.tres")
 	material.set_shader_parameter("sea_y", sea_level())
 	# The shader does its own shading, so it needs to know where the sun is.
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D

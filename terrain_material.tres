@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://cterrainmat01"]
+
+[ext_resource type="Shader" path="res://terrain.gdshader" id="1_shader"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/seabed_colour = Color(0.64, 0.8, 0.65, 1)
+shader_parameter/seabed_weed = Color(0.2, 0.52, 0.5, 1)
+shader_parameter/wet_sand_colour = Color(0.678, 0.518, 0.384, 1)
+shader_parameter/dry_sand_colour = Color(0.91, 0.749, 0.529, 1)
+shader_parameter/grass_colour = Color(0.498, 0.525, 0.22, 1)
+shader_parameter/jungle_colour = Color(0.149, 0.235, 0.173, 1)
+shader_parameter/rock_colour = Color(0.518, 0.455, 0.404, 1)
+shader_parameter/caustic_colour = Color(0.6, 1.0, 0.97, 1)
+shader_parameter/caustic_scale = 0.7
+shader_parameter/caustic_width = 0.075
+shader_parameter/caustic_strength = 1.7
+shader_parameter/caustic_reach = 8.0

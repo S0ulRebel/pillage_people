@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://touch_controls.gd" id="5_touch"]
 [ext_resource type="Script" path="res://tunnel.gd" id="6_tunnel"]
 [ext_resource type="Script" path="res://ocean.gd" id="7_ocean"]
+[ext_resource type="Material" path="res://terrain_material.tres" id="8_tmat"]
+[ext_resource type="Material" path="res://ocean_material.tres" id="9_omat"]
 
 [sub_resource type="Curve3D" id="Curve_tunnel"]
 _data = {
@@ -48,12 +50,14 @@ directional_shadow_max_distance = 300.0
 
 [node name="Terrain" type="StaticBody3D" parent="."]
 script = ExtResource("2_terrain")
+material = ExtResource("8_tmat")
 raw_path = "res://terrain/island.r16"
 world_size = 620.0
 height_scale = 180.0
 
 [node name="Ocean" type="MeshInstance3D" parent="."]
 script = ExtResource("7_ocean")
+material = ExtResource("9_omat")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 script = ExtResource("3_player")

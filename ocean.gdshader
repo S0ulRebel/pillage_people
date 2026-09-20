@@ -21,8 +21,9 @@ render_mode blend_mix, depth_draw_always, cull_disabled, unshaded;
 //     is exactly where a real wave whitecaps.
 //   * shore foam comes from how much water is left between the surface and the sand, so the
 //     surf follows the terrain at any shoreline with nothing to place by hand.
-//   * caustics come from the surface curvature focusing light onto the bottom, and fade out
-//     as the water deepens because there is nothing left to cast onto.
+//
+// Caustics are not here. They are light landing on the seabed, so the terrain shader draws
+// them; on the water they ride up and down with the waves instead of lying on the bottom.
 
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
 // The seabed, straight from the terrain's height map. The depth buffer only knows where the
@@ -35,14 +36,17 @@ uniform float sea_y = 18.0;
 
 group_uniforms Colour;
 // Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the art reference.
-uniform vec3 shallow_colour : source_color = vec3(0.430, 0.985, 0.835);
+uniform vec3 shallow_colour : source_color = vec3(0.330, 0.870, 0.800);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 uniform float depth_fade : hint_range(1.0, 60.0) = 8.5;
 uniform int bands : hint_range(0, 8) = 4;
 // High even in the shallows: at half transparency the turquoise simply averages with the
 // bright sand underneath and the whole lagoon lands on grey-green. The reference keeps its
 // colour over sand and lets the bottom read through as shapes, not as its own colour.
-uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.42;
+// Low, because the caustics are drawn on the seabed now and every point of opacity here is
+// contrast taken off them. Measured: at 0.42 the web came through at 29 against the
+// reference 49.
+uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.26;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 0.96;
 
 group_uniforms Waves;
@@ -70,17 +74,6 @@ uniform float crest_line_width : hint_range(0.01, 0.5) = 0.06;
 uniform float foam_depth : hint_range(0.0, 8.0) = 0.35;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 
-group_uniforms Caustics;
-uniform float caustic_strength : hint_range(0.0, 2.0) = 1.3;
-// Cells per metre. Sized against the reference frame rather than against the character:
-// counting cells across the panel gives roughly a metre each, not the three metres that
-// measuring one cell against the figure suggested.
-uniform float caustic_scale : hint_range(0.02, 4.0) = 0.60;
-uniform float caustic_width : hint_range(0.01, 0.8) = 0.125;
-// Sunlight through water carries the sand's warmth, so the web is cream rather than the white
-// of the surf. Side by side, white lines read as grey against the aqua and look like plastic.
-uniform vec3 caustic_colour : source_color = vec3(0.98, 0.96, 0.82);
-// Set from the scene's sun, so the sea is shaded by the same light as the island.
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
 // Water is nearly flat colour in the reference, so the sun only shapes it a little.
 uniform float wave_shading : hint_range(0.0, 1.0) = 0.22;
@@ -89,7 +82,6 @@ varying vec3 world_position;
 varying float sea_bed_depth;
 varying vec3 wave_normal;
 varying float fold;
-varying float lens_power;
 varying float crest_rise;
 varying float swell;
 
@@ -129,62 +121,6 @@ float water_over_bed(vec2 world_xz) {
 		return 1000.0;
 	}
 	return sea_y - texture(terrain_height, uv).r * terrain_scale;
-}
-
-
-float warp_hash(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-
-
-float warp_noise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(mix(warp_hash(i), warp_hash(i + vec2(1.0, 0.0)), f.x),
-			mix(warp_hash(i + vec2(0.0, 1.0)), warp_hash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-
-
-vec2 cell_hash(vec2 p) {
-	return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
-}
-
-
-// Distance to the nearest border between cells.
-//
-// This is what the caustics are in the reference: a web of soft pale lines around big
-// irregular cells, two or three character-heights across - not a fine interference pattern.
-// An earlier attempt derived them from ripples refracting light, which is how caustics
-// actually form and which produced a dense realistic shimmer that looked nothing like the
-// art. The reference is drawn, so it gets drawn.
-float cell_border(vec2 p, float t) {
-	// Bend the coordinates before the cells are found. A plain Voronoi gives straight-edged
-	// polygons; the reference web is wobbly, its lines curving between junctions, and that
-	// comes from warping the space the cells sit in rather than from the cells themselves.
-	// Kept well under half a cell. Warp harder and neighbouring cells stop agreeing on where
-	// their shared border is, so the web tears into loose fragments instead of curving.
-	p += (vec2(warp_noise(p * 0.5 + t * 0.05), warp_noise(p * 0.5 + 4.7 - t * 0.04)) - 0.5) * 0.55
-			+ (vec2(warp_noise(p * 1.6 - t * 0.08), warp_noise(p * 1.6 + 9.1)) - 0.5) * 0.18;
-	vec2 cell = floor(p);
-	vec2 local = fract(p);
-	float nearest = 8.0;
-	float second = 8.0;
-	for (int y = -1; y <= 1; y++) {
-		for (int x = -1; x <= 1; x++) {
-			vec2 offset = vec2(float(x), float(y));
-			// The cell centres drift, so the web slides and reshapes instead of sitting still.
-			vec2 point = offset + 0.5 + 0.38 * sin(t * 0.5 + 6.2831 * cell_hash(cell + offset));
-			float d = length(point - local);
-			if (d < nearest) {
-				second = nearest;
-				nearest = d;
-			} else if (d < second) {
-				second = d;
-			}
-		}
-	}
-	return second - nearest;
 }
 
 
@@ -232,10 +168,7 @@ void vertex() {
 	// Determinant of the horizontal Jacobian: it falls towards zero where neighbouring points
 	// converge, which is the fold that becomes a whitecap.
 	fold = (1.0 - jxx) * (1.0 - jzz) - jxz * jxz;
-	// How strongly the surface bends light at this point. jxx and jzz are the second
-	// derivatives of the displacement, so their sum is the curvature of the surface: positive
-	// where it is domed like a converging lens, negative in the hollows.
-	lens_power = jxx + jzz;
+
 }
 
 
@@ -278,26 +211,14 @@ void fragment() {
 	float shore = 1.0 - clamp(water_depth / max(surge, 0.001), 0.0, 1.0);
 	float surf = smoothstep(0.25, 0.75, shore);
 
-	// Caustics. Sunlight refracts through the surface and the curved parts act as lenses, so
-	// neighbouring rays converge on the way down and land on the seabed bunched together.
-	// How bunched depends on both the curvature and how far the light has to travel, which is
-	// why the depth belongs in here - a gentle swell over deep water focuses as hard as a
-	// sharp ripple over a foot of sand, and the web widens as the bottom drops away.
-	float visible_bottom = 1.0 - clamp(water_depth / 7.0, 0.0, 1.0);
+	// Caustics are drawn by the terrain shader, not here: they are light landing on the
+	// seabed, so they belong to the ground. Drawn on the water they ride up and down with the
+	// waves instead of lying still on the bottom.
 	float contact = smoothstep(0.0, 1.2, to_solid);   // soften where the sea meets geometry
-	// Wide soft borders, as drawn: a thin hard line reads as a net laid on the sand.
-	float border = cell_border(world_position.xz * caustic_scale, TIME);
-	float caustic = (1.0 - smoothstep(0.0, caustic_width, border))
-			* caustic_strength * visible_bottom;
-	// Uneven along their length: in the reference some strands are bright and others barely
-	// there, and a web of identical lines looks printed on.
-	caustic *= 0.45 + 1.1 * warp_noise(world_position.xz * 0.19 + TIME * 0.05);
 
 	vec3 water = mix(shallow_colour, deep_colour, stepped);
-	// Caustics first, in their own warm colour, then the surf and crests in white over them.
-	vec3 colour = mix(water, caustic_colour, clamp(caustic, 0.0, 1.0));
 	float white = clamp(max(crest, surf), 0.0, 1.0);
-	colour = mix(colour, foam_colour, white);
+	vec3 colour = mix(water, foam_colour, white);
 
 	// Only a gentle shade off the wave normal: enough that the swell reads as a surface with
 	// shape, not so much that it drags the colour away from the swatch it came from.

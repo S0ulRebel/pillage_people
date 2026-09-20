@@ -20,6 +20,8 @@ class_name Ocean
 ## Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the art reference.
 @export var shallow := Color(0.310, 0.621, 0.655)
 @export var deep := Color(0.059, 0.336, 0.477)
+## The material, so the water colours can be tuned in the inspector.
+@export var material: ShaderMaterial
 
 var _camera: Camera3D
 
@@ -27,10 +29,9 @@ var _camera: Camera3D
 func setup(sea_level: float, terrain: Node3D = null) -> void:
 	position.y = sea_level
 	mesh = _radial_grid()
-	var water := ShaderMaterial.new()
-	water.shader = load("res://ocean.gdshader")
-	water.set_shader_parameter("shallow_colour", shallow)
-	water.set_shader_parameter("deep_colour", deep)
+	if material == null:
+		material = load("res://ocean_material.tres")
+	var water := material
 	if terrain != null:
 		water.set_shader_parameter("terrain_height", terrain.height_texture())
 		water.set_shader_parameter("terrain_size", terrain.world_size)
