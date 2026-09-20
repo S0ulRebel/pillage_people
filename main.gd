@@ -88,10 +88,40 @@ func _ready() -> void:
 		_swim_test()
 	elif "--touchtest" in OS.get_cmdline_user_args():
 		_touch_self_test()
+	elif "--shore" in OS.get_cmdline_user_args():
+		_shore_view()
 	elif "--overview" in OS.get_cmdline_user_args():
 		_overview()
 	elif "--screenshot" in OS.get_cmdline_user_args():
 		_screenshot_and_quit()
+
+
+## A low shot along the waterline, which is the only place the water shader can be judged:
+## depth colour, transparency over the sand and the foam line all live at the shore.
+func _shore_view() -> void:
+	var sea: float = _terrain.sea_level()
+	var best := Vector3.ZERO
+	var best_error := 1e9
+	# Walk out from the middle along one bearing until the ground crosses sea level.
+	for i in 900:
+		var angle := TAU * float(i) / 900.0
+		for step in 60:
+			var d: float = 40.0 + float(step) * 4.0
+			var p := Vector3(cos(angle) * d, 0.0, sin(angle) * d)
+			var e: float = absf(_terrain.height_at(p.x, p.z) - sea)
+			if e < best_error:
+				best_error = e
+				best = Vector3(p.x, _terrain.height_at(p.x, p.z), p.z)
+	var outward := Vector3(best.x, 0.0, best.z).normalized()
+	var camera := Camera3D.new()
+	add_child(camera)
+	camera.fov = 60.0
+	camera.far = 6000.0
+	camera.global_position = best + outward * 34.0 + Vector3.UP * (sea + 9.0 - best.y)
+	camera.look_at(best - outward * 30.0 + Vector3.UP * 6.0, Vector3.UP)
+	camera.current = true
+	print("shore at ", best, " (error %.2f m)" % best_error)
+	_screenshot_and_quit()
 
 
 ## A high, wide shot of the whole island and the sea around it - the view that shows whether

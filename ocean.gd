@@ -11,29 +11,21 @@ class_name Ocean
 ## Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the water study.
 @export var shallow := Color(0.310, 0.621, 0.655)
 @export var deep := Color(0.059, 0.336, 0.477)
-## Below 1.0 you can see the seabed through the surface, which is most of the appeal.
-@export_range(0.0, 1.0) var opacity := 0.93
+## Transparency is driven by depth in the shader now - shallows show the sand, open water
+## does not - so there is no single opacity to set here.
 
 
 func setup(sea_level: float) -> void:
 	position.y = sea_level
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(extent, extent)
-	# A few subdivisions so a wave shader has vertices to move later on.
-	plane.subdivide_width = 64
-	plane.subdivide_depth = 64
+	plane.subdivide_width = 8
+	plane.subdivide_depth = 8
 	mesh = plane
 
-	var water := StandardMaterial3D.new()
-	water.albedo_color = Color(shallow.r, shallow.g, shallow.b, opacity)
-	water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	# Seen from underneath as well, so the surface reads as a ceiling while diving.
-	water.cull_mode = BaseMaterial3D.CULL_DISABLED
-	water.metallic = 0.3
-	water.roughness = 0.08
-	water.emission_enabled = true
-	water.emission = deep
-	water.emission_energy_multiplier = 0.35
-	# Past the shore there is no seabed under the water, so a see-through surface there shows
-	# sky and the sea appears to stop. The open water has to carry its own colour.
+	# The look lives in ocean.gdshader: depth drives colour, transparency and the foam line.
+	var water := ShaderMaterial.new()
+	water.shader = load("res://ocean.gdshader")
+	water.set_shader_parameter("shallow_colour", shallow)
+	water.set_shader_parameter("deep_colour", deep)
 	material_override = water
