@@ -35,14 +35,14 @@ uniform float sea_y = 18.0;
 
 group_uniforms Colour;
 // Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the art reference.
-uniform vec3 shallow_colour : source_color = vec3(0.310, 0.621, 0.655);
+uniform vec3 shallow_colour : source_color = vec3(0.435, 0.760, 0.745);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 uniform float depth_fade : hint_range(1.0, 60.0) = 8.5;
 uniform int bands : hint_range(0, 8) = 4;
 // High even in the shallows: at half transparency the turquoise simply averages with the
 // bright sand underneath and the whole lagoon lands on grey-green. The reference keeps its
 // colour over sand and lets the bottom read through as shapes, not as its own colour.
-uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.55;
+uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.42;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 0.96;
 
 group_uniforms Waves;
@@ -71,11 +71,12 @@ uniform float foam_depth : hint_range(0.0, 8.0) = 0.35;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 
 group_uniforms Caustics;
-uniform float caustic_strength : hint_range(0.0, 2.0) = 0.55;
-// Cell size, in cells per metre. The reference cells are about two to three times the height
-// of the character, so a few metres across.
-uniform float caustic_scale : hint_range(0.02, 2.0) = 0.24;
-uniform float caustic_width : hint_range(0.01, 0.8) = 0.26;
+uniform float caustic_strength : hint_range(0.0, 2.0) = 0.5;
+// Cells per metre. Sized against the reference frame rather than against the character:
+// counting cells across the panel gives roughly a metre each, not the three metres that
+// measuring one cell against the figure suggested.
+uniform float caustic_scale : hint_range(0.02, 4.0) = 1.15;
+uniform float caustic_width : hint_range(0.01, 0.8) = 0.20;
 // Set from the scene's sun, so the sea is shaded by the same light as the island.
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
 // Water is nearly flat colour in the reference, so the sun only shapes it a little.
@@ -128,6 +129,20 @@ float water_over_bed(vec2 world_xz) {
 }
 
 
+float warp_hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+
+float warp_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(warp_hash(i), warp_hash(i + vec2(1.0, 0.0)), f.x),
+			mix(warp_hash(i + vec2(0.0, 1.0)), warp_hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+
 vec2 cell_hash(vec2 p) {
 	return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
 }
@@ -141,6 +156,13 @@ vec2 cell_hash(vec2 p) {
 // actually form and which produced a dense realistic shimmer that looked nothing like the
 // art. The reference is drawn, so it gets drawn.
 float cell_border(vec2 p, float t) {
+	// Bend the coordinates before the cells are found. A plain Voronoi gives straight-edged
+	// polygons; the reference web is wobbly, its lines curving between junctions, and that
+	// comes from warping the space the cells sit in rather than from the cells themselves.
+	// Kept well under half a cell. Warp harder and neighbouring cells stop agreeing on where
+	// their shared border is, so the web tears into loose fragments instead of curving.
+	p += (vec2(warp_noise(p * 0.5 + t * 0.05), warp_noise(p * 0.5 + 4.7 - t * 0.04)) - 0.5) * 0.55
+			+ (vec2(warp_noise(p * 1.6 - t * 0.08), warp_noise(p * 1.6 + 9.1)) - 0.5) * 0.18;
 	vec2 cell = floor(p);
 	vec2 local = fract(p);
 	float nearest = 8.0;
