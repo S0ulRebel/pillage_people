@@ -196,7 +196,7 @@ func _build_mesh() -> void:
 				var tri: Array[Vector3] = [polygon[0], polygon[i], polygon[i + 1]]
 				for p: Vector3 in tri:
 					st.set_uv(Vector2(p.x / world_size + 0.5, p.z / world_size + 0.5))
-					st.set_color(_terrain_colour(p.y / height_scale))
+					st.set_color(_terrain_colour(p.y))
 					st.add_vertex(p)
 				if inside > 0:                # keep rim geometry for the precise collider
 					_rim_triangles.append_array(tri)
@@ -242,17 +242,23 @@ func _clip_to_hole_edge(polygon: Array[Vector3]) -> Array[Vector3]:
 ## Keying the bands to the map's minimum painted a snowcap on a tropical island and put the
 ## beach underwater. Sea level is the landmark that matters here: sand belongs just above it,
 ## and everything below it is seabed nobody walks on.
+## The colours are sampled from the material study in the art reference (sand, leaves, rock),
+## toned down a little: those spheres are rendered lit, so using their values raw as albedo
+## lights them twice and the beach blows out to orange.
 ## Vertex colours are used as linear albedo, so the sRGB values have to be converted -
 ## otherwise everything comes out washed out and pale.
-func _terrain_colour(t: float) -> Color:
-	var seabed := Color(0.42, 0.44, 0.34)
-	var sand := Color(0.80, 0.73, 0.52)
-	var jungle := Color(0.22, 0.38, 0.16)
-	var rock := Color(0.38, 0.34, 0.30)
-	var shore: float = sea_fraction
-	var c: Color = seabed.lerp(sand, smoothstep(shore - 0.04, shore + 0.012, t))
-	c = c.lerp(jungle, smoothstep(shore + 0.02, shore + 0.09, t))
-	c = c.lerp(rock, smoothstep(0.55, 0.85, t))
+func _terrain_colour(height_m: float) -> Color:
+	var seabed := Color(0.55, 0.52, 0.40)
+	var sand := Color(0.85, 0.68, 0.45)
+	var jungle := Color(0.31, 0.38, 0.24)
+	var rock := Color(0.46, 0.40, 0.40)
+	# Metres above the waterline, not a fraction of the height range: keyed to the fraction,
+	# a beach on a 180 m island covered everything from 11 m to 34 m of elevation and a third
+	# of the island came out as sand.
+	var above := height_m - sea_level()
+	var c: Color = seabed.lerp(sand, smoothstep(-1.5, 0.3, above))
+	c = c.lerp(jungle, smoothstep(1.5, 6.0, above))
+	c = c.lerp(rock, smoothstep(height_scale * 0.50, height_scale * 0.80, height_m))
 	return c.srgb_to_linear()
 
 

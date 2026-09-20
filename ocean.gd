@@ -8,8 +8,9 @@ class_name Ocean
 
 ## How far the water extends past the island, so there is open sea on every horizon.
 @export var extent := 4000.0
-@export var shallow := Color(0.22, 0.65, 0.72)
-@export var deep := Color(0.03, 0.18, 0.34)
+## Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the water study.
+@export var shallow := Color(0.310, 0.621, 0.655)
+@export var deep := Color(0.059, 0.336, 0.477)
 ## Below 1.0 you can see the seabed through the surface, which is most of the appeal.
 @export_range(0.0, 1.0) var opacity := 0.93
 
