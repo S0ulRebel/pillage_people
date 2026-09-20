@@ -57,6 +57,30 @@ Useful settings on the Terrain node:
 | `mesh_resolution` | 256 | quads per side (visual detail) |
 | `collision_resolution` | 257 | collision samples per side (match `mesh_resolution` + 1) |
 
+## Holes and tunnels
+
+Two holes are cut near the spawn and joined by a tunnel you can walk into.
+
+- **Smooth rims.** Quads that straddle the hole are clipped along the contour
+  (Sutherland-Hodgman against a signed distance field) rather than dropped whole, so the
+  outline follows a circle instead of the 1.56 m grid.
+- **Crater entrances.** Each end is a cone at 35 degrees - shallow enough to walk down and
+  back up. Its width is fixed by the hole, and the depth follows from it. Doing that the
+  other way round let the crater and the hole disagree: on some layouts the crater was
+  narrower than the hole (a gap to fall through), on others wider (a dome to walk over).
+- **Hybrid collision.** The height field keeps its cheap collider, with `NaN` samples a full
+  cell *inside* the hole; the cut rim quads add a trimesh for the exact edge. The margin has
+  to point inwards - a margin outside leaves a ring where neither shape exists and the player
+  drops out of the world.
+- **Back faces.** A tube is walked on from the inside, and `ConcavePolygonShape3D` ignores
+  back faces by default, so `backface_collision = true` is what stops the player falling
+  through the tunnel floor.
+
+**Known limitation:** you can walk in at one crater and all the way through, but climbing out
+of the far crater is unreliable - the tube mouth's own walls fence off part of the crater
+floor. `--tunneltest` reports this honestly ("walked out = false"). The fix is a corridor
+with a flat floor and an open-top ramp at each end instead of a cylinder meeting a cone.
+
 ## Is it really physics?
 
 Yes. The terrain is a `StaticBody3D` with a `HeightMapShape3D`; the player is a
@@ -90,6 +114,11 @@ the one you see. Measured against this 1024 height map over 400 m:
 - **Renderer is Mobile**, not Forward+, so it runs on iPad. SSAO is off for the same reason.
 - `--screenshot` (as a user arg) renders a frame after the physics settles and quits:
   `Godot.exe --path . -- --screenshot` — it is how this project was checked without the editor.
+- `--tunneltest` walks the player in at one hole and on to the other, printing depth and
+  whether they are still standing; `--probe [--second]` casts rays down a crater and reports
+  what they hit; `--probepath` checks there is floor under the whole tunnel; `--holeview`
+  renders a crater from above. These exist because every tunnel bug so far looked identical
+  from the outside (the player falls forever) and only the probes said why.
 - `--touchtest` feeds synthetic touch events through the real input path and prints what
   happened, so the iPad controls can be tested from a desktop run:
   `Godot.exe --path . -- --touchtest --touch`

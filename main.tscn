@@ -1,10 +1,11 @@
-[gd_scene load_steps=10 format=3 uid="uid://c0terraindemo01"]
+[gd_scene load_steps=11 format=3 uid="uid://c0terraindemo01"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://terrain.gd" id="2_terrain"]
 [ext_resource type="Script" path="res://player.gd" id="3_player"]
 [ext_resource type="Script" path="res://camera_rig.gd" id="4_camera"]
 [ext_resource type="Script" path="res://touch_controls.gd" id="5_touch"]
+[ext_resource type="Script" path="res://tunnels.gd" id="6_tunnels"]
 
 [sub_resource type="CapsuleShape3D" id="Capsule_1"]
 radius = 0.35
@@ -39,6 +40,9 @@ directional_shadow_max_distance = 300.0
 
 [node name="Terrain" type="StaticBody3D" parent="."]
 script = ExtResource("2_terrain")
+
+[node name="Tunnels" type="Node3D" parent="."]
+script = ExtResource("6_tunnels")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 script = ExtResource("3_player")

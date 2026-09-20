@@ -14,17 +14,33 @@ extends StaticBody3D
 @export var mesh_resolution := 256  ## quads per side for the visual mesh
 @export var collision_resolution := 257  ## samples per side for the collision shape (match mesh_resolution + 1)
 
+## Holes punched through the terrain, as Vector3(world_x, world_z, radius).
+## Set before generate() - main.gd picks them near the spawn point.
+var holes: Array[Vector3] = []
+
 var _heights: PackedFloat32Array
 var _size := 0
+var _rim_triangles := PackedVector3Array()   ## boundary geometry, for the precise rim collider
 
 
 func _ready() -> void:
 	var source := "raw" if _load_raw() else ("png" if _load_png() else "")
 	if source == "":
 		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
-		return
+
+
+## Builds the mesh and colliders. Call after setting `holes`.
+func generate() -> void:
 	_build_mesh()
 	_build_collision()
+
+
+## Negative inside a hole, positive outside, zero on the rim: the contour the mesh is cut along.
+func hole_field(world_x: float, world_z: float) -> float:
+	var best := 1e9
+	for h in holes:
+		best = minf(best, Vector2(world_x - h.x, world_z - h.y).length() - h.z)
+	return best
 
 
 func _load_raw() -> bool:
@@ -93,6 +109,53 @@ func find_spawn() -> Vector3:
 	return best
 
 
+## Picks `count` hole positions near the spawn: flat-ish ground, spread apart, and not so
+## close to the player that they fall straight in on the first step.
+func plan_holes(spawn: Vector3, count: int, hole_radius := 11.6) -> Array[Vector3]:
+	# Craters want flat ground; if the terrain has none nearby, accept rougher spots rather
+	# than give up (no holes at all would leave the demo without tunnels).
+	for tolerance in [3.5, 5.0, 7.5, 12.0]:
+		var found := _find_hole_sites(spawn, count, hole_radius, tolerance)
+		if found.size() >= count:
+			return found
+	return []
+
+
+func _find_hole_sites(spawn: Vector3, count: int, hole_radius: float,
+		tolerance: float) -> Array[Vector3]:
+	var chosen: Array[Vector3] = []
+	var attempts := 0
+	while chosen.size() < count and attempts < 20000:
+		attempts += 1
+		var angle := randf() * TAU
+		var distance := randf_range(32.0, 70.0)
+		var wx: float = spawn.x + cos(angle) * distance
+		var wz: float = spawn.z + sin(angle) * distance
+		if absf(wx) > world_size * 0.45 or absf(wz) > world_size * 0.45:
+			continue
+		var h := height_at(wx, wz)
+		# the whole rim has to sit close to the centre height, or the crater becomes a cliff
+		# on one side and sticks out of the ground on the other
+		var rim_ok := true
+		for step in 8:
+			var a := TAU * step / 8.0
+			if absf(height_at(wx + cos(a) * hole_radius, wz + sin(a) * hole_radius) - h) > tolerance:
+				rim_ok = false
+				break
+		if not rim_ok:
+			continue
+		# holes at similar heights keep the tunnel between them gentle
+		if chosen.size() > 0 and absf(h - height_at(chosen[0].x, chosen[0].y)) > 6.0:
+			continue
+		var clear := true
+		for other in chosen:
+			if Vector2(wx - other.x, wz - other.y).length() < 45.0:
+				clear = false
+		if clear:
+			chosen.append(Vector3(wx, wz, hole_radius))
+	return chosen
+
+
 ## World-space height under a point, for dropping things onto the ground.
 func height_at(world_x: float, world_z: float) -> float:
 	return sample_height(world_x / world_size + 0.5, world_z / world_size + 0.5)
@@ -101,23 +164,31 @@ func height_at(world_x: float, world_z: float) -> float:
 func _build_mesh() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_rim_triangles = PackedVector3Array()
 	var step := world_size / mesh_resolution
 	for z in mesh_resolution:
 		for x in mesh_resolution:
-			var corners: Array[Vector2] = [Vector2(x, z), Vector2(x + 1, z),
-					Vector2(x + 1, z + 1), Vector2(x, z + 1)]
-			var positions: Array[Vector3] = []
-			for c: Vector2 in corners:
-				var wx: float = c.x * step - world_size * 0.5
-				var wz: float = c.y * step - world_size * 0.5
-				positions.append(Vector3(wx, sample_height(c.x / mesh_resolution, c.y / mesh_resolution), wz))
-			var triangles: Array[Array] = [[0, 1, 2], [0, 2, 3]]
-			for tri: Array in triangles:
-				for i: int in tri:
-					var p: Vector3 = positions[i]
+			var quad: Array[Vector3] = []
+			for c: Vector2 in [Vector2(x, z), Vector2(x + 1, z), Vector2(x + 1, z + 1), Vector2(x, z + 1)]:
+				quad.append(_surface_point(c.x * step - world_size * 0.5, c.y * step - world_size * 0.5))
+			var inside := 0
+			for p: Vector3 in quad:
+				if hole_field(p.x, p.z) < 0.0:
+					inside += 1
+			if inside == 4:
+				continue                      # entirely inside a hole: no geometry at all
+			var polygon: Array[Vector3] = quad if inside == 0 else _clip_to_hole_edge(quad)
+			if polygon.size() < 3:
+				continue
+			# fan-triangulate: quads stay two triangles, clipped shapes become 3-5
+			for i in range(1, polygon.size() - 1):
+				var tri: Array[Vector3] = [polygon[0], polygon[i], polygon[i + 1]]
+				for p: Vector3 in tri:
 					st.set_uv(Vector2(p.x / world_size + 0.5, p.z / world_size + 0.5))
 					st.set_color(_terrain_colour(p.y / height_scale))
 					st.add_vertex(p)
+				if inside > 0:                # keep rim geometry for the precise collider
+					_rim_triangles.append_array(tri)
 	st.generate_normals()
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.mesh = st.commit()
@@ -126,6 +197,32 @@ func _build_mesh() -> void:
 	material.roughness = 0.95
 	mesh_instance.material_override = material
 	add_child(mesh_instance)
+
+
+## Terrain point in world space, height sampled from the map.
+func _surface_point(world_x: float, world_z: float) -> Vector3:
+	return Vector3(world_x, height_at(world_x, world_z), world_z)
+
+
+## Clips a quad to the part outside the holes (Sutherland-Hodgman against hole_field = 0).
+## This is what keeps hole rims smooth: the cut follows the circle instead of the grid,
+## so the outline does not go chunky at low mesh resolution.
+func _clip_to_hole_edge(polygon: Array[Vector3]) -> Array[Vector3]:
+	var result: Array[Vector3] = []
+	var count := polygon.size()
+	for i in count:
+		var current: Vector3 = polygon[i]
+		var next: Vector3 = polygon[(i + 1) % count]
+		var f_current := hole_field(current.x, current.z)
+		var f_next := hole_field(next.x, next.z)
+		if f_current >= 0.0:
+			result.append(current)
+		if (f_current >= 0.0) != (f_next >= 0.0):
+			# crossing the rim: walk to the zero of the field along this edge
+			var t: float = f_current / (f_current - f_next)
+			var cut: Vector3 = current.lerp(next, clampf(t, 0.0, 1.0))
+			result.append(_surface_point(cut.x, cut.z))
+	return result
 
 
 ## Sand -> grass -> rock -> snow, so the shape reads without any textures.
@@ -146,17 +243,33 @@ func _terrain_colour(t: float) -> Color:
 	return c.srgb_to_linear()
 
 
+## Collision is a hybrid: a cheap height field for the bulk of the terrain, with NaN samples
+## (holes - Jolt supports these) wherever a hole is, plus a small trimesh built from the cut
+## rim quads so the edges line up with what is drawn instead of with the collider's grid.
 func _build_collision() -> void:
 	var shape := HeightMapShape3D.new()
 	shape.map_width = collision_resolution
 	shape.map_depth = collision_resolution
+	var spacing := world_size / (collision_resolution - 1)
 	var data := PackedFloat32Array()
 	data.resize(collision_resolution * collision_resolution)
 	for z in collision_resolution:
 		for x in collision_resolution:
-			data[z * collision_resolution + x] = sample_height(
-				float(x) / (collision_resolution - 1), float(z) / (collision_resolution - 1))
+			var wx := x * spacing - world_size * 0.5
+			var wz := z * spacing - world_size * 0.5
+			var height := sample_height(float(x) / (collision_resolution - 1),
+					float(z) / (collision_resolution - 1))
+			# Only knock out samples a full cell INSIDE the hole. Going the other way (a
+			# margin outside) leaves a ring where the height field is gone but the rim
+			# trimesh does not reach - a gap in the world that swallows the player.
+			data[z * collision_resolution + x] = NAN if hole_field(wx, wz) < -spacing else height
 	shape.map_data = data
+	if _rim_triangles.size() > 0:
+		var rim := ConcavePolygonShape3D.new()
+		rim.set_faces(_rim_triangles)
+		var rim_collider := CollisionShape3D.new()
+		rim_collider.shape = rim
+		add_child(rim_collider)
 	var owner_node := CollisionShape3D.new()
 	owner_node.shape = shape
 	# HeightMapShape3D spans one unit per sample, so scale it out to the world size.
