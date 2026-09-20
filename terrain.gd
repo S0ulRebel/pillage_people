@@ -18,6 +18,67 @@ extends StaticBody3D
 ## The material, so its colours can be tuned in the inspector instead of only in the shader.
 ## Only the values that depend on the scene (sea level, sun) are written from here.
 @export var material: ShaderMaterial
+
+## Colours, on the node itself rather than only inside the material. Buried under
+## Material > Shader Parameters they are there but nobody finds them - and the caustics in
+## particular are drawn on the seabed, so their colour lives on the terrain, which is not
+## where anyone looks for the colour of something in the water.
+@export_group("Colours")
+@export var caustic_colour := Color(0.60, 1.0, 0.97):
+	set(value):
+		caustic_colour = value
+		_push_colour("caustic_colour", value)
+@export var seabed_colour := Color(0.64, 0.80, 0.65):
+	set(value):
+		seabed_colour = value
+		_push_colour("seabed_colour", value)
+@export var seabed_weed := Color(0.20, 0.52, 0.50):
+	set(value):
+		seabed_weed = value
+		_push_colour("seabed_weed", value)
+@export var dry_sand_colour := Color(0.91, 0.749, 0.529):
+	set(value):
+		dry_sand_colour = value
+		_push_colour("dry_sand_colour", value)
+@export var wet_sand_colour := Color(0.678, 0.518, 0.384):
+	set(value):
+		wet_sand_colour = value
+		_push_colour("wet_sand_colour", value)
+@export var grass_colour := Color(0.498, 0.525, 0.22):
+	set(value):
+		grass_colour = value
+		_push_colour("grass_colour", value)
+@export var jungle_colour := Color(0.149, 0.235, 0.173):
+	set(value):
+		jungle_colour = value
+		_push_colour("jungle_colour", value)
+@export var rock_colour := Color(0.518, 0.455, 0.404):
+	set(value):
+		rock_colour = value
+		_push_colour("rock_colour", value)
+
+@export_group("Caustics")
+@export_range(0.02, 4.0) var caustic_scale := 0.70:
+	set(value):
+		caustic_scale = value
+		_push_colour("caustic_scale", value)
+@export_range(0.01, 0.8) var caustic_width := 0.075:
+	set(value):
+		caustic_width = value
+		_push_colour("caustic_width", value)
+@export_range(0.0, 3.0) var caustic_strength := 1.7:
+	set(value):
+		caustic_strength = value
+		_push_colour("caustic_strength", value)
+@export_range(0.5, 30.0) var caustic_reach := 3.0:
+	set(value):
+		caustic_reach = value
+		_push_colour("caustic_reach", value)
+
+
+func _push_colour(name: StringName, value: Variant) -> void:
+	if material != null:
+		material.set_shader_parameter(name, value)
 ## Quads per side. The height map has 1024 samples per side, so anything below that throws
 ## detail away: at 256 each quad swallowed sixteen height samples and the island came out
 ## smooth and faceted no matter what the shading did.
@@ -228,6 +289,13 @@ func _build_mesh() -> void:
 	if material == null:
 		material = load("res://terrain_material.tres")
 	material.set_shader_parameter("sea_y", sea_level())
+	for entry in [["caustic_colour", caustic_colour], ["seabed_colour", seabed_colour],
+			["seabed_weed", seabed_weed], ["dry_sand_colour", dry_sand_colour],
+			["wet_sand_colour", wet_sand_colour], ["grass_colour", grass_colour],
+			["jungle_colour", jungle_colour], ["rock_colour", rock_colour],
+			["caustic_scale", caustic_scale], ["caustic_width", caustic_width],
+			["caustic_strength", caustic_strength], ["caustic_reach", caustic_reach]]:
+		material.set_shader_parameter(entry[0], entry[1])
 	# The shader does its own shading, so it needs to know where the sun is.
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:

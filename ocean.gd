@@ -23,6 +23,39 @@ class_name Ocean
 ## The material, so the water colours can be tuned in the inspector.
 @export var material: ShaderMaterial
 
+## On the node as well as in the material, so they are found without digging.
+## Note the caustics are not here - they are drawn on the seabed, so their colour is on Terrain.
+@export_group("Colours")
+@export var shallow_colour := Color(0.33, 0.87, 0.80):
+	set(value):
+		shallow_colour = value
+		_push("shallow_colour", value)
+@export var deep_colour := Color(0.059, 0.336, 0.477):
+	set(value):
+		deep_colour = value
+		_push("deep_colour", value)
+@export var foam_colour := Color(0.95, 0.98, 1.0):
+	set(value):
+		foam_colour = value
+		_push("foam_colour", value)
+@export_range(0.0, 1.0) var shallow_alpha := 0.26:
+	set(value):
+		shallow_alpha = value
+		_push("shallow_alpha", value)
+@export_range(0.0, 1.0) var deep_alpha := 0.96:
+	set(value):
+		deep_alpha = value
+		_push("deep_alpha", value)
+@export_range(0.0, 3.0) var wave_height := 0.5:
+	set(value):
+		wave_height = value
+		_push("wave_height", value)
+
+
+func _push(name: StringName, value: Variant) -> void:
+	if material != null:
+		material.set_shader_parameter(name, value)
+
 var _camera: Camera3D
 
 
@@ -32,6 +65,10 @@ func setup(sea_level: float, terrain: Node3D = null) -> void:
 	if material == null:
 		material = load("res://ocean_material.tres")
 	var water := material
+	for entry in [["shallow_colour", shallow_colour], ["deep_colour", deep_colour],
+			["foam_colour", foam_colour], ["shallow_alpha", shallow_alpha],
+			["deep_alpha", deep_alpha], ["wave_height", wave_height]]:
+		water.set_shader_parameter(entry[0], entry[1])
 	if terrain != null:
 		water.set_shader_parameter("terrain_height", terrain.height_texture())
 		water.set_shader_parameter("terrain_size", terrain.world_size)
