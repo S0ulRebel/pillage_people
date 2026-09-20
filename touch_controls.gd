@@ -6,6 +6,7 @@ extends CanvasLayer
 ## controls hide themselves unless the project is run with "--touch".
 
 signal jumped
+signal released
 
 const STICK_RADIUS := 110.0
 const DEAD_ZONE := 0.12
@@ -58,6 +59,7 @@ func _build_jump_button() -> void:
 	_jump_button.texture_pressed = texture
 	_jump_button.modulate = Color(1, 1, 1, 1)
 	_jump_button.pressed.connect(func(): jumped.emit())
+	_jump_button.released.connect(func(): released.emit())
 
 
 ## Anchor the jump button to the bottom-right corner, whatever the screen size is

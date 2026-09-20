@@ -21,10 +21,27 @@ to see them. Mouse-to-touch emulation is on, so they can be tried with a mouse.
 |---|---|
 | `main.tscn` / `main.gd` | Scene: sun, sky, fog, terrain, player, camera. Picks a spawn point and wires the camera to the player. |
 | `terrain.gd` | Reads the height map and builds the mesh (vertex-coloured by altitude) + a `HeightMapShape3D` collider. |
-| `player.gd` | `CharacterBody3D`: camera-relative movement, gravity, jump, and a body built from primitives (capsule torso, sphere head, box limbs that swing while walking) so the project needs no imported model. |
+| `player.gd` | `CharacterBody3D`: camera-relative movement, game-feel jump (see below), and a body built from primitives (capsule torso, sphere head, box limbs that swing while walking) so the project needs no imported model. |
 | `camera_rig.gd` | `SpringArm3D` chase camera: follows smoothly, orbits, zooms, and will not clip through hills. |
 | `touch_controls.gd` | iPad controls, drawn in code (no image assets): virtual stick, jump button, drag-to-orbit, pinch-to-zoom. |
 | `terrain/*.r16`, `terrain/*.png` | Height maps from `tools\make_heightmap.py`. |
+
+## Jump feel
+
+Real-world gravity (Godot's 9.8 default) makes a jump feel like the moon: 2.5 m high and
+1.4 s in the air. The settings on the Player node instead give **1.68 m in 0.63 s**:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `jump_height` | 1.6 m | Take-off speed is derived from this: `v = sqrt(2 * g * h)` |
+| `rise_gravity` | 26 | Gravity while going up (~2.6x real) |
+| `fall_gravity` | 38 | Heavier on the way down - this is what kills the floatiness |
+| `short_hop_cut` | 0.58 | Release early and the jump is cut to a 0.43 m hop |
+| `coyote_time` | 0.12 s | Still jumpable just after walking off an edge |
+| `jump_buffer` | 0.15 s | A press just before landing fires on touchdown |
+
+Measure any change with `Godot.exe --path . -- --jumptest --touch`, which prints the height
+and airtime of a held jump and a tapped one.
 
 ## Swapping in another terrain
 

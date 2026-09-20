@@ -19,7 +19,10 @@ func _ready() -> void:
 	_player.touch_controls = touch
 	_camera_rig.touch_controls = touch
 	touch.jumped.connect(_player.request_jump)
-	if "--touchtest" in OS.get_cmdline_user_args():
+	touch.released.connect(_player.release_jump)
+	if "--jumptest" in OS.get_cmdline_user_args():
+		_jump_test()
+	elif "--touchtest" in OS.get_cmdline_user_args():
 		_touch_self_test()
 	elif "--screenshot" in OS.get_cmdline_user_args():
 		_screenshot_and_quit()
@@ -91,3 +94,30 @@ func _send_drag(index: int, from: Vector2, to: Vector2) -> void:
 	event.position = to
 	event.relative = to - from
 	Input.parse_input_event(event)
+
+
+## Measures the jump: how high it goes and how long it stays in the air, for a full-hold
+## jump and for a tapped (released early) one.
+func _jump_test() -> void:
+	for i in 180:
+		if _player.is_on_floor():
+			break
+		await get_tree().physics_frame
+	for hold in [true, false]:
+		while not _player.is_on_floor():
+			await get_tree().physics_frame
+		var ground: float = _player.global_position.y
+		var peak := ground
+		var frames := 0
+		_player.request_jump()
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		if not hold:
+			_player.release_jump()
+		while not _player.is_on_floor() and frames < 400:
+			peak = maxf(peak, _player.global_position.y)
+			frames += 1
+			await get_tree().physics_frame
+		print("%s jump: height %.2f m, airtime %.2f s" % [
+				"held" if hold else "tapped", peak - ground, frames / 60.0])
+	get_tree().quit()

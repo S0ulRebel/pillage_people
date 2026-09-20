@@ -5,8 +5,22 @@ extends CharacterBody3D
 
 @export var speed := 9.0
 @export var acceleration := 12.0
-@export var jump_velocity := 7.0
 @export var turn_speed := 12.0
+
+@export_group("Jump feel")
+## How high a full jump goes, in metres. The take-off speed is derived from it.
+@export var jump_height := 1.6
+## Gravity while rising. Real-world 9.8 feels like the moon in a game; this is ~2.5x that.
+@export var rise_gravity := 26.0
+## Gravity while falling. Heavier than the rise makes the arc snappy instead of floaty.
+@export var fall_gravity := 38.0
+## Releasing the button early cuts the jump short (this fraction of the rising speed is kept).
+@export var short_hop_cut := 0.58
+## Still allowed to jump this long after walking off an edge.
+@export var coyote_time := 0.12
+## A jump pressed this long before landing still fires on touchdown.
+@export var jump_buffer := 0.15
+@export var terminal_velocity := 45.0
 
 ## Set by main.gd - movement is relative to whichever way the camera is facing.
 var camera_rig: Node3D
@@ -15,14 +29,25 @@ var touch_controls: CanvasLayer
 
 @onready var _body: Node3D = $Body
 
-var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var _walk_time := 0.0
-var _touch_jump := false
+var _coyote := 0.0
+var _buffered := 0.0
+var _holding_jump := false
 
 
-## Connected to the touch jump button by main.gd.
+## Take-off speed for the requested height: v = sqrt(2 * g * h).
+func _jump_velocity() -> float:
+	return sqrt(2.0 * rise_gravity * jump_height)
+
+
+## Connected to the touch jump button by main.gd (press and release).
 func request_jump() -> void:
-	_touch_jump = true
+	_buffered = jump_buffer
+	_holding_jump = true
+
+
+func release_jump() -> void:
+	_holding_jump = false
 
 
 func _ready() -> void:
@@ -30,11 +55,26 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not is_on_floor():
-		velocity.y -= _gravity * delta
-	elif Input.is_action_just_pressed("jump") or _touch_jump:
-		velocity.y = jump_velocity
-	_touch_jump = false
+	# --- jump feel: coyote time, buffered presses, short hops, heavier fall ---
+	if Input.is_action_just_pressed("jump"):
+		_buffered = jump_buffer
+		_holding_jump = true
+	if Input.is_action_just_released("jump"):
+		_holding_jump = false
+	_buffered = maxf(0.0, _buffered - delta)
+	_coyote = coyote_time if is_on_floor() else maxf(0.0, _coyote - delta)
+
+	if _buffered > 0.0 and _coyote > 0.0:
+		velocity.y = _jump_velocity()
+		_buffered = 0.0
+		_coyote = 0.0
+	elif not is_on_floor():
+		var rising := velocity.y > 0.0
+		if rising and not _holding_jump:            # let go early -> short hop
+			velocity.y *= short_hop_cut
+			rising = velocity.y > 0.0
+		velocity.y -= (rise_gravity if rising else fall_gravity) * delta
+		velocity.y = maxf(velocity.y, -terminal_velocity)
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if touch_controls and touch_controls.move.length() > 0.0:
