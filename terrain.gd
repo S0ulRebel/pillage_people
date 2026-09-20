@@ -203,9 +203,10 @@ func _build_mesh() -> void:
 	st.generate_normals()
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.mesh = st.commit()
-	var material := StandardMaterial3D.new()
-	material.vertex_color_use_as_albedo = true
-	material.roughness = 0.95
+	# Cel shading is where the stylised look comes from; the vertex colours only supply which
+	# biome each point is in. See terrain.gdshader.
+	var material := ShaderMaterial.new()
+	material.shader = load("res://terrain.gdshader")
 	mesh_instance.material_override = material
 	add_child(mesh_instance)
 
