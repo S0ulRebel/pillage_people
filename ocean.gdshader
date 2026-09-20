@@ -71,7 +71,11 @@ uniform float foam_depth : hint_range(0.0, 8.0) = 0.35;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 
 group_uniforms Caustics;
-uniform float caustic_strength : hint_range(0.0, 6.0) = 1.6;
+uniform float caustic_strength : hint_range(0.0, 2.0) = 0.55;
+// Cell size, in cells per metre. The reference cells are about two to three times the height
+// of the character, so a few metres across.
+uniform float caustic_scale : hint_range(0.02, 2.0) = 0.24;
+uniform float caustic_width : hint_range(0.01, 0.8) = 0.26;
 // Set from the scene's sun, so the sea is shaded by the same light as the island.
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
 // Water is nearly flat colour in the reference, so the sun only shapes it a little.
@@ -81,7 +85,7 @@ varying vec3 world_position;
 varying float sea_bed_depth;
 varying vec3 wave_normal;
 varying float fold;
-varying float curvature;
+varying float lens_power;
 varying float crest_rise;
 varying float swell;
 
@@ -121,6 +125,41 @@ float water_over_bed(vec2 world_xz) {
 		return 1000.0;
 	}
 	return sea_y - texture(terrain_height, uv).r * terrain_scale;
+}
+
+
+vec2 cell_hash(vec2 p) {
+	return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+}
+
+
+// Distance to the nearest border between cells.
+//
+// This is what the caustics are in the reference: a web of soft pale lines around big
+// irregular cells, two or three character-heights across - not a fine interference pattern.
+// An earlier attempt derived them from ripples refracting light, which is how caustics
+// actually form and which produced a dense realistic shimmer that looked nothing like the
+// art. The reference is drawn, so it gets drawn.
+float cell_border(vec2 p, float t) {
+	vec2 cell = floor(p);
+	vec2 local = fract(p);
+	float nearest = 8.0;
+	float second = 8.0;
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 offset = vec2(float(x), float(y));
+			// The cell centres drift, so the web slides and reshapes instead of sitting still.
+			vec2 point = offset + 0.5 + 0.38 * sin(t * 0.5 + 6.2831 * cell_hash(cell + offset));
+			float d = length(point - local);
+			if (d < nearest) {
+				second = nearest;
+				nearest = d;
+			} else if (d < second) {
+				second = d;
+			}
+		}
+	}
+	return second - nearest;
 }
 
 
@@ -168,8 +207,10 @@ void vertex() {
 	// Determinant of the horizontal Jacobian: it falls towards zero where neighbouring points
 	// converge, which is the fold that becomes a whitecap.
 	fold = (1.0 - jxx) * (1.0 - jzz) - jxz * jxz;
-	// How sharply the height is curving, which is what focuses light into caustics below.
-	curvature = normal_sum.y / max(reach * amplitude * 0.5, 0.0001);
+	// How strongly the surface bends light at this point. jxx and jzz are the second
+	// derivatives of the displacement, so their sum is the curvature of the surface: positive
+	// where it is domed like a converging lens, negative in the hollows.
+	lens_power = jxx + jzz;
 }
 
 
@@ -212,14 +253,17 @@ void fragment() {
 	float shore = 1.0 - clamp(water_depth / max(surge, 0.001), 0.0, 1.0);
 	float surf = smoothstep(0.25, 0.75, shore);
 
-	// Light gathers where the surface is convex and spreads where it is concave. Over sand
-	// that is the bright web; it disappears as the bottom drops away.
+	// Caustics. Sunlight refracts through the surface and the curved parts act as lenses, so
+	// neighbouring rays converge on the way down and land on the seabed bunched together.
+	// How bunched depends on both the curvature and how far the light has to travel, which is
+	// why the depth belongs in here - a gentle swell over deep water focuses as hard as a
+	// sharp ripple over a foot of sand, and the web widens as the bottom drops away.
 	float visible_bottom = 1.0 - clamp(water_depth / 7.0, 0.0, 1.0);
 	float contact = smoothstep(0.0, 1.2, to_solid);   // soften where the sea meets geometry
-	// Sharpened: light focuses into narrow bright lines rather than a broad glow, which is
-	// what makes the web in the reference read as caustics instead of haze.
-	float focus = pow(clamp(curvature, 0.0, 1.0), 2.5);
-	float caustic = clamp(focus * caustic_strength, 0.0, 1.0) * visible_bottom;
+	// Wide soft borders, as drawn: a thin hard line reads as a net laid on the sand.
+	float border = cell_border(world_position.xz * caustic_scale, TIME);
+	float caustic = (1.0 - smoothstep(0.0, caustic_width, border))
+			* caustic_strength * visible_bottom;
 
 	float white = clamp(max(crest, surf) + caustic, 0.0, 1.0);
 	vec3 water = mix(shallow_colour, deep_colour, stepped);
