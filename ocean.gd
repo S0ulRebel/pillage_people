@@ -36,6 +36,9 @@ func setup(sea_level: float, terrain: Node3D = null) -> void:
 		water.set_shader_parameter("terrain_size", terrain.world_size)
 		water.set_shader_parameter("terrain_scale", terrain.height_scale)
 		water.set_shader_parameter("sea_y", sea_level)
+	var sun := get_node_or_null("../Sun") as DirectionalLight3D
+	if sun != null:
+		water.set_shader_parameter("sun_direction", -sun.global_transform.basis.z)
 	material_override = water
 	# The waves move vertices outside their own quad and the grid re-centres every frame, so
 	# Godot's computed bounds are wrong constantly. A generous AABB stops it culling the sea

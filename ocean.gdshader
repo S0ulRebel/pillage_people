@@ -1,5 +1,11 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_always, cull_disabled, specular_schlick_ggx;
+render_mode blend_mix, depth_draw_always, cull_disabled, unshaded;
+
+// Unshaded, and lit here instead. Through the engine's light path the sea came out grey:
+// shallow water rendered #719296 against a #4f9ea6 swatch, and deep water #79999d against
+// #0e5579 - pale blue-grey where it should be near navy. Unshaded, an albedo renders as
+// itself, so the sampled water colours survive and the shading below is the only thing
+// acting on them.
 
 // Sea surface.
 //
@@ -33,7 +39,10 @@ uniform vec3 shallow_colour : source_color = vec3(0.310, 0.621, 0.655);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 uniform float depth_fade : hint_range(1.0, 60.0) = 8.5;
 uniform int bands : hint_range(0, 8) = 4;
-uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.50;
+// High even in the shallows: at half transparency the turquoise simply averages with the
+// bright sand underneath and the whole lagoon lands on grey-green. The reference keeps its
+// colour over sand and lets the bottom read through as shapes, not as its own colour.
+uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.55;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 0.96;
 
 group_uniforms Waves;
@@ -63,6 +72,10 @@ uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 
 group_uniforms Caustics;
 uniform float caustic_strength : hint_range(0.0, 6.0) = 1.6;
+// Set from the scene's sun, so the sea is shaded by the same light as the island.
+uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
+// Water is nearly flat colour in the reference, so the sun only shapes it a little.
+uniform float wave_shading : hint_range(0.0, 1.0) = 0.22;
 
 varying vec3 world_position;
 varying float sea_bed_depth;
@@ -210,10 +223,16 @@ void fragment() {
 
 	float white = clamp(max(crest, surf) + caustic, 0.0, 1.0);
 	vec3 water = mix(shallow_colour, deep_colour, stepped);
-	ALBEDO = mix(water, foam_colour, white);
+	vec3 colour = mix(water, foam_colour, white);
+
+	// Only a gentle shade off the wave normal: enough that the swell reads as a surface with
+	// shape, not so much that it drags the colour away from the swatch it came from.
+	float lambert = clamp(dot(normalize(wave_normal), normalize(sun_direction)), 0.0, 1.0);
+	// Centred on the angle flat water sits at, so an unlit-looking swell darkens and a
+	// sunward face brightens, but level water renders as exactly its own colour. Ramping from
+	// 1 - shading upwards instead means every pixel is darkened and the whole sea drops below
+	// the swatch it was sampled from.
+	ALBEDO = colour * (1.0 + (lambert - 0.55) * wave_shading);
+
 	ALPHA = mix(mix(shallow_alpha, deep_alpha, stepped), 1.0, max(surf, crest)) * contact;
-	NORMAL = normalize(mix(wave_normal, vec3(0.0, 1.0, 0.0), clamp(white, 0.0, 1.0)));
-	ROUGHNESS = mix(0.08, 0.45, white);
-	METALLIC = 0.0;
-	SPECULAR = 0.5;
 }

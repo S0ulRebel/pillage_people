@@ -36,9 +36,10 @@ uniform float ambient : hint_range(0.0, 1.0) = 0.16;
 
 group_uniforms Ground;
 // Sampled from the ground material reference, which shows each surface at play distance.
-// The seabed is pale sand rather than the teal the reference shows, because that teal is the
-// water's doing and the water shader already tints what is under it.
-uniform vec3 seabed_colour : source_color = vec3(0.72, 0.67, 0.52);
+// The seabed is the colour the reference shows sand as when it is under water, not the colour
+// dry sand would be. Left as tan it fights the water above it: the turquoise has to be made
+// nearly opaque to cover it, and then the bottom stops reading through at all.
+uniform vec3 seabed_colour : source_color = vec3(0.373, 0.710, 0.655);
 uniform vec3 wet_sand_colour : source_color = vec3(0.678, 0.518, 0.384);
 uniform vec3 dry_sand_colour : source_color = vec3(0.910, 0.749, 0.529);
 uniform vec3 grass_colour : source_color = vec3(0.498, 0.525, 0.220);
