@@ -15,6 +15,8 @@ const DEAD_ZONE := 0.12
 var move := Vector2.ZERO
 ## radians to orbit this frame, consumed by the camera rig
 var orbit_delta := 0.0
+## degrees to tilt this frame: drag up to look down on the player, down to look along the ground
+var pitch_delta := 0.0
 ## +1 zoom out / -1 zoom in, consumed by the camera rig
 var zoom_delta := 0.0
 
@@ -122,6 +124,7 @@ func _input(event: InputEvent) -> void:
 				_pinch_distance = span
 			elif event.index == _look_touch:
 				orbit_delta += (event.position.x - _look_last.x) * 0.005
+				pitch_delta += (event.position.y - _look_last.y) * 0.12
 				_look_last = event.position
 
 
@@ -132,7 +135,8 @@ func _pinch_span() -> float:
 
 ## The camera rig calls this once per frame and gets the accumulated gestures.
 func take_camera_input() -> Dictionary:
-	var result := {"orbit": orbit_delta, "zoom": zoom_delta}
+	var result := {"orbit": orbit_delta, "pitch": pitch_delta, "zoom": zoom_delta}
 	orbit_delta = 0.0
+	pitch_delta = 0.0
 	zoom_delta = 0.0
 	return result

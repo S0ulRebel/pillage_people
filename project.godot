@@ -47,6 +47,15 @@ cam_right={
 "deadzone": 0.2,
 "events": [Object(InputEventKey,"keycode":69,"physical_keycode":0,"pressed":true)]
 }
+cam_up={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"keycode":82,"physical_keycode":0,"pressed":true)]
+}
+cam_down={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"keycode":70,"physical_keycode":0,"pressed":true)]
+}
+
 
 [input_devices]
 

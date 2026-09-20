@@ -144,6 +144,29 @@ func _touch_self_test() -> void:
 	print("orbit: camera yaw changed by %.3f rad" % [camera_rig.rotation.y - before_yaw])
 	_send_touch(1, Vector2(1140, 300), false)
 
+	# drag up/down on the right half tilts the camera
+	var before_pitch: float = camera_rig.pitch_degrees
+	_send_touch(2, Vector2(1000, 300), true)
+	_send_drag(2, Vector2(1000, 300), Vector2(1000, 420))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	print("tilt (drag): pitch %.1f -> %.1f degrees" % [before_pitch, camera_rig.pitch_degrees])
+	_send_touch(2, Vector2(1000, 420), false)
+
+	# and R / F on the keyboard
+	before_pitch = camera_rig.pitch_degrees
+	var key := InputEventKey.new()
+	key.keycode = KEY_R
+	key.pressed = true
+	Input.parse_input_event(key)
+	for i in 20:
+		await get_tree().process_frame
+	var released := InputEventKey.new()
+	released.keycode = KEY_R
+	released.pressed = false
+	Input.parse_input_event(released)
+	print("tilt (R key): pitch %.1f -> %.1f degrees" % [before_pitch, camera_rig.pitch_degrees])
+
 	# wait until the player is standing before testing the jump button
 	for i in 120:
 		if _player.is_on_floor():

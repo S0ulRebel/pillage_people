@@ -81,5 +81,5 @@ offset_left = 16.0
 offset_top = 12.0
 offset_right = 420.0
 offset_bottom = 110.0
-text = "Touch: left stick moves, right drag orbits, pinch zooms, button jumps
-Keyboard: WASD move, Space jump, Q/E orbit, wheel zoom"
+text = "Touch: left stick moves, right drag turns and tilts, pinch zooms, button jumps
+Keyboard: WASD move, Space jump, Q/E turn, R/F tilt, wheel zoom"

@@ -8,9 +8,14 @@ D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\gan\godot\terrain_demo
 ```
 
 **Touch (iPad / Xogot):** left half = virtual stick (appears where your thumb lands) ·
-right half drag = orbit the camera · two-finger pinch = zoom · bottom-right button = jump.
+right half drag = turn (sideways) and tilt (up/down) the camera · two-finger pinch = zoom ·
+bottom-right button = jump.
 
-**Keyboard:** WASD move (relative to the camera) · Space jump · Q/E orbit · mouse wheel zoom.
+**Keyboard:** WASD move (relative to the camera) · Space jump · Q/E turn · R/F tilt ·
+mouse wheel zoom.
+
+Camera tilt runs from -85 degrees (almost straight down) to -12 (nearly level with the
+ground); the limits are `min_pitch_degrees` / `max_pitch_degrees` on the CameraRig.
 
 The touch controls show themselves automatically on a touchscreen; on desktop add `--touch`
 to see them. Mouse-to-touch emulation is on, so they can be tried with a mouse.
