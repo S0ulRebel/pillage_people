@@ -15,7 +15,10 @@ extends StaticBody3D
 ## Fraction of the height range that sits under water. make_heightmap.py bakes the same
 ## number into the island, so it has to match or the shoreline lands in the wrong place.
 @export var sea_fraction := 0.10
-@export var mesh_resolution := 256  ## quads per side for the visual mesh
+## Quads per side. The height map has 1024 samples per side, so anything below that throws
+## detail away: at 256 each quad swallowed sixteen height samples and the island came out
+## smooth and faceted no matter what the shading did.
+@export var mesh_resolution := 512
 @export var collision_resolution := 257  ## samples per side for the collision shape (match mesh_resolution + 1)
 
 ## Tunnels that cut through this terrain. Set before generate(); each one is asked where its
@@ -221,6 +224,7 @@ func _build_mesh() -> void:
 	# biome each point is in. See terrain.gdshader.
 	var material := ShaderMaterial.new()
 	material.shader = load("res://terrain.gdshader")
+	material.set_shader_parameter("sea_y", sea_level())
 	mesh_instance.material_override = material
 	add_child(mesh_instance)
 

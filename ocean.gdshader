@@ -43,7 +43,7 @@ uniform vec4 wave_1 = vec4(1.0, 0.25, 0.72, 21.0);
 uniform vec4 wave_2 = vec4(-0.5, 0.9, 0.55, 12.5);
 uniform vec4 wave_3 = vec4(0.75, -0.7, 0.42, 7.0);
 uniform vec4 wave_4 = vec4(-0.85, -0.3, 0.30, 3.6);
-uniform float wave_height : hint_range(0.0, 3.0) = 0.75;
+uniform float wave_height : hint_range(0.0, 3.0) = 0.5;
 uniform float wave_speed : hint_range(0.0, 3.0) = 1.0;
 // Swell flattens as it runs into the shallows, the way real waves do over a shelf. Without
 // this the open-sea swell carries straight up the beach and slices through the sand.
@@ -56,9 +56,9 @@ uniform float crest_fold : hint_range(0.0, 1.5) = 0.62;
 uniform float crest_sharpness : hint_range(0.01, 1.0) = 0.22;
 // Where on the wave the crest streak sits, and how wide it is, as a fraction of wave height.
 uniform float crest_line_height : hint_range(0.0, 1.0) = 0.72;
-uniform float crest_line_width : hint_range(0.01, 0.5) = 0.12;
+uniform float crest_line_width : hint_range(0.01, 0.5) = 0.06;
 // Depth of water at which the shore surf starts.
-uniform float foam_depth : hint_range(0.0, 8.0) = 0.7;
+uniform float foam_depth : hint_range(0.0, 8.0) = 0.35;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 
 group_uniforms Caustics;
