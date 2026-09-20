@@ -161,6 +161,14 @@ void vertex() {
 
 
 void fragment() {
+	// The sea sheet runs right under the island, and near the shore the waves drop it below
+	// the sand, so water is visible passing underneath the beach. Anywhere the surface has
+	// ended up beneath the ground there is no water to draw.
+	float ground_y = sea_y - sea_bed_depth;
+	if (world_position.y < ground_y - 0.02) {
+		discard;
+	}
+
 	// Depth over the seabed for everything the eye reads as "how deep is it here", and the
 	// depth buffer only for fading the water against geometry that is not the terrain.
 	float water_depth = max(sea_bed_depth, 0.0);
