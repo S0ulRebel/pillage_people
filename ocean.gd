@@ -38,14 +38,18 @@ class_name Ocean
 	set(value):
 		foam_colour = value
 		_push("foam_colour", value)
-@export_range(0.0, 1.0) var shallow_alpha := 0.26:
+@export_range(0.0, 1.0) var shallow_alpha := 0.40:
 	set(value):
 		shallow_alpha = value
 		_push("shallow_alpha", value)
-@export_range(0.0, 1.0) var deep_alpha := 0.96:
+@export_range(0.0, 1.0) var deep_alpha := 0.88:
 	set(value):
 		deep_alpha = value
 		_push("deep_alpha", value)
+@export_range(1.0, 60.0) var depth_fade := 26.0:
+	set(value):
+		depth_fade = value
+		_push("depth_fade", value)
 @export_range(0.0, 3.0) var wave_height := 0.5:
 	set(value):
 		wave_height = value
@@ -67,7 +71,8 @@ func setup(sea_level: float, terrain: Node3D = null) -> void:
 	var water := material
 	for entry in [["shallow_colour", shallow_colour], ["deep_colour", deep_colour],
 			["foam_colour", foam_colour], ["shallow_alpha", shallow_alpha],
-			["deep_alpha", deep_alpha], ["wave_height", wave_height]]:
+			["deep_alpha", deep_alpha], ["wave_height", wave_height],
+			["depth_fade", depth_fade]]:
 		water.set_shader_parameter(entry[0], entry[1])
 	if terrain != null:
 		water.set_shader_parameter("terrain_height", terrain.height_texture())

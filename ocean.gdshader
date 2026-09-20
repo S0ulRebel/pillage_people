@@ -15,12 +15,18 @@ group_uniforms Colour;
 // Preserved from the supplied code, not newly sampled from the reference.
 uniform vec3 shallow_colour : source_color = vec3(0.330, 0.870, 0.800);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
-uniform float depth_fade : hint_range(1.0, 60.0) = 8.5;
+// Over how many metres the water reaches its deep colour and its deep opacity. At 8.5 the
+// lagoon floor at 5-12 m was already fully opaque, so the seabed and its caustics were
+// hidden whatever colour they were - the seabed could be changed from teal to sand with no
+// measurable difference in the render.
+uniform float depth_fade : hint_range(1.0, 60.0) = 26.0;
 uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.45;
 // More body than the original 0.26; lower this to expose more seabed/caustics.
-uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.65;
-uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
+// The seabed carries the caustics, so every point of opacity here is contrast taken off
+// them. Measured against the reference crop: at 0.65 the web was invisible from the shore.
+uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.40;
+uniform float deep_alpha : hint_range(0.0, 1.0) = 0.88;
 // Opaque, unshaded colour ramp for checking colours against your swatches.
 uniform bool palette_preview = false;
 

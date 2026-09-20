@@ -28,11 +28,11 @@ extends StaticBody3D
 	set(value):
 		caustic_colour = value
 		_push_colour("caustic_colour", value)
-@export var seabed_colour := Color(0.64, 0.80, 0.65):
+@export var seabed_colour := Color(0.38, 0.62, 0.52, 1):
 	set(value):
 		seabed_colour = value
 		_push_colour("seabed_colour", value)
-@export var seabed_weed := Color(0.20, 0.52, 0.50):
+@export var seabed_weed := Color(0.14, 0.38, 0.38, 1):
 	set(value):
 		seabed_weed = value
 		_push_colour("seabed_weed", value)
@@ -58,19 +58,33 @@ extends StaticBody3D
 		_push_colour("rock_colour", value)
 
 @export_group("Caustics")
-@export_range(0.02, 4.0) var caustic_scale := 0.45:
+@export_range(0.02, 4.0) var caustic_scale := 0.30:
 	set(value):
 		caustic_scale = value
 		_push_colour("caustic_scale", value)
-@export_range(0.01, 0.8) var caustic_width := 0.11:
+@export_range(0.01, 0.8) var caustic_width := 0.07:
 	set(value):
 		caustic_width = value
 		_push_colour("caustic_width", value)
-@export_range(0.0, 3.0) var caustic_strength := 1.7:
+@export_range(0.0, 3.0) var caustic_strength := 1.6:
 	set(value):
 		caustic_strength = value
 		_push_colour("caustic_strength", value)
-@export_range(0.5, 30.0) var caustic_reach := 4.5:
+## How far from the camera the web survives. The shader also fades it by pixel
+## footprint, so on a wide shot the lagoon loses its caustics unless this is opened up.
+@export_range(10.0, 400.0) var caustic_distance_fade := 320.0:
+	set(value):
+		caustic_distance_fade = value
+		_push_colour("caustic_distance_fade", value)
+@export_range(0.05, 4.0) var caustic_footprint_fade := 1.2:
+	set(value):
+		caustic_footprint_fade = value
+		_push_colour("caustic_footprint_fade", value)
+@export_range(0.0, 2.0) var caustic_speed := 0.5:
+	set(value):
+		caustic_speed = value
+		_push_colour("caustic_speed", value)
+@export_range(0.5, 30.0) var caustic_reach := 9:
 	set(value):
 		caustic_reach = value
 		_push_colour("caustic_reach", value)
@@ -294,7 +308,9 @@ func _build_mesh() -> void:
 			["wet_sand_colour", wet_sand_colour], ["grass_colour", grass_colour],
 			["jungle_colour", jungle_colour], ["rock_colour", rock_colour],
 			["caustic_scale", caustic_scale], ["caustic_width", caustic_width],
-			["caustic_strength", caustic_strength], ["caustic_reach", caustic_reach]]:
+			["caustic_strength", caustic_strength], ["caustic_reach", caustic_reach],
+			["caustic_distance_fade", caustic_distance_fade], ["caustic_speed", caustic_speed],
+			["caustic_footprint_fade", caustic_footprint_fade]]:
 		material.set_shader_parameter(entry[0], entry[1])
 	# The shader does its own shading, so it needs to know where the sun is.
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
