@@ -64,6 +64,11 @@ Yes. The terrain is a `StaticBody3D` with a `HeightMapShape3D`; the player is a
 Gravity is applied in script, which is how a kinematic body is meant to work. Nothing
 snaps the player to the height map - the only direct sampling is choosing the spawn point.
 
+The project uses **Jolt** (`physics/3d/physics_engine`). Tested on 4.7.2: a `NaN` sample in
+`HeightMapShape3D.map_data` becomes a hole with no collision — bodies fall straight through,
+while normal ground still holds them. The default engine does the same but spams
+"Vector3 cannot be normalized", so holes (pits, tunnel mouths) want Jolt.
+
 Keep `collision_resolution` near `mesh_resolution`, or you stand on a surface coarser than
 the one you see. Measured against this 1024 height map over 400 m:
 

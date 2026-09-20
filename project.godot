@@ -53,6 +53,12 @@ cam_right={
 ; lets the touch controls be tested with a mouse on desktop
 pointing/emulate_touch_from_mouse=true
 
+[physics]
+
+; Jolt handles HeightMapShape3D holes (NaN samples) cleanly - the default engine works but
+; floods the log with normalization warnings. Holes are how tunnels/pits will be carved.
+3d/physics_engine="Jolt Physics"
+
 [rendering]
 
 ; Mobile renderer: works on iPad (Xogot) and is plenty for this scene.
