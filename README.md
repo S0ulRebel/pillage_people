@@ -62,8 +62,11 @@ Useful settings on the Terrain node:
 A tunnel is a node you place in the scene: `Tunnel` extends `Path3D`, so you draw a curve and
 set a radius. Everything else follows from those two things.
 
-- The tube is extruded along the curve and **kept only where it is underground**. A curve that
-  dips, surfaces over a ridge and dips again becomes two separate tubes.
+- The tube is extruded along the curve and **clipped to the ground**: every triangle is cut
+  against `terrain height - y`, so the tube ends exactly on the surface and the mouth is that
+  intersection curve, whatever the slope. Whole-ring trimming (keep the ring if its centre is
+  underground) left a flat end that hung out of a hillside on one side and was buried on the
+  other. A curve that dips, surfaces over a ridge and dips again becomes two separate tubes.
 - The terrain is cut **against the tube itself**, not against a separate hole shape, so an
   opening is always exactly the tube's cross-section where it breaks the surface - at any
   slope, with nothing to line up by hand. (The first version cut circular holes and tried to
@@ -83,11 +86,11 @@ set a radius. Everything else follows from those two things.
 Ramps want about 25 degrees. The player's `floor_max_angle` is raised to 55 degrees because
 faceted tube walls throw normals past Godot's 45 degree default and stop you dead halfway out.
 
-**Auto-placed tunnels are not reliable yet.** `main.gd` picks two spots near the spawn and
-builds a curve between them; on some terrain the result is not walkable end to end. Measured
-with `--tunneltest` over six layouts: four walk through, one stops a step short of the exit,
-one drops through near the mouth. Hand-placed curves avoid the problem because you can see
-what you are making.
+**Auto-placed tunnels**: `main.gd` picks two spots near the spawn and builds a curve between
+them. Measured with `--tunneltest` over six layouts: five are walkable in, through and out
+(one of those ends standing in the mouth rather than clear of it); on the sixth the test
+walker never found the entrance, though a render shows a clean opening - a navigation quirk
+of the test rather than the geometry. Hand-placed curves are the intended way to use this.
 
 ## Is it really physics?
 
