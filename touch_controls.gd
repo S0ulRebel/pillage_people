@@ -7,6 +7,7 @@ extends CanvasLayer
 
 signal jumped
 signal released
+signal dive_changed(pressed: bool)
 
 const STICK_RADIUS := 110.0
 const DEAD_ZONE := 0.12
@@ -30,6 +31,7 @@ var _pinch_distance := 0.0
 
 @onready var _stick_layer: Control = $StickLayer
 @onready var _jump_button: TouchScreenButton = $JumpButton
+@onready var _dive_button: TouchScreenButton = $DiveButton
 
 
 func _ready() -> void:
@@ -42,6 +44,7 @@ func _ready() -> void:
 	_build_jump_button()
 	_place_jump_button()
 	get_viewport().size_changed.connect(_place_jump_button)
+	_dive_button.visible = false
 
 
 func _build_jump_button() -> void:
@@ -62,13 +65,29 @@ func _build_jump_button() -> void:
 	_jump_button.modulate = Color(1, 1, 1, 1)
 	_jump_button.pressed.connect(func(): jumped.emit())
 	_jump_button.released.connect(func(): released.emit())
+	_dive_button.texture_normal = texture
+	_dive_button.texture_pressed = texture
+	_dive_button.pressed.connect(func(): dive_changed.emit(true))
+	_dive_button.released.connect(func(): dive_changed.emit(false))
 
 
 ## Anchor the jump button to the bottom-right corner, whatever the screen size is
 ## (TouchScreenButton is a Node2D, so it has no anchors of its own).
+## Shown only while swimming: on land there is nothing to dive into, and a dead button that
+## does nothing most of the time is worse than no button.
+func show_dive(swimming: bool) -> void:
+	if _dive_button.visible != swimming:
+		_dive_button.visible = swimming
+		if not swimming:
+			dive_changed.emit(false)   # never leave dive stuck on when leaving the water
+
+
 func _place_jump_button() -> void:
 	var view := get_viewport().get_visible_rect().size
 	_jump_button.position = Vector2(view.x - 190.0, view.y - 190.0)
+	# Left of jump rather than below it: below would sit under the thumb that is already
+	# resting there, and a mis-tap that surfaces you mid-dive is maddening.
+	_dive_button.position = Vector2(view.x - 330.0, view.y - 150.0)
 
 
 func _draw_stick() -> void:

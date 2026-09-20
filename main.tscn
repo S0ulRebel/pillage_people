@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://camera_rig.gd" id="4_camera"]
 [ext_resource type="Script" path="res://touch_controls.gd" id="5_touch"]
 [ext_resource type="Script" path="res://tunnel.gd" id="6_tunnel"]
+[ext_resource type="Script" path="res://ocean.gd" id="7_ocean"]
 
 [sub_resource type="Curve3D" id="Curve_tunnel"]
 _data = {
@@ -19,8 +20,8 @@ radius = 0.35
 height = 1.9
 
 [sub_resource type="ProceduralSkyMaterial" id="Sky_1"]
-sky_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
-ground_horizon_color = Color(0.64625, 0.65575, 0.67075, 1)
+sky_horizon_color = Color(0.72, 0.82, 0.88, 1)
+ground_horizon_color = Color(0.72, 0.82, 0.88, 1)
 
 [sub_resource type="Sky" id="Sky_2"]
 sky_material = SubResource("Sky_1")
@@ -31,7 +32,7 @@ sky = SubResource("Sky_2")
 tonemap_mode = 2
 fog_enabled = true
 fog_light_color = Color(0.72, 0.78, 0.85, 1)
-fog_density = 0.0008
+fog_density = 0.00012
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -47,11 +48,12 @@ directional_shadow_max_distance = 300.0
 
 [node name="Terrain" type="StaticBody3D" parent="."]
 script = ExtResource("2_terrain")
+raw_path = "res://terrain/island.r16"
+world_size = 620.0
+height_scale = 180.0
 
-[node name="Tunnel" type="Path3D" parent="."]
-curve = SubResource("Curve_tunnel")
-script = ExtResource("6_tunnel")
-radius = 3.0
+[node name="Ocean" type="MeshInstance3D" parent="."]
+script = ExtResource("7_ocean")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 script = ExtResource("3_player")
@@ -86,6 +88,10 @@ mouse_filter = 2
 
 [node name="JumpButton" type="TouchScreenButton" parent="TouchControls"]
 position = Vector2(1120, 560)
+
+[node name="DiveButton" type="TouchScreenButton" parent="TouchControls"]
+position = Vector2(980, 600)
+visible = false
 
 [node name="HUD" type="CanvasLayer" parent="."]
 

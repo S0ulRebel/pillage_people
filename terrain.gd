@@ -12,6 +12,9 @@ extends StaticBody3D
 @export_file("*.png") var heightmap_path := "res://terrain/heightmap.png"
 @export var world_size := 400.0   ## metres across
 @export var height_scale := 60.0  ## metres from lowest to highest point
+## Fraction of the height range that sits under water. make_heightmap.py bakes the same
+## number into the island, so it has to match or the shoreline lands in the wrong place.
+@export var sea_fraction := 0.10
 @export var mesh_resolution := 256  ## quads per side for the visual mesh
 @export var collision_resolution := 257  ## samples per side for the collision shape (match mesh_resolution + 1)
 
@@ -106,6 +109,11 @@ func sample_height(u: float, v: float) -> float:
 
 ## A spawn point on gentle mid-altitude ground, so the view starts somewhere interesting
 ## rather than on a peak or in a pit.
+## Sea level in metres, the single source of truth for the ocean plane and for swimming.
+func sea_level() -> float:
+	return height_scale * sea_fraction
+
+
 func find_spawn() -> Vector3:
 	var best := Vector3.ZERO
 	var best_score := -1.0
@@ -228,18 +236,22 @@ func _clip_to_hole_edge(polygon: Array[Vector3]) -> Array[Vector3]:
 	return result
 
 
-## Sand -> grass -> rock -> snow, so the shape reads without any textures.
-## Vertex colours are used as linear albedo, so the sRGB values below have to be converted -
+## Seabed -> sand -> jungle -> rock, keyed to sea level rather than to the lowest point.
+##
+## Keying the bands to the map's minimum painted a snowcap on a tropical island and put the
+## beach underwater. Sea level is the landmark that matters here: sand belongs just above it,
+## and everything below it is seabed nobody walks on.
+## Vertex colours are used as linear albedo, so the sRGB values have to be converted -
 ## otherwise everything comes out washed out and pale.
 func _terrain_colour(t: float) -> Color:
-	var grass := Color(0.30, 0.42, 0.20)
-	var rock := Color(0.44, 0.41, 0.37)
-	var snow := Color(0.93, 0.94, 0.97)
-	# Grass is the ground colour, not sand: the stylised map puts most of the world on one
-	# flat plain at height zero, so a sand-at-the-bottom ramp painted the whole level beige.
-	# No sand band: the stylised map puts the whole plain at exactly zero, so anything keyed
-	# to "lowest ground" paints the entire level.
-	var c: Color = grass.lerp(rock, smoothstep(0.18, 0.45, t)).lerp(snow, smoothstep(0.6, 0.82, t))
+	var seabed := Color(0.42, 0.44, 0.34)
+	var sand := Color(0.80, 0.73, 0.52)
+	var jungle := Color(0.22, 0.38, 0.16)
+	var rock := Color(0.38, 0.34, 0.30)
+	var shore: float = sea_fraction
+	var c: Color = seabed.lerp(sand, smoothstep(shore - 0.04, shore + 0.012, t))
+	c = c.lerp(jungle, smoothstep(shore + 0.02, shore + 0.09, t))
+	c = c.lerp(rock, smoothstep(0.55, 0.85, t))
 	return c.srgb_to_linear()
 
 

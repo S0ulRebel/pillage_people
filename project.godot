@@ -39,6 +39,10 @@ jump={
 "deadzone": 0.2,
 "events": [Object(InputEventKey,"keycode":32,"physical_keycode":0,"pressed":true)]
 }
+dive={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"keycode":4194325,"physical_keycode":0,"pressed":true),Object(InputEventKey,"keycode":67,"physical_keycode":0,"pressed":true)]
+}
 cam_left={
 "deadzone": 0.2,
 "events": [Object(InputEventKey,"keycode":81,"physical_keycode":0,"pressed":true)]

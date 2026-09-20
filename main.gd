@@ -7,6 +7,7 @@ extends Node3D
 @onready var _terrain: StaticBody3D = $Terrain
 @onready var _player: CharacterBody3D = $Player
 @onready var _camera_rig: Node3D = $CameraRig
+@onready var _ocean: MeshInstance3D = $Ocean
 
 
 func _ready() -> void:
@@ -32,7 +33,9 @@ func _ready() -> void:
 			tunnel.build(_terrain)
 		_terrain.tunnels = authored
 		print("using %d tunnel(s) from the scene" % authored.size())
-	else:
+	elif "--tunnel" in OS.get_cmdline_user_args():
+		# Only on request now: the island slice is about terrain and water, and a generated
+		# tunnel punches a hole through the shoreline that reads as a bug.
 		var ends: Array[Vector3] = _terrain.plan_tunnel_ends(spawn)
 		if ends.size() == 2:
 			var tunnel := _make_tunnel(ends[0], ends[1])
@@ -57,6 +60,8 @@ func _ready() -> void:
 				printed.append(str(tunnel.curve.get_point_position(i)))
 			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
+	_ocean.setup(_terrain.sea_level())
+	_player.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)
 	var touch: CanvasLayer = $TouchControls
@@ -64,6 +69,7 @@ func _ready() -> void:
 	_camera_rig.touch_controls = touch
 	touch.jumped.connect(_player.request_jump)
 	touch.released.connect(_player.release_jump)
+	touch.dive_changed.connect(_player.set_diving)
 	if "--probepath" in OS.get_cmdline_user_args():
 		_probe_path()
 	elif "--probe" in OS.get_cmdline_user_args():
@@ -78,10 +84,29 @@ func _ready() -> void:
 		_screenshot_and_quit()
 	elif "--jumptest" in OS.get_cmdline_user_args():
 		_jump_test()
+	elif "--swimtest" in OS.get_cmdline_user_args():
+		_swim_test()
 	elif "--touchtest" in OS.get_cmdline_user_args():
 		_touch_self_test()
+	elif "--overview" in OS.get_cmdline_user_args():
+		_overview()
 	elif "--screenshot" in OS.get_cmdline_user_args():
 		_screenshot_and_quit()
+
+
+## A high, wide shot of the whole island and the sea around it - the view that shows whether
+## the shoreline, the scale and the water read correctly, which a ground-level shot cannot.
+func _overview() -> void:
+	# Its own camera rather than the rigged one: the SpringArm keeps writing to that camera's
+	# transform every frame, so moving it has no lasting effect.
+	var camera := Camera3D.new()
+	add_child(camera)
+	camera.fov = 55.0
+	camera.far = 6000.0
+	camera.global_position = Vector3(0.0, _terrain.height_scale * 3.2, _terrain.world_size * 1.15)
+	camera.look_at(Vector3(0.0, _terrain.height_scale * 0.2, 0.0), Vector3.UP)
+	camera.current = true
+	_screenshot_and_quit()
 
 
 ## Builds a Tunnel node whose curve runs from above ground at `a`, down at `entry_slope`,
@@ -134,6 +159,48 @@ func _screenshot_and_quit() -> void:
 
 ## Feeds synthetic touch events through the same path as a real finger, so the iPad controls
 ## can be checked from a desktop run: python-free smoke test for stick, orbit and jump.
+## Walks the swim states on the iPad controls, because the dive button is the only way down
+## on touch and a button that silently does nothing is indistinguishable from deep water.
+func _swim_test() -> void:
+	var touch: CanvasLayer = $TouchControls
+	var sea: float = _terrain.sea_level()
+	await get_tree().process_frame
+
+	# Drop into open water well off the beach, where the seabed is clear below.
+	var deep := Vector3(0.0, sea - 3.0, _terrain.world_size * 0.42)
+	_player.global_position = deep
+	_player.velocity = Vector3.ZERO
+	for i in 6:
+		await get_tree().physics_frame
+	print("in water: swimming=%s dive button visible=%s" % [_player.is_swimming(), touch.get_node("DiveButton").visible])
+
+	var before: float = _player.global_position.y
+	_player.set_diving(true)
+	for i in 30:
+		await get_tree().physics_frame
+	var after_dive: float = _player.global_position.y
+	print("dive:    %.2f -> %.2f m (%.2f)" % [before, after_dive, after_dive - before])
+
+	_player.set_diving(false)
+	_player.request_jump()
+	for i in 30:
+		await get_tree().physics_frame
+	var after_rise: float = _player.global_position.y
+	print("swim up: %.2f -> %.2f m (%.2f)" % [after_dive, after_rise, after_rise - after_dive])
+
+	_player.release_jump()
+	for i in 90:
+		await get_tree().physics_frame
+	print("float:   settled at %.2f m, sea level %.2f m" % [_player.global_position.y, sea])
+
+	# Back on land the button has to go away, and dive must not stay latched on.
+	_player.global_position = _terrain.find_spawn() + Vector3.UP * 2.0
+	for i in 6:
+		await get_tree().physics_frame
+	print("on land: swimming=%s dive button visible=%s" % [_player.is_swimming(), touch.get_node("DiveButton").visible])
+	get_tree().quit()
+
+
 func _touch_self_test() -> void:
 	var touch: CanvasLayer = $TouchControls
 	var camera_rig: Node3D = _camera_rig
