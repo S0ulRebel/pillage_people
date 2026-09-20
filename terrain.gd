@@ -58,11 +58,11 @@ extends StaticBody3D
 		_push_colour("rock_colour", value)
 
 @export_group("Caustics")
-@export_range(0.02, 4.0) var caustic_scale := 0.70:
+@export_range(0.02, 4.0) var caustic_scale := 0.45:
 	set(value):
 		caustic_scale = value
 		_push_colour("caustic_scale", value)
-@export_range(0.01, 0.8) var caustic_width := 0.075:
+@export_range(0.01, 0.8) var caustic_width := 0.11:
 	set(value):
 		caustic_width = value
 		_push_colour("caustic_width", value)
@@ -70,7 +70,7 @@ extends StaticBody3D
 	set(value):
 		caustic_strength = value
 		_push_colour("caustic_strength", value)
-@export_range(0.5, 30.0) var caustic_reach := 3.0:
+@export_range(0.5, 30.0) var caustic_reach := 4.5:
 	set(value):
 		caustic_reach = value
 		_push_colour("caustic_reach", value)

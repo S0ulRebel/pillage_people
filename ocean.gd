@@ -74,6 +74,8 @@ func setup(sea_level: float, terrain: Node3D = null) -> void:
 		water.set_shader_parameter("terrain_size", terrain.world_size)
 		water.set_shader_parameter("terrain_scale", terrain.height_scale)
 		water.set_shader_parameter("sea_y", sea_level)
+		water.set_shader_parameter("terrain_center", Vector2(terrain.global_position.x, terrain.global_position.z))
+		water.set_shader_parameter("terrain_base_y", terrain.global_position.y)
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		water.set_shader_parameter("sun_direction", -sun.global_transform.basis.z)

@@ -1,233 +1,199 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_always, cull_disabled, unshaded;
+render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 
-// Unshaded, and lit here instead. Through the engine's light path the sea came out grey:
-// shallow water rendered #719296 against a #4f9ea6 swatch, and deep water #79999d against
-// #0e5579 - pale blue-grey where it should be near navy. Unshaded, an albedo renders as
-// itself, so the sampled water colours survive and the shading below is the only thing
-// acting on them.
-
-// Sea surface.
-//
-// The waves are real geometry: a sum of Gerstner waves displacing the vertices, with the
-// normal taken from the analytic derivatives rather than from the mesh. Gerstner waves move
-// each point in a circle rather than straight up and down, which gathers water into sharp
-// crests and leaves broad flat troughs - the shape plain sine waves cannot make.
-//
-// Everything white on the surface is derived from that geometry:
-//
-//   * crest foam comes from the Jacobian of the displacement. Where the horizontal part of
-//     the motion starts folding the surface over itself the determinant collapses, and that
-//     is exactly where a real wave whitecaps.
-//   * shore foam comes from how much water is left between the surface and the sand, so the
-//     surf follows the terrain at any shoreline with nothing to place by hand.
-//
-// Caustics are not here. They are light landing on the seabed, so the terrain shader draws
-// them; on the water they ride up and down with the waves instead of lying on the bottom.
-
-uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
-// The seabed, straight from the terrain's height map. The depth buffer only knows where the
-// displaced surface is, so depth read from it moves with the waves and the colour shimmers;
-// the height map gives a still answer to "how deep is the water here".
+// Godot 4.3+. Above-water material; bind the same linear height map as the terrain.
+// Terrain mapping assumes an axis-aligned square. Units below are world metres.
+uniform sampler2D depth_texture : hint_depth_texture, filter_nearest, repeat_disable;
 uniform sampler2D terrain_height : filter_linear, repeat_disable;
 uniform float terrain_size = 620.0;
 uniform float terrain_scale = 180.0;
+uniform vec2 terrain_center = vec2(0.0);
+uniform float terrain_base_y = 0.0;
 uniform float sea_y = 18.0;
 
 group_uniforms Colour;
-// Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the art reference.
+// Preserved from the supplied code, not newly sampled from the reference.
 uniform vec3 shallow_colour : source_color = vec3(0.330, 0.870, 0.800);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 uniform float depth_fade : hint_range(1.0, 60.0) = 8.5;
 uniform int bands : hint_range(0, 8) = 4;
-// High even in the shallows: at half transparency the turquoise simply averages with the
-// bright sand underneath and the whole lagoon lands on grey-green. The reference keeps its
-// colour over sand and lets the bottom read through as shapes, not as its own colour.
-// Low, because the caustics are drawn on the seabed now and every point of opacity here is
-// contrast taken off them. Measured: at 0.42 the web came through at 29 against the
-// reference 49.
-uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.26;
-uniform float deep_alpha : hint_range(0.0, 1.0) = 0.96;
+uniform float band_strength : hint_range(0.0, 1.0) = 0.45;
+// More body than the original 0.26; lower this to expose more seabed/caustics.
+uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.65;
+uniform float deep_alpha : hint_range(0.0, 1.0) = 1.0;
+// Opaque, unshaded colour ramp for checking colours against your swatches.
+uniform bool palette_preview = false;
 
 group_uniforms Waves;
-// Each wave is (direction x, direction z, steepness, wavelength). Steepness near 1 is a wave
-// on the point of breaking; past it the surface folds through itself.
 uniform vec4 wave_1 = vec4(1.0, 0.25, 0.72, 21.0);
 uniform vec4 wave_2 = vec4(-0.5, 0.9, 0.55, 12.5);
 uniform vec4 wave_3 = vec4(0.75, -0.7, 0.42, 7.0);
 uniform vec4 wave_4 = vec4(-0.85, -0.3, 0.30, 3.6);
 uniform float wave_height : hint_range(0.0, 3.0) = 0.5;
 uniform float wave_speed : hint_range(0.0, 3.0) = 1.0;
-// Swell flattens as it runs into the shallows, the way real waves do over a shelf. Without
-// this the open-sea swell carries straight up the beach and slices through the sand.
 uniform float shoal_depth : hint_range(0.5, 40.0) = 2.5;
+// Limits horizontal compression independently of vertical wave height.
+uniform float choppiness : hint_range(0.0, 1.0) = 0.85;
+uniform float detail_near = 120.0;
+uniform float detail_far = 900.0;
 
 group_uniforms Foam;
 uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
-// The Jacobian value below which the surface counts as breaking.
 uniform float crest_fold : hint_range(0.0, 1.5) = 0.62;
 uniform float crest_sharpness : hint_range(0.01, 1.0) = 0.22;
-// Where on the wave the crest streak sits, and how wide it is, as a fraction of wave height.
 uniform float crest_line_height : hint_range(0.0, 1.0) = 0.72;
-uniform float crest_line_width : hint_range(0.01, 0.5) = 0.06;
-// Depth of water at which the shore surf starts.
+uniform float crest_line_width : hint_range(0.001, 0.5) = 0.018;
+uniform float crest_strength : hint_range(0.0, 1.0) = 0.75;
 uniform float foam_depth : hint_range(0.0, 8.0) = 0.35;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
+uniform float shore_softness : hint_range(0.01, 0.5) = 0.06;
+uniform float contact_fade : hint_range(0.01, 2.0) = 0.12;
 
+group_uniforms Lighting;
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
-// Water is nearly flat colour in the reference, so the sun only shapes it a little.
-uniform float wave_shading : hint_range(0.0, 1.0) = 0.22;
+uniform float wave_shading : hint_range(0.0, 1.0) = 0.18;
+group_uniforms;
 
 varying vec3 world_position;
-varying float sea_bed_depth;
 varying vec3 wave_normal;
 varying float fold;
 varying float crest_rise;
-varying float swell;
+varying float wave_activity;
+varying float surface_range;
 
-
-// One Gerstner wave. Accumulates the displacement, the normal terms and the second-derivative
-// terms the Jacobian needs, so the crest foam falls out of the same maths that makes the
-// shape instead of being estimated from it afterwards.
-void gerstner(vec4 wave, vec2 position, float time, float scale,
-		inout vec3 offset, inout vec3 normal_sum,
-		inout float jxx, inout float jzz, inout float jxz) {
-	vec2 direction = normalize(wave.xy);
-	float steepness = wave.z * scale;
-	float wavelength = max(wave.w, 0.01);
-	float k = TAU / wavelength;
-	float speed = sqrt(9.8 / k);                    // deep-water dispersion
-	float amplitude = steepness / k;
-	float phase = k * dot(direction, position) - speed * time * wave_speed;
-	float c = cos(phase);
-	float s = sin(phase);
-
-	offset += vec3(direction.x * amplitude * c, amplitude * s, direction.y * amplitude * c);
-
-	float wa = k * amplitude;
-	normal_sum += vec3(direction.x * wa * c, steepness * wa * s, direction.y * wa * c);
-
-	jxx += steepness * direction.x * direction.x * wa * s;
-	jzz += steepness * direction.y * direction.y * wa * s;
-	jxz += steepness * direction.x * direction.y * wa * s;
+float bed_height(vec2 p) {
+    vec2 uv = (p - terrain_center) / max(terrain_size, 0.001) + 0.5;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+        return sea_y - 1000.0;
+    }
+    return terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
 }
 
-
-// Metres of water over the seabed at a world position, from the terrain height map.
-float water_over_bed(vec2 world_xz) {
-	vec2 uv = world_xz / terrain_size + 0.5;
-	// Outside the island's map there is only open sea, so treat it as deep.
-	if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-		return 1000.0;
-	}
-	return sea_y - texture(terrain_height, uv).r * terrain_scale;
+// x = shoaling envelope; y = distance envelope for the shorter waves.
+vec2 envelopes(vec2 p, vec3 eye) {
+    float depth = sea_y - bed_height(p);
+    float shoal = smoothstep(0.0, max(shoal_depth, 0.001), depth);
+    float range = length(vec3(p.x, sea_y, p.y) - eye);
+    float detail = 1.0 - smoothstep(detail_near, max(detail_far, detail_near + 1.0), range);
+    return vec2(shoal, shoal * detail);
 }
 
+// Derivatives match the actual displacement, including envelope gradients.
+// Horizontal Jacobian uses FIRST derivatives, not second derivatives.
+void gerstner(vec4 wave, vec2 p, float scale, vec2 scale_gradient,
+        float horizontal_ratio, inout vec3 offset, inout vec3 dx,
+        inout vec3 dz, inout float reach) {
+    float dir_length = length(wave.xy);
+    vec2 d = wave.xy / max(dir_length, 0.0001);
+    float steepness = max(wave.z, 0.0) * step(0.0001, dir_length);
+    float k = TAU / max(wave.w, 0.01);
+    float phase = k * dot(d, p) - sqrt(9.8 * k) * TIME * wave_speed;
+    float s = sin(phase);
+    float c = cos(phase);
+    float base_amplitude = steepness / k;
+    float a = base_amplitude * scale;
+    vec3 orbit = vec3(horizontal_ratio * d.x * c, s, horizontal_ratio * d.y * c);
+    vec3 phase_derivative = vec3(-horizontal_ratio * d.x * s, c, -horizontal_ratio * d.y * s);
+    offset += a * orbit;
+    dx += base_amplitude * scale_gradient.x * orbit + a * k * d.x * phase_derivative;
+    dz += base_amplitude * scale_gradient.y * orbit + a * k * d.y * phase_derivative;
+    reach += a;
+}
 
 void vertex() {
-	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	sea_bed_depth = water_over_bed(world.xz);
-	// Never all the way to zero: water right at the edge still moves, and with the waves
-	// switched off entirely the shallows go glassy and the caustics vanish with them.
-	float shoal = clamp(sea_bed_depth / shoal_depth, 0.18, 1.0);
-	swell = shoal;
-	float amplitude = wave_height * shoal;
-	vec3 offset = vec3(0.0);
-	vec3 normal_sum = vec3(0.0);
-	float jxx = 0.0;
-	float jzz = 0.0;
-	float jxz = 0.0;
-
-	// Quads grow with distance, so the short waves end up smaller than the quad carrying them
-	// and alias into a crawling mess. Fade those out with range and keep the long swell.
-	float span = length(world - CAMERA_POSITION_WORLD);
-	float detail = 1.0 - smoothstep(120.0, 900.0, span);
-
-	gerstner(wave_1, world.xz, TIME, amplitude, offset, normal_sum, jxx, jzz, jxz);
-	gerstner(wave_2, world.xz, TIME, amplitude, offset, normal_sum, jxx, jzz, jxz);
-	gerstner(wave_3, world.xz, TIME, amplitude * detail, offset, normal_sum, jxx, jzz, jxz);
-	gerstner(wave_4, world.xz, TIME, amplitude * detail, offset, normal_sum, jxx, jzz, jxz);
-
-	// How high this point sits within the wave, 0 in the trough and 1 on the very top. The
-	// Jacobian only whitens water that is actually breaking, and a calm lagoon never is - but
-	// the reference still draws thin foam streaks along the tops, so the height gives those.
-	float reach = 0.0;
-	reach += wave_1.z / (TAU / max(wave_1.w, 0.01));
-	reach += wave_2.z / (TAU / max(wave_2.w, 0.01));
-	reach += wave_3.z / (TAU / max(wave_3.w, 0.01));
-	reach += wave_4.z / (TAU / max(wave_4.w, 0.01));
-	crest_rise = offset.y / max(reach * amplitude, 0.0001);
-
-	world += offset;
-	world_position = world;
-	VERTEX = (inverse(MODEL_MATRIX) * vec4(world, 1.0)).xyz;
-
-	wave_normal = normalize(vec3(-normal_sum.x, 1.0 - normal_sum.y, -normal_sum.z));
-	NORMAL = wave_normal;
-
-	// Determinant of the horizontal Jacobian: it falls towards zero where neighbouring points
-	// converge, which is the fold that becomes a whitecap.
-	fold = (1.0 - jxx) * (1.0 - jzz) - jxz * jxz;
-
+    vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    // The undeformed ocean is explicitly the sea_y plane.
+    world.y = sea_y;
+    vec2 p = world.xz;
+    vec3 eye = CAMERA_POSITION_WORLD;
+    vec2 env = envelopes(p, eye) * wave_height;
+    // Numerical envelope gradient, analytic wave derivatives.
+    float eps = max(terrain_size / float(textureSize(terrain_height, 0).x), 0.05);
+    vec2 ex = (envelopes(p + vec2(eps, 0.0), eye) - envelopes(p - vec2(eps, 0.0), eye)) * wave_height / (2.0 * eps);
+    vec2 ez = (envelopes(p + vec2(0.0, eps), eye) - envelopes(p - vec2(0.0, eps), eye)) * wave_height / (2.0 * eps);
+    float total_steepness = max(wave_1.z, 0.0) + max(wave_2.z, 0.0) + max(wave_3.z, 0.0) + max(wave_4.z, 0.0);
+    // Prevent open-water folding at high height settings. Terrain gradients can
+    // still cause local compression; keep the height map smooth at the coast.
+    float q = choppiness / max(1.0, total_steepness * wave_height);
+    vec3 offset = vec3(0.0);
+    vec3 dx = vec3(1.0, 0.0, 0.0);
+    vec3 dz = vec3(0.0, 0.0, 1.0);
+    float reach = 0.0;
+    gerstner(wave_1, p, env.x, vec2(ex.x, ez.x), q, offset, dx, dz, reach);
+    gerstner(wave_2, p, env.x, vec2(ex.x, ez.x), q, offset, dx, dz, reach);
+    gerstner(wave_3, p, env.y, vec2(ex.y, ez.y), q, offset, dx, dz, reach);
+    gerstner(wave_4, p, env.y, vec2(ex.y, ez.y), q, offset, dx, dz, reach);
+    world += offset;
+    world_position = world;
+    VERTEX = (inverse(MODEL_MATRIX) * vec4(world, 1.0)).xyz;
+    // Keep custom lighting in world space; do not assign this to local NORMAL.
+    wave_normal = normalize(cross(dz, dx));
+    fold = dx.x * dz.z - dz.x * dx.z;
+    crest_rise = clamp(0.5 + 0.5 * offset.y / max(reach, 0.0001), 0.0, 1.0);
+    wave_activity = smoothstep(0.02, 0.18, reach);
+    surface_range = length(world - eye);
 }
 
-
 void fragment() {
-	// The sea sheet runs right under the island, and near the shore the waves drop it below
-	// the sand, so water is visible passing underneath the beach. Anywhere the surface has
-	// ended up beneath the ground there is no water to draw.
-	float ground_y = sea_y - sea_bed_depth;
-	if (world_position.y < ground_y - 0.02) {
-		discard;
-	}
-
-	// Depth over the seabed for everything the eye reads as "how deep is it here", and the
-	// depth buffer only for fading the water against geometry that is not the terrain.
-	float water_depth = max(sea_bed_depth, 0.0);
-	float raw = texture(depth_texture, SCREEN_UV).r;
-	vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, raw, 1.0);
-	view.xyz /= view.w;
-	float to_solid = max(-view.z + VERTEX.z, 0.0);
-
-	float t = clamp(water_depth / depth_fade, 0.0, 1.0);
-	float stepped = t;
-	if (bands > 0) {
-		// Quantised, but keeping some of the gradient so it reads as stylisation rather than
-		// as a broken ramp.
-		stepped = mix(t, floor(t * float(bands) + 0.5) / float(bands), 0.75);
-	}
-
-	// Whitecaps where the surface is folding. This is the wave breaking, not a pattern.
-	float breaking = smoothstep(crest_fold, crest_fold - crest_sharpness, fold);
-	// A narrow band at a fixed height on the wave, which draws a thin line running along each
-	// crest. Everything-above-a-threshold gives white caps, and on calm water there are none -
-	// the marks in the reference are streaks along the crest, not breaking foam.
-	float line = 1.0 - smoothstep(0.0, crest_line_width, abs(crest_rise - crest_line_height));
-	float tops = line * smoothstep(0.12, 0.45, swell);
-	float crest = max(breaking, tops);
-
-	// Surf along the shore, advancing and retreating so it reads as water running up the sand.
-	float surge = foam_depth * (0.75 + 0.45 * sin(TIME * foam_speed * 2.2 + world_position.x * 0.05));
-	float shore = 1.0 - clamp(water_depth / max(surge, 0.001), 0.0, 1.0);
-	float surf = smoothstep(0.25, 0.75, shore);
-
-	// Caustics are drawn by the terrain shader, not here: they are light landing on the
-	// seabed, so they belong to the ground. Drawn on the water they ride up and down with the
-	// waves instead of lying still on the bottom.
-	float contact = smoothstep(0.0, 1.2, to_solid);   // soften where the sea meets geometry
-
-	vec3 water = mix(shallow_colour, deep_colour, stepped);
-	float white = clamp(max(crest, surf), 0.0, 1.0);
-	vec3 colour = mix(water, foam_colour, white);
-
-	// Only a gentle shade off the wave normal: enough that the swell reads as a surface with
-	// shape, not so much that it drags the colour away from the swatch it came from.
-	float lambert = clamp(dot(normalize(wave_normal), normalize(sun_direction)), 0.0, 1.0);
-	// Centred on the angle flat water sits at, so an unlit-looking swell darkens and a
-	// sunward face brightens, but level water renders as exactly its own colour. Ramping from
-	// 1 - shading upwards instead means every pixel is darkened and the whole sea drops below
-	// the swatch it was sampled from.
-	ALBEDO = colour * (1.0 + (lambert - 0.55) * wave_shading);
-
-	ALPHA = mix(mix(shallow_alpha, deep_alpha, stepped), 1.0, max(surf, crest)) * contact;
+    // Sample at the DISPLACED surface position, per pixel, not interpolated
+    // from the undeformed vertices. Colour depth stays tied to the terrain.
+    float bed = bed_height(world_position.xz);
+    float thickness = world_position.y - bed;
+    if (thickness <= 0.0) { discard; }
+    float water_depth = max(sea_y - bed, 0.0);
+    float raw = texture(depth_texture, SCREEN_UV).r;
+    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+    vec3 ndc = vec3(SCREEN_UV, raw) * 2.0 - 1.0;
+    #else
+    vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, raw);
+    #endif
+    vec4 scene_view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
+    float to_solid = 1000.0;
+    if (abs(scene_view.w) > 0.000001) {
+        float surface_z = (VIEW_MATRIX * vec4(world_position, 1.0)).z;
+        to_solid = max(surface_z - scene_view.z / scene_view.w, 0.0);
+    }
+    float contact = smoothstep(0.0, max(contact_fade, 0.001), to_solid);
+    float edge = smoothstep(0.0, max(shore_softness, 0.001), thickness);
+    float t = clamp(water_depth / max(depth_fade, 0.001), 0.0, 1.0);
+    float ramp = t;
+    if (bands > 1) {
+        float steps = float(bands - 1);
+        float quantized = 0.0;
+        float aa = max(fwidth(t), 0.0001);
+        for (int i = 0; i < 7; i++) {
+            if (i < bands - 1) {
+                float boundary = (float(i) + 0.5) / steps;
+                quantized += smoothstep(boundary - aa, boundary + aa, t) / steps;
+            }
+        }
+        ramp = mix(t, quantized, band_strength);
+    }
+    vec3 water = mix(shallow_colour, deep_colour, ramp);
+    // Always use increasing smoothstep edges.
+    float breaking = 1.0 - smoothstep(crest_fold - max(crest_sharpness, 0.001), crest_fold, fold);
+    breaking *= smoothstep(0.60, 0.85, crest_rise);
+    float width = max(crest_line_width, 0.001);
+    float aa = max(fwidth(crest_rise), 0.001);
+    float line = 1.0 - smoothstep(width, width + aa, abs(crest_rise - crest_line_height));
+    // Sparse, broad interruptions along the streaks, not high-frequency noise.
+    float breakup = 0.5 + 0.5 * sin(dot(world_position.xz, vec2(0.47, 0.31)) + sin(dot(world_position.xz, vec2(-0.19, 0.38))) + TIME * 0.2 * wave_speed);
+    line *= smoothstep(0.35, 0.70, breakup);
+    line *= 1.0 - smoothstep(100.0, 350.0, surface_range);
+    float crest = max(breaking, line * crest_strength) * wave_activity;
+    // A shallow white ribbon with a moving outer edge; no foam when disabled.
+    float surge = foam_depth * (0.85 + 0.15 * sin(TIME * foam_speed * TAU));
+    float surf = 1.0 - smoothstep(surge * 0.35, max(surge, 0.001), thickness);
+    surf *= step(0.001, foam_depth);
+    float white = clamp(max(crest, surf), 0.0, 1.0);
+    vec3 light_dir = sun_direction / max(length(sun_direction), 0.0001);
+    float lambert = max(dot(normalize(wave_normal), light_dir), 0.0);
+    float flat_lambert = max(light_dir.y, 0.0);
+    vec3 shaded_water = water * max(0.0, 1.0 + (lambert - flat_lambert) * wave_shading);
+    ALBEDO = mix(shaded_water, foam_colour, white);
+    ALPHA = mix(mix(shallow_alpha, deep_alpha, ramp), 1.0, white) * edge * contact;
+    if (palette_preview) {
+        ALBEDO = water;
+        ALPHA = 1.0;
+    }
 }

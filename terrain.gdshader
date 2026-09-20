@@ -67,13 +67,13 @@ group_uniforms Caustics;
 // Light saturated cyan, not the cream of sunlight on sand: the web reads as bright water,
 // and a warm line goes pink and dirty once the turquoise is over it.
 uniform vec3 caustic_colour : source_color = vec3(0.60, 1.0, 0.97);
-uniform float caustic_scale : hint_range(0.02, 4.0) = 0.70;
-uniform float caustic_width : hint_range(0.01, 0.8) = 0.075;
+uniform float caustic_scale : hint_range(0.02, 4.0) = 0.45;
+uniform float caustic_width : hint_range(0.01, 0.8) = 0.11;
 uniform float caustic_strength : hint_range(0.0, 2.0) = 1.7;
 // Metres of water at which the web has faded out. Shallow: the caustics belong to the strip
 // by the shore, not to the open sea, and carrying them out across the whole lagoon is what
 // makes them read as a texture laid over the water rather than light on the sand.
-uniform float caustic_reach : hint_range(0.5, 30.0) = 3.0;
+uniform float caustic_reach : hint_range(0.5, 30.0) = 4.5;
 
 group_uniforms Cliffs;
 // Slope, not height, decides rock: a cliff at the waterline is still a cliff, and keying rock
