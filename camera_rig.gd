@@ -11,6 +11,8 @@ extends Node3D
 
 @onready var _arm: SpringArm3D = $SpringArm3D
 var _target: Node3D
+## Set by main.gd on touch devices.
+var touch_controls: CanvasLayer
 
 
 func _ready() -> void:
@@ -39,3 +41,9 @@ func _process(delta: float) -> void:
 	var orbit := Input.get_axis("cam_left", "cam_right")
 	if absf(orbit) > 0.01:
 		rotation.y -= orbit * orbit_speed * delta
+	if touch_controls:
+		var gesture: Dictionary = touch_controls.take_camera_input()
+		rotation.y -= gesture["orbit"]
+		if absf(gesture["zoom"]) > 0.0:
+			_arm.spring_length = clampf(_arm.spring_length + gesture["zoom"],
+					min_distance, max_distance)

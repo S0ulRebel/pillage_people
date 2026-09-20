@@ -7,7 +7,13 @@ Open the folder in Godot and press F5, or run:
 D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\gan\godot\terrain_demo
 ```
 
-**Controls:** WASD move (relative to the camera) · Space jump · Q/E orbit · mouse wheel zoom.
+**Touch (iPad / Xogot):** left half = virtual stick (appears where your thumb lands) ·
+right half drag = orbit the camera · two-finger pinch = zoom · bottom-right button = jump.
+
+**Keyboard:** WASD move (relative to the camera) · Space jump · Q/E orbit · mouse wheel zoom.
+
+The touch controls show themselves automatically on a touchscreen; on desktop add `--touch`
+to see them. Mouse-to-touch emulation is on, so they can be tried with a mouse.
 
 ## What is in it
 
@@ -17,6 +23,7 @@ D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\gan\godot\terrain_demo
 | `terrain.gd` | Reads the height map and builds the mesh (vertex-coloured by altitude) + a `HeightMapShape3D` collider. |
 | `player.gd` | `CharacterBody3D`: camera-relative movement, gravity, jump, and a body built from primitives (capsule torso, sphere head, box limbs that swing while walking) so the project needs no imported model. |
 | `camera_rig.gd` | `SpringArm3D` chase camera: follows smoothly, orbits, zooms, and will not clip through hills. |
+| `touch_controls.gd` | iPad controls, drawn in code (no image assets): virtual stick, jump button, drag-to-orbit, pinch-to-zoom. |
 | `terrain/*.r16`, `terrain/*.png` | Height maps from `tools\make_heightmap.py`. |
 
 ## Swapping in another terrain
@@ -42,5 +49,12 @@ Useful settings on the Terrain node:
   washed out.
 - **Triangle winding**: `[0,1,2] / [0,2,3]` over the grid. The other order faces away and
   backface culling makes the terrain look like scattered fragments.
+- **Renderer is Mobile**, not Forward+, so it runs on iPad. SSAO is off for the same reason.
 - `--screenshot` (as a user arg) renders a frame after the physics settles and quits:
   `Godot.exe --path . -- --screenshot` — it is how this project was checked without the editor.
+- `--touchtest` feeds synthetic touch events through the real input path and prints what
+  happened, so the iPad controls can be tested from a desktop run:
+  `Godot.exe --path . -- --touchtest --touch`
+  Expected: the stick moves the player several metres, the drag turns the camera, the jump
+  button sets an upward velocity. (`physics_frame` fires *before* `_physics_process`, so a
+  check straight after emitting a jump reads the old velocity — wait one more frame.)

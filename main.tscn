@@ -1,9 +1,10 @@
-[gd_scene load_steps=9 format=3 uid="uid://c0terraindemo01"]
+[gd_scene load_steps=10 format=3 uid="uid://c0terraindemo01"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://terrain.gd" id="2_terrain"]
 [ext_resource type="Script" path="res://player.gd" id="3_player"]
 [ext_resource type="Script" path="res://camera_rig.gd" id="4_camera"]
+[ext_resource type="Script" path="res://touch_controls.gd" id="5_touch"]
 
 [sub_resource type="CapsuleShape3D" id="Capsule_1"]
 radius = 0.35
@@ -61,6 +62,18 @@ current = true
 fov = 60.0
 far = 1000.0
 
+[node name="TouchControls" type="CanvasLayer" parent="."]
+script = ExtResource("5_touch")
+
+[node name="StickLayer" type="Control" parent="TouchControls"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="JumpButton" type="TouchScreenButton" parent="TouchControls"]
+position = Vector2(1120, 560)
+
 [node name="HUD" type="CanvasLayer" parent="."]
 
 [node name="Controls" type="Label" parent="HUD"]
@@ -68,5 +81,5 @@ offset_left = 16.0
 offset_top = 12.0
 offset_right = 420.0
 offset_bottom = 110.0
-text = "WASD  move      Space  jump
-Q / E  orbit camera      Mouse wheel  zoom"
+text = "Touch: left stick moves, right drag orbits, pinch zooms, button jumps
+Keyboard: WASD move, Space jump, Q/E orbit, wheel zoom"
