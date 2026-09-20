@@ -14,13 +14,16 @@ extends StaticBody3D
 @export var mesh_resolution := 256  ## quads per side for the visual mesh
 @export var collision_resolution := 257  ## samples per side for the collision shape (match mesh_resolution + 1)
 
-## Holes punched through the terrain, as Vector3(world_x, world_z, radius).
-## Set before generate() - main.gd picks them near the spawn point.
-var holes: Array[Vector3] = []
+## Tunnels that cut through this terrain. Set before generate(); each one is asked where its
+## tube is, and the terrain is cut to exactly that shape - so an opening always matches its
+## tunnel, whatever the slope, with nothing to line up by hand.
+var tunnels: Array = []
 
 var _heights: PackedFloat32Array
 var _size := 0
-var _rim_triangles := PackedVector3Array()   ## boundary geometry, for the precise rim collider
+var _rim_triangles := PackedVector3Array()
+var _dropped := 0
+var _clipped := 0   ## boundary geometry, for the precise rim collider
 
 
 func _ready() -> void:
@@ -35,11 +38,16 @@ func generate() -> void:
 	_build_collision()
 
 
-## Negative inside a hole, positive outside, zero on the rim: the contour the mesh is cut along.
+## Negative where the ground is inside a tunnel, positive outside, zero on the opening's edge:
+## the contour the terrain mesh is cut along.
 func hole_field(world_x: float, world_z: float) -> float:
+	if tunnels.is_empty():
+		return 1e9
+	var point := Vector3(world_x, sample_height(world_x / world_size + 0.5,
+			world_z / world_size + 0.5), world_z)
 	var best := 1e9
-	for h in holes:
-		best = minf(best, Vector2(world_x - h.x, world_z - h.y).length() - h.z)
+	for tunnel in tunnels:
+		best = minf(best, tunnel.distance_outside(point))
 	return best
 
 
@@ -109,51 +117,37 @@ func find_spawn() -> Vector3:
 	return best
 
 
-## Picks `count` hole positions near the spawn: flat-ish ground, spread apart, and not so
-## close to the player that they fall straight in on the first step.
-func plan_holes(spawn: Vector3, count: int, hole_radius := 11.6) -> Array[Vector3]:
-	# Craters want flat ground; if the terrain has none nearby, accept rougher spots rather
-	# than give up (no holes at all would leave the demo without tunnels).
-	for tolerance in [3.5, 5.0, 7.5, 12.0]:
-		var found := _find_hole_sites(spawn, count, hole_radius, tolerance)
-		if found.size() >= count:
-			return found
-	return []
-
-
-func _find_hole_sites(spawn: Vector3, count: int, hole_radius: float,
-		tolerance: float) -> Array[Vector3]:
-	var chosen: Array[Vector3] = []
-	var attempts := 0
-	while chosen.size() < count and attempts < 20000:
-		attempts += 1
+## Two spots near the spawn, far enough apart to be worth a tunnel between them, on ground
+## that is not a cliff.
+func plan_tunnel_ends(spawn: Vector3) -> Array[Vector3]:
+	var best: Array[Vector3] = []
+	var best_score := -1e9
+	for attempt in 4000:
 		var angle := randf() * TAU
-		var distance := randf_range(32.0, 70.0)
-		var wx: float = spawn.x + cos(angle) * distance
-		var wz: float = spawn.z + sin(angle) * distance
-		if absf(wx) > world_size * 0.45 or absf(wz) > world_size * 0.45:
+		var a := Vector3(spawn.x + cos(angle) * randf_range(25.0, 45.0), 0.0,
+				spawn.z + sin(angle) * randf_range(25.0, 45.0))
+		var away := angle + randf_range(2.0, 4.3)
+		var b := Vector3(a.x + cos(away) * randf_range(45.0, 70.0), 0.0,
+				a.z + sin(away) * randf_range(45.0, 70.0))
+		if maxf(absf(b.x), absf(b.z)) > world_size * 0.45:
 			continue
-		var h := height_at(wx, wz)
-		# the whole rim has to sit close to the centre height, or the crater becomes a cliff
-		# on one side and sticks out of the ground on the other
-		var rim_ok := true
-		for step in 8:
-			var a := TAU * step / 8.0
-			if absf(height_at(wx + cos(a) * hole_radius, wz + sin(a) * hole_radius) - h) > tolerance:
-				rim_ok = false
-				break
-		if not rim_ok:
-			continue
-		# holes at similar heights keep the tunnel between them gentle
-		if chosen.size() > 0 and absf(h - height_at(chosen[0].x, chosen[0].y)) > 6.0:
-			continue
-		var clear := true
-		for other in chosen:
-			if Vector2(wx - other.x, wz - other.y).length() < 45.0:
-				clear = false
-		if clear:
-			chosen.append(Vector3(wx, wz, hole_radius))
-	return chosen
+		a.y = height_at(a.x, a.z)
+		b.y = height_at(b.x, b.z)
+		# gentle ground at both ends, and not too much height difference between them
+		var score: float = -absf(a.y - b.y) - _roughness(a) * 2.0 - _roughness(b) * 2.0
+		if score > best_score:
+			best_score = score
+			best = [a, b]
+	return best
+
+
+func _roughness(point: Vector3) -> float:
+	var h := height_at(point.x, point.z)
+	var total := 0.0
+	for step in 4:
+		var angle := TAU * step / 4.0
+		total += absf(height_at(point.x + cos(angle) * 6.0, point.z + sin(angle) * 6.0) - h)
+	return total * 0.25
 
 
 ## World-space height under a point, for dropping things onto the ground.
@@ -176,7 +170,10 @@ func _build_mesh() -> void:
 				if hole_field(p.x, p.z) < 0.0:
 					inside += 1
 			if inside == 4:
+				_dropped += 1
 				continue                      # entirely inside a hole: no geometry at all
+			if inside > 0:
+				_clipped += 1
 			var polygon: Array[Vector3] = quad if inside == 0 else _clip_to_hole_edge(quad)
 			if polygon.size() < 3:
 				continue
@@ -259,10 +256,10 @@ func _build_collision() -> void:
 			var wz := z * spacing - world_size * 0.5
 			var height := sample_height(float(x) / (collision_resolution - 1),
 					float(z) / (collision_resolution - 1))
-			# Only knock out samples a full cell INSIDE the hole. Going the other way (a
-			# margin outside) leaves a ring where the height field is gone but the rim
-			# trimesh does not reach - a gap in the world that swallows the player.
-			data[z * collision_resolution + x] = NAN if hole_field(wx, wz) < -spacing else height
+			# Knock out every sample inside the opening. Keeping a margin of solid samples
+			# there left an invisible floor across most of the hole; the cut rim quads (the
+			# trimesh below) are what covers the boundary cells.
+			data[z * collision_resolution + x] = NAN if hole_field(wx, wz) < 0.0 else height
 	shape.map_data = data
 	if _rim_triangles.size() > 0:
 		var rim := ConcavePolygonShape3D.new()

@@ -57,29 +57,37 @@ Useful settings on the Terrain node:
 | `mesh_resolution` | 256 | quads per side (visual detail) |
 | `collision_resolution` | 257 | collision samples per side (match `mesh_resolution` + 1) |
 
-## Holes and tunnels
+## Tunnels
 
-Two holes are cut near the spawn and joined by a tunnel you can walk into.
+A tunnel is a node you place in the scene: `Tunnel` extends `Path3D`, so you draw a curve and
+set a radius. Everything else follows from those two things.
 
-- **Smooth rims.** Quads that straddle the hole are clipped along the contour
-  (Sutherland-Hodgman against a signed distance field) rather than dropped whole, so the
-  outline follows a circle instead of the 1.56 m grid.
-- **Crater entrances.** Each end is a cone at 35 degrees - shallow enough to walk down and
-  back up. Its width is fixed by the hole, and the depth follows from it. Doing that the
-  other way round let the crater and the hole disagree: on some layouts the crater was
-  narrower than the hole (a gap to fall through), on others wider (a dome to walk over).
-- **Hybrid collision.** The height field keeps its cheap collider, with `NaN` samples a full
-  cell *inside* the hole; the cut rim quads add a trimesh for the exact edge. The margin has
-  to point inwards - a margin outside leaves a ring where neither shape exists and the player
-  drops out of the world.
-- **Back faces.** A tube is walked on from the inside, and `ConcavePolygonShape3D` ignores
-  back faces by default, so `backface_collision = true` is what stops the player falling
-  through the tunnel floor.
+- The tube is extruded along the curve and **kept only where it is underground**. A curve that
+  dips, surfaces over a ridge and dips again becomes two separate tubes.
+- The terrain is cut **against the tube itself**, not against a separate hole shape, so an
+  opening is always exactly the tube's cross-section where it breaks the surface - at any
+  slope, with nothing to line up by hand. (The first version cut circular holes and tried to
+  match craters to them; every mismatch was either a gap to fall through or a dome to walk over.)
+- The cut stops short of the tube's ends and a little inside its wall (`cut_margin`), so ground
+  and tube always overlap instead of meeting exactly on one surface.
+- Collision: the height field gets `NaN` wherever the opening is, the cut rim quads add a
+  trimesh for the boundary, and the tube's own trimesh has `backface_collision = true` -
+  without that the player falls straight through a tube walked on from the inside.
 
-**Known limitation:** you can walk in at one crater and all the way through, but climbing out
-of the far crater is unreliable - the tube mouth's own walls fence off part of the crater
-floor. `--tunneltest` reports this honestly ("walked out = false"). The fix is a corridor
-with a flat floor and an open-top ramp at each end instead of a cylinder meeting a cone.
+**Adding one by hand** (this is the intended way, including in Xogot):
+
+1. Add a `Tunnel` node to the scene, set `radius`.
+2. Draw its curve: start above ground, dive, run along, come back up.
+3. `main.gd` passes every `Tunnel` to the terrain before it generates.
+
+Ramps want about 25 degrees. The player's `floor_max_angle` is raised to 55 degrees because
+faceted tube walls throw normals past Godot's 45 degree default and stop you dead halfway out.
+
+**Auto-placed tunnels are not reliable yet.** `main.gd` picks two spots near the spawn and
+builds a curve between them; on some terrain the result is not walkable end to end. Measured
+with `--tunneltest` over six layouts: four walk through, one stops a step short of the exit,
+one drops through near the mouth. Hand-placed curves avoid the problem because you can see
+what you are making.
 
 ## Is it really physics?
 

@@ -51,6 +51,9 @@ func release_jump() -> void:
 
 
 func _ready() -> void:
+	# Tunnel ramps run at about 40 degrees, and faceted walls push some normals past Godot's
+	# 45 degree default, which reads as "wall" and stops the player dead halfway out.
+	floor_max_angle = deg_to_rad(55.0)
 	_build_body()
 
 

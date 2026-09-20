@@ -10,19 +10,27 @@ extends Node3D
 
 
 func _ready() -> void:
-	seed(20260920)   # same terrain, same holes every run - makes problems reproducible
+	# same layout every run unless --seed N is passed: reproducible problems, but easy to
+	# check that the tunnel generator copes with more than one arrangement
+	var chosen_seed := 20260920
+	for i in OS.get_cmdline_user_args().size():
+		if OS.get_cmdline_user_args()[i] == "--seed" and i + 1 < OS.get_cmdline_user_args().size():
+			chosen_seed = int(OS.get_cmdline_user_args()[i + 1])
+	seed(chosen_seed)
 	# start the player on the ground near the middle, plus a little clearance
 	var spawn: Vector3 = _terrain.find_spawn()
-	# two holes near the spawn, joined underground by a walkable tunnel
-	var holes: Array[Vector3] = _terrain.plan_holes(spawn, 2)
-	# only cut holes that a tunnel will actually connect - an unpaired hole is a bottomless pit
-	if holes.size() % 2 == 1:
-		holes.remove_at(holes.size() - 1)
-	_terrain.holes = holes
+	# one tunnel near the spawn: a curve dropping underground and coming back up. The terrain
+	# is then cut to whatever shape the tube makes where it breaks the surface.
+	var ends: Array[Vector3] = _terrain.plan_tunnel_ends(spawn)
+	var holes: Array[Vector3] = []
+	if ends.size() == 2:
+		var tunnel := _make_tunnel(ends[0], ends[1])
+		_terrain.tunnels = [tunnel]
+		holes = [Vector3(ends[0].x, ends[0].z, tunnel.radius),
+				Vector3(ends[1].x, ends[1].z, tunnel.radius)]
 	_terrain.generate()
-	$Tunnels.build(_terrain, holes)
 	_player.global_position = spawn + Vector3.UP * 2.0
-	print("holes at ", holes)
+	print("tunnel between ", ends)
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)
 	var touch: CanvasLayer = $TouchControls
@@ -48,6 +56,54 @@ func _ready() -> void:
 		_touch_self_test()
 	elif "--screenshot" in OS.get_cmdline_user_args():
 		_screenshot_and_quit()
+
+
+## Builds a Tunnel node whose curve runs from above ground at `a`, down at `entry_slope`,
+## along at depth, and back up to `b`. Everything else (tube, collision, the hole in the
+## terrain) follows from the curve and the radius.
+func _make_tunnel(a: Vector3, b: Vector3, tunnel_radius := 3.0, depth := 9.0,
+		entry_slope_degrees := 25.0) -> Tunnel:
+	var tunnel := Tunnel.new()
+	tunnel.name = "Tunnel"
+	tunnel.radius = tunnel_radius
+	var towards := Vector3(b.x - a.x, 0.0, b.z - a.z).normalized()
+	var run: float = depth / tan(deg_to_rad(entry_slope_degrees))
+	var floor_y: float = minf(a.y, b.y) - depth
+	var ramp_bottom_a := Vector3(a.x, floor_y, a.z) + towards * (run * 0.65)
+	var ramp_bottom_b := Vector3(b.x, floor_y, b.z) - towards * (run * 0.65)
+	# Each end keeps climbing along its ramp until it is clear of the ground, so the tunnel
+	# always breaks the surface somewhere and has a mouth you can walk into.
+	# Start just above the chosen spot and dive: the tube is trimmed where it crosses the
+	# surface, so that crossing becomes the mouth. No need to hunt for daylight.
+	var points: Array[Vector3] = [
+		Vector3(a.x, a.y + tunnel_radius * 0.8, a.z),
+		ramp_bottom_a,
+		ramp_bottom_b,
+		Vector3(b.x, b.y + tunnel_radius * 0.8, b.z),
+	]
+	var curve := Curve3D.new()
+	for i in points.size():
+		# smooth handles: the ramps blend into the level run instead of kinking
+		var handle := Vector3.ZERO
+		if i > 0 and i < points.size() - 1:
+			handle = (points[i + 1] - points[i - 1]).normalized() * 7.0
+		curve.add_point(points[i], -handle, handle)
+	tunnel.curve = curve
+	add_child(tunnel)
+	tunnel.build(_terrain)
+	return tunnel
+
+
+## Walks out along `direction` from `from` until the point is clear of the terrain, and then
+## a little further, so the tube ends above ground rather than buried in a hillside.
+func _surface_exit(from: Vector3, direction: Vector3, clearance: float) -> Vector3:
+	var travelled := 0.0
+	while travelled < 120.0:
+		var point: Vector3 = from + direction * travelled
+		if point.y > _terrain.height_at(point.x, point.z) + clearance:
+			return point + direction * 4.0
+		travelled += 2.0
+	return from + direction * 40.0
 
 
 func _screenshot_and_quit() -> void:
@@ -145,80 +201,57 @@ func _jump_test() -> void:
 	get_tree().quit()
 
 
-## Walks the player into the first hole and on towards the second, reporting whether they
-## actually end up underground and standing on the tunnel floor.
+## Walks the player along the tunnel: in at one opening, through, and out at the other.
 func _tunnel_test(holes: Array[Vector3]) -> void:
-	if holes.size() < 2:
-		print("tunnel test: no holes")
+	if _terrain.tunnels.is_empty():
+		print("tunnel test: no tunnel")
 		get_tree().quit()
 		return
-	var entry := Vector3(holes[0].x, 0.0, holes[0].y)
-	var target := Vector3(holes[1].x, 0.0, holes[1].y)
-	# start on the crater's near rim: starting further out can put a cliff in the way, which
-	# says nothing about whether the tunnel works
-	var start_side := (entry - target).normalized() * (holes[0].z * 0.9)
-	_player.global_position = entry + start_side + Vector3.UP * (_terrain.height_at(entry.x + start_side.x, entry.z + start_side.z) + 2.0)
+	var tunnel = _terrain.tunnels[0]
+	var curve: Curve3D = tunnel.curve
+	var total: float = curve.get_baked_length()
+
+	# waypoints along the curve, plus a point past the far end to walk out to
+	var route: Array[Vector3] = []
+	for i in range(1, 11):
+		route.append(tunnel.to_global(curve.sample_baked(total * i / 10.0)))
+	var last: Vector3 = route[route.size() - 1]
+	var second_last: Vector3 = route[route.size() - 2]
+	route.append(last + (last - second_last).normalized() * 12.0)
+
+	# start on the surface, just short of the opening
+	var first: Vector3 = tunnel.to_global(curve.sample_baked(0.0))
+	var into: Vector3 = (tunnel.to_global(curve.sample_baked(6.0)) - first).normalized()
+	var start_point: Vector3 = first - into * 6.0
+	_player.global_position = Vector3(start_point.x,
+			_terrain.height_at(start_point.x, start_point.z) + 2.0, start_point.z)
 	_camera_rig.set_target(_player)
-	# stick input is camera-relative; facing the camera north makes x/z map straight through
-	_camera_rig.rotation.y = 0.0
+	_camera_rig.rotation.y = 0.0   # stick input is camera-relative
 	await get_tree().physics_frame
 
-	var surface: float = _terrain.height_at(entry.x, entry.z)
-	print("tunnel test: surface at hole 1 = %.1f m" % surface)
-	var deepest: float = _player.global_position.y
-	# waypoints: down into crater 1, into the tunnel mouth, along it, then out at crater 2
-	var route: Array[Vector3] = []
-	if $Tunnels.paths.size() > 0:
-		var tunnel: Array = $Tunnels.paths[0]
-		route = [tunnel[1], tunnel[2], tunnel[tunnel.size() - 3], target]
-	else:
-		route = [target]
-	# phase 1: head for the far hole; phase 2: keep going past it, out onto the surface
-	# climb out sideways: straight along the tunnel axis the tube's own roof forms a lip
-	var sideways: Vector3 = (target - entry).normalized().cross(Vector3.UP).normalized()
-	var beyond: Vector3 = target + sideways * 20.0
-	var reached_far_hole := false
+	var deepest := 0.0
 	var waypoint := 0
-	for step in 40:
-		var aim: Vector3 = beyond
-		if not reached_far_hole:
-			aim = route[waypoint]
-			if Vector2(aim.x - _player.global_position.x, aim.z - _player.global_position.z).length() < 5.0 					and waypoint < route.size() - 1:
-				waypoint += 1
-		var to_aim: Vector3 = aim - _player.global_position
-		await _drive(Vector2(to_aim.x, to_aim.z).normalized(), 0.5)
+	for step in 60:
+		var aim: Vector3 = route[waypoint]
 		var here: Vector3 = _player.global_position
-		deepest = minf(deepest, here.y)
-		var from_far: float = Vector2(here.x - target.x, here.z - target.z).length()
-		if not reached_far_hole and from_far < 6.0:
-			reached_far_hole = true
-			print("  reached hole 2 at t=%.1fs, %.1f m below the surface" % [
-					(step + 1) * 0.5, _terrain.height_at(here.x, here.z) - here.y])
-		if step % 2 == 1:
-			print("  t=%.1fs  y=%.1f  depth=%.1f  %.1f m from hole 1, %.1f m from hole 2  speed=%.1f  aim=%s" % [
-					(step + 1) * 0.5, here.y, _terrain.height_at(here.x, here.z) - here.y,
-					Vector2(here.x - entry.x, here.z - entry.z).length(), from_far,
-					Vector2(_player.velocity.x, _player.velocity.z).length(),
-					"hole2" if not reached_far_hole else "beyond"])
-	# what is in front of the player, if anything
-	var space := get_viewport().world_3d.direct_space_state
-	var eye: Vector3 = _player.global_position + Vector3.UP * 1.0
-	var aim_dir: Vector3 = (beyond if reached_far_hole else target) - _player.global_position
-	aim_dir.y = 0.0
-	var forward_query := PhysicsRayQueryParameters3D.create(eye, eye + aim_dir.normalized() * 6.0)
-	forward_query.exclude = [_player.get_rid()]
-	var blocker := space.intersect_ray(forward_query)
-	if blocker.is_empty():
-		print("  nothing blocking within 6 m ahead")
-	else:
-		var node: Node = blocker["collider"]
-		print("  blocked by %s at %.2f m ahead, normal %s" % [
-				node.get_parent().name + "/" + node.name,
-				eye.distance_to(blocker["position"]), blocker["normal"]])
-	var final_depth: float = _terrain.height_at(_player.global_position.x, _player.global_position.z) - _player.global_position.y
-	print("tunnel test: deepest %.1f m below the surface; ended %.1f m below surface, standing: %s" % [
-			surface - deepest, final_depth, _player.is_on_floor()])
-	print("tunnel test: walked out = ", absf(final_depth) < 2.0 and _player.is_on_floor())
+		if Vector2(aim.x - here.x, aim.z - here.z).length() < 4.0 and waypoint < route.size() - 1:
+			waypoint += 1
+			aim = route[waypoint]
+		var to_aim: Vector3 = aim - here
+		await _drive(Vector2(to_aim.x, to_aim.z).normalized(), 0.4)
+		here = _player.global_position
+		var depth: float = _terrain.height_at(here.x, here.z) - here.y
+		deepest = maxf(deepest, depth)
+		if step % 5 == 4:
+			print("  t=%4.1fs  depth=%5.1f m  waypoint %d/%d  on_floor=%s" % [
+					(step + 1) * 0.4, depth, waypoint, route.size() - 1, _player.is_on_floor()])
+	var final_here: Vector3 = _player.global_position
+	var final_depth: float = _terrain.height_at(final_here.x, final_here.z) - final_here.y
+	var exit_point: Vector3 = tunnel.to_global(curve.sample_baked(total))
+	var from_exit: float = Vector2(final_here.x - exit_point.x, final_here.z - exit_point.z).length()
+	print("tunnel test: went %.1f m deep, ended %.1f m below the surface, %.1f m from the far opening"
+			% [deepest, final_depth, from_exit])
+	print("tunnel test: walked through = ", deepest > 4.0 and absf(final_depth) < 2.5 and from_exit < 25.0)
 	_screenshot_and_quit()
 
 
@@ -258,17 +291,35 @@ func _probe(holes: Array[Vector3]) -> void:
 	await get_tree().physics_frame
 	var index: int = 1 if "--second" in OS.get_cmdline_user_args() else 0
 	var centre := Vector3(holes[index].x, _terrain.height_at(holes[index].x, holes[index].y), holes[index].y)
+	if _terrain.tunnels.size() > 0:
+		# the opening sits where the curve crosses the surface, not at the planned end point
+		var curve: Curve3D = _terrain.tunnels[0].curve
+		var at: float = 0.0 if index == 0 else curve.get_baked_length()
+		var probe_point: Vector3 = _terrain.tunnels[0].to_global(curve.sample_baked(at))
+		centre = Vector3(probe_point.x, _terrain.height_at(probe_point.x, probe_point.z), probe_point.z)
 	var space := get_viewport().world_3d.direct_space_state
 	print("probe at hole %d, surface y = %.1f" % [index + 1, centre.y])
 	# also look for ceilings: an overhang is what stops a player climbing out
-	for offset in [8.0, 10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 25.0]:
-		var below := centre + Vector3(offset, -7.0, 0.0)
+	# probe outward from the mouth along the tunnel direction, where the exit gap would be
+	var outward := Vector3.RIGHT
+	if _terrain.tunnels.size() > 0:
+		var c: Curve3D = _terrain.tunnels[0].curve
+		var total2: float = c.get_baked_length()
+		var tip: Vector3 = _terrain.tunnels[0].to_global(c.sample_baked(total2))
+		var inner: Vector3 = _terrain.tunnels[0].to_global(c.sample_baked(total2 - 8.0))
+		outward = (tip - inner)
+		outward.y = 0.0
+		outward = outward.normalized()
+		if index == 0:
+			outward = -outward
+	for offset in [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0]:
+		var below: Vector3 = centre + outward * offset + Vector3(0.0, -7.0, 0.0)
 		var up_query := PhysicsRayQueryParameters3D.create(below, below + Vector3.UP * 12.0)
 		var up_hit := space.intersect_ray(up_query)
 		if not up_hit.is_empty():
 			print("  r=%4.1f m: CEILING at %.1f m below the surface" % [
 					offset, centre.y - up_hit["position"].y])
-		var from := centre + Vector3(offset, 12.0, 0.0)
+		var from: Vector3 = centre + outward * offset + Vector3(0.0, 12.0, 0.0)
 		var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 80.0)
 		var hit := space.intersect_ray(query)
 		if hit.is_empty():
@@ -285,18 +336,22 @@ func _probe(holes: Array[Vector3]) -> void:
 func _probe_path() -> void:
 	await get_tree().physics_frame
 	var space := get_viewport().world_3d.direct_space_state
-	for path: Array in $Tunnels.paths:
+	for tunnel in _terrain.tunnels:
 		print("tunnel path:")
-		for i in range(path.size() - 1):
-			var length: float = (path[i + 1] - path[i]).length()
-			var direction: Vector3 = (path[i + 1] - path[i]).normalized()
+		var curve: Curve3D = tunnel.curve
+		var total: float = curve.get_baked_length()
+		var walked := 0.0
+		while walked <= total:
+			var i := 0
+			var direction := Vector3.ZERO
+			var length := 0.0
 			var travelled := 0.0
-			while travelled < length:
-				var point: Vector3 = path[i] + direction * travelled
+			var point: Vector3 = tunnel.to_global(curve.sample_baked(walked))
+			walked += 4.0
+			if true:
 				var query := PhysicsRayQueryParameters3D.create(point + Vector3.UP * 0.5,
 						point + Vector3.DOWN * 8.0)
 				var hit := space.intersect_ray(query)
 				var floor_text := "NO FLOOR" if hit.is_empty() else "floor %.1f m below" % (point.y - hit["position"].y)
-				print("  seg %d  +%5.1f m  y=%7.1f  %s" % [i, travelled, point.y, floor_text])
-				travelled += 4.0
+				print("  +%6.1f m along  y=%7.1f  %s" % [walked - 4.0, point.y, floor_text])
 	get_tree().quit()
