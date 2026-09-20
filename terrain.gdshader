@@ -117,8 +117,12 @@ void fragment() {
 	ROUGHNESS = mix(1.0, 0.45, wet);
 	SPECULAR = mix(0.2, 0.6, wet);
 
+	// Rim light belongs on the island's edge against the sea, so it is limited to steep
+	// ground. Flat ground seen from a low camera is also "facing away" by this measure, and
+	// without the slope test the whole beach lit up and clipped to white.
 	float facing = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
-	EMISSION = rim_colour * pow(1.0 - facing, rim_power) * rim_strength;
+	EMISSION = rim_colour * pow(1.0 - facing, rim_power) * rim_strength
+			* smoothstep(0.30, 0.75, slope);
 }
 
 void light() {
@@ -135,6 +139,16 @@ void light() {
 	// and the shadow tint colours it rather than greying it out.
 	toon = mix(shadow_floor, 1.0, toon);
 
-	vec3 lit = mix(shadow_tint, LIGHT_COLOR, toon) * toon;
-	DIFFUSE_LIGHT += ALBEDO * (lit + shadow_tint * ambient);
+	// Albedo times the light and nothing more. Mixing in a tint and then adding ambient on
+	// top of that drove lit ground past white - sand was clipping the red channel - while the
+	// shaded side still came out too dark. The ramp carries the shading; the light does not
+	// get to add brightness of its own.
+	// LIGHT_COLOR arrives scaled by pi/2 for a directional light, so writing ALBEDO *
+	// LIGHT_COLOR straight into DIFFUSE_LIGHT renders fully lit ground about 1.57 times too
+	// bright - measured, by rendering a flat 0.5 grey and reading the result back. Undo it,
+	// and lit ground then matches its albedo exactly, which is what makes the sampled
+	// reference colours come out as the colours they were sampled from.
+	const float LIGHT_SCALE = 2.0 / PI;
+	vec3 lit = mix(shadow_tint * ambient, LIGHT_COLOR, toon);
+	DIFFUSE_LIGHT += ALBEDO * lit * LIGHT_SCALE;
 }
