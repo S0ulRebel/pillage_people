@@ -55,7 +55,23 @@ Useful settings on the Terrain node:
 | `world_size` | 400 | metres across |
 | `height_scale` | 60 | metres from lowest to highest |
 | `mesh_resolution` | 256 | quads per side (visual detail) |
-| `collision_resolution` | 129 | collision samples per side |
+| `collision_resolution` | 257 | collision samples per side (match `mesh_resolution` + 1) |
+
+## Is it really physics?
+
+Yes. The terrain is a `StaticBody3D` with a `HeightMapShape3D`; the player is a
+`CharacterBody3D` moved with `move_and_slide()`, so Godot (Jolt) resolves the contacts.
+Gravity is applied in script, which is how a kinematic body is meant to work. Nothing
+snaps the player to the height map - the only direct sampling is choosing the spawn point.
+
+Keep `collision_resolution` near `mesh_resolution`, or you stand on a surface coarser than
+the one you see. Measured against this 1024 height map over 400 m:
+
+| `collision_resolution` | spacing | mean error | worst |
+|---|---|---|---|
+| 129 | 3.12 m | 0.50 m | 8.06 m |
+| **257** (current) | 1.56 m | 0.19 m | 3.68 m |
+| 513 | 0.78 m | 0.08 m | 2.39 m |
 
 ## Notes worth keeping
 

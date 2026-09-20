@@ -12,7 +12,7 @@ extends StaticBody3D
 @export var world_size := 400.0   ## metres across
 @export var height_scale := 60.0  ## metres from lowest to highest point
 @export var mesh_resolution := 256  ## quads per side for the visual mesh
-@export var collision_resolution := 129  ## samples per side for the collision shape
+@export var collision_resolution := 257  ## samples per side for the collision shape (match mesh_resolution + 1)
 
 var _heights: PackedFloat32Array
 var _size := 0
