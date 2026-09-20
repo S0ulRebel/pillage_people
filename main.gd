@@ -29,8 +29,20 @@ func _ready() -> void:
 		holes = [Vector3(ends[0].x, ends[0].z, tunnel.radius),
 				Vector3(ends[1].x, ends[1].z, tunnel.radius)]
 	_terrain.generate()
+	# Start next to the tunnel mouth, looking at it: the tunnel used to be tens of metres away
+	# with nothing pointing at it, so it was easy to miss entirely.
+	if _terrain.tunnels.size() > 0:
+		var tunnel = _terrain.tunnels[0]
+		var mouth: Vector3 = tunnel.to_global(tunnel.curve.sample_baked(0.0))
+		var inward: Vector3 = tunnel.to_global(tunnel.curve.sample_baked(10.0)) - mouth
+		inward.y = 0.0
+		inward = inward.normalized()
+		var stand: Vector3 = mouth - inward * 11.0
+		spawn = Vector3(stand.x, _terrain.height_at(stand.x, stand.z), stand.z)
+		_camera_rig.rotation.y = atan2(-inward.x, -inward.z)   # face the entrance
+		print("tunnel mouth at ", mouth, " - player starts ", 
+				Vector2(spawn.x - mouth.x, spawn.z - mouth.z).length(), " m away")
 	_player.global_position = spawn + Vector3.UP * 2.0
-	print("tunnel between ", ends)
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)
 	var touch: CanvasLayer = $TouchControls
