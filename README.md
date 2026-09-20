@@ -48,6 +48,28 @@ Real-world gravity (Godot's 9.8 default) makes a jump feel like the moon: 2.5 m 
 Measure any change with `Godot.exe --path . -- --jumptest --touch`, which prints the height
 and airtime of a held jump and a tapped one.
 
+## The height map
+
+`terrain/heightmap.r16` is a **stylised** map: wide flat plains with a few isolated
+flat-topped mesas, about 78% of it near-level. That is deliberate - the first map was ridges
+edge to edge, which left nowhere to build and put every tunnel mouth on a slope.
+
+It was made with the image-generation setup:
+
+```
+tools\make_heightmap.py "wide open plains with a few isolated flat-topped mesas, a shallow
+  winding valley, gentle rolling ground" --stylized --count 3 --size 1024
+  --plains 1.0 --terrace 3 --smooth 32 --detail 0.15
+```
+
+- `--stylized` swaps in a prompt about plains and plateaus instead of eroded mountains
+- `--plains` pushes mid heights down, spreading low ground into plains
+- `--terrace` quantises heights into flat bands with walkable risers between them
+- `--smooth` / `--detail` wash out the fine ridges diffusion likes to produce
+
+Swapping the map means re-drawing the tunnel curve, since the curve is world-space geometry
+and the ground under it will have changed.
+
 ## Swapping in another terrain
 
 Generate one (`make_terrain.bat` in `D:\code\gan`), copy the `.r16` into `terrain\`, and set

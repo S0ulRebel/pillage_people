@@ -22,9 +22,10 @@ func _ready() -> void:
 	# Tunnels placed in the scene win; the generated one is only a fallback so the demo is
 	# never empty. Add a Tunnel node, draw its curve, and it is picked up here.
 	var authored: Array = []
-	for child in get_children():
-		if child is Tunnel:
-			authored.append(child)
+	if "--noscene" not in OS.get_cmdline_user_args():   # --noscene: generate one instead
+		for child in get_children():
+			if child is Tunnel:
+				authored.append(child)
 	var holes: Array[Vector3] = []
 	if not authored.is_empty():
 		for tunnel in authored:
@@ -50,6 +51,11 @@ func _ready() -> void:
 		var stand: Vector3 = mouth - inward * 11.0
 		spawn = Vector3(stand.x, _terrain.height_at(stand.x, stand.z), stand.z)
 		_camera_rig.rotation.y = atan2(-inward.x, -inward.z)   # face the entrance
+		if "--printcurve" in OS.get_cmdline_user_args():
+			var printed := PackedStringArray()
+			for i in tunnel.curve.point_count:
+				printed.append(str(tunnel.curve.get_point_position(i)))
+			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)

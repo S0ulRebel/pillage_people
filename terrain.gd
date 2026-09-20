@@ -232,17 +232,14 @@ func _clip_to_hole_edge(polygon: Array[Vector3]) -> Array[Vector3]:
 ## Vertex colours are used as linear albedo, so the sRGB values below have to be converted -
 ## otherwise everything comes out washed out and pale.
 func _terrain_colour(t: float) -> Color:
-	var sand := Color(0.74, 0.68, 0.50)
 	var grass := Color(0.30, 0.42, 0.20)
 	var rock := Color(0.44, 0.41, 0.37)
 	var snow := Color(0.93, 0.94, 0.97)
-	var c: Color
-	if t < 0.20:
-		c = sand.lerp(grass, smoothstep(0.08, 0.20, t))
-	elif t < 0.55:
-		c = grass.lerp(rock, smoothstep(0.38, 0.55, t))
-	else:
-		c = rock.lerp(snow, smoothstep(0.70, 0.86, t))
+	# Grass is the ground colour, not sand: the stylised map puts most of the world on one
+	# flat plain at height zero, so a sand-at-the-bottom ramp painted the whole level beige.
+	# No sand band: the stylised map puts the whole plain at exactly zero, so anything keyed
+	# to "lowest ground" paints the entire level.
+	var c: Color = grass.lerp(rock, smoothstep(0.18, 0.45, t)).lerp(snow, smoothstep(0.6, 0.82, t))
 	return c.srgb_to_linear()
 
 
