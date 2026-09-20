@@ -166,13 +166,25 @@ func _tunnel_test(holes: Array[Vector3]) -> void:
 	var surface: float = _terrain.height_at(entry.x, entry.z)
 	print("tunnel test: surface at hole 1 = %.1f m" % surface)
 	var deepest: float = _player.global_position.y
+	# waypoints: down into crater 1, into the tunnel mouth, along it, then out at crater 2
+	var route: Array[Vector3] = []
+	if $Tunnels.paths.size() > 0:
+		var tunnel: Array = $Tunnels.paths[0]
+		route = [tunnel[1], tunnel[2], tunnel[tunnel.size() - 3], target]
+	else:
+		route = [target]
 	# phase 1: head for the far hole; phase 2: keep going past it, out onto the surface
 	# climb out sideways: straight along the tunnel axis the tube's own roof forms a lip
 	var sideways: Vector3 = (target - entry).normalized().cross(Vector3.UP).normalized()
 	var beyond: Vector3 = target + sideways * 20.0
 	var reached_far_hole := false
+	var waypoint := 0
 	for step in 40:
-		var aim: Vector3 = target if not reached_far_hole else beyond
+		var aim: Vector3 = beyond
+		if not reached_far_hole:
+			aim = route[waypoint]
+			if Vector2(aim.x - _player.global_position.x, aim.z - _player.global_position.z).length() < 5.0 					and waypoint < route.size() - 1:
+				waypoint += 1
 		var to_aim: Vector3 = aim - _player.global_position
 		await _drive(Vector2(to_aim.x, to_aim.z).normalized(), 0.5)
 		var here: Vector3 = _player.global_position
