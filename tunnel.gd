@@ -35,7 +35,15 @@ var _stretches: Array[PackedVector3Array] = []
 var _cut_stretches: Array[PackedVector3Array] = []
 
 
-## Called by the terrain once it knows its heights; tunnels cannot be built before that.
+func _ready() -> void:
+	if Engine.is_editor_hint():
+		# so a tunnel dropped into the scene shows itself straight away
+		var found := get_node_or_null("../Terrain")
+		if found != null:
+			build(found)
+
+
+## Called by main.gd (or by the editor preview) once the terrain knows its heights.
 func build(terrain: Node3D) -> void:
 	_terrain = terrain
 	_rebuild()
@@ -67,6 +75,7 @@ func _rebuild() -> void:
 	if _terrain == null or curve == null or curve.point_count < 2:
 		return
 	for child in get_children():
+		remove_child(child)
 		child.queue_free()
 
 	_stretches = _underground_stretches()

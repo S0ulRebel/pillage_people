@@ -1,10 +1,18 @@
-[gd_scene load_steps=10 format=3 uid="uid://c0terraindemo01"]
+[gd_scene load_steps=12 format=3 uid="uid://c0terraindemo01"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://terrain.gd" id="2_terrain"]
 [ext_resource type="Script" path="res://player.gd" id="3_player"]
 [ext_resource type="Script" path="res://camera_rig.gd" id="4_camera"]
 [ext_resource type="Script" path="res://touch_controls.gd" id="5_touch"]
+[ext_resource type="Script" path="res://tunnel.gd" id="6_tunnel"]
+
+[sub_resource type="Curve3D" id="Curve_tunnel"]
+_data = {
+"points": PackedVector3Array(-0.0000, -0.0000, -0.0000, 0.0000, 0.0000, 0.0000, -115.8367, 36.5405, 109.7036, 4.0704, 1.9927, 5.3349, -4.0704, -1.9927, -5.3349, -123.4466, 25.1405, 99.7298, 4.0658, -2.0182, 5.3288, -4.0658, 2.0182, -5.3288, -139.1237, 25.1405, 79.1828, -0.0000, -0.0000, -0.0000, 0.0000, 0.0000, 0.0000, -146.7335, 36.6996, 69.2090),
+"tilts": PackedFloat32Array(0, 0, 0, 0)
+}
+point_count = 4
 
 [sub_resource type="CapsuleShape3D" id="Capsule_1"]
 radius = 0.35
@@ -39,6 +47,11 @@ directional_shadow_max_distance = 300.0
 
 [node name="Terrain" type="StaticBody3D" parent="."]
 script = ExtResource("2_terrain")
+
+[node name="Tunnel" type="Path3D" parent="."]
+curve = SubResource("Curve_tunnel")
+script = ExtResource("6_tunnel")
+radius = 3.0
 
 [node name="Player" type="CharacterBody3D" parent="."]
 script = ExtResource("3_player")

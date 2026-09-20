@@ -82,11 +82,26 @@ set a radius. Everything else follows from those two things.
   trimesh for the boundary, and the tube's own trimesh has `backface_collision = true` -
   without that the player falls straight through a tube walked on from the inside.
 
-**Adding one by hand** (this is the intended way, including in Xogot):
+### Adding a tunnel yourself
 
-1. Add a `Tunnel` node to the scene, set `radius`.
-2. Draw its curve: start above ground, dive, run along, come back up.
-3. `main.gd` passes every `Tunnel` to the terrain before it generates.
+The scene already contains one **Tunnel** node - the quickest start is to select it and drag
+its curve points around, or duplicate it (Ctrl+D) for a second tunnel.
+
+1. **Add** a `Path3D` and attach `tunnel.gd` (or duplicate the existing Tunnel), as a child of
+   `Main`, next to Terrain.
+2. **Draw the curve**: start a little above the ground, dive under it, run along, come back up.
+   Three or four points is plenty; the terrain is drawn in the editor (terrain.gd is a `@tool`
+   script) so you can see where you are putting it.
+3. **Set `radius`** - 3 m is comfortable to walk through.
+
+Everything else follows: the tube is extruded, clipped to the ground, given collision, lit,
+and the terrain is cut where it comes through. `main.gd` picks up every `Tunnel` child of
+`Main` before the terrain generates; if there are none it generates one so the demo is never
+empty.
+
+The curve is world-space geometry over procedural terrain, so a tunnel that never goes
+underground simply builds nothing and warns. Keep the middle of the curve about 10-20 m below
+the surface, and the ends within about 25 degrees of the ground for a walkable ramp.
 
 Ramps want about 25 degrees. The player's `floor_max_angle` is raised to 55 degrees because
 faceted tube walls throw normals past Godot's 45 degree default and stop you dead halfway out.

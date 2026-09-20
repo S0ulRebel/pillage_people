@@ -1,3 +1,4 @@
+@tool
 extends StaticBody3D
 ## Builds a terrain mesh + collision from a 16-bit height map PNG.
 ##
@@ -30,6 +31,11 @@ func _ready() -> void:
 	var source := "raw" if _load_raw() else ("png" if _load_png() else "")
 	if source == "":
 		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
+		return
+	if Engine.is_editor_hint():
+		# Preview the landscape in the editor - without it you would be drawing tunnel curves
+		# against an empty viewport. Mesh only: collision is a runtime concern.
+		_build_mesh()
 
 
 ## Builds the mesh and colliders. Call after setting `holes`.

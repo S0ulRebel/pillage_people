@@ -19,15 +19,25 @@ func _ready() -> void:
 	seed(chosen_seed)
 	# start the player on the ground near the middle, plus a little clearance
 	var spawn: Vector3 = _terrain.find_spawn()
-	# one tunnel near the spawn: a curve dropping underground and coming back up. The terrain
-	# is then cut to whatever shape the tube makes where it breaks the surface.
-	var ends: Array[Vector3] = _terrain.plan_tunnel_ends(spawn)
+	# Tunnels placed in the scene win; the generated one is only a fallback so the demo is
+	# never empty. Add a Tunnel node, draw its curve, and it is picked up here.
+	var authored: Array = []
+	for child in get_children():
+		if child is Tunnel:
+			authored.append(child)
 	var holes: Array[Vector3] = []
-	if ends.size() == 2:
-		var tunnel := _make_tunnel(ends[0], ends[1])
-		_terrain.tunnels = [tunnel]
-		holes = [Vector3(ends[0].x, ends[0].z, tunnel.radius),
-				Vector3(ends[1].x, ends[1].z, tunnel.radius)]
+	if not authored.is_empty():
+		for tunnel in authored:
+			tunnel.build(_terrain)
+		_terrain.tunnels = authored
+		print("using %d tunnel(s) from the scene" % authored.size())
+	else:
+		var ends: Array[Vector3] = _terrain.plan_tunnel_ends(spawn)
+		if ends.size() == 2:
+			var tunnel := _make_tunnel(ends[0], ends[1])
+			_terrain.tunnels = [tunnel]
+			holes = [Vector3(ends[0].x, ends[0].z, tunnel.radius),
+					Vector3(ends[1].x, ends[1].z, tunnel.radius)]
 	_terrain.generate()
 	# Start next to the tunnel mouth, looking at it: the tunnel used to be tens of metres away
 	# with nothing pointing at it, so it was easy to miss entirely.
@@ -40,8 +50,6 @@ func _ready() -> void:
 		var stand: Vector3 = mouth - inward * 11.0
 		spawn = Vector3(stand.x, _terrain.height_at(stand.x, stand.z), stand.z)
 		_camera_rig.rotation.y = atan2(-inward.x, -inward.z)   # face the entrance
-		print("tunnel mouth at ", mouth, " - player starts ", 
-				Vector2(spawn.x - mouth.x, spawn.z - mouth.z).length(), " m away")
 	_player.global_position = spawn + Vector3.UP * 2.0
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)
@@ -83,8 +91,6 @@ func _make_tunnel(a: Vector3, b: Vector3, tunnel_radius := 3.0, depth := 9.0,
 	var floor_y: float = minf(a.y, b.y) - depth
 	var ramp_bottom_a := Vector3(a.x, floor_y, a.z) + towards * (run * 0.65)
 	var ramp_bottom_b := Vector3(b.x, floor_y, b.z) - towards * (run * 0.65)
-	# Each end keeps climbing along its ramp until it is clear of the ground, so the tunnel
-	# always breaks the surface somewhere and has a mouth you can walk into.
 	# Start just above the chosen spot and dive: the tube is trimmed where it crosses the
 	# surface, so that crossing becomes the mouth. No need to hunt for daylight.
 	var points: Array[Vector3] = [
@@ -104,18 +110,6 @@ func _make_tunnel(a: Vector3, b: Vector3, tunnel_radius := 3.0, depth := 9.0,
 	add_child(tunnel)
 	tunnel.build(_terrain)
 	return tunnel
-
-
-## Walks out along `direction` from `from` until the point is clear of the terrain, and then
-## a little further, so the tube ends above ground rather than buried in a hillside.
-func _surface_exit(from: Vector3, direction: Vector3, clearance: float) -> Vector3:
-	var travelled := 0.0
-	while travelled < 120.0:
-		var point: Vector3 = from + direction * travelled
-		if point.y > _terrain.height_at(point.x, point.z) + clearance:
-			return point + direction * 4.0
-		travelled += 2.0
-	return from + direction * 40.0
 
 
 func _screenshot_and_quit() -> void:
