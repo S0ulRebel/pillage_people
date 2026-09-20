@@ -60,7 +60,7 @@ func _ready() -> void:
 				printed.append(str(tunnel.curve.get_point_position(i)))
 			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
-	_ocean.setup(_terrain.sea_level())
+	_ocean.setup(_terrain.sea_level(), _terrain)
 	_player.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)

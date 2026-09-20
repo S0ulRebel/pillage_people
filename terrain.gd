@@ -164,6 +164,20 @@ func _roughness(point: Vector3) -> float:
 	return total * 0.25
 
 
+## The height map as a texture, so a shader can read the seabed.
+##
+## The water needs to know how deep it is at every point - to flatten the swell as it shoals,
+## and to colour itself - and reading it from the depth buffer instead ties the colour to the
+## displaced surface, which then shimmers as the waves move.
+func height_texture() -> ImageTexture:
+	var bytes := PackedByteArray()
+	bytes.resize(_heights.size() * 4)
+	for i in _heights.size():
+		bytes.encode_float(i * 4, _heights[i])
+	var image := Image.create_from_data(_size, _size, false, Image.FORMAT_RF, bytes)
+	return ImageTexture.create_from_image(image)
+
+
 ## World-space height under a point, for dropping things onto the ground.
 func height_at(world_x: float, world_z: float) -> float:
 	return sample_height(world_x / world_size + 0.5, world_z / world_size + 0.5)
