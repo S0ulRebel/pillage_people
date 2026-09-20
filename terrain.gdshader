@@ -39,7 +39,7 @@ group_uniforms Ground;
 // The seabed is the colour the reference shows sand as when it is under water, not the colour
 // dry sand would be. Left as tan it fights the water above it: the turquoise has to be made
 // nearly opaque to cover it, and then the bottom stops reading through at all.
-uniform vec3 seabed_colour : source_color = vec3(0.620, 0.800, 0.720);
+uniform vec3 seabed_colour : source_color = vec3(0.660, 0.980, 0.820);
 uniform vec3 wet_sand_colour : source_color = vec3(0.678, 0.518, 0.384);
 uniform vec3 dry_sand_colour : source_color = vec3(0.910, 0.749, 0.529);
 uniform vec3 grass_colour : source_color = vec3(0.498, 0.525, 0.220);
@@ -107,12 +107,17 @@ void vertex() {
 }
 
 void fragment() {
+	// Mottling on the seabed. In the reference the bottom inside each caustic cell is not flat
+	// colour - it is patchy with darker weed and sand - and without it the cells read as empty
+	// panes rather than as a bottom seen through water.
+	float mottle = fbm(world_position.xz * 0.75);
+
 	// Height above the waterline decides the band, jittered per pixel so the boundaries are
 	// ragged rather than following a contour line exactly.
 	float patchy = fbm(world_position.xz * patch_scale);
 	float above = world_position.y - sea_y + (patchy - 0.5) * edge_break;
 
-	vec3 ground = seabed_colour;
+	vec3 ground = seabed_colour * (0.68 + 0.56 * mottle);
 	ground = mix(ground, wet_sand_colour, smoothstep(-0.6, 0.2, above));
 	ground = mix(ground, dry_sand_colour, smoothstep(wet_sand_top * 0.4, wet_sand_top, above));
 	ground = mix(ground, grass_colour, smoothstep(dry_sand_top * 0.35, dry_sand_top * 1.5, above));

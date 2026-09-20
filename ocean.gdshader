@@ -35,7 +35,7 @@ uniform float sea_y = 18.0;
 
 group_uniforms Colour;
 // Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the art reference.
-uniform vec3 shallow_colour : source_color = vec3(0.435, 0.760, 0.745);
+uniform vec3 shallow_colour : source_color = vec3(0.430, 0.985, 0.835);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 uniform float depth_fade : hint_range(1.0, 60.0) = 8.5;
 uniform int bands : hint_range(0, 8) = 4;
@@ -71,12 +71,15 @@ uniform float foam_depth : hint_range(0.0, 8.0) = 0.35;
 uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 
 group_uniforms Caustics;
-uniform float caustic_strength : hint_range(0.0, 2.0) = 0.5;
+uniform float caustic_strength : hint_range(0.0, 2.0) = 1.3;
 // Cells per metre. Sized against the reference frame rather than against the character:
 // counting cells across the panel gives roughly a metre each, not the three metres that
 // measuring one cell against the figure suggested.
-uniform float caustic_scale : hint_range(0.02, 4.0) = 1.15;
-uniform float caustic_width : hint_range(0.01, 0.8) = 0.20;
+uniform float caustic_scale : hint_range(0.02, 4.0) = 0.60;
+uniform float caustic_width : hint_range(0.01, 0.8) = 0.125;
+// Sunlight through water carries the sand's warmth, so the web is cream rather than the white
+// of the surf. Side by side, white lines read as grey against the aqua and look like plastic.
+uniform vec3 caustic_colour : source_color = vec3(0.98, 0.96, 0.82);
 // Set from the scene's sun, so the sea is shaded by the same light as the island.
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
 // Water is nearly flat colour in the reference, so the sun only shapes it a little.
@@ -286,10 +289,15 @@ void fragment() {
 	float border = cell_border(world_position.xz * caustic_scale, TIME);
 	float caustic = (1.0 - smoothstep(0.0, caustic_width, border))
 			* caustic_strength * visible_bottom;
+	// Uneven along their length: in the reference some strands are bright and others barely
+	// there, and a web of identical lines looks printed on.
+	caustic *= 0.45 + 1.1 * warp_noise(world_position.xz * 0.19 + TIME * 0.05);
 
-	float white = clamp(max(crest, surf) + caustic, 0.0, 1.0);
 	vec3 water = mix(shallow_colour, deep_colour, stepped);
-	vec3 colour = mix(water, foam_colour, white);
+	// Caustics first, in their own warm colour, then the surf and crests in white over them.
+	vec3 colour = mix(water, caustic_colour, clamp(caustic, 0.0, 1.0));
+	float white = clamp(max(crest, surf), 0.0, 1.0);
+	colour = mix(colour, foam_colour, white);
 
 	// Only a gentle shade off the wave normal: enough that the swell reads as a surface with
 	// shape, not so much that it drags the colour away from the swatch it came from.
