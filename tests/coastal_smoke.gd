@@ -25,6 +25,7 @@ func _run() -> void:
 	await process_frame
 	var terrain := scene.get_node("Terrain")
 	var player := scene.get_node("Player") as CharacterBody3D
+	var ocean := scene.get_node("Ocean") as Ocean
 	var study := scene.get_node_or_null("CoastalStudy")
 	if authored or "--noassets" in OS.get_cmdline_user_args():
 		check(study == null, "Study must be absent in noassets/authored runs")
@@ -37,6 +38,26 @@ func _run() -> void:
 	else:
 		check(study != null and study.valid, "No valid shoreline study")
 		if study != null and study.valid:
+			var emitter := player.get_node_or_null("WaterBandEmitter") as WaterBandEmitter
+			check(emitter != null and emitter.is_in_group(&"water_band_emitters"), "Player water-band emitter missing")
+			var saved_position := player.global_position
+			player.global_position.y = terrain.sea_level() - 1.35
+			await process_frame
+			check(ocean.material.get_shader_parameter("dynamic_band_count") == 1, "Submerged dynamic emitter not sent to water")
+			var prop := Node3D.new()
+			prop.name = "GenericBandProp"
+			scene.add_child(prop)
+			prop.global_position = Vector3(player.global_position.x + 3.0,
+				terrain.sea_level() - 0.5, player.global_position.z)
+			var prop_emitter := WaterBandEmitter.new()
+			prop_emitter.radius = 0.8
+			prop_emitter.height = 1.2
+			prop.add_child(prop_emitter)
+			await process_frame
+			check(ocean.material.get_shader_parameter("dynamic_band_count") == 2, "Generic object emitter not sent to water")
+			prop.queue_free()
+			await process_frame
+			player.global_position = saved_position
 			check(study.get_child_count() == 13, "Expected nine rocks, one palm and three foliage groups")
 			check(player.global_position.distance_to(study.spawn + Vector3.UP * 2.0) < 0.2, "Player not at study spawn")
 			check(study.spawn.y > terrain.sea_level() + 0.75, "Spawn is wet")

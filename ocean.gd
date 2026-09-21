@@ -1,6 +1,7 @@
 @tool
 extends MeshInstance3D
 class_name Ocean
+const MAX_DYNAMIC_BAND_EMITTERS := 16
 ## The sea: a displaced surface, not a coloured plane.
 ##
 ## Sea level is not stored here - it comes from the terrain, because the height map was
@@ -73,9 +74,11 @@ var _camera: Camera3D
 var _band_viewport: SubViewport
 var _band_camera: Camera3D
 var _band_distance_texture: ImageTexture
+var _sea_level := 0.0
 
 
 func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO) -> void:
+	_sea_level = sea_level
 	position.y = sea_level
 	mesh = _radial_grid()
 	if material == null:
@@ -115,6 +118,30 @@ func _process(_delta: float) -> void:
 	# sea itself stays put - only the grid of vertices slides along underneath it.
 	var eye := _camera.global_position
 	global_position = Vector3(eye.x, global_position.y, eye.z)
+	_update_dynamic_band_emitters(eye)
+
+
+func _update_dynamic_band_emitters(eye: Vector3) -> void:
+	var active: Array[WaterBandEmitter] = []
+	for node in get_tree().get_nodes_in_group(&"water_band_emitters"):
+		var emitter := node as WaterBandEmitter
+		if emitter == null or not emitter.band_enabled:
+			continue
+		var depth := _sea_level - emitter.global_position.y
+		if depth > 0.0 and depth < emitter.height:
+			active.append(emitter)
+	active.sort_custom(func(a: WaterBandEmitter, b: WaterBandEmitter) -> bool:
+		return a.global_position.distance_squared_to(eye) < b.global_position.distance_squared_to(eye))
+	var packed := PackedVector4Array()
+	packed.resize(MAX_DYNAMIC_BAND_EMITTERS)
+	var count := mini(active.size(), MAX_DYNAMIC_BAND_EMITTERS)
+	for i in count:
+		var emitter := active[i]
+		var p := emitter.global_position
+		var phase := fmod(float(emitter.get_instance_id()), 997.0) / 997.0 * TAU
+		packed[i] = Vector4(p.x, p.z, emitter.radius, phase)
+	material.set_shader_parameter("dynamic_band_emitters", packed)
+	material.set_shader_parameter("dynamic_band_count", count)
 
 
 func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:

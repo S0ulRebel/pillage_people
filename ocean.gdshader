@@ -52,12 +52,14 @@ uniform float shore_softness : hint_range(0.01, 0.5) = 0.06;
 uniform float contact_fade : hint_range(0.01, 2.0) = 0.12;
 
 group_uniforms Object_Bands;
-uniform vec3 object_band_inner_colour : source_color = vec3(0.56, 0.96, 0.94);
-uniform vec3 object_band_outer_colour : source_color = vec3(0.08, 0.76, 0.82);
-uniform float object_band_inner_distance : hint_range(0.1, 3.0) = 0.48;
-uniform float object_band_outer_distance : hint_range(0.2, 5.0) = 1.38;
-uniform float object_band_width : hint_range(0.05, 0.6) = 0.20;
-uniform float object_band_strength : hint_range(0.0, 1.0) = 0.82;
+uniform vec3 object_band_colour : source_color = vec3(0.68, 0.96, 0.92);
+uniform float object_band_distance : hint_range(0.1, 3.0) = 0.46;
+uniform float object_band_width : hint_range(0.05, 0.6) = 0.17;
+uniform float object_band_strength : hint_range(0.0, 1.0) = 0.76;
+uniform float object_band_distortion : hint_range(0.0, 0.5) = 0.24;
+uniform float object_band_speed : hint_range(0.0, 3.0) = 0.8;
+uniform vec4 dynamic_band_emitters[16]; // world x, world z, footprint radius, phase
+uniform int dynamic_band_count : hint_range(0, 16) = 0;
 
 group_uniforms Lighting;
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
@@ -208,19 +210,48 @@ void fragment() {
     float band_breakup = smoothstep(0.45, 0.66, mix(shore_break, breakup, 0.35));
 	float surf = max(leading * leading_breakup * 0.88, shore_band * band_breakup * 0.72) * shore_only;
 	surf *= step(0.001, foam_depth);
-	// Separate cyan contour bands for rocks and other marked objects. These come from an
-	// overhead orthographic mask, not screen depth, so orbiting the camera cannot move them.
+	// Static silhouettes come from the overhead field. Moving characters and props contribute
+	// simple footprints through reusable emitters; both receive the same animated pale band.
 	vec2 band_uv = (world_position.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
-	float sdf_distance = textureLod(band_sdf, band_uv, 0.0).r * band_sdf_max_distance;
-	float sdf_aa = max(fwidth(sdf_distance), 0.025);
-	float inner_band = 1.0 - smoothstep(object_band_width, object_band_width + sdf_aa,
-		abs(sdf_distance - object_band_inner_distance));
-	float outer_band = 1.0 - smoothstep(object_band_width, object_band_width + sdf_aa,
-		abs(sdf_distance - object_band_outer_distance));
+	float object_distance = 1000.0;
 	float capture_edge = smoothstep(0.0, 0.035, min(min(band_uv.x, band_uv.y),
 		min(1.0 - band_uv.x, 1.0 - band_uv.y)));
-	inner_band *= capture_edge * float(band_sdf_ready);
-	outer_band *= capture_edge * float(band_sdf_ready);
+	if (band_sdf_ready) {
+		object_distance = textureLod(band_sdf, band_uv, 0.0).r
+			* band_sdf_max_distance / max(capture_edge, 0.001);
+	}
+	float emitter_phase = 0.0;
+	vec2 emitter_offset = vec2(0.0);
+	bool emitter_is_closest = false;
+	for (int i = 0; i < 16; i++) {
+		if (i < dynamic_band_count) {
+			vec4 emitter = dynamic_band_emitters[i];
+			vec2 offset_to_emitter = world_position.xz - emitter.xy;
+			float distance_to_emitter = length(offset_to_emitter) - emitter.z;
+			if (distance_to_emitter < object_distance) {
+				object_distance = distance_to_emitter;
+				emitter_phase = emitter.w;
+				emitter_offset = offset_to_emitter;
+				emitter_is_closest = true;
+			}
+		}
+	}
+	float moving_noise = noise(world_position.xz * 0.82
+		+ vec2(clock * object_band_speed * 0.19, -clock * object_band_speed * 0.14));
+	float ripple = sin(dot(world_position.xz, vec2(0.73, 0.41)) * 1.35
+		- clock * object_band_speed * 2.4 + emitter_phase) * 0.085;
+	if (emitter_is_closest) {
+		float angle = atan(emitter_offset.y, emitter_offset.x);
+		ripple += sin(angle * 3.0 + clock * object_band_speed * 2.1 + emitter_phase) * 0.075;
+		ripple += sin(angle * 5.0 - clock * object_band_speed * 1.4) * 0.035;
+	}
+	float distorted_distance = object_distance
+		+ (moving_noise - 0.5) * object_band_distortion + ripple;
+	float pulse = sin(clock * object_band_speed * 1.7 + emitter_phase) * 0.08;
+	float sdf_aa = max(fwidth(distorted_distance), 0.025);
+	float object_band = 1.0 - smoothstep(object_band_width,
+		object_band_width + sdf_aa,
+		abs(distorted_distance - object_band_distance - pulse));
     // Quiet, world-space glints replace the wide interpolated crest ribbons.
     vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);
     float k = TAU / max(wave_1.w, 0.01);
@@ -237,14 +268,12 @@ void fragment() {
     float fresnel = pow(1.0 - max(dot(n, view_dir), 0.0), 5.0);
     // A broad restrained sky reflection; shallow water stays clear from overhead.
     shaded_water = mix(shaded_water, vec3(0.36, 0.61, 0.70), fresnel * 0.30);
-	vec3 banded_water = mix(shaded_water, object_band_outer_colour,
-		outer_band * object_band_strength * 0.62);
-	banded_water = mix(banded_water, object_band_inner_colour,
-		inner_band * object_band_strength);
+	vec3 banded_water = mix(shaded_water, object_band_colour,
+		object_band * object_band_strength);
 	ALBEDO = mix(banded_water, foam_colour, white);
     float opacity = mix(shallow_alpha, deep_alpha, smoothstep(0.0, 1.0, t));
     opacity = mix(opacity, max(opacity, 0.75), fresnel * 0.65);
-	float band_opacity = max(inner_band, outer_band) * object_band_strength;
+	float band_opacity = object_band * object_band_strength;
 	ALPHA = mix(opacity, 1.0, max(white, band_opacity * 0.82)) * edge * contact;
     if (palette_preview) {
         ALBEDO = water;

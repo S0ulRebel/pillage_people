@@ -514,6 +514,15 @@ func _asset_view() -> void:
 		return
 	$HUD.hide()
 	$TouchControls.hide()
+	# Put the scale figure in the shallows for this material study so the same reusable
+	# dynamic band used by characters and moving props is visible beside the static rocks.
+	var water_rock := _coastal_study.get_node_or_null("WaterRock2") as Node3D
+	if water_rock != null:
+		var seaward: Vector3 = -_coastal_study.global_basis.z
+		var water_position := water_rock.global_position + seaward * 3.2
+		_player.set_physics_process(false)
+		_player.global_position = Vector3(water_position.x,
+			_terrain.sea_level() - _player.swim_depth, water_position.z)
 	_coastal_study.show_camera()
 	if DisplayServer.get_name() == "headless":
 		push_error("--assetview cannot capture with the headless display driver.")
