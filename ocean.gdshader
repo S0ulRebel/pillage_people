@@ -13,13 +13,14 @@ uniform float sea_y = 18.0;
 uniform float preview_time = -1.0; // Fixed time for repeatable material captures.
 
 group_uniforms Colour;
-uniform vec3 shallow_colour : source_color = vec3(0.330, 0.870, 0.800);
+uniform vec3 shallow_colour : source_color = vec3(0.15, 0.78, 0.76);
+uniform vec3 lagoon_colour : source_color = vec3(0.07, 0.56, 0.65);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 // Keep the lagoon floor visible while deep water becomes opaque.
 uniform float depth_fade : hint_range(1.0, 60.0) = 26.0;
 uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.12;
-uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.42;
+uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.52;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 0.94;
 // Opaque, unshaded colour ramp for checking colours against your swatches.
 uniform bool palette_preview = false;
@@ -185,7 +186,9 @@ void fragment() {
         }
         ramp = mix(t, quantized, band_strength);
     }
-    vec3 water = mix(shallow_colour, deep_colour, ramp);
+    // Three broad depth zones keep sand, lagoon turquoise and deep ocean distinct.
+    vec3 water = mix(shallow_colour, lagoon_colour, smoothstep(0.02, 0.42, ramp));
+    water = mix(water, deep_colour, smoothstep(0.34, 1.0, ramp));
     float clock = water_time();
     vec2 env = envelopes(world_position.xz, CAMERA_POSITION_WORLD) * wave_height;
     vec2 slope = wave_slope(wave_1, world_position.xz, env.x)
@@ -200,10 +203,12 @@ void fragment() {
     foam_uv += 0.30 * sin(foam_uv.yx * 2.8 + vec2(clock * 0.13));
     float lace = foam_cells(foam_uv);
     float breakup = noise(world_position.xz * 0.8 + vec2(clock * foam_speed * 0.12));
+    float shore_break = noise(world_position.xz * 0.31 + vec2(-clock * 0.025, clock * 0.018));
     float surge = max(foam_depth, 0.001) * (0.78 + breakup * 0.50 + 0.12 * sin(clock * foam_speed * TAU));
     float surf_zone = 1.0 - smoothstep(surge * 0.15, surge, thickness);
     float leading = 1.0 - smoothstep(0.018, 0.095 + breakup * 0.10, thickness);
-    float surf = max(leading * smoothstep(0.20, 0.55, breakup), lace * surf_zone * smoothstep(0.28, 0.58, breakup));
+    float leading_breakup = smoothstep(0.36, 0.62, mix(breakup, shore_break, 0.46));
+    float surf = max(leading * leading_breakup, lace * surf_zone * smoothstep(0.28, 0.58, breakup));
     surf *= step(0.001, foam_depth);
     // Quiet, world-space glints replace the wide interpolated crest ribbons.
     vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);

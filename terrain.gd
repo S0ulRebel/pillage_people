@@ -24,7 +24,7 @@ extends StaticBody3D
 ## particular are drawn on the seabed, so their colour lives on the terrain, which is not
 ## where anyone looks for the colour of something in the water.
 @export_group("Colours")
-@export var caustic_colour := Color(0.82, 1.0, 0.86):
+@export var caustic_colour := Color(1.0, 0.88, 0.56):
 	set(value):
 		caustic_colour = value
 		_push_colour("caustic_colour", value)
@@ -58,15 +58,15 @@ extends StaticBody3D
 		_push_colour("rock_colour", value)
 
 @export_group("Caustics")
-@export_range(0.02, 4.0) var caustic_scale := 0.90:
+@export_range(0.02, 4.0) var caustic_scale := 0.52:
 	set(value):
 		caustic_scale = value
 		_push_colour("caustic_scale", value)
-@export_range(0.01, 0.8) var caustic_width := 0.018:
+@export_range(0.01, 0.8) var caustic_width := 0.020:
 	set(value):
 		caustic_width = value
 		_push_colour("caustic_width", value)
-@export_range(0.0, 3.0) var caustic_strength := 1.1:
+@export_range(0.0, 3.0) var caustic_strength := 0.68:
 	set(value):
 		caustic_strength = value
 		_push_colour("caustic_strength", value)
