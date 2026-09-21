@@ -26,11 +26,11 @@ class_name Ocean
 ## On the node as well as in the material, so they are found without digging.
 ## Note the caustics are not here - they are drawn on the seabed, so their colour is on Terrain.
 @export_group("Colours")
-@export var shallow_colour := Color(0.15, 0.78, 0.76):
+@export var shallow_colour := Color(0.02, 0.75, 0.86):
 	set(value):
 		shallow_colour = value
 		_push("shallow_colour", value)
-@export var lagoon_colour := Color(0.07, 0.56, 0.65):
+@export var lagoon_colour := Color(0.02, 0.55, 0.72):
 	set(value):
 		lagoon_colour = value
 		_push("lagoon_colour", value)
@@ -42,7 +42,7 @@ class_name Ocean
 	set(value):
 		foam_colour = value
 		_push("foam_colour", value)
-@export_range(0.0, 1.0) var shallow_alpha := 0.52:
+@export_range(0.0, 1.0) var shallow_alpha := 0.58:
 	set(value):
 		shallow_alpha = value
 		_push("shallow_alpha", value)

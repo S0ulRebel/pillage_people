@@ -13,14 +13,14 @@ uniform float sea_y = 18.0;
 uniform float preview_time = -1.0; // Fixed time for repeatable material captures.
 
 group_uniforms Colour;
-uniform vec3 shallow_colour : source_color = vec3(0.15, 0.78, 0.76);
-uniform vec3 lagoon_colour : source_color = vec3(0.07, 0.56, 0.65);
+uniform vec3 shallow_colour : source_color = vec3(0.02, 0.75, 0.86);
+uniform vec3 lagoon_colour : source_color = vec3(0.02, 0.55, 0.72);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 // Keep the lagoon floor visible while deep water becomes opaque.
 uniform float depth_fade : hint_range(1.0, 60.0) = 26.0;
 uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.12;
-uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.52;
+uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.58;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 0.94;
 // Opaque, unshaded colour ramp for checking colours against your swatches.
 uniform bool palette_preview = false;
@@ -181,18 +181,18 @@ void fragment() {
     // to the projected seabed caustics, so the two effects cannot read as duplicates.
     float breakup = noise(world_position.xz * 0.8 + vec2(clock * foam_speed * 0.12));
     float shore_break = noise(world_position.xz * 0.31 + vec2(-clock * 0.025, clock * 0.018));
-    float surge = max(foam_depth, 0.001) * (0.78 + breakup * 0.50 + 0.12 * sin(clock * foam_speed * TAU));
     float foam_aa = max(fwidth(thickness), 0.006);
-    float leading = 1.0 - smoothstep(0.035, 0.075 + foam_aa, thickness);
-    float leading_breakup = smoothstep(0.36, 0.62, mix(breakup, shore_break, 0.46));
-    float band_centre = surge * (0.42 + 0.07 * sin(clock * foam_speed * TAU + shore_break * TAU));
-    float band_width = surge * 0.10 + foam_aa;
-    float shore_band = 1.0 - smoothstep(band_width, band_width + foam_aa,
+    float shore_only = 1.0 - smoothstep(0.32, 0.55, water_depth);
+    float leading = 1.0 - smoothstep(0.025, 0.095 + foam_aa, thickness);
+    float froth = noise(world_position.xz * 1.7 + vec2(clock * 0.035, -clock * 0.025));
+    float leading_breakup = mix(0.36, 1.0, smoothstep(0.34, 0.65,
+        mix(breakup, froth, 0.52)));
+    float band_centre = 0.18 + 0.018 * sin(clock * foam_speed * TAU + shore_break * TAU);
+    float band_width = 0.018 + foam_aa * 0.45;
+    float shore_band = 1.0 - smoothstep(band_width, band_width + foam_aa * 0.55,
         abs(thickness - band_centre));
-    float band_breakup = smoothstep(0.40, 0.64, mix(shore_break, breakup, 0.35));
-    float wash = (1.0 - smoothstep(surge * 0.12, surge * 0.72, thickness))
-        * smoothstep(0.56, 0.76, breakup) * 0.32;
-    float surf = max(leading * leading_breakup, max(shore_band * band_breakup * 0.78, wash));
+    float band_breakup = smoothstep(0.45, 0.66, mix(shore_break, breakup, 0.35));
+    float surf = max(leading * leading_breakup * 0.88, shore_band * band_breakup * 0.72) * shore_only;
     surf *= step(0.001, foam_depth);
     // Quiet, world-space glints replace the wide interpolated crest ribbons.
     vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);

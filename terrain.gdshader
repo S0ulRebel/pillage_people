@@ -39,11 +39,11 @@ uniform float vegetation_blend : hint_range(0.05, 6.0) = 0.42;
 uniform float jungle_coverage : hint_range(0.0, 1.0) = 0.55;
 
 group_uniforms Caustics;
-uniform vec3 caustic_colour : source_color = vec3(1.0, 0.88, 0.56);
-uniform float caustic_scale : hint_range(0.02, 4.0) = 0.52;
+uniform vec3 caustic_colour : source_color = vec3(0.84, 1.0, 0.92);
+uniform float caustic_scale : hint_range(0.02, 4.0) = 0.90;
 // Width now measures distance to a cell edge in pattern space.
-uniform float caustic_width : hint_range(0.01, 0.8) = 0.016;
-uniform float caustic_strength : hint_range(0.0, 2.0) = 0.50;
+uniform float caustic_width : hint_range(0.01, 0.8) = 0.012;
+uniform float caustic_strength : hint_range(0.0, 2.0) = 0.64;
 uniform float caustic_reach : hint_range(0.5, 30.0) = 12.0;
 uniform float caustic_speed : hint_range(0.0, 2.0) = 0.30;
 uniform float caustic_distance_fade : hint_range(10.0, 400.0) = 320.0;
