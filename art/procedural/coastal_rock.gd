@@ -75,7 +75,11 @@ func rebuild() -> void:
 		Builder.triangle(st, top, rings[3][n], rings[3][i], stone_colour.lightened(0.10))
 		Builder.triangle(st, Vector3.ZERO, rings[0][i], rings[0][n], stone_colour)
 	var mesh := st.commit()
-	Builder.instance(root, mesh, Builder.material(), "Stone")
+	var stone := Builder.instance(root, mesh, Builder.material(), "Stone")
+	# Layer 20 is sampled by the ocean's overhead silhouette camera. Keeping the normal
+	# layer as well means the same faceted mesh supplies both the visible rock and its
+	# stable world-space water-band mask, without a second proxy mesh.
+	stone.layers = 1 | (1 << 19)
 	if collision_enabled:
 		var body := StaticBody3D.new()
 		body.name = "Collision"

@@ -5,6 +5,11 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 // contact uses reverse-Z scene depth. Surface detail is evaluated per pixel.
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest, repeat_disable;
 uniform sampler2D terrain_height : filter_linear, repeat_disable;
+uniform sampler2D band_sdf : filter_linear, repeat_disable;
+uniform vec2 band_mask_center = vec2(0.0);
+uniform float band_mask_size = 144.0;
+uniform float band_sdf_max_distance = 4.0;
+uniform bool band_sdf_ready = false;
 uniform float terrain_size = 620.0;
 uniform float terrain_scale = 180.0;
 uniform vec2 terrain_center = vec2(0.0);
@@ -46,6 +51,14 @@ uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
 uniform float shore_softness : hint_range(0.01, 0.5) = 0.06;
 uniform float contact_fade : hint_range(0.01, 2.0) = 0.12;
 
+group_uniforms Object_Bands;
+uniform vec3 object_band_inner_colour : source_color = vec3(0.56, 0.96, 0.94);
+uniform vec3 object_band_outer_colour : source_color = vec3(0.08, 0.76, 0.82);
+uniform float object_band_inner_distance : hint_range(0.1, 3.0) = 0.48;
+uniform float object_band_outer_distance : hint_range(0.2, 5.0) = 1.38;
+uniform float object_band_width : hint_range(0.05, 0.6) = 0.20;
+uniform float object_band_strength : hint_range(0.0, 1.0) = 0.82;
+
 group_uniforms Lighting;
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
 uniform float wave_shading : hint_range(0.0, 1.0) = 0.18;
@@ -69,6 +82,7 @@ float noise(vec2 p) {
     return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
         mix(hash(i + vec2(0, 1)), hash(i + vec2(1)), f.x), f.y);
 }
+
 // Per-pixel wave slope avoids interpolated triangle-shaped foam and lighting.
 vec2 wave_slope(vec4 wave, vec2 p, float scale) {
     vec2 d = wave.xy / max(length(wave.xy), 0.0001);
@@ -192,8 +206,21 @@ void fragment() {
     float shore_band = 1.0 - smoothstep(band_width, band_width + foam_aa * 0.55,
         abs(thickness - band_centre));
     float band_breakup = smoothstep(0.45, 0.66, mix(shore_break, breakup, 0.35));
-    float surf = max(leading * leading_breakup * 0.88, shore_band * band_breakup * 0.72) * shore_only;
-    surf *= step(0.001, foam_depth);
+	float surf = max(leading * leading_breakup * 0.88, shore_band * band_breakup * 0.72) * shore_only;
+	surf *= step(0.001, foam_depth);
+	// Separate cyan contour bands for rocks and other marked objects. These come from an
+	// overhead orthographic mask, not screen depth, so orbiting the camera cannot move them.
+	vec2 band_uv = (world_position.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
+	float sdf_distance = textureLod(band_sdf, band_uv, 0.0).r * band_sdf_max_distance;
+	float sdf_aa = max(fwidth(sdf_distance), 0.025);
+	float inner_band = 1.0 - smoothstep(object_band_width, object_band_width + sdf_aa,
+		abs(sdf_distance - object_band_inner_distance));
+	float outer_band = 1.0 - smoothstep(object_band_width, object_band_width + sdf_aa,
+		abs(sdf_distance - object_band_outer_distance));
+	float capture_edge = smoothstep(0.0, 0.035, min(min(band_uv.x, band_uv.y),
+		min(1.0 - band_uv.x, 1.0 - band_uv.y)));
+	inner_band *= capture_edge * float(band_sdf_ready);
+	outer_band *= capture_edge * float(band_sdf_ready);
     // Quiet, world-space glints replace the wide interpolated crest ribbons.
     vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);
     float k = TAU / max(wave_1.w, 0.01);
@@ -210,10 +237,15 @@ void fragment() {
     float fresnel = pow(1.0 - max(dot(n, view_dir), 0.0), 5.0);
     // A broad restrained sky reflection; shallow water stays clear from overhead.
     shaded_water = mix(shaded_water, vec3(0.36, 0.61, 0.70), fresnel * 0.30);
-    ALBEDO = mix(shaded_water, foam_colour, white);
+	vec3 banded_water = mix(shaded_water, object_band_outer_colour,
+		outer_band * object_band_strength * 0.62);
+	banded_water = mix(banded_water, object_band_inner_colour,
+		inner_band * object_band_strength);
+	ALBEDO = mix(banded_water, foam_colour, white);
     float opacity = mix(shallow_alpha, deep_alpha, smoothstep(0.0, 1.0, t));
     opacity = mix(opacity, max(opacity, 0.75), fresnel * 0.65);
-    ALPHA = mix(opacity, 1.0, white) * edge * contact;
+	float band_opacity = max(inner_band, outer_band) * object_band_strength;
+	ALPHA = mix(opacity, 1.0, max(white, band_opacity * 0.82)) * edge * contact;
     if (palette_preview) {
         ALBEDO = water;
         ALPHA = 1.0;

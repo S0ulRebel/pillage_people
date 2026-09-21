@@ -59,15 +59,23 @@ class_name Ocean
 		wave_height = value
 		_push("wave_height", value)
 
+@export_group("Object Bands")
+## Width of the square area captured by the overhead water-band camera.
+@export_range(48.0, 256.0) var band_capture_size := 144.0
+@export_range(128, 1024) var band_texture_size := 512
+
 
 func _push(name: StringName, value: Variant) -> void:
 	if material != null:
 		material.set_shader_parameter(name, value)
 
 var _camera: Camera3D
+var _band_viewport: SubViewport
+var _band_camera: Camera3D
+var _band_distance_texture: ImageTexture
 
 
-func setup(sea_level: float, terrain: Node3D = null) -> void:
+func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO) -> void:
 	position.y = sea_level
 	mesh = _radial_grid()
 	if material == null:
@@ -90,6 +98,7 @@ func setup(sea_level: float, terrain: Node3D = null) -> void:
 	if sun != null:
 		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
 	material_override = water
+	_setup_band_camera(water, band_focus)
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# The waves move vertices outside their own quad and the grid re-centres every frame, so
 	# Godot's computed bounds are wrong constantly. A generous AABB stops it culling the sea
@@ -106,6 +115,100 @@ func _process(_delta: float) -> void:
 	# sea itself stays put - only the grid of vertices slides along underneath it.
 	var eye := _camera.global_position
 	global_position = Vector3(eye.x, global_position.y, eye.z)
+
+
+func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:
+	if _band_viewport != null:
+		_band_viewport.queue_free()
+	_band_viewport = SubViewport.new()
+	_band_viewport.name = "WaterBandViewport"
+	_band_viewport.size = Vector2i(band_texture_size, band_texture_size)
+	_band_viewport.transparent_bg = true
+	_band_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_band_viewport.world_3d = get_world_3d()
+	add_child(_band_viewport)
+	_band_camera = Camera3D.new()
+	_band_camera.name = "WaterBandCamera"
+	_band_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_band_camera.size = band_capture_size
+	_band_camera.near = 0.1
+	# End the capture at the water plane. Fully submerged objects are clipped, while
+	# geometry crossing the surface leaves an overhead silhouette.
+	_band_camera.far = 220.1
+	_band_camera.cull_mask = 0
+	_band_camera.set_cull_mask_value(20, true)
+	# Looking straight down maps world +X/+Z to texture +X/+Y.
+	_band_camera.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	_band_viewport.add_child(_band_camera)
+	var texel := band_capture_size / float(maxi(band_texture_size, 1))
+	var centre := Vector2(snappedf(focus.x, texel), snappedf(focus.z, texel))
+	_band_camera.global_position = Vector3(centre.x, global_position.y + 220.0, centre.y)
+	water.set_shader_parameter("band_mask_center", centre)
+	water.set_shader_parameter("band_mask_size", band_capture_size)
+	water.set_shader_parameter("band_sdf_ready", false)
+	_bake_band_distance_field.call_deferred(water)
+
+
+func _bake_band_distance_field(water: ShaderMaterial) -> void:
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var mask := _band_viewport.get_texture().get_image()
+	if mask == null or mask.is_empty():
+		push_warning("Water bands: overhead mask capture failed.")
+		return
+	mask.convert(Image.FORMAT_RGBA8)
+	var width := mask.get_width()
+	var height := mask.get_height()
+	var distance := PackedFloat32Array()
+	distance.resize(width * height)
+	distance.fill(1000000.0)
+	var mask_pixels := 0
+	for y in height:
+		for x in width:
+			if mask.get_pixel(x, y).a > 0.25:
+				distance[y * width + x] = 0.0
+				mask_pixels += 1
+	# A one-time two-pass chamfer transform is cheap at startup and leaves the ocean
+	# shader with one texture sample per fragment, which is suitable for mobile.
+	var diagonal := 1.41421356
+	for y in height:
+		for x in width:
+			var index := y * width + x
+			var value := distance[index]
+			if x > 0:
+				value = minf(value, distance[index - 1] + 1.0)
+			if y > 0:
+				value = minf(value, distance[index - width] + 1.0)
+				if x > 0:
+					value = minf(value, distance[index - width - 1] + diagonal)
+				if x + 1 < width:
+					value = minf(value, distance[index - width + 1] + diagonal)
+			distance[index] = value
+	for y in range(height - 1, -1, -1):
+		for x in range(width - 1, -1, -1):
+			var index := y * width + x
+			var value := distance[index]
+			if x + 1 < width:
+				value = minf(value, distance[index + 1] + 1.0)
+			if y + 1 < height:
+				value = minf(value, distance[index + width] + 1.0)
+				if x > 0:
+					value = minf(value, distance[index + width - 1] + diagonal)
+				if x + 1 < width:
+					value = minf(value, distance[index + width + 1] + diagonal)
+			distance[index] = value
+	var max_distance := 4.0
+	var metres_per_pixel := band_capture_size / float(width)
+	var encoded := PackedByteArray()
+	encoded.resize(width * height)
+	for i in distance.size():
+		encoded[i] = int(clampf(distance[i] * metres_per_pixel / max_distance, 0.0, 1.0) * 255.0)
+	var sdf_image := Image.create_from_data(width, height, false, Image.FORMAT_R8, encoded)
+	_band_distance_texture = ImageTexture.create_from_image(sdf_image)
+	water.set_shader_parameter("band_sdf", _band_distance_texture)
+	water.set_shader_parameter("band_sdf_max_distance", max_distance)
+	water.set_shader_parameter("band_sdf_ready", mask_pixels > 0)
+	print("water bands: baked %dx%d overhead SDF from %d silhouette pixels" % [width, height, mask_pixels])
 
 
 ## Rings of vertices at exponentially growing radius: dense at the centre, coarse at the

@@ -73,6 +73,7 @@ func setup(terrain: Node3D) -> bool:
 		rock.rotation.y = float(i) * 1.71
 		add_child(rock)
 		rock.global_position = _ground(OFFSETS[i]) - Vector3.UP * 0.16
+	var water_rock_count := _place_water_rocks(sea)
 	var palm := Palm.instantiate()
 	palm.name = "Palm"
 	palm.shape_seed = 41
@@ -84,8 +85,39 @@ func setup(terrain: Node3D) -> bool:
 	_place_foliage("BeachGrass", Vector2(-0.8, 3.2), 2, 101, 1.0, 1.6, 10, Color("78a63b"))
 	spawn = _ground(SPAWN_OFFSET)
 	valid = true
-	print("coastal study: 6 rocks + palm + 3 foliage groups at ", global_position, " spawn ", spawn)
+	print("coastal study: 6 shore rocks + %d water rocks + palm + 3 foliage groups at " % water_rock_count,
+		global_position, " spawn ", spawn)
 	return true
+
+
+func _place_water_rocks(sea: float) -> int:
+	var lateral_offsets := [-5.0, 0.5, 5.5]
+	var sizes := [Vector3(2.5, 3.4, 2.2), Vector3(1.65, 2.4, 1.45), Vector3(1.1, 1.7, 1.25)]
+	var seeds := [116, 207, 318]
+	var placed := 0
+	for i in lateral_offsets.size():
+		var chosen := Vector3.ZERO
+		var found := false
+		# Local -Z points seaward. Pick shallow seabed so every rock crosses sea level.
+		for distance in range(6, 32):
+			var p := to_global(Vector3(lateral_offsets[i], 0.0, -float(distance)))
+			var bed: float = _terrain.height_at(p.x, p.z)
+			var depth: float = sea - bed
+			if depth >= 0.45 and depth <= sizes[i].y * 0.68:
+				chosen = Vector3(p.x, bed - 0.12, p.z)
+				found = true
+				break
+		if not found:
+			continue
+		var rock := Rock.instantiate()
+		rock.name = "WaterRock%d" % (i + 1)
+		rock.shape_seed = seeds[i]
+		rock.dimensions = sizes[i]
+		rock.rotation.y = 0.65 + float(i) * 1.37
+		add_child(rock)
+		rock.global_position = chosen
+		placed += 1
+	return placed
 
 
 func _place_foliage(label: String, offset: Vector2, style: int, foliage_seed: int,
@@ -131,9 +163,9 @@ func show_camera() -> Camera3D:
 	var camera := Camera3D.new()
 	camera.name = "AssetStudyCamera"
 	add_child(camera)
-	camera.position = Vector3(17, 15, -24)
-	camera.fov = 52.0
+	camera.position = Vector3(18, 18, -28)
+	camera.fov = 55.0
 	camera.far = 1500.0
-	camera.look_at(to_global(Vector3(0, 3.0, 0)))
+	camera.look_at(to_global(Vector3(0, 2.5, -4.5)))
 	camera.make_current()
 	return camera

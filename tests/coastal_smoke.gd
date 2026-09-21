@@ -37,13 +37,18 @@ func _run() -> void:
 	else:
 		check(study != null and study.valid, "No valid shoreline study")
 		if study != null and study.valid:
-			check(study.get_child_count() == 10, "Expected six rocks, one palm and three foliage groups")
+			check(study.get_child_count() == 13, "Expected nine rocks, one palm and three foliage groups")
 			check(player.global_position.distance_to(study.spawn + Vector3.UP * 2.0) < 0.2, "Player not at study spawn")
 			check(study.spawn.y > terrain.sea_level() + 0.75, "Spawn is wet")
 			var colliders := study.find_children("*", "CollisionShape3D", true, false)
-			check(colliders.size() == 7, "Expected six rock hulls and a trunk trimesh")
+			check(colliders.size() == 10, "Expected nine rock hulls and a trunk trimesh")
 			for collider in colliders:
 				check(collider.shape is ConvexPolygonShape3D or collider.shape is ConcavePolygonShape3D, "Invalid collision shape")
+			for i in range(1, 4):
+				var water_rock := study.get_node("WaterRock%d" % i)
+				check(water_rock.global_position.y < terrain.sea_level(), "Water rock base is not submerged")
+				check(water_rock.global_position.y + water_rock.dimensions.y > terrain.sea_level(), "Water rock does not cross the surface")
+				check(water_rock.get_node("Generated/Stone").get_layer_mask_value(20), "Water rock missing band-mask layer")
 			var rock := study.get_node("LargeOutcrop")
 			var original: PackedVector3Array = rock.get_node("Generated/Stone").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 			rock.rebuild()
