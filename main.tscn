@@ -43,10 +43,14 @@ script = ExtResource("1_main")
 environment = SubResource("Env_1")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 60, 0)
+position = Vector3(0, 60, 0)
+rotation_degrees = Vector3(-50, -35, 0)
 light_energy = 1.0
 shadow_enabled = true
-directional_shadow_max_distance = 300.0
+shadow_bias = 0.1
+shadow_normal_bias = 2.0
+directional_shadow_max_distance = 160.0
+directional_shadow_blend_splits = true
 
 [node name="Terrain" type="StaticBody3D" parent="."]
 script = ExtResource("2_terrain")

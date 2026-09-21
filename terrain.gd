@@ -24,15 +24,15 @@ extends StaticBody3D
 ## particular are drawn on the seabed, so their colour lives on the terrain, which is not
 ## where anyone looks for the colour of something in the water.
 @export_group("Colours")
-@export var caustic_colour := Color(0.60, 1.0, 0.97):
+@export var caustic_colour := Color(0.82, 1.0, 0.86):
 	set(value):
 		caustic_colour = value
 		_push_colour("caustic_colour", value)
-@export var seabed_colour := Color(0.38, 0.62, 0.52, 1):
+@export var seabed_colour := Color(0.72, 0.66, 0.48, 1):
 	set(value):
 		seabed_colour = value
 		_push_colour("seabed_colour", value)
-@export var seabed_weed := Color(0.14, 0.38, 0.38, 1):
+@export var seabed_weed := Color(0.30, 0.46, 0.36, 1):
 	set(value):
 		seabed_weed = value
 		_push_colour("seabed_weed", value)
@@ -44,7 +44,7 @@ extends StaticBody3D
 	set(value):
 		wet_sand_colour = value
 		_push_colour("wet_sand_colour", value)
-@export var grass_colour := Color(0.498, 0.525, 0.22):
+@export var grass_colour := Color(0.43, 0.55, 0.22):
 	set(value):
 		grass_colour = value
 		_push_colour("grass_colour", value)
@@ -58,15 +58,15 @@ extends StaticBody3D
 		_push_colour("rock_colour", value)
 
 @export_group("Caustics")
-@export_range(0.02, 4.0) var caustic_scale := 0.30:
+@export_range(0.02, 4.0) var caustic_scale := 0.90:
 	set(value):
 		caustic_scale = value
 		_push_colour("caustic_scale", value)
-@export_range(0.01, 0.8) var caustic_width := 0.07:
+@export_range(0.01, 0.8) var caustic_width := 0.018:
 	set(value):
 		caustic_width = value
 		_push_colour("caustic_width", value)
-@export_range(0.0, 3.0) var caustic_strength := 1.6:
+@export_range(0.0, 3.0) var caustic_strength := 1.1:
 	set(value):
 		caustic_strength = value
 		_push_colour("caustic_strength", value)
@@ -80,11 +80,11 @@ extends StaticBody3D
 	set(value):
 		caustic_footprint_fade = value
 		_push_colour("caustic_footprint_fade", value)
-@export_range(0.0, 2.0) var caustic_speed := 0.5:
+@export_range(0.0, 2.0) var caustic_speed := 0.30:
 	set(value):
 		caustic_speed = value
 		_push_colour("caustic_speed", value)
-@export_range(0.5, 30.0) var caustic_reach := 9:
+@export_range(0.5, 30.0) var caustic_reach := 12.0:
 	set(value):
 		caustic_reach = value
 		_push_colour("caustic_reach", value)
@@ -315,7 +315,7 @@ func _build_mesh() -> void:
 	# The shader does its own shading, so it needs to know where the sun is.
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
-		material.set_shader_parameter("sun_direction", -sun.global_transform.basis.z)
+		material.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
 	mesh_instance.material_override = material
 	add_child(mesh_instance)
 

@@ -38,11 +38,11 @@ class_name Ocean
 	set(value):
 		foam_colour = value
 		_push("foam_colour", value)
-@export_range(0.0, 1.0) var shallow_alpha := 0.40:
+@export_range(0.0, 1.0) var shallow_alpha := 0.42:
 	set(value):
 		shallow_alpha = value
 		_push("shallow_alpha", value)
-@export_range(0.0, 1.0) var deep_alpha := 0.88:
+@export_range(0.0, 1.0) var deep_alpha := 0.94:
 	set(value):
 		deep_alpha = value
 		_push("deep_alpha", value)
@@ -50,7 +50,7 @@ class_name Ocean
 	set(value):
 		depth_fade = value
 		_push("depth_fade", value)
-@export_range(0.0, 3.0) var wave_height := 0.5:
+@export_range(0.0, 3.0) var wave_height := 0.32:
 	set(value):
 		wave_height = value
 		_push("wave_height", value)
@@ -83,8 +83,9 @@ func setup(sea_level: float, terrain: Node3D = null) -> void:
 		water.set_shader_parameter("terrain_base_y", terrain.global_position.y)
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
-		water.set_shader_parameter("sun_direction", -sun.global_transform.basis.z)
+		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
 	material_override = water
+	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# The waves move vertices outside their own quad and the grid re-centres every frame, so
 	# Godot's computed bounds are wrong constantly. A generous AABB stops it culling the sea
 	# whenever the camera looks along the horizon.
@@ -92,7 +93,7 @@ func setup(sea_level: float, terrain: Node3D = null) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _camera == null or not is_instance_valid(_camera):
+	if _camera != get_viewport().get_camera_3d():
 		_camera = get_viewport().get_camera_3d()
 		if _camera == null:
 			return
