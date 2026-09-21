@@ -4,6 +4,9 @@ extends Node3D
 ## Run with --screenshot to save a picture after a few frames and quit (used to check the
 ## project renders without opening the editor).
 
+const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
+var _coastal_study: Node3D
+
 @onready var _terrain: StaticBody3D = $Terrain
 @onready var _player: CharacterBody3D = $Player
 @onready var _camera_rig: Node3D = $CameraRig
@@ -43,6 +46,19 @@ func _ready() -> void:
 			holes = [Vector3(ends[0].x, ends[0].z, tunnel.radius),
 					Vector3(ends[1].x, ends[1].z, tunnel.radius)]
 	_terrain.generate()
+	# Tunnel scenes and tunnel test arguments retain their original layout and spawn.
+	var tunnel_mode := false
+	for argument in OS.get_cmdline_user_args():
+		if argument in ["--tunnel", "--tunneltest", "--probepath", "--probe", "--holeview", "--holeshot", "--printcurve", "--second"]:
+			tunnel_mode = true
+	if authored.is_empty() and _terrain.tunnels.is_empty() and not tunnel_mode and "--noassets" not in OS.get_cmdline_user_args():
+		_coastal_study = CoastalStudy.new()
+		_coastal_study.name = "CoastalStudy"
+		add_child(_coastal_study)
+		if _coastal_study.setup(_terrain):
+			spawn = _coastal_study.spawn
+			var towards: Vector3 = _coastal_study.global_position - spawn
+			_camera_rig.rotation.y = atan2(-towards.x, -towards.z)
 	# Start next to the tunnel mouth, looking at it: the tunnel used to be tens of metres away
 	# with nothing pointing at it, so it was easy to miss entirely.
 	if _terrain.tunnels.size() > 0:
@@ -92,6 +108,8 @@ func _ready() -> void:
 		_shore_view()
 	elif "--overview" in OS.get_cmdline_user_args():
 		_overview()
+	elif "--assetview" in OS.get_cmdline_user_args():
+		_asset_view()
 	elif "--screenshot" in OS.get_cmdline_user_args():
 		_screenshot_and_quit()
 
@@ -486,4 +504,29 @@ func _probe_path() -> void:
 				var hit := space.intersect_ray(query)
 				var floor_text := "NO FLOOR" if hit.is_empty() else "floor %.1f m below" % (point.y - hit["position"].y)
 				print("  +%6.1f m along  y=%7.1f  %s" % [walked - 4.0, point.y, floor_text])
+	get_tree().quit()
+
+
+func _asset_view() -> void:
+	if _coastal_study == null or not _coastal_study.valid:
+		push_error("--assetview requires a valid coastal study (no tunnels or --noassets).")
+		get_tree().quit(1)
+		return
+	$HUD.hide()
+	$TouchControls.hide()
+	_coastal_study.show_camera()
+	if DisplayServer.get_name() == "headless":
+		push_error("--assetview cannot capture with the headless display driver.")
+		get_tree().quit(1)
+		return
+	for i in 90:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	var error := image.save_png("user://coastal_study.png")
+	if error != OK:
+		push_error("Asset study screenshot failed: %s" % error_string(error))
+		get_tree().quit(1)
+		return
+	print("asset study screenshot: ", ProjectSettings.globalize_path("user://coastal_study.png"))
 	get_tree().quit()
