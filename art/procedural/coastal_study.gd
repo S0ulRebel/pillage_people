@@ -2,6 +2,7 @@ extends Node3D
 ## Deterministic layout in shoreline coordinates: +Z inland, +X along the beach.
 const Rock = preload("res://art/procedural/coastal_rock.tscn")
 const Palm = preload("res://art/procedural/coastal_palm.tscn")
+const Foliage = preload("res://art/procedural/coastal_foliage.tscn")
 const OFFSETS := [Vector2(-4.5, 2.5), Vector2(-6.5, 0.5), Vector2(-3.0, -0.8),
 	Vector2(5.0, 2.0), Vector2(-1.8, -2.2), Vector2(5.8, 0.3)]
 const SIZES := [Vector3(4.5, 3.8, 3.4), Vector3(2.8, 2.2, 2.3), Vector3(2.6, 0.9, 2.0),
@@ -78,10 +79,28 @@ func setup(terrain: Node3D) -> bool:
 	palm.rotation.y = 0.4
 	add_child(palm)
 	palm.global_position = _ground(PALM_OFFSET) - Vector3.UP * 0.08
+	_place_foliage("BroadLeaves", Vector2(5.8, 5.0), 0, 67, 2.1, 1.0, 5, Color("4f9230"))
+	_place_foliage("FernPatch", Vector2(-5.6, 4.0), 1, 83, 1.5, 1.2, 6, Color("397a30"))
+	_place_foliage("BeachGrass", Vector2(-0.8, 3.2), 2, 101, 1.0, 1.6, 10, Color("78a63b"))
 	spawn = _ground(SPAWN_OFFSET)
 	valid = true
-	print("coastal study: 6 rocks + palm at ", global_position, " spawn ", spawn)
+	print("coastal study: 6 rocks + palm + 3 foliage groups at ", global_position, " spawn ", spawn)
 	return true
+
+
+func _place_foliage(label: String, offset: Vector2, style: int, foliage_seed: int,
+		foliage_height: float, foliage_spread: float, count: int, colour: Color) -> void:
+	var foliage := Foliage.instantiate()
+	foliage.name = label
+	foliage.style = style
+	foliage.shape_seed = foliage_seed
+	foliage.height = foliage_height
+	foliage.spread = foliage_spread
+	foliage.plant_count = count
+	foliage.leaf_colour = colour
+	foliage.rotation.y = float(foliage_seed) * 0.37
+	add_child(foliage)
+	foliage.global_position = _ground(offset) - Vector3.UP * 0.04
 
 
 func _patch_score(centre: Vector3, orientation: Basis, sea: float) -> float:

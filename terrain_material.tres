@@ -4,13 +4,19 @@
 
 [resource]
 shader = ExtResource("1_shader")
-shader_parameter/seabed_colour = Color(0.72, 0.66, 0.48, 1)
-shader_parameter/seabed_weed = Color(0.30, 0.46, 0.36, 1)
-shader_parameter/wet_sand_colour = Color(0.678, 0.518, 0.384, 1)
-shader_parameter/dry_sand_colour = Color(0.91, 0.749, 0.529, 1)
-shader_parameter/grass_colour = Color(0.43, 0.55, 0.22, 1)
-shader_parameter/jungle_colour = Color(0.149, 0.235, 0.173, 1)
-shader_parameter/rock_colour = Color(0.518, 0.455, 0.404, 1)
+shader_parameter/seabed_colour = Color(0.78, 0.70, 0.50, 1)
+shader_parameter/deep_seabed_colour = Color(0.18, 0.36, 0.33, 1)
+shader_parameter/seabed_weed = Color(0.18, 0.40, 0.29, 1)
+shader_parameter/seabed_rock_colour = Color(0.27, 0.39, 0.39, 1)
+shader_parameter/wet_sand_colour = Color(0.6, 0.42, 0.285, 1)
+shader_parameter/dry_sand_colour = Color(0.93, 0.735, 0.43, 1)
+shader_parameter/grass_colour = Color(0.39, 0.555, 0.145, 1)
+shader_parameter/jungle_colour = Color(0.155, 0.215, 0.105, 1)
+shader_parameter/rock_colour = Color(0.45, 0.43, 0.46, 1)
+shader_parameter/vegetation_blend = 0.42
+shader_parameter/rock_begins = 0.39
+shader_parameter/rock_full = 0.56
+shader_parameter/rock_edge_break = 0.055
 shader_parameter/caustic_colour = Color(1.0, 0.88, 0.56, 1)
 shader_parameter/caustic_scale = 0.52
 shader_parameter/caustic_width = 0.020

@@ -37,7 +37,7 @@ func _run() -> void:
 	else:
 		check(study != null and study.valid, "No valid shoreline study")
 		if study != null and study.valid:
-			check(study.get_child_count() == 7, "Expected six rocks and one palm")
+			check(study.get_child_count() == 10, "Expected six rocks, one palm and three foliage groups")
 			check(player.global_position.distance_to(study.spawn + Vector3.UP * 2.0) < 0.2, "Player not at study spawn")
 			check(study.spawn.y > terrain.sea_level() + 0.75, "Spawn is wet")
 			var colliders := study.find_children("*", "CollisionShape3D", true, false)
@@ -61,6 +61,10 @@ func _run() -> void:
 			var leaves: PackedVector3Array = palm.get_node("Generated/Fronds").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 			palm.rebuild()
 			check(leaves == palm.get_node("Generated/Fronds").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX], "Palm not deterministic")
+			var foliage := study.get_node("BroadLeaves")
+			var foliage_vertices: PackedVector3Array = foliage.get_node("Generated/Leaves").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+			foliage.rebuild()
+			check(foliage_vertices == foliage.get_node("Generated/Leaves").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX], "Foliage not deterministic")
 			for i in 180:
 				await physics_frame
 			check(player.is_on_floor(), "Player did not settle on terrain")

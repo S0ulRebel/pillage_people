@@ -28,31 +28,39 @@ extends StaticBody3D
 	set(value):
 		caustic_colour = value
 		_push_colour("caustic_colour", value)
-@export var seabed_colour := Color(0.72, 0.66, 0.48, 1):
+@export var seabed_colour := Color(0.78, 0.70, 0.50, 1):
 	set(value):
 		seabed_colour = value
 		_push_colour("seabed_colour", value)
-@export var seabed_weed := Color(0.30, 0.46, 0.36, 1):
+@export var deep_seabed_colour := Color(0.18, 0.36, 0.33, 1):
+	set(value):
+		deep_seabed_colour = value
+		_push_colour("deep_seabed_colour", value)
+@export var seabed_weed := Color(0.18, 0.40, 0.29, 1):
 	set(value):
 		seabed_weed = value
 		_push_colour("seabed_weed", value)
-@export var dry_sand_colour := Color(0.91, 0.749, 0.529):
+@export var seabed_rock_colour := Color(0.27, 0.39, 0.39, 1):
+	set(value):
+		seabed_rock_colour = value
+		_push_colour("seabed_rock_colour", value)
+@export var dry_sand_colour := Color(0.93, 0.735, 0.43):
 	set(value):
 		dry_sand_colour = value
 		_push_colour("dry_sand_colour", value)
-@export var wet_sand_colour := Color(0.678, 0.518, 0.384):
+@export var wet_sand_colour := Color(0.60, 0.42, 0.285):
 	set(value):
 		wet_sand_colour = value
 		_push_colour("wet_sand_colour", value)
-@export var grass_colour := Color(0.43, 0.55, 0.22):
+@export var grass_colour := Color(0.39, 0.555, 0.145):
 	set(value):
 		grass_colour = value
 		_push_colour("grass_colour", value)
-@export var jungle_colour := Color(0.149, 0.235, 0.173):
+@export var jungle_colour := Color(0.155, 0.215, 0.105):
 	set(value):
 		jungle_colour = value
 		_push_colour("jungle_colour", value)
-@export var rock_colour := Color(0.518, 0.455, 0.404):
+@export var rock_colour := Color(0.45, 0.43, 0.46):
 	set(value):
 		rock_colour = value
 		_push_colour("rock_colour", value)
@@ -304,7 +312,8 @@ func _build_mesh() -> void:
 		material = load("res://terrain_material.tres")
 	material.set_shader_parameter("sea_y", sea_level())
 	for entry in [["caustic_colour", caustic_colour], ["seabed_colour", seabed_colour],
-			["seabed_weed", seabed_weed], ["dry_sand_colour", dry_sand_colour],
+			["deep_seabed_colour", deep_seabed_colour], ["seabed_weed", seabed_weed],
+			["seabed_rock_colour", seabed_rock_colour], ["dry_sand_colour", dry_sand_colour],
 			["wet_sand_colour", wet_sand_colour], ["grass_colour", grass_colour],
 			["jungle_colour", jungle_colour], ["rock_colour", rock_colour],
 			["caustic_scale", caustic_scale], ["caustic_width", caustic_width],

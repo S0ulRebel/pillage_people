@@ -18,12 +18,14 @@ uniform bool palette_preview = false;
 
 group_uniforms Ground;
 // Sandy seabed stays distinct from the water tint above it.
-uniform vec3 seabed_colour : source_color = vec3(0.720, 0.660, 0.480);
-uniform vec3 seabed_weed : source_color = vec3(0.300, 0.460, 0.360);
-uniform vec3 wet_sand_colour : source_color = vec3(0.678, 0.518, 0.384);
-uniform vec3 dry_sand_colour : source_color = vec3(0.910, 0.749, 0.529);
-uniform vec3 grass_colour : source_color = vec3(0.498, 0.525, 0.220);
-uniform vec3 jungle_colour : source_color = vec3(0.149, 0.235, 0.173);
+uniform vec3 seabed_colour : source_color = vec3(0.780, 0.700, 0.500);
+uniform vec3 deep_seabed_colour : source_color = vec3(0.180, 0.360, 0.330);
+uniform vec3 seabed_weed : source_color = vec3(0.180, 0.400, 0.290);
+uniform vec3 seabed_rock_colour : source_color = vec3(0.270, 0.390, 0.390);
+uniform vec3 wet_sand_colour : source_color = vec3(0.600, 0.420, 0.285);
+uniform vec3 dry_sand_colour : source_color = vec3(0.930, 0.735, 0.430);
+uniform vec3 grass_colour : source_color = vec3(0.390, 0.555, 0.145);
+uniform vec3 jungle_colour : source_color = vec3(0.155, 0.215, 0.105);
 uniform float sea_y = 18.0;
 uniform float preview_time = -1.0; // Negative uses live animation.
 uniform float wet_sand_top : hint_range(0.0, 6.0) = 0.85;
@@ -33,7 +35,7 @@ uniform float grass_top : hint_range(0.0, 80.0) = 40.0;
 uniform float edge_break : hint_range(0.0, 8.0) = 2.0;
 uniform float patch_scale : hint_range(0.001, 0.5) = 0.11;
 uniform float seabed_patch_scale : hint_range(0.01, 1.0) = 0.16;
-uniform float vegetation_blend : hint_range(0.05, 6.0) = 1.0;
+uniform float vegetation_blend : hint_range(0.05, 6.0) = 0.42;
 uniform float jungle_coverage : hint_range(0.0, 1.0) = 0.55;
 
 group_uniforms Caustics;
@@ -49,10 +51,10 @@ uniform float caustic_distance_fade : hint_range(10.0, 400.0) = 320.0;
 uniform float caustic_footprint_fade : hint_range(0.05, 4.0) = 1.2;
 
 group_uniforms Cliffs;
-uniform vec3 rock_colour : source_color = vec3(0.38, 0.34, 0.30);
-uniform float rock_begins : hint_range(0.0, 1.0) = 0.45;
-uniform float rock_full : hint_range(0.0, 1.0) = 0.72;
-uniform float rock_edge_break : hint_range(0.0, 0.2) = 0.04;
+uniform vec3 rock_colour : source_color = vec3(0.45, 0.43, 0.46);
+uniform float rock_begins : hint_range(0.0, 1.0) = 0.39;
+uniform float rock_full : hint_range(0.0, 1.0) = 0.56;
+uniform float rock_edge_break : hint_range(0.0, 0.2) = 0.055;
 
 group_uniforms WetSand;
 uniform vec3 sheen_colour : source_color = vec3(0.90, 0.96, 1.0);
@@ -169,40 +171,60 @@ void fragment() {
     vec3 view_dir = normalize((INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
     float height = world_position.y - sea_y;
     float depth = max(-height, 0.0);
+    // One broad field defines the coastline materials. A smaller field only roughens
+    // the boundary, so distant terrain reads as large authored regions rather than noise.
+    float macro = fbm(world_position.xz * patch_scale * 0.28 + vec2(17.0, -9.0));
     float patches = fbm(world_position.xz * patch_scale);
-    float edge_patches = fbm(world_position.xz * 0.65);
-    float vegetation_height = height + (patches - 0.5) * edge_break + (edge_patches - 0.5) * 0.65;
+    float edge_patches = fbm(world_position.xz * 0.42);
+    float coast_offset = (macro - 0.5) * edge_break + (edge_patches - 0.5) * 0.42;
     float slope = 1.0 - clamp(n.y, 0.0, 1.0);
 
     // Waterline transitions use real height, never noisy vegetation height.
     float submerged = 1.0 - smoothstep(-0.45, 0.0, height);
-    float dry = smoothstep(0.0, max(wet_sand_top, 0.01), height);
+    float wet_edge = wet_sand_top + coast_offset * 0.16;
+    float dry = smoothstep(wet_edge - 0.18, wet_edge + 0.20, height);
     vec3 sand = mix(wet_sand_colour, dry_sand_colour, dry);
+    float sand_marks = smoothstep(0.58, 0.72, patches) * (1.0 - smoothstep(0.0, 0.75, abs(height - 1.8)));
+    sand *= 1.0 - sand_marks * 0.055;
     float weed = smoothstep(0.48, 0.72, fbm(world_position.xz * seabed_patch_scale));
-    weed *= smoothstep(0.1, 0.7, depth);
-    vec3 bottom = mix(seabed_colour, seabed_weed, weed);
-    // Red light falls off first underwater; keep warm sand at the very edge.
-    bottom *= mix(vec3(1.0), vec3(0.38, 0.86, 0.78), smoothstep(0.0, 7.0, depth));
+    weed *= smoothstep(0.35, 1.2, depth) * (1.0 - smoothstep(8.0, 14.0, depth));
+    vec3 bottom = mix(seabed_colour, deep_seabed_colour, smoothstep(2.5, 16.0, depth));
+    bottom = mix(bottom, seabed_weed, weed * 0.72);
     vec3 ground = mix(sand, bottom, submerged);
 
-    // Height is only a procedural fallback for vegetation, not a canopy map.
-    float vegetation = smoothstep(dry_sand_top - vegetation_blend,
-        dry_sand_top + max(vegetation_blend, 0.01), vegetation_height);
-    vegetation *= smoothstep(max(wet_sand_top, 0.01), max(wet_sand_top, 0.01) + 0.5, height);
-    float jungle_patch = smoothstep(0.40, 0.65, fbm(world_position.xz * patch_scale * 2.6));
-    float jungle = jungle_patch * jungle_coverage * smoothstep(dry_sand_top,
-        max(dry_sand_top + 0.01, grass_top * 0.35), vegetation_height);
-    ground = mix(ground, mix(grass_colour, jungle_colour, jungle), vegetation);
+    // Graphic sand/grass contour with a few detached grass islands on the dry beach.
+    float grass_line = dry_sand_top + coast_offset;
+    float vegetation = smoothstep(grass_line - vegetation_blend,
+        grass_line + max(vegetation_blend, 0.01), height);
+    vegetation *= smoothstep(wet_sand_top + 0.18, wet_sand_top + 0.55, height);
+    float grass_islands = smoothstep(0.70, 0.78, macro) * smoothstep(1.15, 2.2, height)
+        * (1.0 - smoothstep(grass_line - 1.25, grass_line - 0.25, height));
+    vegetation = max(vegetation, grass_islands);
+
+    // Jungle floor is an inland material, not green noise scattered across the beach.
+    float jungle_line = max(dry_sand_top + 2.8, grass_top * 0.22) + (macro - 0.5) * 4.0;
+    float jungle_shape = smoothstep(jungle_line - 0.65, jungle_line + 0.65, height);
+    float jungle_patch = smoothstep(0.46, 0.61, fbm(world_position.xz * patch_scale * 0.62 + vec2(-4.0, 12.0)));
+    float jungle = jungle_shape * mix(0.55, 1.0, jungle_patch) * jungle_coverage;
+    vec3 vegetation_colour = mix(grass_colour, jungle_colour, jungle);
+    float grass_value = mix(0.91, 1.06, smoothstep(0.38, 0.64, patches));
+    ground = mix(ground, vegetation_colour * grass_value, vegetation);
 
     // No altitude override. Hilltops remain vegetated if they are flat.
-    float rock_slope = slope + (patches - 0.5) * rock_edge_break;
+    float rock_slope = slope + (macro - 0.5) * rock_edge_break;
     float rock = smoothstep(rock_begins, max(rock_full, rock_begins + 0.001), rock_slope);
-    ground = mix(ground, rock_colour, rock);
+    float rock_plane = dot(n.xz, normalize(vec2(0.68, -0.73))) * 0.5 + 0.5;
+    rock_plane = floor(clamp(rock_plane + (macro - 0.5) * 0.25, 0.0, 0.999) * 3.0) / 2.0;
+    float rock_detail = fbm(world_position.xz * 0.045 + vec2(height * 0.035, -height * 0.025));
+    rock_detail = floor(clamp(rock_detail, 0.0, 0.999) * 3.0) / 2.0;
+    vec3 rock_base = mix(rock_colour, seabed_rock_colour, submerged);
+    vec3 cliff = rock_base * mix(0.78, 1.15, rock_plane) * mix(0.88, 1.10, rock_detail);
+    ground = mix(ground, cliff, rock);
 
     float ndotl = max(dot(n, light_dir), 0.0);
     // Restrained broad patches instead of uniform biome fills or fine texture noise.
-    float patch_band = smoothstep(0.42, 0.48, patches) + smoothstep(0.57, 0.63, patches);
-    ground *= 0.95 + 0.045 * patch_band;
+    float patch_band = smoothstep(0.44, 0.50, patches) + smoothstep(0.61, 0.67, patches);
+    ground *= 0.965 + 0.028 * patch_band;
     vec3 colour = ground;
 
     // A restrained wet-sand sheen, lit by the same sun as the cast shadows.
