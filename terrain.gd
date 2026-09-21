@@ -70,11 +70,11 @@ extends StaticBody3D
 	set(value):
 		caustic_scale = value
 		_push_colour("caustic_scale", value)
-@export_range(0.01, 0.8) var caustic_width := 0.020:
+@export_range(0.01, 0.8) var caustic_width := 0.016:
 	set(value):
 		caustic_width = value
 		_push_colour("caustic_width", value)
-@export_range(0.0, 3.0) var caustic_strength := 0.68:
+@export_range(0.0, 3.0) var caustic_strength := 0.50:
 	set(value):
 		caustic_strength = value
 		_push_colour("caustic_strength", value)

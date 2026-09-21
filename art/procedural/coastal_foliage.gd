@@ -95,42 +95,54 @@ func _leaf(st: SurfaceTool, base: Vector3, direction: Vector3, length: float,
 
 func _add_broad_plant(stems: SurfaceTool, leaves: SurfaceTool, origin: Vector3,
 		plant_height: float, rng: RandomNumberGenerator) -> void:
-	var crown := origin + Vector3.UP * plant_height * 0.38
+	var crown := origin + Vector3.UP * plant_height * 0.30
 	_add_stem(stems, origin, crown, plant_height * 0.035, Color("55602d"))
-	var count := rng.randi_range(5, 7)
+	var count := rng.randi_range(4, 6)
 	for i in count:
 		var angle := TAU * float(i) / float(count) + rng.randf_range(-0.18, 0.18)
 		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var petiole_length := plant_height * rng.randf_range(0.26, 0.38)
+		var leaf_base := crown + direction * petiole_length * 0.72 \
+			+ Vector3.UP * petiole_length * rng.randf_range(0.55, 0.90)
+		_add_stem(stems, crown, leaf_base, plant_height * 0.018, Color("617632"))
 		var colour := leaf_colour.lightened(rng.randf_range(-0.04, 0.13))
-		_leaf(leaves, crown, direction, plant_height * rng.randf_range(0.78, 0.98),
-			plant_height * rng.randf_range(0.22, 0.30), plant_height * rng.randf_range(0.14, 0.28), colour)
+		_leaf(leaves, leaf_base, direction, plant_height * rng.randf_range(0.58, 0.76),
+			plant_height * rng.randf_range(0.19, 0.25), plant_height * rng.randf_range(0.08, 0.18), colour)
 
 
 func _add_fern(stems: SurfaceTool, leaves: SurfaceTool, origin: Vector3,
 		plant_height: float, rng: RandomNumberGenerator) -> void:
-	var crown := origin + Vector3.UP * plant_height * 0.16
+	var crown := origin + Vector3.UP * plant_height * 0.20
 	_add_stem(stems, origin, crown, plant_height * 0.018, Color("53602b"))
-	var count := rng.randi_range(7, 9)
+	var count := rng.randi_range(6, 8)
 	for i in count:
 		var angle := TAU * float(i) / float(count) + rng.randf_range(-0.16, 0.16)
 		var direction := Vector3(cos(angle), 0.0, sin(angle))
 		var side := Vector3(-direction.z, 0.0, direction.x)
-		var length := plant_height * rng.randf_range(0.90, 1.18)
-		var tip := crown + direction * length + Vector3.UP * plant_height * rng.randf_range(0.05, 0.20)
-		Builder.quad(leaves, crown - side * 0.025, tip - side * 0.012,
-			tip + side * 0.012, crown + side * 0.025, leaf_colour.darkened(0.16))
-		for segment in range(1, 6):
-			var t := float(segment) / 6.0
-			var centre := crown.lerp(tip, t)
-			var pinna_width := sin(t * PI) * plant_height * 0.34
-			var pinna_length: float = plant_height * lerpf(0.25, 0.10, t)
+		var length := plant_height * rng.randf_range(0.82, 1.02)
+		var previous := crown
+		for segment in range(1, 8):
+			var t := float(segment) / 7.0
+			var centre := crown + direction * length * t + Vector3.UP * (
+				sin(t * PI) * plant_height * 0.24 - t * t * plant_height * 0.18)
+			Builder.quad(leaves, previous - side * 0.028, centre - side * 0.018,
+				centre + side * 0.018, previous + side * 0.028, leaf_colour.darkened(0.16))
+			previous = centre
+			if segment == 7:
+				continue
+			var pinna_reach := sin(t * PI) * plant_height * 0.27
+			var pinna_width: float = plant_height * lerpf(0.12, 0.055, t)
 			for sign_index in 2:
 				var sign_value: float = -1.0 if sign_index == 0 else 1.0
-				var pinna_tip: Vector3 = centre + side * pinna_width * sign_value - direction * pinna_length * 0.18
-				var pinna_base: Vector3 = centre - direction * pinna_length * 0.45
-				var fold: Vector3 = (centre + pinna_tip + pinna_base) / 3.0 + Vector3.UP * plant_height * 0.025
-				Builder.triangle(leaves, pinna_base, pinna_tip, fold,
-					leaf_colour.lightened(rng.randf_range(-0.05, 0.10)))
+				var pinna_tip: Vector3 = centre + side * pinna_reach * sign_value \
+					- direction * pinna_width * 0.25 - Vector3.UP * pinna_reach * 0.06
+				var pinna_back: Vector3 = centre - direction * pinna_width
+				var pinna_front: Vector3 = centre + direction * pinna_width
+				var ridge: Vector3 = centre + side * pinna_reach * sign_value * 0.46 \
+					+ Vector3.UP * plant_height * 0.045
+				var colour := leaf_colour.lightened(rng.randf_range(-0.05, 0.10))
+				Builder.triangle(leaves, pinna_back, pinna_tip, ridge, colour.darkened(0.06))
+				Builder.triangle(leaves, pinna_tip, pinna_front, ridge, colour)
 
 
 func _add_grass(leaves: SurfaceTool, origin: Vector3, plant_height: float,

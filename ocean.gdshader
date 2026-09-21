@@ -69,25 +69,6 @@ float noise(vec2 p) {
     return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
         mix(hash(i + vec2(0, 1)), hash(i + vec2(1)), f.x), f.y);
 }
-// A sparse cellular lace, used only near shore rather than across the entire sea.
-float foam_cells(vec2 p) {
-    vec2 cell = floor(p);
-    vec2 local = fract(p);
-    float first = 8.0;
-    float second = 8.0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            vec2 o = vec2(float(x), float(y));
-            vec2 jitter = vec2(hash(cell + o), hash(cell + o + vec2(39.2)));
-            float d = length(o + 0.2 + 0.6 * jitter - local);
-            second = max(first, min(second, d));
-            first = min(first, d);
-        }
-    }
-    float border = second - first;
-    float aa = max(fwidth(border), 0.005);
-    return 1.0 - smoothstep(0.070, 0.070 + aa, border);
-}
 // Per-pixel wave slope avoids interpolated triangle-shaped foam and lighting.
 vec2 wave_slope(vec4 wave, vec2 p, float scale) {
     vec2 d = wave.xy / max(length(wave.xy), 0.0001);
@@ -196,19 +177,22 @@ void fragment() {
         + wave_slope(wave_3, world_position.xz, env.y)
         + wave_slope(wave_4, world_position.xz, env.y);
     vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
-    // Foam is tied to shallow water, with broken edges and open cells behind them.
-    vec2 foam_uv = world_position.xz * 1.15;
-    foam_uv += vec2(sin(world_position.z * 0.6 + clock * foam_speed),
-        cos(world_position.x * 0.5 - clock * foam_speed)) * 0.22;
-    foam_uv += 0.30 * sin(foam_uv.yx * 2.8 + vec2(clock * 0.13));
-    float lace = foam_cells(foam_uv);
+    // Shore foam follows depth contours as broken surf bands. Cellular webs belong only
+    // to the projected seabed caustics, so the two effects cannot read as duplicates.
     float breakup = noise(world_position.xz * 0.8 + vec2(clock * foam_speed * 0.12));
     float shore_break = noise(world_position.xz * 0.31 + vec2(-clock * 0.025, clock * 0.018));
     float surge = max(foam_depth, 0.001) * (0.78 + breakup * 0.50 + 0.12 * sin(clock * foam_speed * TAU));
-    float surf_zone = 1.0 - smoothstep(surge * 0.15, surge, thickness);
-    float leading = 1.0 - smoothstep(0.018, 0.095 + breakup * 0.10, thickness);
+    float foam_aa = max(fwidth(thickness), 0.006);
+    float leading = 1.0 - smoothstep(0.035, 0.075 + foam_aa, thickness);
     float leading_breakup = smoothstep(0.36, 0.62, mix(breakup, shore_break, 0.46));
-    float surf = max(leading * leading_breakup, lace * surf_zone * smoothstep(0.28, 0.58, breakup));
+    float band_centre = surge * (0.42 + 0.07 * sin(clock * foam_speed * TAU + shore_break * TAU));
+    float band_width = surge * 0.10 + foam_aa;
+    float shore_band = 1.0 - smoothstep(band_width, band_width + foam_aa,
+        abs(thickness - band_centre));
+    float band_breakup = smoothstep(0.40, 0.64, mix(shore_break, breakup, 0.35));
+    float wash = (1.0 - smoothstep(surge * 0.12, surge * 0.72, thickness))
+        * smoothstep(0.56, 0.76, breakup) * 0.32;
+    float surf = max(leading * leading_breakup, max(shore_band * band_breakup * 0.78, wash));
     surf *= step(0.001, foam_depth);
     // Quiet, world-space glints replace the wide interpolated crest ribbons.
     vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);
