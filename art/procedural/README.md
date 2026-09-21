@@ -51,8 +51,9 @@ finds floor at every sample along the path. Desktop Mobile/Vulkan rendering on a
 RTX 4060 Ti produced [the study screenshot](../../docs/coastal_study.png).
 iPad/Xogot hardware has not been tested.
 
-The four named reference sheets were not attached or found in the repository.
-The supplied code and written art direction were used instead.
+The initial kit was built from the supplied code and written art direction before
+the reference sheets were available. The subsequently supplied images and approved
+style direction are now indexed in [art/references](../references/README.md).
 
 ## Preserved shading limitation
 
