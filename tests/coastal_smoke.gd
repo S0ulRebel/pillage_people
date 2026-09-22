@@ -42,8 +42,14 @@ func _run() -> void:
 			player.global_position.y = terrain.sea_level() - 1.35
 			await process_frame
 			check(ocean.material.get_shader_parameter("band_mask_ready"), "Overhead water mask not connected")
-			for part in player.get_node("Body").get_children():
-				check(part is MeshInstance3D and part.get_layer_mask_value(20),
+			# Descendants, not direct children. This asked for a MeshInstance3D per child, which
+			# was right when the body was built from primitives; the captain model arrives as a
+			# single Node3D with the meshes under it, so the check had been failing ever since -
+			# and the layer it guards was fine the whole time.
+			var parts: Array[Node] = player.get_node("Body").find_children("*", "MeshInstance3D", true, false)
+			check(not parts.is_empty(), "Player has no visible parts")
+			for part in parts:
+				check((part as MeshInstance3D).get_layer_mask_value(20),
 					"Player part missing overhead water-mask layer")
 			var prop := MeshInstance3D.new()
 			prop.mesh = BoxMesh.new()
@@ -61,24 +67,30 @@ func _run() -> void:
 			check(colliders.size() == 10, "Expected nine rock hulls and a trunk trimesh")
 			for collider in colliders:
 				check(collider.shape is ConvexPolygonShape3D or collider.shape is ConcavePolygonShape3D, "Invalid collision shape")
+			# The rocks are modelled now rather than generated, so what used to be checked -
+			# that a seeded mesh rebuilt identically - no longer exists to check. What still
+			# matters is what the rest of the scene depends on: that each water rock straddles
+			# the surface, and that it carries the overhead camera's layer so the ocean has a
+			# silhouette to draw its band against.
 			for i in range(1, 4):
 				var water_rock := study.get_node("WaterRock%d" % i)
 				check(water_rock.global_position.y < terrain.sea_level(), "Water rock base is not submerged")
-				check(water_rock.global_position.y + water_rock.dimensions.y > terrain.sea_level(), "Water rock does not cross the surface")
-				check(water_rock.get_node("Generated/Stone").get_layer_mask_value(20), "Water rock missing band-mask layer")
+				check(water_rock.global_position.y + water_rock.height() > terrain.sea_level(), "Water rock does not cross the surface")
+				var water_meshes: Array[Node] = water_rock.find_children("*", "MeshInstance3D", true, false)
+				check(not water_meshes.is_empty(), "Water rock has no mesh")
+				check((water_meshes[0] as MeshInstance3D).get_layer_mask_value(20), "Water rock missing band-mask layer")
 			var rock := study.get_node("LargeOutcrop")
-			var original: PackedVector3Array = rock.get_node("Generated/Stone").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-			rock.rebuild()
-			var rebuilt: PackedVector3Array = rock.get_node("Generated/Stone").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-			check(original == rebuilt, "Rock rebuild not deterministic")
-			var authored_child := Node3D.new()
-			rock.add_child(authored_child)
-			rock.dimensions = Vector3(6, 4, 4)
+			check(rock.height() > 3.0, "Large outcrop is not the tallest of the shore group")
+			var meshes: Array[Node] = rock.find_children("*", "MeshInstance3D", true, false)
+			check(not meshes.is_empty(), "Shore rock has no mesh")
+			check((meshes[0] as MeshInstance3D).get_layer_mask_value(20), "Shore rock missing band-mask layer")
+			# Swapping the variant in the inspector has to replace what is drawn.
+			var before_swap: Mesh = (meshes[0] as MeshInstance3D).mesh
+			rock.kind = rock.Kind.PILE_TALL
 			await process_frame
-			check(is_instance_valid(authored_child) and authored_child.get_parent() == rock, "Rebuild removed authored child")
-			check(rock.get_child_count() == 2, "Generated children leaked on inspector rebuild")
-			var changed: PackedVector3Array = rock.get_node("Generated/Stone").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-			check(changed != original, "Inspector edit did not rebuild rock")
+			await process_frame
+			var after: Array[Node] = rock.find_children("*", "MeshInstance3D", true, false)
+			check(not after.is_empty() and (after[0] as MeshInstance3D).mesh != before_swap, "Changing kind did not rebuild the rock")
 			var palm := study.get_node("Palm")
 			var leaves: PackedVector3Array = palm.get_node("Generated/Fronds").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 			palm.rebuild()

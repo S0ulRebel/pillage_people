@@ -2,13 +2,19 @@ extends Node3D
 ## Scatters the generated rock models across the island.
 ##
 ## These are the Tripo rocks in art/models/rocks - about a thousand triangles each, which is
-## what makes scattering dozens of them reasonable. The procedural coastal_rock.gd is still
-## there and still builds the shoreline group; this is the wider, cheaper scatter that fills
-## the ground between landmarks.
+## what makes scattering dozens of them reasonable. They replaced a procedural rock generator
+## that used to build these shapes from code; the shoreline group in coastal_study.gd uses the
+## same models now, so the island is made of one set of rocks rather than two.
 ##
 ## Their scale is baked into the files rather than set on import, which only works because none
 ## of them is rigged - see prepare_game_model.py. The sizes are real metres: the boulder stands
 ## 2.2 m, the platform 0.9 m and about 3.3 m across.
+##
+## What a rock is made of - flat shading, the water camera's layer, collision - lives in
+## art/props/rock.gd, which is also what you drag into a scene to place one by hand. A
+## scattered rock and an authored one are the same thing, so neither can drift from the other.
+
+const RockProp = preload("res://art/props/rock.gd")
 
 const MODELS := [
 	"res://art/models/rocks/rock_boulder.glb",
@@ -69,43 +75,6 @@ func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
 		rock.global_position = spot
 		rock.rotation.y = rng.randf() * TAU
 		rock.scale *= rng.randf_range(size_jitter.x, size_jitter.y)
-		_dress(rock)
+		RockProp.dress(rock, true)
 		placed += 1
 	return placed
-
-
-## Gives an imported rock the same treatment the procedural ones get: flat shading, the water
-## camera's layer, and something to walk into.
-func _dress(rock: Node3D) -> void:
-	for node in _descendants(rock):
-		if not (node is MeshInstance3D):
-			continue
-		var mesh_node := node as MeshInstance3D
-		# Layer 20 is sampled by the ocean's overhead silhouette camera. Keeping layer 1 as well
-		# means the same mesh supplies both the visible rock and its water-band mask, which is
-		# how coastal_rock.gd does it - a second proxy mesh would be one more thing to keep in
-		# step with the first.
-		mesh_node.layers = 1 | (1 << 19)
-		if mesh_node.mesh == null:
-			continue
-		for surface in mesh_node.mesh.get_surface_count():
-			var material := mesh_node.mesh.surface_get_material(surface)
-			if material is BaseMaterial3D:
-				var flat: BaseMaterial3D = material.duplicate()
-				flat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-				flat.metallic = 0.0
-				flat.roughness = 1.0
-				flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-				mesh_node.set_surface_override_material(surface, flat)
-		# Built from the mesh rather than a box, because these are the shapes the player will be
-		# climbing onto and walking around. create_trimesh_collision parents the body to the mesh
-		# itself, so whatever scale the rock was given carries through to the shape with it.
-		mesh_node.create_trimesh_collision()
-
-
-func _descendants(node: Node) -> Array[Node]:
-	var found: Array[Node] = []
-	for child in node.get_children():
-		found.append(child)
-		found.append_array(_descendants(child))
-	return found

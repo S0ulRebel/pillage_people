@@ -1,12 +1,17 @@
 extends Node3D
 ## Deterministic layout in shoreline coordinates: +Z inland, +X along the beach.
-const Rock = preload("res://art/procedural/coastal_rock.tscn")
+const Rock = preload("res://art/props/rock.tscn")
+const RockKind = preload("res://art/props/rock.gd")
 const Palm = preload("res://art/procedural/coastal_palm.tscn")
 const Foliage = preload("res://art/procedural/coastal_foliage.tscn")
 const OFFSETS := [Vector2(-4.5, 2.5), Vector2(-6.5, 0.5), Vector2(-3.0, -0.8),
 	Vector2(5.0, 2.0), Vector2(-1.8, -2.2), Vector2(5.8, 0.3)]
-const SIZES := [Vector3(4.5, 3.8, 3.4), Vector3(2.8, 2.2, 2.3), Vector3(2.6, 0.9, 2.0),
-	Vector3(2.0, 1.6, 1.8), Vector3(0.8, 0.55, 0.65), Vector3(0.65, 0.5, 0.8)]
+## Which generated model stands at each offset, and how tall it should be. Heights carry over
+## from the procedural rocks that used to be here, so the group keeps the silhouette it was
+## composed with - a big outcrop, two mid rocks, a flat slab to stand on and two loose stones.
+const KINDS := [RockKind.Kind.CLUSTER, RockKind.Kind.BOULDER, RockKind.Kind.PLATFORM,
+	RockKind.Kind.STONE, RockKind.Kind.STONES, RockKind.Kind.PILE]
+const HEIGHTS := [3.8, 2.2, 0.9, 1.6, 0.55, 0.5]
 const PALM_OFFSET := Vector2(3.5, 4.0)
 const SPAWN_OFFSET := Vector2(0.0, -5.5)
 
@@ -68,10 +73,11 @@ func setup(terrain: Node3D) -> bool:
 	for i in OFFSETS.size():
 		var rock := Rock.instantiate()
 		rock.name = ["LargeOutcrop", "MediumRockA", "FlatSlab", "MediumRockB", "LooseStoneA", "LooseStoneB"][i]
-		rock.shape_seed = [13, 27, 8, 36, 9, 18][i]
-		rock.dimensions = SIZES[i]
+		rock.kind = KINDS[i]
+		rock.size = RockKind.size_for(KINDS[i], HEIGHTS[i])
 		rock.rotation.y = float(i) * 1.71
 		add_child(rock)
+		# Sunk slightly, so a modelled base does not sit proud of a sloping beach.
 		rock.global_position = _ground(OFFSETS[i]) - Vector3.UP * 0.16
 	var water_rock_count := _place_water_rocks(sea)
 	var palm := Palm.instantiate()
@@ -92,8 +98,11 @@ func setup(terrain: Node3D) -> bool:
 
 func _place_water_rocks(sea: float) -> int:
 	var lateral_offsets := [-5.0, 0.5, 5.5]
-	var sizes := [Vector3(2.5, 3.4, 2.2), Vector3(1.65, 2.4, 1.45), Vector3(1.1, 1.7, 1.25)]
-	var seeds := [116, 207, 318]
+	# Heights kept from the rocks that used to stand here: the depth search below picks its
+	# seabed from them, so changing one without the other leaves a rock fully submerged and
+	# the ocean's water band with nothing to draw against.
+	var kinds := [RockKind.Kind.CLUSTER, RockKind.Kind.BOULDER, RockKind.Kind.PILE_TALL]
+	var heights := [3.4, 2.4, 1.7]
 	var placed := 0
 	for i in lateral_offsets.size():
 		var chosen := Vector3.ZERO
@@ -103,7 +112,7 @@ func _place_water_rocks(sea: float) -> int:
 			var p := to_global(Vector3(lateral_offsets[i], 0.0, -float(distance)))
 			var bed: float = _terrain.height_at(p.x, p.z)
 			var depth: float = sea - bed
-			if depth >= 0.45 and depth <= sizes[i].y * 0.68:
+			if depth >= 0.45 and depth <= heights[i] * 0.68:
 				chosen = Vector3(p.x, bed - 0.12, p.z)
 				found = true
 				break
@@ -111,8 +120,8 @@ func _place_water_rocks(sea: float) -> int:
 			continue
 		var rock := Rock.instantiate()
 		rock.name = "WaterRock%d" % (i + 1)
-		rock.shape_seed = seeds[i]
-		rock.dimensions = sizes[i]
+		rock.kind = kinds[i]
+		rock.size = RockKind.size_for(kinds[i], heights[i])
 		rock.rotation.y = 0.65 + float(i) * 1.37
 		add_child(rock)
 		rock.global_position = chosen
