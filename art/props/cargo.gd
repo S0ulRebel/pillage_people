@@ -1,9 +1,13 @@
 @tool
 extends RigidBody3D
-## A barrel. Rolls when shoved, and floats if it ends up in the sea.
+## Cargo: a barrel or a crate. Shoveable, and floats if it ends up in the sea.
 ##
-## A RigidBody3D rather than the StaticBody the rocks use, because a barrel that cannot be
-## knocked over is scenery pretending to be a prop - and because floating needs forces.
+## One script for both, because the only real differences are the shape of the collision and
+## whether it rolls. Everything that matters - the buoyancy, the flat shading, the water
+## camera's layer - is identical, and two scripts would be two places to fix it.
+##
+## A RigidBody3D rather than the StaticBody the rocks use, because cargo that cannot be knocked
+## over is scenery pretending to be a prop - and because floating needs forces.
 ##
 ## The buoyancy is deliberately crude: one upward force proportional to how much of it is under
 ## the surface, plus drag while it is down there. No wave sampling and no per-face displacement.
@@ -11,7 +15,22 @@ extends RigidBody3D
 ## settles instead of oscillating, and both of those come out of the equilibrium and the damping
 ## rather than out of the model being right.
 
-const MODEL := "res://art/models/props/barrel.glb"
+enum Kind {BARREL, CRATE}
+
+const MODELS := {
+	Kind.BARREL: "res://art/models/props/barrel.glb",
+	Kind.CRATE: "res://art/models/props/crate.glb",
+}
+
+## What each was installed at, in metres: the barrel stands 1.0 and is about 0.88 across, the
+## crate 0.85 and roughly square. The collision is built from these rather than from the mesh -
+## see _add_shape for why that is not optional.
+const SIZES := {
+	Kind.BARREL: Vector3(0.88, 1.0, 0.88),
+	Kind.CRATE: Vector3(0.92, 0.85, 0.89),
+}
+
+@export var kind: Kind = Kind.BARREL
 
 ## Sea level in metres. main.gd sets this from the terrain so the two cannot disagree. The
 ## default is far below any ground, so a barrel dropped in by hand without one simply never
@@ -19,10 +38,7 @@ const MODEL := "res://art/models/props/barrel.glb"
 @export var water_level := -10000.0:
 	set(value):
 		water_level = value
-## Authored size, in metres. The model is 1.0 tall and about 0.88 across, and the collision
-## cylinder is built from these - see _add_shape.
-@export var height := 1.0
-@export var radius := 0.44
+
 ## Upward acceleration when fully submerged. Gravity here is 9.8, so 20 balances at a little
 ## under half submerged, which is where a sealed empty barrel sits.
 @export var buoyancy := 20.0
@@ -34,11 +50,18 @@ const MODEL := "res://art/models/props/barrel.glb"
 var _built := false
 
 
+## How tall this piece of cargo stands, in metres. The buoyancy needs it to work out how much
+## is under the surface.
+func height() -> float:
+	return (SIZES[kind] as Vector3).y
+
+
 func _ready() -> void:
-	mass = 35.0
-	# Barrels on their side should roll rather than skid to a halt.
+	mass = 35.0 if kind == Kind.BARREL else 28.0
 	physics_material_override = PhysicsMaterial.new()
-	physics_material_override.friction = 0.55
+	# A barrel on its side should roll; a crate should not. That is the whole behavioural
+	# difference between the two, and it is one number.
+	physics_material_override.friction = 0.55 if kind == Kind.BARREL else 0.92
 	physics_material_override.bounce = 0.05
 	_build()
 
@@ -47,10 +70,11 @@ func _build() -> void:
 	if _built:
 		return
 	_built = true
-	if not ResourceLoader.exists(MODEL):
-		push_warning("barrel.gd: no model at %s" % MODEL)
+	var path: String = MODELS.get(kind, "")
+	if path == "" or not ResourceLoader.exists(path):
+		push_warning("cargo.gd: no model at %s" % path)
 		return
-	var model: Node3D = (load(MODEL) as PackedScene).instantiate()
+	var model: Node3D = (load(path) as PackedScene).instantiate()
 	model.name = "Model"
 	add_child(model)
 	if Engine.is_editor_hint() and get_tree() != null and get_tree().edited_scene_root != null:
@@ -79,7 +103,7 @@ func _build() -> void:
 		_add_shape()
 
 
-## A cylinder the size of the barrel, rather than a hull built from its mesh.
+## A primitive the size of the cargo, rather than a hull built from its mesh.
 ##
 ## The hull was the first attempt and it was a hundred times too large: the model's scale is
 ## baked onto the glTF root node, so the mesh's own vertices are still the 98 units Tripo
@@ -88,14 +112,20 @@ func _build() -> void:
 ## see. A cylinder sized in metres cannot drift from the model that way, is cheaper, and rolls
 ## better than a faceted hull besides.
 func _add_shape() -> void:
+	var size: Vector3 = SIZES[kind]
 	var shape := CollisionShape3D.new()
 	shape.name = "Shape"
-	var cylinder := CylinderShape3D.new()
-	cylinder.height = height
-	cylinder.radius = radius
-	shape.shape = cylinder
+	if kind == Kind.BARREL:
+		var cylinder := CylinderShape3D.new()
+		cylinder.height = size.y
+		cylinder.radius = size.x * 0.5
+		shape.shape = cylinder
+	else:
+		var box := BoxShape3D.new()
+		box.size = size
+		shape.shape = box
 	# The model's origin is at its base, so the shape has to be lifted to match.
-	shape.position = Vector3(0.0, height * 0.5, 0.0)
+	shape.position = Vector3(0.0, size.y * 0.5, 0.0)
 	add_child(shape)
 
 
@@ -113,7 +143,7 @@ func _physics_process(_delta: float) -> void:
 		linear_damp = 0.0
 		angular_damp = 0.2
 		return
-	var submerged := clampf(depth / maxf(height, 0.01), 0.0, 1.0)
+	var submerged := clampf(depth / maxf(height(), 0.01), 0.0, 1.0)
 	apply_central_force(Vector3.UP * buoyancy * mass * submerged)
 	linear_damp = water_drag * submerged
 	angular_damp = water_spin_drag * submerged

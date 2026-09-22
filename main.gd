@@ -8,7 +8,8 @@ const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
 const Enemy = preload("res://enemy.gd")
 const Hud = preload("res://hud.gd")
 const Rocks = preload("res://rocks.gd")
-const Barrel = preload("res://art/props/barrel.tscn")
+const Cargo = preload("res://art/props/cargo.tscn")
+const CargoKind = preload("res://art/props/cargo.gd")
 const Music = preload("res://music.gd")
 var _coastal_study: Node3D
 ## Survives a scene reload, because the script does and the node does not. Only --deathtest
@@ -24,10 +25,12 @@ static var _death_test_runs := 0
 @export var enemy_far := 45.0
 ## Generated rocks scattered over the island - see rocks.gd. Zero turns them off.
 @export var rock_count := 40
-## Barrels: some on the sand, some floating. They are rigid bodies, so they roll when shoved
-## and bob when they end up in the sea - see art/props/barrel.gd.
+## Cargo washed up and adrift. Rigid bodies, so barrels roll when shoved, crates do not, and
+## both bob when they end up in the sea - see art/props/cargo.gd.
 @export var barrels_ashore := 5
 @export var barrels_afloat := 4
+@export var crates_ashore := 6
+@export var crates_afloat := 3
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
 @export var restart_delay := 3.4
@@ -128,44 +131,55 @@ func _scatter_rocks(around: Vector3) -> void:
 	print("scattered %d of %d rocks" % [field.scatter(_terrain, around, rng), rock_count])
 
 
-## Drops barrels on the beach and floats a few offshore.
+## Drops cargo on the beach and floats some of it offshore.
 ##
-## The floating ones are put over seabed that is actually deep enough - dropping one where the
-## water is ankle deep gives a barrel resting on the bottom, which looks like buoyancy is
+## The floating pieces are put over seabed that is actually deep enough - dropping one where
+## the water is ankle deep gives a barrel resting on the bottom, which looks like buoyancy is
 ## broken rather than like shallow water.
 func _place_barrels(around: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args():
 		return
 	var sea: float = _terrain.sea_level()
 	var rng := RandomNumberGenerator.new()
-	rng.seed = hash("barrels") + randi()
-	var ashore := 0
-	var afloat := 0
-	for i in barrels_ashore + barrels_afloat:
-		var wet := i >= barrels_ashore
-		for attempt in 24:
-			var angle := rng.randf() * TAU
-			var away := rng.randf_range(6.0, 30.0)
-			var at := around + Vector3(cos(angle), 0.0, sin(angle)) * away
-			var ground: float = _terrain.height_at(at.x, at.z)
-			var depth: float = sea - ground
-			var ok: bool = depth > 1.2 if wet else ground > sea + 0.4
-			if not ok:
-				continue
-			var barrel: RigidBody3D = Barrel.instantiate()
-			barrel.name = "Barrel%d" % i
-			barrel.water_level = sea
-			add_child(barrel)
-			# Floating ones start at the surface so they settle rather than plunge and bounce
-			# back up; the rest stand on the sand.
-			barrel.global_position = Vector3(at.x, sea - 0.3 if wet else ground, at.z)
-			barrel.rotation.y = rng.randf() * TAU
-			if wet:
-				afloat += 1
-			else:
-				ashore += 1
-			break
-	print("barrels: %d ashore, %d afloat" % [ashore, afloat])
+	rng.seed = hash("cargo") + randi()
+	var counts := {
+		CargoKind.Kind.BARREL: [barrels_ashore, barrels_afloat],
+		CargoKind.Kind.CRATE: [crates_ashore, crates_afloat],
+	}
+	var placed := {}
+	var index := 0
+	for kind in counts:
+		var dry: int = counts[kind][0]
+		var wet_count: int = counts[kind][1]
+		placed[kind] = [0, 0]
+		for i in dry + wet_count:
+			var wet := i >= dry
+			for attempt in 24:
+				var angle := rng.randf() * TAU
+				var away := rng.randf_range(6.0, 32.0)
+				var at := around + Vector3(cos(angle), 0.0, sin(angle)) * away
+				var ground: float = _terrain.height_at(at.x, at.z)
+				var depth: float = sea - ground
+				var ok: bool = depth > 1.2 if wet else ground > sea + 0.4
+				if not ok:
+					continue
+				var piece: RigidBody3D = Cargo.instantiate()
+				piece.kind = kind
+				piece.name = "Cargo%d" % index
+				piece.water_level = sea
+				add_child(piece)
+				# Floating pieces start at the surface so they settle rather than plunge and
+				# bounce back up; the rest stand on the sand.
+				piece.global_position = Vector3(at.x, sea - 0.3 if wet else ground, at.z)
+				piece.rotation.y = rng.randf() * TAU
+				placed[kind][1 if wet else 0] += 1
+				index += 1
+				break
+	print("cargo: %d barrels (%d afloat), %d crates (%d afloat)"
+			% [placed[CargoKind.Kind.BARREL][0] + placed[CargoKind.Kind.BARREL][1],
+			placed[CargoKind.Kind.BARREL][1],
+			placed[CargoKind.Kind.CRATE][0] + placed[CargoKind.Kind.CRATE][1],
+			placed[CargoKind.Kind.CRATE][1]])
 
 
 ## Scatters grunts around the spawn point at varied distances and bearings.
