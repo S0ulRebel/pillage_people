@@ -60,7 +60,7 @@ func _run() -> void:
 			check(prop.get_layer_mask_value(20), "Generic prop not added to overhead water mask")
 			prop.queue_free()
 			player.global_position = saved_position
-			check(study.get_child_count() == 13, "Expected nine rocks, one palm and three foliage groups")
+			check(study.get_child_count() == 11, "Expected nine rocks, one palm and one grass field")
 			check(player.global_position.distance_to(study.spawn + Vector3.UP * 2.0) < 0.2, "Player not at study spawn")
 			check(study.spawn.y > terrain.sea_level() + 0.75, "Spawn is wet")
 			var colliders := study.find_children("*", "CollisionShape3D", true, false)
@@ -95,10 +95,12 @@ func _run() -> void:
 			var leaves: PackedVector3Array = palm.get_node("Generated/Fronds").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 			palm.rebuild()
 			check(leaves == palm.get_node("Generated/Fronds").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX], "Palm not deterministic")
-			var foliage := study.get_node("BroadLeaves")
-			var foliage_vertices: PackedVector3Array = foliage.get_node("Generated/Leaves").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-			foliage.rebuild()
-			check(foliage_vertices == foliage.get_node("Generated/Leaves").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX], "Foliage not deterministic")
+			# The foliage generator is gone; the study plants the modelled grass instead. What
+			# is worth checking is that it planted anything - a MultiMesh that silently ends up
+			# empty looks exactly like ground with no grass on it.
+			var grass: MultiMeshInstance3D = study.get_node("Grass")
+			check(grass.multimesh != null and grass.multimesh.instance_count > 0,
+				"Shoreline group planted no grass")
 			for i in 180:
 				await physics_frame
 			check(player.is_on_floor(), "Player did not settle on terrain")

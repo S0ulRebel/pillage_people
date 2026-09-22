@@ -3,7 +3,7 @@ extends Node3D
 const Rock = preload("res://art/props/rock.tscn")
 const RockKind = preload("res://art/props/rock.gd")
 const Palm = preload("res://art/procedural/coastal_palm.tscn")
-const Foliage = preload("res://art/procedural/coastal_foliage.tscn")
+const Grass = preload("res://art/props/grass.gd")
 const OFFSETS := [Vector2(-4.5, 2.5), Vector2(-6.5, 0.5), Vector2(-3.0, -0.8),
 	Vector2(5.0, 2.0), Vector2(-1.8, -2.2), Vector2(5.8, 0.3)]
 ## Which generated model stands at each offset, and how tall it should be. Heights carry over
@@ -86,12 +86,10 @@ func setup(terrain: Node3D) -> bool:
 	palm.rotation.y = 0.4
 	add_child(palm)
 	palm.global_position = _ground(PALM_OFFSET) - Vector3.UP * 0.08
-	_place_foliage("BroadLeaves", Vector2(5.8, 5.0), 0, 67, 2.1, 1.0, 5, Color("4f9230"))
-	_place_foliage("FernPatch", Vector2(-5.6, 4.0), 1, 83, 1.5, 1.2, 6, Color("397a30"))
-	_place_foliage("BeachGrass", Vector2(-0.8, 3.2), 2, 101, 1.0, 1.6, 10, Color("78a63b"))
+	_plant_grass()
 	spawn = _ground(SPAWN_OFFSET)
 	valid = true
-	print("coastal study: 6 shore rocks + %d water rocks + palm + 3 foliage groups at " % water_rock_count,
+	print("coastal study: 6 shore rocks + %d water rocks + palm + grass at " % water_rock_count,
 		global_position, " spawn ", spawn)
 	return true
 
@@ -129,19 +127,27 @@ func _place_water_rocks(sea: float) -> int:
 	return placed
 
 
-func _place_foliage(label: String, offset: Vector2, style: int, foliage_seed: int,
-		foliage_height: float, foliage_spread: float, count: int, colour: Color) -> void:
-	var foliage := Foliage.instantiate()
-	foliage.name = label
-	foliage.style = style
-	foliage.shape_seed = foliage_seed
-	foliage.height = foliage_height
-	foliage.spread = foliage_spread
-	foliage.plant_count = count
-	foliage.leaf_colour = colour
-	foliage.rotation.y = float(foliage_seed) * 0.37
-	add_child(foliage)
-	foliage.global_position = _ground(offset) - Vector3.UP * 0.04
+## Three clumps of grass where the procedural foliage used to stand.
+##
+## The same three spots, composed rather than scattered: the group was laid out by hand and a
+## random scatter would not put anything where the broad leaves and the ferns were. It gets its
+## own Grass node because the island's scatter runs later and knows nothing about this group's
+## local space.
+func _plant_grass() -> void:
+	var grass: MultiMeshInstance3D = Grass.new()
+	grass.name = "Grass"
+	# Composed planting, so the green band test the island scatter uses does not apply - these
+	# sit where the study decided, close to the water.
+	grass.lowest = -2.0
+	grass.highest = 40.0
+	grass.patch_radius = Vector2(0.9, 1.9)
+	grass.per_patch = Vector2i(9, 18)
+	add_child(grass)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6701
+	var spots: Array[Vector3] = [_ground(Vector2(5.8, 5.0)), _ground(Vector2(-5.6, 4.0)),
+			_ground(Vector2(-0.8, 3.2))]
+	grass.plant(_terrain, spots, rng)
 
 
 func _patch_score(centre: Vector3, orientation: Basis, sea: float) -> float:

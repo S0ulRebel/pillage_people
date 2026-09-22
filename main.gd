@@ -35,7 +35,8 @@ static var _death_test_runs := 0
 @export var crates_afloat := 3
 ## Grass tufts over the island's green band. One MultiMesh, so this is a count rather than a
 ## node budget - see art/props/grass.gd.
-@export var grass_count := 700
+## Clumps of grass, not tufts: each patch holds 7 to 20. See art/props/grass.gd.
+@export var grass_patches := 70
 ## Palms along the shore. Nodes rather than a MultiMesh: there are a dozen and you walk into
 ## them - see art/props/palm.gd.
 @export var palm_count := 14
@@ -184,15 +185,25 @@ func _plant_palms(around: Vector3) -> void:
 ## Its own RandomNumberGenerator, seeded from the project seed, for the same reason the rocks
 ## have one: sharing the global one means adding a tuft moves every grunt.
 func _scatter_grass(around: Vector3) -> void:
-	if "--noassets" in OS.get_cmdline_user_args() or grass_count <= 0:
+	if "--noassets" in OS.get_cmdline_user_args() or grass_patches <= 0:
 		return
 	var field: MultiMeshInstance3D = Grass.new()
 	field.name = "Grass"
-	field.count = grass_count
+	field.patches = grass_patches
 	add_child(field)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("grass") + randi()
-	print("grass: %d of %d tufts" % [field.scatter(_terrain, around, rng), grass_count])
+	# The rocks come along as extra patch centres. Grass grows against a boulder rather than
+	# keeping a polite distance from it, and seeding the scatter with them is most of what makes
+	# the ground look grown rather than sprinkled.
+	var against_rocks: Array[Vector3] = []
+	var field_of_rocks := get_node_or_null("Rocks")
+	if field_of_rocks != null:
+		for rock in field_of_rocks.get_children():
+			against_rocks.append((rock as Node3D).global_position)
+	print("grass: %d tufts in %d patches, %d of them against rocks"
+			% [field.scatter(_terrain, around, rng, against_rocks), grass_patches,
+			against_rocks.size()])
 
 
 ## Drops cargo on the beach and floats some of it offshore.
