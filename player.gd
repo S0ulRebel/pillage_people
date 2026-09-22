@@ -3,13 +3,57 @@ extends CharacterBody3D
 ## Q/E orbit, mouse wheel zooms. The body is the captain model when it is present, and a
 ## blocky stand-in built from primitives when it is not.
 
-@export var speed := 9.0
+## Normal movement. The walk clip plays below run_above, so this sits under it.
+@export var speed := 4.8
+## Held-Shift movement. Shift is also the dive key, but the two never apply at once - dive
+## only means anything while swimming, and this only applies on land.
+@export var sprint_speed := 9.0
 @export var acceleration := 12.0
 @export var turn_speed := 12.0
 ## Turns the model on the spot, in degrees, without touching which way the body steers.
 ## Movement rotates the body so its +Z faces the way you are going; a model authored facing
 ## the other way walks backwards. Set this to 180 if the captain moonwalks.
 @export var model_yaw := 0.0
+## Ignore scene lighting on the character and show the texture as painted. Worth trying when
+## the texture already has its lighting baked in, which generated ones do. The cost is that he
+## no longer darkens under a tree or at dusk.
+@export var unshaded_model := false
+## NOTE: the model's size is NOT set here. It is nodes/root_scale in art/models/captain.glb
+## .import, currently 1.9 to match the collider.
+##
+## Two settings in that .import file have to be right, and .import files are gitignored, so a
+## fresh clone gets the defaults back and both have to be set again:
+##   nodes/root_scale=1.9                     without it the captain is one metre tall
+##   animation/remove_immutable_tracks=false  the jump clip's hips are pinned to a constant,
+##                                            and that stripper drops constant tracks, which
+##                                            would snap the hips to the bone rest mid-jump
+##
+## Scaling it in code shatters it. A generator normalises to a unit cube, so the character
+## arrives 1.0 units tall and the obvious fix is to scale the node on load - but that node
+## has a Skeleton3D under it, and scaling above a skeleton breaks Godot's skinning: the mesh
+## tears apart into stretched fragments. The importer rescales the bone rest poses along with
+## the mesh, which is why it is the only place this belongs.
+
+@export_group("Animation")
+## Clip names as they appear in the model's AnimationPlayer. Mixamo names its downloads after
+## the animation ("mixamo.com" for a single clip, or the pack's own names), so these are
+## exports rather than constants - set them to whatever actually arrives.
+@export var clip_idle := "idle"
+@export var clip_walk := "walk"
+@export var clip_run := "run"
+@export var clip_jump := "jump"
+@export var clip_fall := "fall"
+@export var clip_swim := "swim"
+## Plays once and holds its last frame - the captain staggers back and ends up flat on his
+## back. Unlike the others this clip keeps its root motion, because falling over is supposed
+## to move him: he travels about two thirds of his own height backwards on the way down. The
+## collider stays where it was, so the body comes to rest beside it rather than inside it.
+@export var clip_death := "death"
+## Above this ground speed the run clip is used instead of the walk. Walking at run speed
+## looks like the feet are skating, which is the usual giveaway that the blend is wrong.
+@export var run_above := 5.5
+## Seconds to cross-fade between clips. Too short snaps, too long makes turns feel sluggish.
+@export var clip_blend := 0.15
 
 @export_group("Jump feel")
 ## How high a full jump goes, in metres. The take-off speed is derived from it.
@@ -49,15 +93,52 @@ const MODEL_PATH := "res://art/models/captain.glb"
 
 ## False when the model is missing and the blocky stand-in is standing in for it.
 var _model_loaded := false
+## The model's own AnimationPlayer, or null until it has clips on it.
+var _anim: AnimationPlayer
+## What is playing, so a clip is not restarted from the top every frame.
+var _clip := ""
 var _walk_time := 0.0
 var _coyote := 0.0
 var _buffered := 0.0
 var _holding_jump := false
 ## Set by the touch dive button; the keyboard uses the "dive" action directly.
 var _holding_dive := false
+## True between die() and revive(). Checked before anything else each frame.
+var _dead := false
 
 
 ## Take-off speed for the requested height: v = sqrt(2 * g * h).
+## Emitted the moment die() is called, before the clip starts, so whatever is listening can
+## fade the screen or start a respawn timer against the same frame.
+signal died
+signal revived
+
+
+func is_dead() -> bool:
+	return _dead
+
+
+## Stops the captain taking input and plays the death clip. Nothing in the game calls this
+## yet - there is no health anywhere - so it is here for whatever does the hurting to call.
+func die() -> void:
+	if _dead:
+		return
+	_dead = true
+	_buffered = 0.0
+	_holding_jump = false
+	died.emit()
+
+
+func revive() -> void:
+	if not _dead:
+		return
+	_dead = false
+	# Clearing this makes _update_animation treat the next clip as a change and play it. Without
+	# it the captain stands back up still holding the last frame of his own death.
+	_clip = ""
+	revived.emit()
+
+
 func _jump_velocity() -> float:
 	return sqrt(2.0 * rise_gravity * jump_height)
 
@@ -94,6 +175,19 @@ func is_swimming() -> bool:
 
 
 func _physics_process(delta: float) -> void:
+	if _dead:
+		# Gravity still applies and momentum still bleeds off, so a captain killed in mid-air
+		# falls and comes to rest instead of dying where he was hit and hanging there. Input
+		# is not read at all - not even to buffer it - or he would jump on respawn.
+		if not is_on_floor():
+			velocity.y -= fall_gravity * delta
+			velocity.y = maxf(velocity.y, -terminal_velocity)
+		velocity.x = move_toward(velocity.x, 0.0, acceleration * delta * sprint_speed)
+		velocity.z = move_toward(velocity.z, 0.0, acceleration * delta * sprint_speed)
+		move_and_slide()
+		_update_animation()
+		return
+
 	# --- jump feel: coyote time, buffered presses, short hops, heavier fall ---
 	if Input.is_action_just_pressed("jump"):
 		_buffered = jump_buffer
@@ -123,11 +217,12 @@ func _physics_process(delta: float) -> void:
 		velocity.y = maxf(velocity.y, -terminal_velocity)
 
 	var direction := _move_direction()
+	var wanted := sprint_speed if Input.is_action_pressed("sprint") else speed
 	# Shallow water drags: wading out to the drop-off should feel different from running.
-	var walk_speed := speed * (wade_slowdown if submersion() > 0.0 else 1.0)
+	var walk_speed := wanted * (wade_slowdown if submersion() > 0.0 else 1.0)
 	var target := direction * walk_speed
-	velocity.x = move_toward(velocity.x, target.x, acceleration * delta * speed)
-	velocity.z = move_toward(velocity.z, target.z, acceleration * delta * speed)
+	velocity.x = move_toward(velocity.x, target.x, acceleration * delta * sprint_speed)
+	velocity.z = move_toward(velocity.z, target.z, acceleration * delta * sprint_speed)
 	move_and_slide()
 
 	if direction.length() > 0.05:
@@ -138,6 +233,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_walk_time = 0.0
 		_animate_walk(true)
+	_update_animation()
 
 
 ## Swimming: no jump arc and no gravity, just buoyancy, drag and free vertical control.
@@ -167,6 +263,7 @@ func _swim(delta: float) -> void:
 		_body.rotation.y = lerp_angle(_body.rotation.y, yaw, turn_speed * delta)
 		_walk_time += delta * velocity.length()
 	_animate_walk()
+	_update_animation()
 
 
 ## Camera-relative movement input, shared by walking and swimming.
@@ -183,10 +280,14 @@ func _move_direction() -> Vector3:
 
 ## The captain, or a blocky stand-in if the model is not there.
 ##
-## The model is generated by the pipeline in D:\code\gan: a silhouette becomes a rendered
-## character, four turnaround views come off that, and a multi-view service builds the mesh.
-## It arrives 1.9 m tall with its feet at zero, matching the collider, because
-## tools/prepare_game_model.py bakes the scale into the file. Nothing to set on import.
+## The model comes out of the pipeline in D:\code\gan: a silhouette becomes a rendered
+## character, four turnaround views come off that, and a multi-view service builds the rigged
+## mesh. Generators normalise to a unit cube, so it arrives 1.0 units tall and is scaled here.
+##
+## Scaling belongs here and not in the file. Writing a scale onto the glTF root node looks
+## like it works - the bounds come out right and it loads fine - but a skinned mesh carries
+## inverse-bind matrices that do not scale with it, so the character arrives visibly
+## distorted. Scaling the instantiated node scales the skeleton and the skin together.
 func _build_body() -> void:
 	var scene: PackedScene = load(MODEL_PATH) if ResourceLoader.exists(MODEL_PATH) else null
 	if scene:
@@ -199,9 +300,48 @@ func _build_body() -> void:
 		for node in _all_descendants(model):
 			if node is VisualInstance3D:
 				node.set_layer_mask_value(20, true)
+		_flatten_materials(model)
+		for node in _all_descendants(model):
+			if node is AnimationPlayer:
+				_anim = node as AnimationPlayer
+				break
+		_set_looping()
 		_model_loaded = true
 		return
 	_build_primitive_body()
+
+
+## Takes the shine off the imported material so the captain sits in the same world as the
+## terrain, which is unshaded flat colour.
+##
+## A generated texture already has its lighting painted into it, and the generator also hands
+## over a PBR material with specular and a roughness value. Lighting that again on top is what
+## makes the character look like moulded plastic next to flat ground. Toon diffuse and no
+## specular is what the primitive stand-in used, so this is the project's existing treatment
+## rather than a new one.
+##
+## Better still is to export from Tripo with texture_delight on, which strips the baked
+## lighting out of the texture itself. This only stops it being lit twice.
+func _flatten_materials(model: Node3D) -> void:
+	for node in _all_descendants(model):
+		if not (node is MeshInstance3D):
+			continue
+		var mesh_node := node as MeshInstance3D
+		if mesh_node.mesh == null:
+			continue
+		for surface in mesh_node.mesh.get_surface_count():
+			var material := mesh_node.mesh.surface_get_material(surface)
+			if material is BaseMaterial3D:
+				var flat: BaseMaterial3D = material.duplicate()
+				flat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+				flat.metallic = 0.0
+				flat.roughness = 1.0
+				flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+				if unshaded_model:
+					# The texture is already lit, so ignoring the scene lights entirely can
+					# read better - at the cost of the character not darkening in shadow.
+					flat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				mesh_node.set_surface_override_material(surface, flat)
 
 
 func _all_descendants(node: Node) -> Array[Node]:
@@ -255,9 +395,7 @@ func _add_part(name_: String, mesh: PrimitiveMesh, pos: Vector3, material: Mater
 	return node
 
 
-## Swings the stand-in's limbs. The captain has a skeleton instead and does nothing here yet -
-## he has no animation clips, so swinging his arms would mean rotating bones by hand. Drive an
-## AnimationPlayer from here once there are clips on him.
+## Swings the stand-in's limbs. The captain is driven by _update_animation instead.
 func _animate_walk(rest := false) -> void:
 	if _model_loaded:
 		return
@@ -265,3 +403,59 @@ func _animate_walk(rest := false) -> void:
 	for child in _body.get_children():
 		if child.has_meta("swing_side"):
 			child.rotation.x = swing * child.get_meta("swing_side")
+
+
+## Marks the cyclic clips as looping.
+##
+## glTF carries no loop flag, so Godot imports every animation as play-once. A walk cycle then
+## takes a few steps, stops on its last frame, and the character glides along in that pose -
+## which reads as the animation being broken rather than merely finished.
+##
+## Jump is deliberately left alone. It is Mixamo's "Jumping Up" cut down to its launch - the
+## legs drive down and then tuck - and it runs 0.34s against the 0.35s the rise actually takes,
+## so it lands on the tuck and holds there. Looping it would restart the take-off mid-air.
+##
+## Fall does loop. It is "Falling Idle", which is built as a cycle, and a drop from any height
+## worth having outlasts its 0.73s - without the loop the character freezes into its last frame
+## on the way down.
+func _set_looping() -> void:
+	if _anim == null:
+		return
+	for name_ in [clip_idle, clip_walk, clip_run, clip_swim, clip_fall]:
+		if name_ == "" or not _anim.has_animation(name_):
+			continue
+		var clip := _anim.get_animation(name_)
+		if clip.loop_mode != Animation.LOOP_LINEAR:
+			clip.loop_mode = Animation.LOOP_LINEAR
+
+
+## Picks the clip that matches what the player is doing.
+##
+## Nothing here assumes the clips exist. A model with a skeleton and no animations - which is
+## what a generator gives you - simply stands in its rest pose, and each clip starts working
+## the moment it is added. That way the states can be got right before the animations arrive.
+func _update_animation() -> void:
+	if _anim == null:
+		return
+	var wanted := ""
+	if _dead:
+		wanted = clip_death
+	elif is_swimming():
+		wanted = clip_swim
+	elif not is_on_floor():
+		wanted = clip_jump if velocity.y > 0.0 else clip_fall
+	else:
+		var ground_speed := Vector2(velocity.x, velocity.z).length()
+		if ground_speed < 0.2:
+			wanted = clip_idle
+		else:
+			wanted = clip_run if ground_speed > run_above else clip_walk
+
+	# Fall back through to something that does exist, so a half-finished set still animates
+	# rather than freezing: no run clip yet means walking, no fall clip means the jump.
+	for candidate in [wanted, clip_walk, clip_idle]:
+		if candidate != "" and _anim.has_animation(candidate):
+			if candidate != _clip:
+				_anim.play(candidate, clip_blend)
+				_clip = candidate
+			return
