@@ -300,10 +300,14 @@ func _build_mesh() -> void:
 				for p: Vector3 in tri:
 					st.set_uv(Vector2(p.x / world_size + 0.5, p.z / world_size + 0.5))
 					st.set_color(_terrain_colour(p.y))
+					# Every cell emits its own triangle vertices, so generated face normals expose
+					# the regular diagonal grid as dark wedges on steep coasts. Sample the same
+					# height field on both sides instead, giving duplicate vertices one continuous
+					# terrain normal while preserving the actual height-map silhouette.
+					st.set_normal(_surface_normal(p.x, p.z))
 					st.add_vertex(p)
 				if inside > 0:                # keep rim geometry for the precise collider
 					_rim_triangles.append_array(tri)
-	st.generate_normals()
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.mesh = st.commit()
 	# Cel shading is where the stylised look comes from; the vertex colours only supply which
@@ -332,6 +336,17 @@ func _build_mesh() -> void:
 ## Terrain point in world space, height sampled from the map.
 func _surface_point(world_x: float, world_z: float) -> Vector3:
 	return Vector3(world_x, height_at(world_x, world_z), world_z)
+
+
+## Continuous height-field normal. Using the source-map sample spacing retains small coastal
+## forms without allowing the render mesh's arbitrary triangle diagonal to affect shading.
+func _surface_normal(world_x: float, world_z: float) -> Vector3:
+	var sample_step := world_size / float(maxi(_size - 1, 1))
+	var left := height_at(world_x - sample_step, world_z)
+	var right := height_at(world_x + sample_step, world_z)
+	var back := height_at(world_x, world_z - sample_step)
+	var forward := height_at(world_x, world_z + sample_step)
+	return Vector3(left - right, sample_step * 2.0, back - forward).normalized()
 
 
 ## Clips a quad to the part outside the holes (Sutherland-Hodgman against hole_field = 0).
