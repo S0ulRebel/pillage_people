@@ -142,8 +142,14 @@ func commit() -> int:
 	grass.transform_format = MultiMesh.TRANSFORM_3D
 	grass.mesh = _mesh
 	grass.instance_count = _placed.size()
+	# Instance transforms are read in the node's OWN space, and the positions above are world
+	# ones because that is what the terrain answers in. On a node parented to the scene root the
+	# two are the same and nothing shows; the shoreline group sits at (135, 19.7, -90) with a
+	# rotation of its own, so its planting was transformed a second time and ended up hundreds
+	# of metres out and up in the sky.
+	var into_local := global_transform.affine_inverse()
 	for i in _placed.size():
-		grass.set_instance_transform(i, _placed[i])
+		grass.set_instance_transform(i, into_local * _placed[i])
 	multimesh = grass
 	if _material != null:
 		material_override = _material
