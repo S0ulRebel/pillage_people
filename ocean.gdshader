@@ -19,8 +19,8 @@ uniform float sea_y = 18.0;
 uniform float preview_time = -1.0; // Fixed time for repeatable material captures.
 
 group_uniforms Colour;
-uniform vec3 shallow_colour : source_color = vec3(0.02, 0.75, 0.86);
-uniform vec3 lagoon_colour : source_color = vec3(0.02, 0.55, 0.72);
+uniform vec3 shallow_colour : source_color = vec3(0.08, 0.64, 0.68);
+uniform vec3 lagoon_colour : source_color = vec3(0.025, 0.48, 0.60);
 uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
 // Keep the lagoon floor visible while deep water becomes opaque.
 uniform float depth_fade : hint_range(1.0, 60.0) = 26.0;
@@ -29,9 +29,9 @@ uniform float band_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.58;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 0.94;
 // Art-directed Beer-Lambert coefficients. Red is lost first; blue travels furthest.
-uniform vec3 absorption = vec3(0.42, 0.12, 0.045);
-uniform float absorption_strength : hint_range(0.0, 3.0) = 1.0;
-uniform float scattering_strength : hint_range(0.0, 1.5) = 0.92;
+uniform vec3 absorption = vec3(0.24, 0.075, 0.028);
+uniform float absorption_strength : hint_range(0.0, 3.0) = 0.78;
+uniform float scattering_strength : hint_range(0.0, 1.5) = 0.68;
 // Opaque, unshaded colour ramp for checking colours against your swatches.
 uniform bool palette_preview = false;
 
@@ -226,25 +226,31 @@ void fragment() {
     breaker *= mix(0.12, 1.0, smoothstep(0.30, 0.70,
         broad * 0.62 + detail * 0.38));
 
-    float trailing_window = smoothstep(0.035, 0.11, distorted_depth)
-        * (1.0 - smoothstep(0.32, 0.58, distorted_depth));
-    // Long interference ribbons make torn surf fingers instead of closed cellular loops.
-    float along = dot(world_position.xz, normalize(vec2(0.82, -0.57)));
-    float ribbon_warp = (noise(world_position.xz * 0.34
-        + vec2(-clock * 0.021, clock * 0.029)) - 0.5) * 5.2;
-    float ribbon_wave = sin(along * 0.78 + ribbon_warp + clock * foam_speed * 0.55);
-    ribbon_wave += sin(along * 1.43 - ribbon_warp * 0.37
-        - clock * foam_speed * 0.34) * 0.38;
-    float ribbon_distance = abs(ribbon_wave) / 1.38;
-    float strands = 1.0 - smoothstep(0.055, 0.12, ribbon_distance);
-    float strand_breakup = smoothstep(0.43, 0.67, noise(world_position.xz * 0.73
-        + vec2(clock * 0.026, clock * 0.017) + vec2(9.4, 2.7)));
-    strands *= trailing_window * strand_breakup;
+    // Short secondary wash lines follow the same depth contours as the coast. Independent
+    // warping and hard breakup keep them as torn fragments instead of global sine ribbons.
+    float wash_shape_1 = noise(world_position.xz * 0.31
+        + vec2(-clock * 0.019, clock * 0.027) + vec2(9.4, 2.7));
+    float wash_mask_1 = noise(world_position.xz * 0.69
+        + vec2(clock * 0.031, clock * 0.014) + vec2(-3.2, 7.6));
+    float wash_distance_1 = distorted_depth - 0.13 - (wash_shape_1 - 0.5) * 0.085;
+    float wash_1 = 1.0 - smoothstep(0.012, 0.026 + foam_aa,
+        abs(wash_distance_1));
+    wash_1 *= smoothstep(0.53, 0.69, wash_mask_1);
+
+    float wash_shape_2 = noise(world_position.xz * 0.24
+        + vec2(clock * 0.014, -clock * 0.022) + vec2(4.8, -8.1));
+    float wash_mask_2 = noise(world_position.xz * 0.57
+        + vec2(-clock * 0.023, clock * 0.018) + vec2(13.1, 5.3));
+    float wash_distance_2 = distorted_depth - 0.27 - (wash_shape_2 - 0.5) * 0.12;
+    float wash_2 = 1.0 - smoothstep(0.010, 0.023 + foam_aa,
+        abs(wash_distance_2));
+    wash_2 *= smoothstep(0.61, 0.76, wash_mask_2);
+    float strands = max(wash_1 * 0.42, wash_2 * 0.25);
 
     float landward_window = smoothstep(-0.13, -0.045, distorted_depth)
         * (1.0 - smoothstep(-0.025, 0.018, distorted_depth));
     float remnants = landward_window * smoothstep(0.68, 0.82, detail);
-    float surf = max(breaker * 0.82, max(strands * 0.40, remnants * 0.24));
+    float surf = max(breaker * 0.82, max(strands, remnants * 0.24));
     surf *= shore_only * step(0.001, foam_depth);
 	// Static silhouettes come from the overhead field. Moving characters and props contribute
 	// simple footprints through reusable emitters; both receive the same animated pale band.

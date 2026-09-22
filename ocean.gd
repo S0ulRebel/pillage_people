@@ -27,11 +27,11 @@ const MAX_DYNAMIC_BAND_EMITTERS := 16
 ## On the node as well as in the material, so they are found without digging.
 ## Note the caustics are not here - they are drawn on the seabed, so their colour is on Terrain.
 @export_group("Colours")
-@export var shallow_colour := Color(0.02, 0.75, 0.86):
+@export var shallow_colour := Color(0.08, 0.64, 0.68):
 	set(value):
 		shallow_colour = value
 		_push("shallow_colour", value)
-@export var lagoon_colour := Color(0.02, 0.55, 0.72):
+@export var lagoon_colour := Color(0.025, 0.48, 0.60):
 	set(value):
 		lagoon_colour = value
 		_push("lagoon_colour", value)
@@ -62,15 +62,15 @@ const MAX_DYNAMIC_BAND_EMITTERS := 16
 
 @export_group("Optics")
 ## Per-metre RGB absorption. Warm light is removed first to create turquoise shallows.
-@export var absorption := Vector3(0.42, 0.12, 0.045):
+@export var absorption := Vector3(0.24, 0.075, 0.028):
 	set(value):
 		absorption = value.max(Vector3.ZERO)
 		_push("absorption", absorption)
-@export_range(0.0, 3.0) var absorption_strength := 1.0:
+@export_range(0.0, 3.0) var absorption_strength := 0.78:
 	set(value):
 		absorption_strength = value
 		_push("absorption_strength", value)
-@export_range(0.0, 1.5) var scattering_strength := 0.92:
+@export_range(0.0, 1.5) var scattering_strength := 0.68:
 	set(value):
 		scattering_strength = value
 		_push("scattering_strength", value)
