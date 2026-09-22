@@ -7,9 +7,11 @@ extends Control
 ## the floating stick can be drawn over this, but the stick appears under a thumb that is
 ## already looking at the screen edge, and this is a placeholder besides.
 
-const WIDTH := 220.0
-const HEIGHT := 18.0
-const MARGIN := 24.0
+## Doubled from the first version. At 220x18 it rendered correctly and was still missed - a
+## thin dark strip in the corner of a 1920-wide screen, over sand of much the same value.
+const WIDTH := 440.0
+const HEIGHT := 36.0
+const MARGIN := 28.0
 
 @export var full := Color(0.38, 0.72, 0.30)
 @export var low := Color(0.80, 0.22, 0.18)
@@ -44,11 +46,13 @@ func _draw() -> void:
 	var box := Rect2(Vector2.ZERO, Vector2(WIDTH, HEIGHT))
 	draw_rect(box, backing)
 	if _fraction > 0.0:
-		var inner := Rect2(Vector2(2, 2), Vector2((WIDTH - 4) * _fraction, HEIGHT - 4))
+		var inner := Rect2(Vector2(4, 4), Vector2((WIDTH - 8) * _fraction, HEIGHT - 8))
 		draw_rect(inner, low.lerp(full, _fraction))
-	draw_rect(box, edge, false, 2.0)
+	# Thick, dark border. The bar sits over sand of much the same value as the bar itself, and
+	# without an outline it reads as part of the ground rather than as part of the interface.
+	draw_rect(box, edge, false, 3.0)
 	# Notches at each whole point, so three hits read as three rather than as a bar that moved.
 	if _max > 1 and _max <= 20:
 		for i in range(1, _max):
-			var x: float = 2.0 + (WIDTH - 4.0) * (float(i) / float(_max))
-			draw_line(Vector2(x, 2), Vector2(x, HEIGHT - 2), edge, 1.0)
+			var x: float = 4.0 + (WIDTH - 8.0) * (float(i) / float(_max))
+			draw_line(Vector2(x, 4), Vector2(x, HEIGHT - 4), edge, 2.0)

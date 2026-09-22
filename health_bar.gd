@@ -14,7 +14,7 @@ extends Sprite3D
 ## Pixels in the generated image. Small on purpose: it is scaled up to world size by pixel_size,
 ## and nearest filtering keeps the edges hard rather than smearing them.
 const WIDTH := 48
-const HEIGHT := 7
+const HEIGHT := 9
 
 @export var full := Color(0.38, 0.72, 0.30)
 @export var low := Color(0.80, 0.22, 0.18)
@@ -33,7 +33,11 @@ func _ready() -> void:
 	texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	# Draws after the world, so it is not sorted into the middle of the character's own mesh.
 	render_priority = 10
-	pixel_size = 0.004
+	# The camera sits high and far back on a spring arm, so a bar sized to look right standing
+	# beside the grunt is a handful of pixels at play distance. 0.004 read as a dash above his
+	# head and 0.008 was still only about 20 px across. This puts it at roughly 0.8 m wide -
+	# half the grunt's height - which is legible from where the camera actually sits.
+	pixel_size = 0.016
 	_image = Image.create(WIDTH, HEIGHT, false, Image.FORMAT_RGBA8)
 	_texture = ImageTexture.create_from_image(_image)
 	texture = _texture
