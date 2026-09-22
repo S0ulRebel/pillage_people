@@ -5,12 +5,38 @@ extends Node3D
 ## project renders without opening the editor).
 
 const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
+const Enemy = preload("res://enemy.gd")
 var _coastal_study: Node3D
+
+## Stand-in targets so the cutlass has something to hit. They use the captain's own model until
+## the grunt is modelled, do not move or fight back, and are only here to prove the damage loop.
+@export var enemy_count := 3
+@export var enemy_ring := 6.0   ## metres from the spawn point
 
 @onready var _terrain: StaticBody3D = $Terrain
 @onready var _player: CharacterBody3D = $Player
 @onready var _camera_rig: Node3D = $CameraRig
 @onready var _ocean: MeshInstance3D = $Ocean
+
+
+## Drops a ring of practice targets around the spawn point.
+##
+## Built from a script rather than placed in the scene, so the count and spacing are one export
+## away and nothing has to be re-laid-out when the real enemy arrives. Each one is put on the
+## terrain surface, not at the spawn height - the spawn is lifted clear of the ground for the
+## player to drop from, and an enemy started up there would fall through its own idle.
+func _spawn_enemies(near: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or enemy_count <= 0:
+		return
+	for i in enemy_count:
+		var angle := TAU * i / float(enemy_count)
+		var at := near + Vector3(cos(angle), 0.0, sin(angle)) * enemy_ring
+		var enemy: CharacterBody3D = Enemy.new()
+		enemy.name = "Enemy%d" % i
+		add_child(enemy)
+		enemy.global_position = Vector3(at.x, _terrain.height_at(at.x, at.z) + 0.1, at.z)
+		# Face the middle, so the ring looks placed rather than scattered.
+		enemy.rotation.y = atan2(near.x - at.x, near.z - at.z)
 
 
 func _ready() -> void:
@@ -76,6 +102,7 @@ func _ready() -> void:
 				printed.append(str(tunnel.curve.get_point_position(i)))
 			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
+	_spawn_enemies(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_player.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig

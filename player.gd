@@ -81,6 +81,15 @@ extends CharacterBody3D
 ## How long the swing owns the animation before walking and idling take it back. The strike and
 ## its follow-through fit in this; the clip's remaining recovery is not worth waiting through.
 @export var attack_length := 0.75
+## Seconds into the swing where the blade actually connects. Not guessed: the right hand's
+## speed through the clip peaks at 1.23s, which is 0.28s after attack_start, and stays above
+## half that peak from 1.17s to 1.37s. Those are the edges below. Outside them the blade is
+## travelling to or from the strike and should pass through people harmlessly, or every swing
+## lands the moment the button goes down and range stops meaning anything.
+@export var hit_from := 0.20
+@export var hit_to := 0.42
+@export var damage := 1
+@export var max_health := 5
 
 @export_group("Jump feel")
 ## How high a full jump goes, in metres. The take-off speed is derived from it.
@@ -136,6 +145,11 @@ var _dead := false
 var _attack := 0.0
 ## The placeholder blade, so it can be swapped or hidden without rebuilding the body.
 var _weapon: MeshInstance3D
+## Overlap volume around the blade. Always monitoring; what changes is whether hits count.
+var _blade: Area3D
+## Everything already struck by the current swing, so one swing cannot hit the same body twice.
+var _struck: Array[Node] = []
+var _health := 0
 
 
 ## Take-off speed for the requested height: v = sqrt(2 * g * h).
@@ -146,10 +160,49 @@ signal revived
 ## Emitted when a swing starts, not when it connects. Whatever deals damage should wait for
 ## the blade to be somewhere useful rather than firing on the keypress.
 signal attacked
+## The blade reached something. Carries what was hit, so scoring or effects can hang off it.
+signal hit(target: Node)
+signal damaged(amount: int, remaining: int)
 
 
 func is_attacking() -> bool:
 	return _attack > 0.0
+
+
+func health() -> int:
+	return _health
+
+
+## Duck-typed to match enemy.gd, so whatever ends up swinging at the captain does not need to
+## know what he is either.
+func take_damage(amount: int, _from: Node = null) -> void:
+	if _dead:
+		return
+	_health = maxi(0, _health - amount)
+	damaged.emit(amount, _health)
+	if _health == 0:
+		die()
+
+
+## Applies the blade to anything inside it, once per swing per body.
+##
+## Overlaps are read every frame rather than waiting for body_entered, because a body can
+## already be inside the blade when the window opens - standing close enough that the sword
+## starts the strike overlapping them - and an entered signal that fired before the window
+## never comes again.
+func _strike() -> void:
+	if _blade == null:
+		return
+	var elapsed := attack_length - _attack
+	if _attack <= 0.0 or elapsed < hit_from or elapsed > hit_to:
+		return
+	for body in _blade.get_overlapping_bodies():
+		if body == self or _struck.has(body):
+			continue
+		if body.has_method("take_damage"):
+			_struck.append(body)
+			body.take_damage(damage, self)
+			hit.emit(body)
 
 
 ## Starts a swing, if one is not already running. Movement is deliberately left alone - you can
@@ -158,6 +211,7 @@ func attack() -> void:
 	if _dead or _attack > 0.0:
 		return
 	_attack = attack_length
+	_struck.clear()
 	attacked.emit()
 
 
@@ -180,6 +234,7 @@ func revive() -> void:
 	if not _dead:
 		return
 	_dead = false
+	_health = max_health
 	# Clearing this makes _update_animation treat the next clip as a change and play it. Without
 	# it the captain stands back up still holding the last frame of his own death.
 	_clip = ""
@@ -209,6 +264,7 @@ func _ready() -> void:
 	# Tunnel ramps run at about 40 degrees, and faceted walls push some normals past Godot's
 	# 45 degree default, which reads as "wall" and stops the player dead halfway out.
 	floor_max_angle = deg_to_rad(55.0)
+	_health = max_health
 	_build_body()
 
 
@@ -239,6 +295,7 @@ func _physics_process(delta: float) -> void:
 	_attack = maxf(0.0, _attack - delta)
 	if Input.is_action_just_pressed("attack"):
 		attack()
+	_strike()
 
 	# --- jump feel: coyote time, buffered presses, short hops, heavier fall ---
 	if Input.is_action_just_pressed("jump"):
@@ -411,6 +468,25 @@ func _attach_weapon(model: Node3D) -> void:
 	_weapon.material_override = material
 	mount.add_child(_weapon)
 	_weapon.set_layer_mask_value(20, true)
+
+	# The hitbox hangs off the blade rather than the hand, so it follows the tip through the
+	# arc. It is a child of the mesh on purpose: the mesh already carries the correction that
+	# cancels the rig's unit scale, so its own global scale is 1 and a shape sized in metres
+	# here is that size in the world.
+	_blade = Area3D.new()
+	_blade.name = "BladeHit"
+	var collider := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = sword_size
+	collider.shape = box_shape
+	_blade.add_child(collider)
+	# Left monitoring the whole time. Toggling it costs a physics frame before overlaps are
+	# reported again, and the strike window is only about a dozen frames wide - long enough to
+	# lose a hit to that delay. What the window gates is whether a hit counts, not whether the
+	# area is watching.
+	_blade.monitoring = true
+	_weapon.add_child(_blade)
+
 	_fit_weapon.call_deferred(mount)
 
 
