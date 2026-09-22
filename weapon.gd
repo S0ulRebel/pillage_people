@@ -20,7 +20,7 @@ var _offset := Vector3.ZERO
 ## Builds the blade and parents it to the bone. Returns false if the bone is not there, so a
 ## body with an unexpected rig ends up unarmed rather than half-built.
 func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
-		rotation_deg: Vector3, colour: Color) -> bool:
+		rotation_deg: Vector3, colour: Color, model_path := "") -> bool:
 	if skeleton == null or skeleton.find_bone(bone) == -1:
 		push_warning("weapon.gd: no bone called '%s', so the weapon has nowhere to hang." % bone)
 		return false
@@ -32,20 +32,32 @@ func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
 	# Set after it is in the tree, or there is no skeleton yet to look the name up in.
 	mount.bone_name = bone
 
-	var box := BoxMesh.new()
-	box.size = size
-	mesh = box
 	position = offset
-	rotation_degrees = rotation_deg
-	# Flat, like everything else in this world. A placeholder that arrives shinier than the
-	# character holding it reads as a bug rather than as a stand-in.
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	material.metallic = 0.0
-	material.roughness = 1.0
-	material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-	material_override = material
+	var modelled := model_path != "" and ResourceLoader.exists(model_path)
+	if modelled:
+		# A real blade. This node keeps no mesh of its own and works as the mount: the model
+		# hangs off it, rotated onto the axis everything else here assumes.
+		var blade: Node3D = (load(model_path) as PackedScene).instantiate()
+		blade.name = "Blade"
+		add_child(blade)
+		# The rotation goes on the model, not on this node. The hitbox below is placed along
+		# +X, and turning the whole node would carry the hitbox off the blade with it.
+		blade.rotation_degrees = rotation_deg
+		_flatten(blade)
+	else:
+		var box := BoxMesh.new()
+		box.size = size
+		mesh = box
+		rotation_degrees = rotation_deg
+		# Flat, like everything else in this world. A placeholder that arrives shinier than the
+		# character holding it reads as a bug rather than as a stand-in.
+		var material := StandardMaterial3D.new()
+		material.albedo_color = colour
+		material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		material.metallic = 0.0
+		material.roughness = 1.0
+		material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		material_override = material
 	mount.add_child(self)
 	# Layer 20 is the overhead water-interaction camera; anything visible has to be on it.
 	set_layer_mask_value(20, true)
@@ -62,9 +74,43 @@ func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
 	# hit to that delay. The owner gates whether a hit counts, not whether the area is watching.
 	hitbox.monitoring = true
 	add_child(hitbox)
+	# A modelled blade has its origin at the pommel and runs out along +X, so the hitbox is
+	# pushed out to sit over the blade rather than straddling the fist. The box mesh is centred
+	# on its own origin, so it needs no such shift.
+	if modelled:
+		collider.position = Vector3(size.x * 0.5, 0.0, 0.0)
+
 
 	_fit.call_deferred(mount)
 	return true
+
+
+## Flat toon shading and the water camera's layer, same as every other imported mesh here.
+func _flatten(blade: Node3D) -> void:
+	for node in _descendants(blade):
+		if not (node is MeshInstance3D):
+			continue
+		var mesh_node := node as MeshInstance3D
+		mesh_node.set_layer_mask_value(20, true)
+		if mesh_node.mesh == null:
+			continue
+		for surface in mesh_node.mesh.get_surface_count():
+			var material := mesh_node.mesh.surface_get_material(surface)
+			if material is BaseMaterial3D:
+				var flat: BaseMaterial3D = material.duplicate()
+				flat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+				flat.metallic = 0.0
+				flat.roughness = 0.55
+				flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+				mesh_node.set_surface_override_material(surface, flat)
+
+
+func _descendants(node: Node) -> Array[Node]:
+	var found: Array[Node] = []
+	for child in node.get_children():
+		found.append(child)
+		found.append_array(_descendants(child))
+	return found
 
 
 ## Cancels the rig's own unit scale.

@@ -60,15 +60,25 @@ extends CharacterBody3D
 ## off, or swap the mesh, once a real one is modelled.
 @export var show_weapon := true
 @export var weapon_bone := "mixamorig_RightHand"
-## Metres. Long axis is X, which is the direction the blade leaves the fist - see _attach_weapon.
-@export var sword_size := Vector3(0.70, 0.055, 0.018)
+## The cutlass. Leave empty and a plain box stands in, which is what this was before the model
+## existed - useful for a character whose weapon is not modelled yet.
+@export_file("*.glb") var sword_model := "res://art/models/weapons/cutlass.glb"
+## Metres, along the hand bone's axes. Once a model is set this is the HITBOX only - nothing
+## here is drawn - so it is deliberately fatter than the blade looks. Matched to the steel at
+## 0.075 x 0.030 the captain hit once in three swings at a metre: the strike sweeps sideways
+## and a three-centimetre plate slips straight past. Widening it costs nothing visually and is
+## the difference between a sword that connects and one that does not.
+@export var sword_size := Vector3(0.80, 0.12, 0.12)
 ## Metres, along the hand bone's own axes. X slides the box along the blade so a short length
 ## sits inside the hand as a grip. Y runs towards the fingertips, which is downwards while the
 ## arm hangs, and 0 puts the blade through the wrist joint rather than in the fist - the middle
 ## knuckle measures 5.2 cm along it and the joint past that 8.3 cm, so the hilt belongs between.
-@export var sword_offset := Vector3(0.28, 0.07, 0.0)
-## Only needed if a real mesh is authored along a different axis than this box.
-@export var sword_rotation := Vector3.ZERO
+## With a model the origin is the pommel, not the middle of a box, so X sits near zero - a
+## little back, to bury the pommel in the fist rather than float it at the fingertips.
+@export var sword_offset := Vector3(-0.05, 0.07, 0.0)
+## The cutlass is modelled standing upright - blade along +Y, pommel at the origin - and this
+## code works in the hand bone's +X. A quarter turn about Z maps one onto the other.
+@export var sword_rotation := Vector3(0.0, 0.0, -90.0)
 @export var sword_colour := Color(0.72, 0.74, 0.78)
 
 @export_group("Combat")
@@ -327,9 +337,11 @@ func _physics_process(delta: float) -> void:
 	# Ticked before the swimming branch returns, or a swing started on land would never end.
 	_attack = maxf(0.0, _attack - delta)
 	_stagger = maxf(0.0, _stagger - delta)
-	# A swing dies with the blow that interrupted it, the same way a grunt's does.
-	if _stagger > 0.0:
-		_attack = 0.0
+	# The captain's swing SURVIVES being hit. A grunt's does not, and that asymmetry is the
+	# point: a grunt out-reaches the captain and swings every 2.15 s, so cancelling on contact
+	# meant every swing died before its strike window opened. Measured, that is a captain who
+	# lands one blow in six and dies - not a fight, a formality. He is still shoved and still
+	# loses control for 0.22 s; he just gets to finish what he started.
 	if Input.is_action_just_pressed("attack"):
 		attack()
 	_strike()
@@ -481,7 +493,7 @@ func _attach_weapon(model: Node3D) -> void:
 	var blade := Weapon.new()
 	blade.name = "Weapon"
 	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
-			sword_colour):
+			sword_colour, sword_model):
 		blade.free()
 		return
 	_weapon = blade
