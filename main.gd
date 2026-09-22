@@ -7,6 +7,7 @@ extends Node3D
 const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
 const Enemy = preload("res://enemy.gd")
 const Hud = preload("res://hud.gd")
+const Rocks = preload("res://rocks.gd")
 var _coastal_study: Node3D
 
 ## Grunts, scattered around the island. They idle until the player comes near, walk over and
@@ -16,6 +17,8 @@ var _coastal_study: Node3D
 ## something you walk into rather than something waiting on top of you.
 @export var enemy_near := 18.0
 @export var enemy_far := 45.0
+## Generated rocks scattered over the island - see rocks.gd. Zero turns them off.
+@export var rock_count := 40
 
 @onready var _terrain: StaticBody3D = $Terrain
 @onready var _player: CharacterBody3D = $Player
@@ -36,6 +39,23 @@ func _add_health_bar() -> void:
 		bar.show_health(remaining, _player.max_health))
 	_player.revived.connect(func() -> void:
 		bar.show_health(_player.health(), _player.max_health))
+
+
+## Fills the island with the generated rocks.
+##
+## Its own RandomNumberGenerator, seeded from the project seed, so the layout is reproducible
+## without the rocks consuming draws from the global one - adding a rock would otherwise move
+## every grunt, and a change to scenery would look like a change to the fight.
+func _scatter_rocks(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or rock_count <= 0:
+		return
+	var field: Node3D = Rocks.new()
+	field.name = "Rocks"
+	field.count = rock_count
+	add_child(field)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("rocks") + randi()
+	print("scattered %d of %d rocks" % [field.scatter(_terrain, around, rng), rock_count])
 
 
 ## Scatters grunts around the spawn point at varied distances and bearings.
@@ -142,6 +162,7 @@ func _ready() -> void:
 			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
 	_add_health_bar()
+	_scatter_rocks(spawn)
 	_spawn_enemies(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_player.water_level = _terrain.sea_level()
