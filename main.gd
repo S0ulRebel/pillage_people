@@ -8,6 +8,7 @@ const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
 const Enemy = preload("res://enemy.gd")
 const Hud = preload("res://hud.gd")
 const Rocks = preload("res://rocks.gd")
+const Music = preload("res://music.gd")
 var _coastal_study: Node3D
 
 ## Grunts, scattered around the island. They idle until the player comes near, walk over and
@@ -39,6 +40,16 @@ func _add_health_bar() -> void:
 		bar.show_health(remaining, _player.max_health))
 	_player.revived.connect(func() -> void:
 		bar.show_health(_player.health(), _player.max_health))
+
+
+## Starts the background track. Silent in the capture and test modes, which run headless or
+## save a picture and quit - neither wants two minutes of guitar.
+func _start_music() -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or "--screenshot" in OS.get_cmdline_user_args():
+		return
+	var player: AudioStreamPlayer = Music.new()
+	player.name = "Music"
+	add_child(player)
 
 
 ## Fills the island with the generated rocks.
@@ -162,6 +173,7 @@ func _ready() -> void:
 			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
 	_add_health_bar()
+	_start_music()
 	_scatter_rocks(spawn)
 	_spawn_enemies(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
