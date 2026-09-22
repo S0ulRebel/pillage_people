@@ -123,6 +123,7 @@ var camera_rig: Node3D
 ## Set by main.gd on touch devices; its stick overrides the keyboard when in use.
 var touch_controls: CanvasLayer
 
+const Weapon = preload("res://weapon.gd")
 const MODEL_PATH := "res://art/models/captain.glb"
 
 @onready var _body: Node3D = $Body
@@ -421,16 +422,8 @@ func _build_body() -> void:
 	_build_primitive_body()
 
 
-## Hangs the placeholder blade off the right hand.
-##
-## The blade runs along the hand bone's +X axis. That is measured rather than guessed: in this
-## rig the knuckles run index to ring along -X, so a blade leaving the fist on the index side -
-## pommel by the little finger, the way a sword is actually held - points along +X. A real mesh
-## authored along some other axis only needs sword_rotation set.
-##
-## A BoneAttachment3D follows the bone through the skeleton's own pose, so the sword stays in
-## the hand through every clip without anything being driven per frame. It has to be in the
-## tree before bone_name is set, or there is no skeleton yet to look the name up in.
+## Hangs the placeholder blade off the right hand. The awkward parts - which way a blade leaves
+## a fist, and cancelling the rig's unit scale - live in weapon.gd, shared with the grunts.
 func _attach_weapon(model: Node3D) -> void:
 	if not show_weapon:
 		return
@@ -439,89 +432,16 @@ func _attach_weapon(model: Node3D) -> void:
 		if node is Skeleton3D:
 			skeleton = node as Skeleton3D
 			break
-	if skeleton == null:
+	var blade := Weapon.new()
+	blade.name = "Weapon"
+	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
+			sword_colour):
+		blade.free()
 		return
-	if skeleton.find_bone(weapon_bone) == -1:
-		push_warning("player.gd: no bone called '%s', so the weapon has nowhere to hang."
-				% weapon_bone)
-		return
-	var mount := BoneAttachment3D.new()
-	mount.name = "WeaponMount"
-	skeleton.add_child(mount)
-	mount.bone_name = weapon_bone
-
-	_weapon = MeshInstance3D.new()
-	_weapon.name = "Weapon"
-	var box := BoxMesh.new()
-	box.size = sword_size
-	_weapon.mesh = box
-	_weapon.position = sword_offset
-	_weapon.rotation_degrees = sword_rotation
-	# Same flat treatment as the rest of him, so a placeholder does not arrive shinier than the
-	# character. Layer 20 is the overhead water camera - see _build_body.
-	var material := StandardMaterial3D.new()
-	material.albedo_color = sword_colour
-	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	material.metallic = 0.0
-	material.roughness = 1.0
-	material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-	_weapon.material_override = material
-	mount.add_child(_weapon)
-	_weapon.set_layer_mask_value(20, true)
-
-	# The hitbox hangs off the blade rather than the hand, so it follows the tip through the
-	# arc. It is a child of the mesh on purpose: the mesh already carries the correction that
-	# cancels the rig's unit scale, so its own global scale is 1 and a shape sized in metres
-	# here is that size in the world.
-	_blade = Area3D.new()
-	_blade.name = "BladeHit"
-	var collider := CollisionShape3D.new()
-	var box_shape := BoxShape3D.new()
-	box_shape.size = sword_size
-	collider.shape = box_shape
-	_blade.add_child(collider)
-	# Left monitoring the whole time. Toggling it costs a physics frame before overlaps are
-	# reported again, and the strike window is only about a dozen frames wide - long enough to
-	# lose a hit to that delay. What the window gates is whether a hit counts, not whether the
-	# area is watching.
-	_blade.monitoring = true
-	_weapon.add_child(_blade)
-
-	_fit_weapon.call_deferred(mount)
+	_weapon = blade
+	_blade = blade.hitbox
 
 
-## Cancels the rig's own unit scale out of the weapon.
-##
-## A BoneAttachment3D reproduces the bone's pose, and that pose carries whatever units the
-## skeleton was authored in - about 0.01 here, because the rig is in centimetres. A child
-## inherits it, so the first version of this put a 0.70 m blade in his hand measuring seven
-## millimetres. Nothing reports it: the node exists, the mesh is right, the size is what was
-## asked for, and only the render shows a sword the size of a splinter.
-##
-## Deferred because a node's global transform is not settled the moment it is added, and the
-## scale has to be read after the skeleton has posed it.
-func _fit_weapon(mount: BoneAttachment3D) -> void:
-	if _weapon == null or not is_instance_valid(mount):
-		return
-	var inherited := mount.global_transform.basis.get_scale()
-	var factor := 1.0 / maxf(inherited.x, 0.0001)
-	_weapon.scale = Vector3.ONE * factor
-	# The offset is a local position, so it is in the same inherited units and needs the same
-	# correction - otherwise the blade comes out the right size in the wrong place.
-	_weapon.position = sword_offset * factor
-
-
-## Takes the shine off the imported material so the captain sits in the same world as the
-## terrain, which is unshaded flat colour.
-##
-## A generated texture already has its lighting painted into it, and the generator also hands
-## over a PBR material with specular and a roughness value. Lighting that again on top is what
-## makes the character look like moulded plastic next to flat ground. Toon diffuse and no
-## specular is what the primitive stand-in used, so this is the project's existing treatment
-## rather than a new one.
-##
-## Better still is to export from Tripo with texture_delight on, which strips the baked
-## lighting out of the texture itself. This only stops it being lit twice.
 func _flatten_materials(model: Node3D) -> void:
 	for node in _all_descendants(model):
 		if not (node is MeshInstance3D):

@@ -9,10 +9,13 @@ const Enemy = preload("res://enemy.gd")
 const Hud = preload("res://hud.gd")
 var _coastal_study: Node3D
 
-## Stand-in targets so the cutlass has something to hit. They use the captain's own model until
-## the grunt is modelled, do not move or fight back, and are only here to prove the damage loop.
-@export var enemy_count := 3
-@export var enemy_ring := 6.0   ## metres from the spawn point
+## Grunts, scattered around the island. They idle until the player comes near, walk over and
+## swing at him - see enemy.gd.
+@export var enemy_count := 5
+## How far out they are scattered. Far enough that none is visible from the spawn, so they are
+## something you walk into rather than something waiting on top of you.
+@export var enemy_near := 18.0
+@export var enemy_far := 45.0
 
 @onready var _terrain: StaticBody3D = $Terrain
 @onready var _player: CharacterBody3D = $Player
@@ -35,24 +38,44 @@ func _add_health_bar() -> void:
 		bar.show_health(_player.health(), _player.max_health))
 
 
-## Drops a ring of practice targets around the spawn point.
+## Scatters grunts around the spawn point at varied distances and bearings.
 ##
-## Built from a script rather than placed in the scene, so the count and spacing are one export
-## away and nothing has to be re-laid-out when the real enemy arrives. Each one is put on the
-## terrain surface, not at the spawn height - the spawn is lifted clear of the ground for the
-## player to drop from, and an enemy started up there would fall through its own idle.
+## Built from a script rather than placed in the scene, so the count and spread are one export
+## away and nothing has to be re-laid-out when more enemy types arrive.
+##
+## Each one is dropped onto the terrain surface, not at the spawn height - the spawn is lifted
+## clear of the ground for the player to fall from, and a grunt started up there would drop
+## through his own idle. Anywhere at or below the waterline is rejected and the bearing retried,
+## because a grunt standing on the seabed is not a fight, it is a bug report.
 func _spawn_enemies(near: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args() or enemy_count <= 0:
 		return
+	var placed := 0
 	for i in enemy_count:
-		var angle := TAU * i / float(enemy_count)
-		var at := near + Vector3(cos(angle), 0.0, sin(angle)) * enemy_ring
+		var spot := Vector3.ZERO
+		var found := false
+		for attempt in 16:
+			# Sweep the bearing further on each retry. Jitter alone kept searching the same
+			# sector, so a grunt whose slice of the circle is all sea never found land and was
+			# dropped - two of five went missing that way.
+			var angle := TAU * (float(i) / float(enemy_count)) + randf_range(-0.4, 0.4) 					+ attempt * 0.4
+			var away := randf_range(enemy_near, enemy_far)
+			var at := near + Vector3(cos(angle), 0.0, sin(angle)) * away
+			var ground: float = _terrain.height_at(at.x, at.z)
+			if ground > _terrain.sea_level() + 0.5:
+				spot = Vector3(at.x, ground + 0.1, at.z)
+				found = true
+				break
+		if not found:
+			continue
 		var enemy: CharacterBody3D = Enemy.new()
 		enemy.name = "Enemy%d" % i
 		add_child(enemy)
-		enemy.global_position = Vector3(at.x, _terrain.height_at(at.x, at.z) + 0.1, at.z)
-		# Face the middle, so the ring looks placed rather than scattered.
-		enemy.rotation.y = atan2(near.x - at.x, near.z - at.z)
+		enemy.global_position = spot
+		enemy.target = _player
+		placed += 1
+	print("spawned %d of %d grunts between %.0f and %.0f m out"
+			% [placed, enemy_count, enemy_near, enemy_far])
 
 
 func _ready() -> void:

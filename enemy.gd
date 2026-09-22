@@ -1,15 +1,15 @@
 extends CharacterBody3D
-## Something that can be hit, so the captain's cutlass has a reason to exist.
+## A grunt: stands about until the player comes near, walks over, and swings at him.
 ##
-## It does not chase, attack or defend itself yet - it stands there, takes damage, and falls
-## over. That is deliberate: it makes the damage loop testable on its own, before any of it
-## depends on an AI being right.
+## Three states and no more - idle, close the gap, swing - chosen so the shape of a fight can be
+## felt before any of it depends on pathfinding or perception being right. He walks straight at
+## you and bumps into whatever is between; steering around it is a separate problem.
 ##
-## Everything is built in code, including the collider, so an enemy can be spawned from a
-## script without a scene to place. It borrows the captain's own model until the grunt exists;
-## swap model_path and the rest carries over, because the clips are Mixamo-named either way.
+## Everything is built in code, including the collider and the weapon, so a grunt can be spawned
+## from a script with no scene to place and no prefab to keep in step.
 
 const HealthBar = preload("res://health_bar.gd")
+const Weapon = preload("res://weapon.gd")
 
 signal damaged(amount: int, remaining: int)
 signal died
@@ -30,6 +30,56 @@ signal died
 ## Which bone the health bar is measured from, and how far above it the bar sits.
 @export var head_bone := "mixamorig_Head"
 @export var bar_clearance := 0.35
+
+@export_group("Combat")
+## Who to chase. main.gd sets this to the player; left empty the grunt just stands there, which
+## is what the target-practice version did and is still useful for testing damage on its own.
+var target: Node3D
+## Starts following inside this, stops and swings inside attack_range. The gap between them is
+## where the walk happens, so a grunt that is already in reach never takes a step.
+@export var aggro_range := 16.0
+## Measured against the blade, not picked. During the hit window the tip reaches 1.00 m from
+## the grunt's centre, and the player's capsule adds 0.35, so contact is possible out to 1.35 m
+## between origins. The two capsules touch at 0.70 m. Anything above 1.35 and the grunt stops
+## short and swings at air, which was the first version of this: he closed, swung, played the
+## whole animation and never once connected.
+@export var attack_range := 1.00
+## Deliberately below the player's 4.8 walk, so running away works. A grunt that matches your
+## speed can never be escaped, only killed.
+@export var speed := 2.6
+@export var turn_speed := 7.0
+@export var damage := 1
+## Rest between swings. Without it a grunt in range attacks every frame the cooldown allows and
+## reads as a blender rather than a pirate.
+@export var attack_cooldown := 1.4
+@export var clip_attack := "slash"
+## Same numbers as the captain, and not by assumption - the grunt's own slash was measured and
+## its hand speed peaks at 1.23s with the half-peak band running 1.13s to 1.37s, against the
+## captain's 1.17 to 1.37. It is the same Mixamo clip on a different rig.
+@export var attack_start := 0.95
+@export var attack_length := 0.75
+@export var hit_from := 0.20
+@export var hit_to := 0.42
+## How far a landed hit carries. A little beyond attack_range so someone backing away as the
+## swing comes down still gets clipped - the alternative is that walking backwards makes you
+## invulnerable.
+##
+## Kept close to the captain's own reach on purpose. The player's blade stops connecting past
+## about 1.0 m head-on, measured by swinging at a grunt from a series of distances, so a grunt
+## who struck from 1.7 m could hit from outside anywhere the player could answer from. Whatever
+## these numbers become, they want to stay in step with that.
+@export var hit_reach := 1.35
+
+@export_group("Weapon")
+@export var show_weapon := true
+@export var weapon_bone := "mixamorig_RightHand"
+## Shorter and plainer than the captain's, so the two read apart at a glance.
+@export var sword_size := Vector3(0.62, 0.05, 0.016)
+## Y runs towards the fingertips. The grunt's middle knuckle measures 9.6 cm along it, against
+## the captain's 5.2 - different rig, bigger hands - so his grip sits further out than 0.07.
+@export var sword_offset := Vector3(0.25, 0.12, 0.0)
+@export var sword_rotation := Vector3.ZERO
+@export var sword_colour := Color(0.58, 0.56, 0.54)
 
 @export_group("Animation")
 ## Falls back to the walk if there is no idle, because the grunt's first set of animations is
@@ -60,6 +110,13 @@ var _toppled := -1.0
 var _lie_lift := 0.0
 var _bar: Sprite3D
 var _bar_placed := false
+## Seconds left in the current swing, and until the next one is allowed.
+var _attack := 0.0
+var _cooldown := 0.0
+var _weapon: MeshInstance3D
+var _blade: Area3D
+## Everything hit by the current swing, so one swing cannot land twice on the same body.
+var _struck: Array[Node] = []
 
 
 func _ready() -> void:
@@ -115,18 +172,126 @@ func _die() -> void:
 	died.emit()
 
 
+## Idle until the player is worth noticing, walk to close the gap, swing when in reach.
+##
+## There is no pathfinding and no line of sight: a grunt walks straight at you and bumps into
+## whatever is between. That is honest for a first pass - the shape of the fight is what wants
+## testing, and steering around a rock is a separate problem with its own failure modes.
 func _physics_process(delta: float) -> void:
 	# Falls whether alive or dead, so a body dropped above the ground still lands on it.
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 	else:
 		velocity.y = 0.0
-	velocity.x = 0.0
-	velocity.z = 0.0
+
+	_attack = maxf(0.0, _attack - delta)
+	_cooldown = maxf(0.0, _cooldown - delta)
+
+	var wants := Vector3.ZERO
+	if not _dead:
+		var towards := _towards_target()
+		var distance := towards.length()
+		if _attack > 0.0:
+			# Planted mid-swing. Walking through your own strike reads as a shove, not a cut,
+			# and it lets a grunt push the player out of the blade he is currently swinging.
+			_face(towards, delta)
+			_strike()
+		elif distance > 0.0 and distance <= attack_range and _cooldown <= 0.0:
+			_face(towards, delta)
+			_swing()
+		elif distance > attack_range and distance <= aggro_range:
+			wants = towards / distance
+			_face(towards, delta)
+
+	velocity.x = wants.x * speed
+	velocity.z = wants.z * speed
 	move_and_slide()
 	if not _bar_placed:
 		_place_bar()
 	_fall_over(delta)
+	_update_animation(wants.length() > 0.01)
+
+
+## Horizontal vector to the target, or zero when there is nothing to chase or it is already
+## dead. Height is dropped so a grunt on a slope does not try to walk into the hillside.
+func _towards_target() -> Vector3:
+	if target == null or not is_instance_valid(target):
+		return Vector3.ZERO
+	if target.has_method("is_dead") and target.is_dead():
+		return Vector3.ZERO
+	var to: Vector3 = target.global_position - global_position
+	to.y = 0.0
+	return to
+
+
+func _face(towards: Vector3, delta: float) -> void:
+	if _body == null or towards.length() < 0.01:
+		return
+	var yaw := atan2(towards.x, towards.z)
+	_body.rotation.y = lerp_angle(_body.rotation.y, yaw, turn_speed * delta)
+
+
+func _swing() -> void:
+	if _anim == null or not _anim.has_animation(clip_attack):
+		return
+	_attack = attack_length
+	_cooldown = attack_length + attack_cooldown
+	_struck.clear()
+
+
+## Lands the hit, if the target is still in front and in reach when the strike peaks.
+##
+## This is a range and facing test, not an overlap of the blade - and that is deliberate, after
+## the overlap version never connected once. The clip is Mixamo's "Stable Sword Inward Slash",
+## a cut that sweeps across the body: through the whole strike window its tip sits 0.37 to
+## 0.51 m out to the grunt's LEFT and between -0.15 and +0.14 m forward. It never reaches out
+## in front of him at all, so a blade volume only ever touched the grunt's own capsule.
+##
+## The player keeps the overlap version because he aims his own swing and wants the blade to be
+## the truth. An AI that closes to a fixed distance does not need that, and a hit that depends
+## on an animation's reach matching a number somewhere else is a hit that silently stops
+## working when the animation is replaced.
+func _strike() -> void:
+	var elapsed := attack_length - _attack
+	if elapsed < hit_from or elapsed > hit_to or not _struck.is_empty():
+		return
+	var towards := _towards_target()
+	var distance := towards.length()
+	if distance <= 0.0 or distance > hit_reach:
+		return
+	# Has to be roughly in front. Without this a grunt lands hits on someone who has already
+	# walked past him, because the swing is still running while he turns.
+	if _body != null:
+		var facing := Vector3(sin(_body.rotation.y), 0.0, cos(_body.rotation.y))
+		if facing.dot(towards / distance) < 0.35:
+			return
+	if target.has_method("take_damage"):
+		_struck.append(target)
+		target.take_damage(damage, self)
+
+
+## Picks the clip for what this grunt is doing. The fallback chain matters while the animation
+## set is incomplete: no idle yet means the walk stands in, and a missing clip would otherwise
+## leave a Mixamo rig in its T-pose.
+func _update_animation(moving: bool) -> void:
+	if _dead:
+		return
+	var wanted := ""
+	if _attack > 0.0:
+		wanted = clip_attack
+	elif moving:
+		wanted = clip_walk
+	else:
+		wanted = _standing_clip()
+	if wanted == "" or _anim == null or not _anim.has_animation(wanted):
+		return
+	if wanted != _clip:
+		_anim.play(wanted, clip_blend)
+		# The swing is entered part-way in: the clip spends its first second winding up, and
+		# starting at zero means the grunt stands still for a beat before anything happens.
+		if wanted == clip_attack:
+			_anim.seek(attack_start, true)
+		_clip = wanted
 
 
 ## Tips a body with no death clip onto its back.
@@ -202,6 +367,26 @@ func _build_body() -> void:
 			_anim.get_animation(cycle).loop_mode = Animation.LOOP_LINEAR
 	_measure_body.call_deferred()
 	_add_bar()
+	_attach_weapon(model)
+
+
+## Gives the grunt the same kind of placeholder blade the captain carries, so he can swing back.
+func _attach_weapon(model: Node3D) -> void:
+	if not show_weapon:
+		return
+	var skeleton: Skeleton3D = null
+	for node in _descendants(model):
+		if node is Skeleton3D:
+			skeleton = node as Skeleton3D
+			break
+	var blade := Weapon.new()
+	blade.name = "Weapon"
+	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
+			sword_colour):
+		blade.free()
+		return
+	_weapon = blade
+	_blade = blade.hitbox
 
 
 ## Hangs the health bar above the body, at a default height for now.
