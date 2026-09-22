@@ -10,6 +10,7 @@ const Hud = preload("res://hud.gd")
 const Rocks = preload("res://rocks.gd")
 const Cargo = preload("res://art/props/cargo.tscn")
 const CargoKind = preload("res://art/props/cargo.gd")
+const Grass = preload("res://art/props/grass.gd")
 const Music = preload("res://music.gd")
 var _coastal_study: Node3D
 ## Survives a scene reload, because the script does and the node does not. Only --deathtest
@@ -31,6 +32,9 @@ static var _death_test_runs := 0
 @export var barrels_afloat := 4
 @export var crates_ashore := 6
 @export var crates_afloat := 3
+## Grass tufts over the island's green band. One MultiMesh, so this is a count rather than a
+## node budget - see art/props/grass.gd.
+@export var grass_count := 700
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
 @export var restart_delay := 3.4
@@ -129,6 +133,22 @@ func _scatter_rocks(around: Vector3) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("rocks") + randi()
 	print("scattered %d of %d rocks" % [field.scatter(_terrain, around, rng), rock_count])
+
+
+## Fills the green band with grass.
+##
+## Its own RandomNumberGenerator, seeded from the project seed, for the same reason the rocks
+## have one: sharing the global one means adding a tuft moves every grunt.
+func _scatter_grass(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or grass_count <= 0:
+		return
+	var field: MultiMeshInstance3D = Grass.new()
+	field.name = "Grass"
+	field.count = grass_count
+	add_child(field)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("grass") + randi()
+	print("grass: %d of %d tufts" % [field.scatter(_terrain, around, rng), grass_count])
 
 
 ## Drops cargo on the beach and floats some of it offshore.
@@ -289,6 +309,7 @@ func _ready() -> void:
 	_add_health_bar()
 	_start_music()
 	_scatter_rocks(spawn)
+	_scatter_grass(spawn)
 	_place_barrels(spawn)
 	_spawn_enemies(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
