@@ -94,6 +94,13 @@ extends CharacterBody3D
 ## only 33 luminance above it - invisible in practice. This one manages 59, at three and a half
 ## times the colour distance, and reads as steel besides.
 @export var hit_colour := Color(0.93, 0.97, 1.0)
+## Being hit shoves the captain back and takes the controls away for a moment. Deliberately
+## shorter than the grunt's: losing control of your own character is far more irritating than
+## watching someone else lose theirs, and a long stun turns two grunts into a death sentence.
+@export var knockback := 4.2
+@export var stagger := 0.22
+## How fast the shove bleeds off while staggered, in metres per second squared.
+@export var knock_damping := 9.0
 
 @export_group("Jump feel")
 ## How high a full jump goes, in metres. The take-off speed is derived from it.
@@ -156,6 +163,7 @@ var _blade: Area3D
 ## Everything already struck by the current swing, so one swing cannot hit the same body twice.
 var _struck: Array[Node] = []
 var _health := 0
+var _stagger := 0.0
 
 
 ## Take-off speed for the requested height: v = sqrt(2 * g * h).
@@ -185,6 +193,17 @@ func take_damage(amount: int, _from: Node = null) -> void:
 	if _dead:
 		return
 	_health = maxi(0, _health - amount)
+	_stagger = stagger
+	# Set as a single impulse on the velocity rather than added every frame. Adding it each
+	# frame fed the previous frame's push back into move_toward's starting point, so the shove
+	# compounded: the captain travelled 2.31 m where a grunt hit the same way travelled 0.43.
+	if _from is Node3D:
+		var away: Vector3 = global_position - (_from as Node3D).global_position
+		away.y = 0.0
+		if away.length() > 0.01:
+			away = away.normalized() * knockback
+			velocity.x = away.x
+			velocity.z = away.z
 	damaged.emit(amount, _health)
 	if _health == 0:
 		die()
@@ -248,6 +267,7 @@ func revive() -> void:
 		return
 	_dead = false
 	_health = max_health
+	_stagger = 0.0
 	# Clearing this makes _update_animation treat the next clip as a change and play it. Without
 	# it the captain stands back up still holding the last frame of his own death.
 	_clip = ""
@@ -306,6 +326,10 @@ func _physics_process(delta: float) -> void:
 
 	# Ticked before the swimming branch returns, or a swing started on land would never end.
 	_attack = maxf(0.0, _attack - delta)
+	_stagger = maxf(0.0, _stagger - delta)
+	# A swing dies with the blow that interrupted it, the same way a grunt's does.
+	if _stagger > 0.0:
+		_attack = 0.0
 	if Input.is_action_just_pressed("attack"):
 		attack()
 	_strike()
@@ -343,8 +367,14 @@ func _physics_process(delta: float) -> void:
 	# Shallow water drags: wading out to the drop-off should feel different from running.
 	var walk_speed := wanted * (wade_slowdown if submersion() > 0.0 else 1.0)
 	var target := direction * walk_speed
-	velocity.x = move_toward(velocity.x, target.x, acceleration * delta * sprint_speed)
-	velocity.z = move_toward(velocity.z, target.z, acceleration * delta * sprint_speed)
+	if _stagger > 0.0:
+		# Coasting to a stop rather than being steered. The normal deceleration is 108 m/s^2,
+		# which would kill the shove inside three frames and make a hit look like nothing.
+		velocity.x = move_toward(velocity.x, 0.0, knock_damping * delta)
+		velocity.z = move_toward(velocity.z, 0.0, knock_damping * delta)
+	else:
+		velocity.x = move_toward(velocity.x, target.x, acceleration * delta * sprint_speed)
+		velocity.z = move_toward(velocity.z, target.z, acceleration * delta * sprint_speed)
 	move_and_slide()
 
 	if direction.length() > 0.05:
@@ -390,6 +420,10 @@ func _swim(delta: float) -> void:
 
 ## Camera-relative movement input, shared by walking and swimming.
 func _move_direction() -> Vector3:
+	# Nothing steers while staggered. Applied here rather than at each call site so it covers
+	# swimming and walking together.
+	if _stagger > 0.0:
+		return Vector3.ZERO
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if touch_controls and touch_controls.move.length() > 0.0:
 		input = touch_controls.move

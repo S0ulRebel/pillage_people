@@ -73,6 +73,14 @@ var target: Node3D
 ## Sparks where the grunt's blade lands. Red, against the captain's gold, so taking a hit and
 ## landing one never look like the same event.
 @export var hit_colour := Color(0.95, 0.30, 0.22)
+## How hard a hit shoves this body back, in metres per second, and how long it is unable to act
+## afterwards. The shove is what makes a blow land rather than merely register; the pause is
+## what stops a grunt walking back into you the same frame he was cut, which reads as him not
+## having noticed.
+@export var knockback := 3.6
+@export var stagger := 0.35
+## How fast the shove bleeds off. Higher stops it sooner.
+@export var knock_damping := 14.0
 
 @export_group("Weapon")
 @export var show_weapon := true
@@ -121,6 +129,8 @@ var _weapon: MeshInstance3D
 var _blade: Area3D
 ## Everything hit by the current swing, so one swing cannot land twice on the same body.
 var _struck: Array[Node] = []
+var _stagger := 0.0
+var _knock := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -145,6 +155,13 @@ func take_damage(amount: int, _from: Node = null) -> void:
 	if _dead:
 		return
 	_health = maxi(0, _health - amount)
+	_stagger = stagger
+	# Shoved directly away from whoever swung, so the push reads as coming from the blow.
+	if _from is Node3D:
+		var away: Vector3 = global_position - (_from as Node3D).global_position
+		away.y = 0.0
+		if away.length() > 0.01:
+			_knock = away.normalized() * knockback
 	if _bar != null:
 		_bar.set_fraction(float(_health) / float(maxi(max_health, 1)))
 	damaged.emit(amount, _health)
@@ -190,9 +207,15 @@ func _physics_process(delta: float) -> void:
 
 	_attack = maxf(0.0, _attack - delta)
 	_cooldown = maxf(0.0, _cooldown - delta)
+	_stagger = maxf(0.0, _stagger - delta)
+	_knock = _knock.move_toward(Vector3.ZERO, knock_damping * delta)
 
 	var wants := Vector3.ZERO
-	if not _dead:
+	# Staggered: no chasing, no swinging, and a swing already under way is dropped. Being hit
+	# has to interrupt something or there is no reason to hit first.
+	if _stagger > 0.0:
+		_attack = 0.0
+	elif not _dead:
 		var towards := _towards_target()
 		var distance := towards.length()
 		if _attack > 0.0:
@@ -207,8 +230,8 @@ func _physics_process(delta: float) -> void:
 			wants = towards / distance
 			_face(towards, delta)
 
-	velocity.x = wants.x * speed
-	velocity.z = wants.z * speed
+	velocity.x = wants.x * speed + _knock.x
+	velocity.z = wants.z * speed + _knock.z
 	move_and_slide()
 	if not _bar_placed:
 		_place_bar()

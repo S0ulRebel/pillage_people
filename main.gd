@@ -10,6 +10,9 @@ const Hud = preload("res://hud.gd")
 const Rocks = preload("res://rocks.gd")
 const Music = preload("res://music.gd")
 var _coastal_study: Node3D
+## Survives a scene reload, because the script does and the node does not. Only --deathtest
+## uses it.
+static var _death_test_runs := 0
 
 ## Grunts, scattered around the island. They idle until the player comes near, walk over and
 ## swing at him - see enemy.gd.
@@ -20,6 +23,9 @@ var _coastal_study: Node3D
 @export var enemy_far := 45.0
 ## Generated rocks scattered over the island - see rocks.gd. Zero turns them off.
 @export var rock_count := 40
+## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
+## this lets it finish and land before anything moves.
+@export var restart_delay := 3.4
 
 @onready var _terrain: StaticBody3D = $Terrain
 @onready var _player: CharacterBody3D = $Player
@@ -40,6 +46,54 @@ func _add_health_bar() -> void:
 		bar.show_health(remaining, _player.max_health))
 	_player.revived.connect(func() -> void:
 		bar.show_health(_player.health(), _player.max_health))
+
+
+## Kills the captain and checks the island actually comes back.
+##
+## Run as a real scene rather than through a --script harness, because reload_current_scene
+## needs a current scene and a hand-instantiated one has none - which made the first attempt at
+## testing this report a failure that was entirely the test's own.
+func _death_test() -> void:
+	# A static counter, which survives the reload because the script does. The first run kills
+	# the captain; the second run only happens if the island really did come back, and reports
+	# what it came back as. Without this the test kills him again on every reload and never
+	# stops - which it did.
+	_death_test_runs += 1
+	if _death_test_runs > 1:
+		var grunts := 0
+		for c in get_children():
+			if c.name.begins_with("Enemy"):
+				grunts += 1
+		print("death test: the island came back - player %d/%d hp, dead=%s, %d grunts, %d rocks"
+				% [_player.health(), _player.max_health, _player.is_dead(), grunts,
+				get_node("Rocks").get_child_count() if has_node("Rocks") else 0])
+		get_tree().quit(0)
+		return
+	for i in 60:
+		await get_tree().physics_frame
+	print("death test: killing the captain")
+	_player.take_damage(999, null)
+	print("  dead=", _player.is_dead(), ", waiting ", restart_delay, "s for the restart")
+	await get_tree().create_timer(restart_delay + 3.0).timeout
+	print("death test: FAILED - no reload happened")
+	get_tree().quit(1)
+
+
+## Puts the island back after the captain is killed.
+##
+## The whole scene is reloaded rather than the pieces being put back one at a time. Respawning
+## by hand means remembering every stateful thing there is - health, position, each grunt's
+## health and its corpse, the scatter, whatever gets added next - and the list only grows. A
+## reload cannot miss any of it, and at this size it is instant.
+##
+## The wait is so the death clip actually plays. Cutting to a fresh island the instant he dies
+## reads as a bug rather than as dying.
+func _on_player_died() -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(restart_delay).timeout
+	if is_inside_tree():
+		get_tree().reload_current_scene()
 
 
 ## Starts the background track. Silent in the capture and test modes, which run headless or
@@ -172,6 +226,7 @@ func _ready() -> void:
 				printed.append(str(tunnel.curve.get_point_position(i)))
 			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
+	_player.died.connect(_on_player_died)
 	_add_health_bar()
 	_start_music()
 	_scatter_rocks(spawn)
@@ -198,6 +253,8 @@ func _ready() -> void:
 		_player.global_position = Vector3(holes[0].x, 0, holes[0].y) 				+ Vector3(9, 0, 9) + Vector3.UP * (_terrain.height_at(holes[0].x + 9, holes[0].y + 9) + 2.0)
 		_camera_rig.set_target(_player)
 		_screenshot_and_quit()
+	elif "--deathtest" in OS.get_cmdline_user_args():
+		_death_test()
 	elif "--jumptest" in OS.get_cmdline_user_args():
 		_jump_test()
 	elif "--swimtest" in OS.get_cmdline_user_args():
