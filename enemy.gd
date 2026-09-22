@@ -82,17 +82,17 @@ var target: Node3D
 @export var sword_colour := Color(0.58, 0.56, 0.54)
 
 @export_group("Animation")
-## Falls back to the walk if there is no idle, because the grunt's first set of animations is
-## walk, slash and death with nothing to stand still in. A clip that does not exist leaves the
-## model in its bind pose, which for a Mixamo rig is a T-pose - arms out, staring ahead. A
-## marching target reads as a placeholder; a T-posed one reads as broken.
+## The idle exists now, but the fallback to the walk stays. A clip that is missing leaves the
+## model in its bind pose, which for a Mixamo rig is a T-pose - arms out, staring ahead - and
+## the next enemy type will arrive with an incomplete set the same way this one did. Marching
+## on the spot reads as a placeholder; a T-pose reads as broken.
 @export var clip_idle := "idle"
 @export var clip_walk := "walk"
 @export var clip_death := "death"
 @export var clip_blend := 0.15
-## How long the body takes to fall over when the model has no death clip, which is the case
-## while the grunt is still unrigged. Without it a killed target goes on standing there and
-## there is no way to tell a hit landed - which is the one thing target practice has to show.
+## How long the body takes to fall over when the model has no death clip. Unused now that the
+## grunt has one, and kept for the next model that arrives unrigged: without it a killed body
+## goes on standing, and there is no way to tell a hit landed.
 @export var topple_time := 0.5
 
 ## Matches the player's capsule, so a body of the same build stands the same way on the ground.
