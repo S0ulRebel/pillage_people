@@ -62,8 +62,37 @@ func _ready() -> void:
 	# work out which direction is "sideways" for a ribbon, and it collapses to nothing when the
 	# curve runs vertically - which for a waterfall is always. Godot's own up vectors do not
 	# have that problem, and they let a curve point be tilted to twist the sheet at the lip.
-	curve.up_vector_enabled = true
+	# Only assigned when it is actually wrong - see _watch_curve for why that matters.
+	if not curve.up_vector_enabled:
+		curve.up_vector_enabled = true
+	# Dragging a curve point changes a resource, which goes nowhere near the setters above. So
+	# the first version rebuilt for every export and stayed put for the one edit anybody
+	# actually makes. Path3D re-emits the curve's own changed signal as curve_changed; both are
+	# watched, because replacing the whole curve fires only the first and editing a point in
+	# older builds fires only the second.
+	if not curve_changed.is_connected(_on_curve_changed):
+		curve_changed.connect(_on_curve_changed)
+	_watch_curve()
 	rebuild()
+
+
+func _on_curve_changed() -> void:
+	# The resource itself may have been swapped, so the watch is re-established before queuing.
+	_watch_curve()
+	_queue()
+
+
+func _watch_curve() -> void:
+	if curve == null:
+		return
+	# Guarded, and it has to be. Assigning this mutates the curve even when the value is
+	# already what it was, the curve emits changed, Path3D re-emits curve_changed, and this
+	# runs again - a stack overflow reached through three signals and one harmless-looking
+	# assignment.
+	if not curve.up_vector_enabled:
+		curve.up_vector_enabled = true
+	if not curve.changed.is_connected(_queue):
+		curve.changed.connect(_queue)
 
 
 func _queue() -> void:
