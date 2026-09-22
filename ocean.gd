@@ -15,8 +15,8 @@ class_name Ocean
 @export var extent := 4000.0
 ## Radius of the innermost ring, so roughly the size of the first quads.
 @export var near := 0.6
-@export var rings := 72
-@export var segments := 128
+@export var rings := 128
+@export var segments := 256
 ## Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the art reference.
 @export var shallow := Color(0.310, 0.621, 0.655)
 @export var deep := Color(0.059, 0.336, 0.477)
@@ -110,6 +110,10 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["scattering_strength", scattering_strength],
 			["refraction_strength", refraction_strength]]:
 		water.set_shader_parameter(entry[0], entry[1])
+	# The vertex shader fades displacement when an exponential ring becomes too coarse for
+	# a wavelength. Passing the actual mesh layout keeps that filter correct after tuning.
+	water.set_shader_parameter("radial_growth", pow(extent / near, 1.0 / float(rings)))
+	water.set_shader_parameter("radial_segments", float(segments))
 	if terrain != null:
 		water.set_shader_parameter("terrain_height", terrain.height_texture())
 		water.set_shader_parameter("terrain_size", terrain.world_size)

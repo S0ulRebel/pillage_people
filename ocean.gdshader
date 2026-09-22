@@ -45,8 +45,11 @@ uniform float wave_speed : hint_range(0.0, 3.0) = 1.0;
 uniform float shoal_depth : hint_range(0.5, 40.0) = 2.5;
 // Limits horizontal compression independently of vertical wave height.
 uniform float choppiness : hint_range(0.0, 1.0) = 0.85;
-uniform float detail_near = 120.0;
-uniform float detail_far = 900.0;
+uniform float detail_near = 70.0;
+uniform float detail_far = 260.0;
+// Actual exponential mesh layout, supplied by ocean.gd.
+uniform float radial_growth = 1.0712;
+uniform float radial_segments = 256.0;
 
 group_uniforms Transmission;
 uniform float refraction_strength : hint_range(0.0, 0.05) = 0.008;
@@ -109,13 +112,30 @@ float bed_height(vec2 p) {
     return terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
 }
 
-// x = shoaling envelope; y = distance envelope for the shorter waves.
+// x = distance envelope for broad waves; y = tighter envelope for shorter waves.
 vec2 envelopes(vec2 p, vec3 eye) {
     float depth = sea_y - bed_height(p);
     float shoal = smoothstep(0.0, max(shoal_depth, 0.001), depth);
     float range = length(vec3(p.x, sea_y, p.y) - eye);
-    float detail = 1.0 - smoothstep(detail_near, max(detail_far, detail_near + 1.0), range);
-    return vec2(shoal, shoal * detail);
+    float broad = 1.0 - smoothstep(detail_near,
+        max(detail_far * 0.75, detail_near + 1.0), range);
+    float detail = 1.0 - smoothstep(detail_near,
+        max(detail_far, detail_near + 1.0), range);
+    return vec2(shoal * broad, shoal * detail);
+}
+
+// A radial grid gets coarser with distance. Vertex displacement must disappear before a
+// cell becomes wider than half its wavelength or the triangles turn waves into stepped
+// concentric bands. Fragment normals remain filtered independently by screen derivatives.
+float geometry_envelope(vec2 p, vec3 eye, float wavelength) {
+    float depth = sea_y - bed_height(p);
+    float shoal = smoothstep(0.0, max(shoal_depth, 0.001), depth);
+    float range = length(p - eye.xz);
+    float radial_spacing = range * max(radial_growth - 1.0, 0.001);
+    float angular_spacing = range * TAU / max(radial_segments, 3.0);
+    float spacing = max(radial_spacing, angular_spacing);
+    float sampled = 1.0 - smoothstep(wavelength * 0.24, wavelength * 0.48, spacing);
+    return shoal * sampled * wave_height;
 }
 
 // Displace geometry with Gerstner waves. Shading is evaluated independently per pixel.
@@ -137,17 +157,16 @@ void vertex() {
     world.y = sea_y;
     vec2 p = world.xz;
     vec3 eye = CAMERA_POSITION_WORLD;
-    vec2 env = envelopes(p, eye) * wave_height;
     float total_steepness = max(wave_1.z, 0.0) + max(wave_2.z, 0.0) + max(wave_3.z, 0.0) + max(wave_4.z, 0.0);
     // Prevent open-water folding at high height settings. Terrain gradients can
     // still cause local compression; keep the height map smooth at the coast.
     float q = choppiness / max(1.0, total_steepness * wave_height);
     vec3 offset = vec3(0.0);
     float reach = 0.0;
-    gerstner(wave_1, p, env.x, q, offset, reach);
-    gerstner(wave_2, p, env.x, q, offset, reach);
-    gerstner(wave_3, p, env.y, q, offset, reach);
-    gerstner(wave_4, p, env.y, q, offset, reach);
+    gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w), q, offset, reach);
+    gerstner(wave_2, p, geometry_envelope(p, eye, wave_2.w), q, offset, reach);
+    gerstner(wave_3, p, geometry_envelope(p, eye, wave_3.w), q, offset, reach);
+    gerstner(wave_4, p, geometry_envelope(p, eye, wave_4.w), q, offset, reach);
     world += offset;
     world_position = world;
     VERTEX = (inverse(MODEL_MATRIX) * vec4(world, 1.0)).xyz;
