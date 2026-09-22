@@ -35,11 +35,25 @@ var _pinch_distance := 0.0
 
 
 func _ready() -> void:
-	var touch_device := DisplayServer.is_touchscreen_available() or OS.has_feature("mobile")
-	if not touch_device and "--touch" not in OS.get_cmdline_user_args():
+	# Only a real mobile build gets these, plus a desktop run that asks for them by name.
+	#
+	# DisplayServer.is_touchscreen_available() used to be part of this check and had to go. It
+	# does not report whether a touchscreen exists: on desktop it reports whether Godot is
+	# emulating touch from the mouse, which this project had switched on in its settings. So it
+	# came back true on a PC with no touchscreen, the stick and the drag region appeared over
+	# the screen, and every mouse movement was delivered to them as a finger - which meant
+	# playing on the keyboard fought a virtual stick that should never have been there.
+	var args := OS.get_cmdline_user_args()
+	var testing := "--touch" in args or "--touchtest" in args
+	if not OS.has_feature("mobile") and not testing:
 		hide()
 		set_process_input(false)
 		return
+	if testing:
+		# Desktop testing only. The mouse produces no touch events by itself, so without this
+		# the stick cannot be dragged. It is deliberately set here rather than in the project
+		# settings, where it applied to every run - including ordinary keyboard ones.
+		Input.set_emulate_touch_from_mouse(true)
 	_stick_layer.draw.connect(_draw_stick)
 	_build_jump_button()
 	_place_jump_button()
