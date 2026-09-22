@@ -202,27 +202,50 @@ void fragment() {
         + wave_slope(wave_3, world_position.xz, env.y)
         + wave_slope(wave_4, world_position.xz, env.y);
     vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
-    // Shore foam follows depth contours as broken surf bands. Cellular webs belong only
-    // to the projected seabed caustics, so the two effects cannot read as duplicates.
-    float breakup = noise(world_position.xz * 0.8 + vec2(clock * foam_speed * 0.12));
-    float shore_break = noise(world_position.xz * 0.31 + vec2(-clock * 0.025, clock * 0.018));
-    float foam_aa = max(fwidth(thickness), 0.006);
-    float shore_only = 1.0 - smoothstep(0.45, 0.82, water_depth);
-    float leading = 1.0 - smoothstep(0.03, 0.11 + foam_aa, thickness);
-    float froth = noise(world_position.xz * 1.7 + vec2(clock * 0.035, -clock * 0.025));
-    float leading_breakup = mix(0.36, 1.0, smoothstep(0.34, 0.65,
-        mix(breakup, froth, 0.52)));
-    float band_centre = 0.18 + 0.030 * sin(clock * foam_speed * TAU + shore_break * TAU);
-    float band_width = 0.030 + foam_aa * 0.50;
-    float shore_band = 1.0 - smoothstep(band_width, band_width + foam_aa * 0.55,
-        abs(thickness - band_centre));
-    float band_breakup = smoothstep(0.45, 0.66, mix(shore_break, breakup, 0.35));
-	float wash = 1.0 - smoothstep(0.10, 0.26 + foam_aa,
-		abs(thickness - band_centre));
-	float wash_cells = smoothstep(0.40, 0.68, mix(froth, shore_break, 0.46));
-	float surf = max(leading * leading_breakup * 0.92,
-		max(shore_band * band_breakup * 0.84, wash * wash_cells * 0.34)) * shore_only;
-	surf *= step(0.001, foam_depth);
+    // One deformed breaker with organic trailing strands. These are band-passed noise
+    // contours, not cells, so the foam cannot be confused with seabed caustics.
+    vec2 slow_flow = vec2(clock * foam_speed * 0.045,
+        -clock * foam_speed * 0.030);
+    float broad = noise(world_position.xz * 0.20 + slow_flow);
+    broad = broad * 0.68 + noise(world_position.xz * 0.43
+        - slow_flow * 0.72 + vec2(11.7, -4.2)) * 0.32;
+    float detail = noise(world_position.xz * 0.82
+        + vec2(-clock * 0.034, clock * 0.026));
+    detail = detail * 0.70 + noise(world_position.xz * 1.67
+        + vec2(clock * 0.021, -clock * 0.039) + vec2(3.1, 8.6)) * 0.30;
+    float foam_aa = clamp(fwidth(thickness), 0.006, 0.035);
+    float shore_only = 1.0 - smoothstep(0.48, 0.92, water_depth);
+
+    float advance = 0.14 + 0.075 * (0.5 + 0.5 * sin(
+        clock * foam_speed * 2.0 + broad * TAU));
+    float distorted_depth = thickness - advance
+        + (broad - 0.5) * 0.16 + (detail - 0.5) * 0.045;
+    float breaker_width = mix(0.014, 0.034, detail);
+    float breaker = 1.0 - smoothstep(breaker_width,
+        breaker_width + foam_aa, abs(distorted_depth));
+    breaker *= mix(0.12, 1.0, smoothstep(0.30, 0.70,
+        broad * 0.62 + detail * 0.38));
+
+    float trailing_window = smoothstep(0.035, 0.11, distorted_depth)
+        * (1.0 - smoothstep(0.32, 0.58, distorted_depth));
+    // Long interference ribbons make torn surf fingers instead of closed cellular loops.
+    float along = dot(world_position.xz, normalize(vec2(0.82, -0.57)));
+    float ribbon_warp = (noise(world_position.xz * 0.34
+        + vec2(-clock * 0.021, clock * 0.029)) - 0.5) * 5.2;
+    float ribbon_wave = sin(along * 0.78 + ribbon_warp + clock * foam_speed * 0.55);
+    ribbon_wave += sin(along * 1.43 - ribbon_warp * 0.37
+        - clock * foam_speed * 0.34) * 0.38;
+    float ribbon_distance = abs(ribbon_wave) / 1.38;
+    float strands = 1.0 - smoothstep(0.055, 0.12, ribbon_distance);
+    float strand_breakup = smoothstep(0.43, 0.67, noise(world_position.xz * 0.73
+        + vec2(clock * 0.026, clock * 0.017) + vec2(9.4, 2.7)));
+    strands *= trailing_window * strand_breakup;
+
+    float landward_window = smoothstep(-0.13, -0.045, distorted_depth)
+        * (1.0 - smoothstep(-0.025, 0.018, distorted_depth));
+    float remnants = landward_window * smoothstep(0.68, 0.82, detail);
+    float surf = max(breaker * 0.82, max(strands * 0.40, remnants * 0.24));
+    surf *= shore_only * step(0.001, foam_depth);
 	// Static silhouettes come from the overhead field. Moving characters and props contribute
 	// simple footprints through reusable emitters; both receive the same animated pale band.
 	vec2 band_uv = (world_position.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
