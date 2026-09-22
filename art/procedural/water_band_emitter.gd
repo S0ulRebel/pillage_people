@@ -1,17 +1,22 @@
 @tool
 extends Marker3D
 class_name WaterBandEmitter
-## Reusable waterline footprint for moving characters, boats, barrels, and other props.
-## Place this marker at the object's bottom; height reaches to the top of the object.
+## Marks a character, boat, barrel, or prop for the overhead water-interaction camera.
+## The water shader still reads the captured top-down silhouette; this node creates no
+## camera-facing or analytic outline of its own.
 
-@export_range(0.05, 20.0) var radius := 0.55
-@export_range(0.05, 40.0) var height := 1.9
 @export var band_enabled := true
 
 
-func _enter_tree() -> void:
-	add_to_group(&"water_band_emitters")
+func _ready() -> void:
+	_apply_capture_layer.call_deferred()
 
 
-func _exit_tree() -> void:
-	remove_from_group(&"water_band_emitters")
+func _apply_capture_layer() -> void:
+	if not band_enabled or get_parent() == null:
+		return
+	var root := get_parent()
+	if root is MeshInstance3D:
+		root.set_layer_mask_value(20, true)
+	for child in root.find_children("*", "MeshInstance3D", true, false):
+		(child as MeshInstance3D).set_layer_mask_value(20, true)

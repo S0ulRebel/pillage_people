@@ -1,7 +1,6 @@
 @tool
 extends MeshInstance3D
 class_name Ocean
-const MAX_DYNAMIC_BAND_EMITTERS := 16
 ## The sea: a displaced surface, not a coloured plane.
 ##
 ## Sea level is not stored here - it comes from the terrain, because the height map was
@@ -92,7 +91,6 @@ func _push(name: StringName, value: Variant) -> void:
 var _camera: Camera3D
 var _band_viewport: SubViewport
 var _band_camera: Camera3D
-var _band_distance_texture: ImageTexture
 var _sea_level := 0.0
 
 
@@ -140,30 +138,7 @@ func _process(_delta: float) -> void:
 	# sea itself stays put - only the grid of vertices slides along underneath it.
 	var eye := _camera.global_position
 	global_position = Vector3(eye.x, global_position.y, eye.z)
-	_update_dynamic_band_emitters(eye)
-
-
-func _update_dynamic_band_emitters(eye: Vector3) -> void:
-	var active: Array[WaterBandEmitter] = []
-	for node in get_tree().get_nodes_in_group(&"water_band_emitters"):
-		var emitter := node as WaterBandEmitter
-		if emitter == null or not emitter.band_enabled:
-			continue
-		var depth := _sea_level - emitter.global_position.y
-		if depth > 0.0 and depth < emitter.height:
-			active.append(emitter)
-	active.sort_custom(func(a: WaterBandEmitter, b: WaterBandEmitter) -> bool:
-		return a.global_position.distance_squared_to(eye) < b.global_position.distance_squared_to(eye))
-	var packed := PackedVector4Array()
-	packed.resize(MAX_DYNAMIC_BAND_EMITTERS)
-	var count := mini(active.size(), MAX_DYNAMIC_BAND_EMITTERS)
-	for i in count:
-		var emitter := active[i]
-		var p := emitter.global_position
-		var phase := fmod(float(emitter.get_instance_id()), 997.0) / 997.0 * TAU
-		packed[i] = Vector4(p.x, p.z, emitter.radius, phase)
-	material.set_shader_parameter("dynamic_band_emitters", packed)
-	material.set_shader_parameter("dynamic_band_count", count)
+	_position_band_camera(eye)
 
 
 func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:
@@ -173,7 +148,8 @@ func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:
 	_band_viewport.name = "WaterBandViewport"
 	_band_viewport.size = Vector2i(band_texture_size, band_texture_size)
 	_band_viewport.transparent_bg = true
-	_band_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_band_viewport.render_target_clear_mode = SubViewport.CLEAR_MODE_ALWAYS
+	_band_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_band_viewport.world_3d = get_world_3d()
 	add_child(_band_viewport)
 	_band_camera = Camera3D.new()
@@ -189,75 +165,22 @@ func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:
 	# Looking straight down maps world +X/+Z to texture +X/+Y.
 	_band_camera.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 	_band_viewport.add_child(_band_camera)
+	_band_camera.current = true
+	water.set_shader_parameter("band_mask", _band_viewport.get_texture())
+	water.set_shader_parameter("band_mask_texel",
+		Vector2.ONE / float(maxi(band_texture_size, 1)))
+	water.set_shader_parameter("band_mask_size", band_capture_size)
+	water.set_shader_parameter("band_mask_ready", true)
+	_position_band_camera(focus)
+
+
+func _position_band_camera(focus: Vector3) -> void:
+	if _band_camera == null:
+		return
 	var texel := band_capture_size / float(maxi(band_texture_size, 1))
 	var centre := Vector2(snappedf(focus.x, texel), snappedf(focus.z, texel))
 	_band_camera.global_position = Vector3(centre.x, global_position.y + 220.0, centre.y)
-	water.set_shader_parameter("band_mask_center", centre)
-	water.set_shader_parameter("band_mask_size", band_capture_size)
-	water.set_shader_parameter("band_sdf_ready", false)
-	_bake_band_distance_field.call_deferred(water)
-
-
-func _bake_band_distance_field(water: ShaderMaterial) -> void:
-	await RenderingServer.frame_post_draw
-	await RenderingServer.frame_post_draw
-	var mask := _band_viewport.get_texture().get_image()
-	if mask == null or mask.is_empty():
-		push_warning("Water bands: overhead mask capture failed.")
-		return
-	mask.convert(Image.FORMAT_RGBA8)
-	var width := mask.get_width()
-	var height := mask.get_height()
-	var distance := PackedFloat32Array()
-	distance.resize(width * height)
-	distance.fill(1000000.0)
-	var mask_pixels := 0
-	for y in height:
-		for x in width:
-			if mask.get_pixel(x, y).a > 0.25:
-				distance[y * width + x] = 0.0
-				mask_pixels += 1
-	# A one-time two-pass chamfer transform is cheap at startup and leaves the ocean
-	# shader with one texture sample per fragment, which is suitable for mobile.
-	var diagonal := 1.41421356
-	for y in height:
-		for x in width:
-			var index := y * width + x
-			var value := distance[index]
-			if x > 0:
-				value = minf(value, distance[index - 1] + 1.0)
-			if y > 0:
-				value = minf(value, distance[index - width] + 1.0)
-				if x > 0:
-					value = minf(value, distance[index - width - 1] + diagonal)
-				if x + 1 < width:
-					value = minf(value, distance[index - width + 1] + diagonal)
-			distance[index] = value
-	for y in range(height - 1, -1, -1):
-		for x in range(width - 1, -1, -1):
-			var index := y * width + x
-			var value := distance[index]
-			if x + 1 < width:
-				value = minf(value, distance[index + 1] + 1.0)
-			if y + 1 < height:
-				value = minf(value, distance[index + width] + 1.0)
-				if x > 0:
-					value = minf(value, distance[index + width - 1] + diagonal)
-				if x + 1 < width:
-					value = minf(value, distance[index + width + 1] + diagonal)
-			distance[index] = value
-	var max_distance := 4.0
-	var metres_per_pixel := band_capture_size / float(width)
-	var encoded := PackedByteArray()
-	encoded.resize(width * height)
-	for i in distance.size():
-		encoded[i] = int(clampf(distance[i] * metres_per_pixel / max_distance, 0.0, 1.0) * 255.0)
-	var sdf_image := Image.create_from_data(width, height, false, Image.FORMAT_R8, encoded)
-	_band_distance_texture = ImageTexture.create_from_image(sdf_image)
-	water.set_shader_parameter("band_sdf", _band_distance_texture)
-	water.set_shader_parameter("band_sdf_max_distance", max_distance)
-	water.set_shader_parameter("band_sdf_ready", mask_pixels > 0)
-	print("water bands: baked %dx%d overhead SDF from %d silhouette pixels" % [width, height, mask_pixels])
+	material.set_shader_parameter("band_mask_center", centre)
 
 
 ## Rings of vertices at exponentially growing radius: dense at the centre, coarse at the

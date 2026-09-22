@@ -6,11 +6,11 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest, repeat_disable;
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear, repeat_disable;
 uniform sampler2D terrain_height : filter_linear, repeat_disable;
-uniform sampler2D band_sdf : filter_linear, repeat_disable;
+uniform sampler2D band_mask : filter_linear, repeat_disable;
 uniform vec2 band_mask_center = vec2(0.0);
 uniform float band_mask_size = 144.0;
-uniform float band_sdf_max_distance = 4.0;
-uniform bool band_sdf_ready = false;
+uniform vec2 band_mask_texel = vec2(0.001953125);
+uniform bool band_mask_ready = false;
 uniform float terrain_size = 620.0;
 uniform float terrain_scale = 180.0;
 uniform vec2 terrain_center = vec2(0.0);
@@ -67,8 +67,6 @@ uniform float object_band_width : hint_range(0.05, 0.6) = 0.07;
 uniform float object_band_strength : hint_range(0.0, 1.0) = 0.68;
 uniform float object_band_distortion : hint_range(0.0, 0.5) = 0.24;
 uniform float object_band_speed : hint_range(0.0, 3.0) = 0.8;
-uniform vec4 dynamic_band_emitters[16]; // world x, world z, footprint radius, phase
-uniform int dynamic_band_count : hint_range(0, 16) = 0;
 
 group_uniforms Lighting;
 uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
@@ -252,72 +250,33 @@ void fragment() {
     float remnants = landward_window * smoothstep(0.68, 0.82, detail);
     float surf = max(breaker * 0.82, max(strands, remnants * 0.24));
     surf *= shore_only * step(0.001, foam_depth);
-	// Static silhouettes come from the overhead field. Moving characters and props contribute
-	// simple footprints through reusable emitters; both receive the same animated pale band.
+	// Only the dedicated overhead camera supplies object silhouettes. Gameplay-camera depth
+	// must never create outlines: that would rim dry objects merely seen against the ocean.
 	vec2 band_uv = (world_position.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
-	float object_distance = 1000.0;
 	float capture_edge = smoothstep(0.0, 0.035, min(min(band_uv.x, band_uv.y),
 		min(1.0 - band_uv.x, 1.0 - band_uv.y)));
-	if (band_sdf_ready) {
-		object_distance = textureLod(band_sdf, band_uv, 0.0).r
-			* band_sdf_max_distance / max(capture_edge, 0.001);
-	}
-	float emitter_phase = 0.0;
-	vec2 emitter_offset = vec2(0.0);
-	bool emitter_is_closest = false;
-	for (int i = 0; i < 16; i++) {
-		if (i < dynamic_band_count) {
-			vec4 emitter = dynamic_band_emitters[i];
-			vec2 offset_to_emitter = world_position.xz - emitter.xy;
-			float distance_to_emitter = length(offset_to_emitter) - emitter.z;
-			if (distance_to_emitter < object_distance) {
-				object_distance = distance_to_emitter;
-				emitter_phase = emitter.w;
-				emitter_offset = offset_to_emitter;
-				emitter_is_closest = true;
-			}
-		}
-	}
 	float moving_noise = noise(world_position.xz * 0.82
 		+ vec2(clock * object_band_speed * 0.19, -clock * object_band_speed * 0.14));
-	float ripple = sin(dot(world_position.xz, vec2(0.73, 0.41)) * 1.35
-		- clock * object_band_speed * 2.4 + emitter_phase) * 0.085;
-	if (emitter_is_closest) {
-		float angle = atan(emitter_offset.y, emitter_offset.x);
-		ripple += sin(angle * 3.0 + clock * object_band_speed * 2.1 + emitter_phase) * 0.075;
-		ripple += sin(angle * 5.0 - clock * object_band_speed * 1.4) * 0.035;
+	float object_band = 0.0;
+	if (band_mask_ready && capture_edge > 0.0) {
+		float centre_mask = textureLod(band_mask, band_uv, 0.0).a;
+		float metres_per_texel = band_mask_size * band_mask_texel.x;
+		float radius_metres = object_band_distance + object_band_width
+			+ (moving_noise - 0.5) * object_band_distortion * 0.35
+			+ sin(clock * object_band_speed * 1.7) * 0.035;
+		float radius_texels = max(radius_metres / max(metres_per_texel, 0.001), 1.0);
+		float nearby_mask = 0.0;
+		for (int i = 0; i < 8; i++) {
+			float angle = TAU * float(i) / 8.0 + moving_noise * 0.12;
+			vec2 offset = vec2(cos(angle), sin(angle))
+				* band_mask_texel * radius_texels;
+			nearby_mask = max(nearby_mask,
+				textureLod(band_mask, clamp(band_uv + offset, vec2(0.0), vec2(1.0)), 0.0).a);
+		}
+		object_band = smoothstep(0.04, 0.45, nearby_mask - centre_mask)
+			* capture_edge * smoothstep(0.12, 0.45, water_depth);
+		object_band *= mix(0.72, 1.0, moving_noise);
 	}
-	float distorted_distance = object_distance
-		+ (moving_noise - 0.5) * object_band_distortion + ripple;
-	float pulse = sin(clock * object_band_speed * 1.7 + emitter_phase) * 0.08;
-	float sdf_aa = max(fwidth(distorted_distance), 0.025);
-	float object_band = 1.0 - smoothstep(object_band_width,
-		object_band_width + sdf_aa,
-		abs(distorted_distance - object_band_distance - pulse));
-	// Scene depth supplies a camera-facing waterline for every opaque depth-writing object.
-	// The authored SDF/emitter paths remain useful for full silhouettes and transparent props.
-	float depth_band_width = 0.08 + moving_noise * 0.12;
-	float depth_object_band = 1.0 - smoothstep(0.025, depth_band_width, to_solid);
-	depth_object_band *= smoothstep(0.12, 0.45, water_depth);
-	depth_object_band *= mix(0.72, 1.0, moving_noise);
-	// Look a few pixels into the opaque depth buffer so the band expands outside the visible
-	// silhouette. This makes arbitrary characters and props participate without components.
-	vec2 depth_pixel = vec2(1.0) / max(VIEWPORT_SIZE, vec2(1.0));
-	float depth_radius = 6.0 + moving_noise * 3.5;
-	float depth_silhouette = 0.0;
-	for (int i = 0; i < 4; i++) {
-		float angle = TAU * (float(i) / 4.0 + moving_noise * 0.035);
-		vec2 sample_uv = clamp(SCREEN_UV + vec2(cos(angle), sin(angle))
-			* depth_pixel * depth_radius, vec2(0.001), vec2(0.999));
-		float neighbour_depth = textureLod(depth_texture, sample_uv, 0.0).r;
-		// Godot 4 Forward+/Mobile use reverse-Z: a larger value is nearer the camera.
-		depth_silhouette = max(depth_silhouette,
-			smoothstep(0.000002, 0.00008, neighbour_depth - FRAGCOORD.z));
-	}
-	depth_silhouette *= smoothstep(0.12, 0.45, water_depth);
-	depth_silhouette *= mix(0.72, 1.0, moving_noise);
-	depth_object_band = max(depth_object_band, depth_silhouette);
-	object_band = max(object_band, depth_object_band);
     // Quiet, world-space glints replace the wide interpolated crest ribbons.
     vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);
     float k = TAU / max(wave_1.w, 0.01);

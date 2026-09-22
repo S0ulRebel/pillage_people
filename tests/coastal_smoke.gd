@@ -41,20 +41,18 @@ func _run() -> void:
 			var saved_position := player.global_position
 			player.global_position.y = terrain.sea_level() - 1.35
 			await process_frame
-			check(ocean.material.get_shader_parameter("dynamic_band_count") == 0, "Opaque player unexpectedly requires a band emitter")
-			var prop := Node3D.new()
-			prop.name = "GenericBandProp"
+			check(ocean.material.get_shader_parameter("band_mask_ready"), "Overhead water mask not connected")
+			for part in player.get_node("Body").get_children():
+				check(part is MeshInstance3D and part.get_layer_mask_value(20),
+					"Player part missing overhead water-mask layer")
+			var prop := MeshInstance3D.new()
+			prop.mesh = BoxMesh.new()
+			var capture_marker := WaterBandEmitter.new()
+			prop.add_child(capture_marker)
 			scene.add_child(prop)
-			prop.global_position = Vector3(player.global_position.x + 3.0,
-				terrain.sea_level() - 0.5, player.global_position.z)
-			var prop_emitter := WaterBandEmitter.new()
-			prop_emitter.radius = 0.8
-			prop_emitter.height = 1.2
-			prop.add_child(prop_emitter)
 			await process_frame
-			check(ocean.material.get_shader_parameter("dynamic_band_count") == 1, "Generic fallback emitter not sent to water")
+			check(prop.get_layer_mask_value(20), "Generic prop not added to overhead water mask")
 			prop.queue_free()
-			await process_frame
 			player.global_position = saved_position
 			check(study.get_child_count() == 13, "Expected nine rocks, one palm and three foliage groups")
 			check(player.global_position.distance_to(study.spawn + Vector3.UP * 2.0) < 0.2, "Player not at study spawn")

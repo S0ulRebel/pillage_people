@@ -205,6 +205,9 @@ func _add_part(name_: String, mesh: PrimitiveMesh, pos: Vector3, material: Mater
 	node.name = name_
 	node.mesh = mesh
 	node.position = pos
+	# Layer 20 is read only by the overhead water-interaction camera. It gives the water
+	# the player's true top-down footprint without outlining the gameplay-camera silhouette.
+	node.set_layer_mask_value(20, true)
 	_body.add_child(node)
 	return node
 
