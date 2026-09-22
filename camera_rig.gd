@@ -1,6 +1,11 @@
 extends Node3D
 ## Bird's-eye chase camera: sits high behind the player, follows smoothly, orbits with Q/E,
 ## zooms with the mouse wheel, and never clips into the terrain (SpringArm3D does that part).
+##
+## The spring arm casts from this pivot back toward the camera on the physics step. Following
+## in _process let the pivot lag a metre behind, so walking back toward the camera stepped
+## the captain into that cast. The arm treated him as a wall, collapsed, and the view dropped
+## onto the beach with him behind it.
 
 @export var follow_speed := 8.0
 @export var orbit_speed := 2.0
@@ -33,8 +38,14 @@ func _apply_pitch() -> void:
 
 func set_target(target: Node3D) -> void:
 	_target = target
-	if target:
-		global_position = target.global_position
+	if target == null:
+		return
+	global_position = target.global_position
+	# The cast starts just above his head. Without this exclusion, backing into the camera
+	# makes the arm hit his capsule and shorten to nothing.
+	if target is CollisionObject3D:
+		_arm.clear_excluded_objects()
+		_arm.add_excluded_object(target.get_rid())
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -45,9 +56,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_arm.spring_length = minf(max_distance, _arm.spring_length + zoom_step)
 
 
+func _physics_process(delta: float) -> void:
+	if _target == null:
+		return
+	# Horizontal lag only. Copying Y keeps the cast origin on the ground he is standing
+	# on; a trailed height puts that origin inside the beach and the arm pulls the
+	# camera under it. The spring arm casts on this same physics step.
+	var weight := 1.0 - exp(-follow_speed * delta)
+	var followed := global_position.lerp(_target.global_position, weight)
+	followed.y = _target.global_position.y
+	global_position = followed
+
+
 func _process(delta: float) -> void:
-	if _target:
-		global_position = global_position.lerp(_target.global_position, follow_speed * delta)
 	var orbit := Input.get_axis("cam_left", "cam_right")
 	if absf(orbit) > 0.01:
 		rotation.y -= orbit * orbit_speed * delta
