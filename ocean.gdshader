@@ -299,14 +299,27 @@ void fragment() {
 			* capture_edge * smoothstep(0.12, 0.45, water_depth);
 		object_band *= mix(0.72, 1.0, moving_noise);
 	}
-    // Quiet, world-space glints replace the wide interpolated crest ribbons.
-    vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);
-    float k = TAU / max(wave_1.w, 0.01);
-    float phase = k * dot(d, world_position.xz) - sqrt(9.8 * k) * clock * wave_speed;
-    float crest = smoothstep(0.965, 0.995, sin(phase));
-    crest *= smoothstep(0.56, 0.76, noise(world_position.xz * 0.23));
+    // Crest glints follow the dominant swell, but crossing waves and slow noise bend its
+    // phase before thresholding. This produces short curved strokes instead of dashed
+    // straight lines that reveal the underlying sine wave.
+    vec2 crest_p = world_position.xz;
+    vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
+    vec2 d2 = wave_2.xy / max(length(wave_2.xy), 0.0001);
+    vec2 d3 = wave_3.xy / max(length(wave_3.xy), 0.0001);
+    float k1 = TAU / max(wave_1.w, 0.01);
+    float k2 = TAU / max(wave_2.w, 0.01);
+    float k3 = TAU / max(wave_3.w, 0.01);
+    float phase1 = k1 * dot(d1, crest_p) - sqrt(9.8 * k1) * clock * wave_speed;
+    float phase2 = k2 * dot(d2, crest_p) - sqrt(9.8 * k2) * clock * wave_speed;
+    float phase3 = k3 * dot(d3, crest_p) - sqrt(9.8 * k3) * clock * wave_speed;
+    float warp = (noise(crest_p * 0.065 + vec2(clock * 0.015, -clock * 0.011)) - 0.5) * 2.4;
+    warp += sin(phase2) * 0.72 + sin(phase3) * 0.28;
+    float crest = smoothstep(0.94, 0.995, sin(phase1 + warp));
+    float crest_breakup = noise(crest_p * 0.21 + vec2(-clock * 0.025, clock * 0.018));
+    crest_breakup = crest_breakup * 0.65 + noise(crest_p * 0.47 + vec2(7.3, -2.8)) * 0.35;
+    crest *= smoothstep(0.58, 0.76, crest_breakup);
     crest *= crest_strength * smoothstep(1.5, 4.0, water_depth) * wave_activity;
-    crest *= 1.0 - smoothstep(80.0, 220.0, surface_range);
+    crest *= 1.0 - smoothstep(55.0, 150.0, surface_range);
     float white = clamp(max(crest, surf), 0.0, 1.0);
     vec3 light_dir = sun_direction / max(length(sun_direction), 0.0001);
     float lambert = max(dot(n, light_dir), 0.0);
