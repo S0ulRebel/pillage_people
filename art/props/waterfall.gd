@@ -43,7 +43,9 @@ const SHADER := "res://waterfall.gdshader"
 	set(value):
 		water_colour = value
 		_queue()
-@export var speed := 1.7:
+## Metres per second. Real falling water is faster than this; it is tuned to read rather than
+## to be right.
+@export var speed := 7.0:
 	set(value):
 		speed = value
 		_queue()
@@ -53,6 +55,9 @@ const SHADER := "res://waterfall.gdshader"
 		_queue()
 
 var _queued := false
+## The curve's baked length, handed to the shader so streaks come out the same size on a five
+## metre fall and a fifty metre one.
+var _length := 10.0
 
 
 func _ready() -> void:
@@ -115,6 +120,7 @@ func rebuild() -> void:
 		return
 
 	var steps := maxi(2, int(ceil(length / sample_spacing)))
+	_length = length
 	for sheet in sheets:
 		var offset := (float(sheet) - float(sheets - 1) * 0.5) * sheet_gap
 		var surface := _build_sheet(steps, length, offset)
@@ -184,8 +190,10 @@ func _material(sheet: int) -> ShaderMaterial:
 	material.set_shader_parameter("water_colour", water_colour)
 	# Each sheet runs at its own rate, or the two move as one object and the second sheet buys
 	# nothing but overdraw.
+	material.set_shader_parameter("fall_length", _length)
 	material.set_shader_parameter("speed", speed * (1.0 + float(sheet) * 0.28))
-	material.set_shader_parameter("streaks", 9.0 + float(sheet) * 3.0)
+	# The second sheet runs finer as well as faster, so the two do not beat against each other.
+	material.set_shader_parameter("streak_metres", 1.4 - float(sheet) * 0.35)
 	material.set_shader_parameter("base_alpha", 0.60 if sheet == 0 else 0.34)
 	return material
 

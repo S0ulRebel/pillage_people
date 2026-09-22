@@ -22,8 +22,14 @@ uniform vec3 foam_colour : source_color = vec3(0.95, 0.99, 1.0);
 uniform float base_alpha : hint_range(0.0, 1.0) = 0.60;
 
 group_uniforms Flow;
-uniform float speed : hint_range(0.0, 8.0) = 1.7;
-uniform float streaks : hint_range(1.0, 40.0) = 9.0;
+// Metres per second, and how long a streak is in metres. Both are real lengths on purpose:
+// streaks used to be a COUNT spread over the whole sheet, so a 25 m fall drew them 2.7 m long
+// and a 55 m one drew the same nine at 6 m each - which is why a tall fall stopped looking
+// like water and started looking like a cable.
+uniform float speed : hint_range(0.0, 30.0) = 7.0;
+uniform float streak_metres : hint_range(0.2, 8.0) = 1.4;
+// Set from the curve by waterfall.gd. Without it nothing here knows how long the drop is.
+uniform float fall_length = 10.0;
 // How much faster the water is at the bottom than at the top. 0 is a conveyor belt.
 uniform float acceleration : hint_range(0.0, 3.0) = 1.2;
 uniform float streak_contrast : hint_range(0.0, 1.0) = 0.55;
@@ -63,7 +69,9 @@ void fragment() {
 	float travelled = pow(v, 1.0 + acceleration);
 	float lane = floor(u * lanes);
 	float offset = hash(lane) * 6.28318;
-	float phase = travelled * streaks - TIME * speed + offset;
+	// Worked in metres: how far this point is down the fall, less how far the water has moved
+	// since, divided by the length of one streak.
+	float phase = (travelled * fall_length - TIME * speed) / max(streak_metres, 0.01) + offset;
 
 	// Two rates of streak so the sheet does not pulse as one object.
 	float streak = 0.5 + 0.5 * sin(phase * 6.28318);
