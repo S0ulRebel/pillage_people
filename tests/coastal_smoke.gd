@@ -64,9 +64,14 @@ func _run() -> void:
 			check(player.global_position.distance_to(study.spawn + Vector3.UP * 2.0) < 0.2, "Player not at study spawn")
 			check(study.spawn.y > terrain.sea_level() + 0.75, "Spawn is wet")
 			var colliders := study.find_children("*", "CollisionShape3D", true, false)
-			check(colliders.size() == 10, "Expected nine rock hulls and a trunk trimesh")
+			check(colliders.size() == 10, "Expected nine rock hulls and a palm trunk")
+			# Primitives count now. This asked for a polygon hull, which was right when every
+			# shape here came off a generated mesh; the modelled palm carries a cylinder for its
+			# trunk, which is cheaper and steadier than a hull of its fronds would ever be.
 			for collider in colliders:
-				check(collider.shape is ConvexPolygonShape3D or collider.shape is ConcavePolygonShape3D, "Invalid collision shape")
+				check(collider.shape is ConvexPolygonShape3D or collider.shape is ConcavePolygonShape3D
+					or collider.shape is CylinderShape3D or collider.shape is BoxShape3D,
+					"Invalid collision shape: " + collider.shape.get_class())
 			# The rocks are modelled now rather than generated, so what used to be checked -
 			# that a seeded mesh rebuilt identically - no longer exists to check. What still
 			# matters is what the rest of the scene depends on: that each water rock straddles
@@ -91,10 +96,14 @@ func _run() -> void:
 			await process_frame
 			var after: Array[Node] = rock.find_children("*", "MeshInstance3D", true, false)
 			check(not after.is_empty() and (after[0] as MeshInstance3D).mesh != before_swap, "Changing kind did not rebuild the rock")
+			# The palm is modelled now rather than generated, so there is no seeded mesh to
+			# rebuild identically. What the rest of the scene depends on is that it is there,
+			# that it stands on the water camera's layer, and that its trunk stops the player.
 			var palm := study.get_node("Palm")
-			var leaves: PackedVector3Array = palm.get_node("Generated/Fronds").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-			palm.rebuild()
-			check(leaves == palm.get_node("Generated/Fronds").mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX], "Palm not deterministic")
+			var fronds: Array[Node] = palm.find_children("*", "MeshInstance3D", true, false)
+			check(not fronds.is_empty(), "Palm has no mesh")
+			check((fronds[0] as MeshInstance3D).get_layer_mask_value(20), "Palm missing band-mask layer")
+			check(palm.get_node_or_null("Trunk") != null, "Palm has no trunk collision")
 			# The foliage generator is gone; the study plants the modelled grass instead. What
 			# is worth checking is that it planted anything - a MultiMesh that silently ends up
 			# empty looks exactly like ground with no grass on it.

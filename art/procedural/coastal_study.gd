@@ -2,7 +2,7 @@ extends Node3D
 ## Deterministic layout in shoreline coordinates: +Z inland, +X along the beach.
 const Rock = preload("res://art/props/rock.tscn")
 const RockKind = preload("res://art/props/rock.gd")
-const Palm = preload("res://art/procedural/coastal_palm.tscn")
+const Palm = preload("res://art/props/palm.tscn")
 const Grass = preload("res://art/props/grass.gd")
 const OFFSETS := [Vector2(-4.5, 2.5), Vector2(-6.5, 0.5), Vector2(-3.0, -0.8),
 	Vector2(5.0, 2.0), Vector2(-1.8, -2.2), Vector2(5.8, 0.3)]
@@ -82,7 +82,11 @@ func setup(terrain: Node3D) -> bool:
 	var water_rock_count := _place_water_rocks(sea)
 	var palm := Palm.instantiate()
 	palm.name = "Palm"
-	palm.shape_seed = 41
+	# The one the group was composed around, so it keeps the size and the lean it was drawn
+	# with rather than taking whatever the island scatter would have rolled.
+	palm.size = 1.15
+	palm.lean = 11.0
+	palm.lean_towards = 200.0
 	palm.rotation.y = 0.4
 	add_child(palm)
 	palm.global_position = _ground(PALM_OFFSET) - Vector3.UP * 0.08
