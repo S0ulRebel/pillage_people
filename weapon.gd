@@ -20,7 +20,8 @@ var _offset := Vector3.ZERO
 ## Builds the blade and parents it to the bone. Returns false if the bone is not there, so a
 ## body with an unexpected rig ends up unarmed rather than half-built.
 func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
-		rotation_deg: Vector3, colour: Color, model_path := "") -> bool:
+		rotation_deg: Vector3, colour: Color, model_path := "",
+		grip := Vector3.ZERO) -> bool:
 	if skeleton == null or skeleton.find_bone(bone) == -1:
 		push_warning("weapon.gd: no bone called '%s', so the weapon has nowhere to hang." % bone)
 		return false
@@ -43,6 +44,11 @@ func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
 		# The rotation goes on the model, not on this node. The hitbox below is placed along
 		# +X, and turning the whole node would carry the hitbox off the blade with it.
 		blade.rotation_degrees = rotation_deg
+		# Slides the model along the blade so the grip lands on the hand. A rotation alone
+		# cannot do this: the model's origin is wherever it was authored - the cutlass is
+		# modelled tip-down, so its origin is the point - and turning it only ever spins that
+		# same origin about the fist. Without the shift the captain holds the sharp end.
+		blade.position = grip
 		_flatten(blade)
 	else:
 		var box := BoxMesh.new()

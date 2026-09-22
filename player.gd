@@ -76,9 +76,15 @@ extends CharacterBody3D
 ## With a model the origin is the pommel, not the middle of a box, so X sits near zero - a
 ## little back, to bury the pommel in the fist rather than float it at the fingertips.
 @export var sword_offset := Vector3(-0.05, 0.07, 0.0)
-## The cutlass is modelled standing upright - blade along +Y, pommel at the origin - and this
-## code works in the hand bone's +X. A quarter turn about Z maps one onto the other.
-@export var sword_rotation := Vector3(0.0, 0.0, -90.0)
+## The cutlass is modelled tip-down: the point sits at the origin and the guard is three
+## quarters of the way up, which the mesh's own cross-sections give away - 16.75 units wide at
+## the guard against 2.3 along the blade. A quarter turn about Z lays it along the hand bone's
+## +X with the pommel pointing backwards, and sword_grip then slides it forward so the hand
+## holds the grip rather than the point.
+@export var sword_rotation := Vector3(0.0, 0.0, 90.0)
+## How far to slide the model along the blade so its grip meets the fist - the blade's length,
+## for a sword whose origin is its tip.
+@export var sword_grip := Vector3(0.80, 0.0, 0.0)
 @export var sword_colour := Color(0.72, 0.74, 0.78)
 
 @export_group("Combat")
@@ -493,7 +499,7 @@ func _attach_weapon(model: Node3D) -> void:
 	var blade := Weapon.new()
 	blade.name = "Weapon"
 	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
-			sword_colour, sword_model):
+			sword_colour, sword_model, sword_grip):
 		blade.free()
 		return
 	_weapon = blade
