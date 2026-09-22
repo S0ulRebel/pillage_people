@@ -181,6 +181,10 @@ func _build_body() -> void:
 	cloth.albedo_color = Color(0.20, 0.38, 0.62)
 	var trousers := StandardMaterial3D.new()
 	trousers.albedo_color = Color(0.22, 0.24, 0.30)
+	for material in [skin, cloth, trousers]:
+		material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		material.roughness = 1.0
 
 	_add_part("Torso", CapsuleMesh.new(), Vector3(0, 0.95, 0), cloth, func(m):
 		m.radius = 0.28

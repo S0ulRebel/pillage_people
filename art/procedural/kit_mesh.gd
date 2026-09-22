@@ -26,6 +26,11 @@ static func material(leaves: bool = false) -> StandardMaterial3D:
 	result.roughness = 1.0
 	if leaves:
 		result.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Thin foliage is visible from both sides. A small transmission term prevents the
+		# reverse faces from collapsing into black silhouette rims while preserving the
+		# folded frond planes and their cast shadows.
+		result.backlight_enabled = true
+		result.backlight = Color(0.13, 0.16, 0.08)
 	return result
 
 
