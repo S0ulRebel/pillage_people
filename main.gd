@@ -11,6 +11,7 @@ const Rocks = preload("res://rocks.gd")
 const Cargo = preload("res://art/props/cargo.tscn")
 const CargoKind = preload("res://art/props/cargo.gd")
 const Grass = preload("res://art/props/grass.gd")
+const Palm = preload("res://art/props/palm.tscn")
 const Music = preload("res://music.gd")
 var _coastal_study: Node3D
 ## Survives a scene reload, because the script does and the node does not. Only --deathtest
@@ -35,6 +36,9 @@ static var _death_test_runs := 0
 ## Grass tufts over the island's green band. One MultiMesh, so this is a count rather than a
 ## node budget - see art/props/grass.gd.
 @export var grass_count := 700
+## Palms along the shore. Nodes rather than a MultiMesh: there are a dozen and you walk into
+## them - see art/props/palm.gd.
+@export var palm_count := 14
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
 @export var restart_delay := 3.4
@@ -133,6 +137,46 @@ func _scatter_rocks(around: Vector3) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("rocks") + randi()
 	print("scattered %d of %d rocks" % [field.scatter(_terrain, around, rng), rock_count])
+
+
+## Plants palms along the shore.
+##
+## Lower down than the grass and closer to the water: palms belong on the sand and the first
+## rise behind it, not up on the hillside. Each gets its own lean and size, because a stand of
+## identical upright palms reads as wallpaper rather than as trees.
+func _plant_palms(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or palm_count <= 0:
+		return
+	var sea: float = _terrain.sea_level()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("palms") + randi()
+	var planted := 0
+	for i in palm_count:
+		for attempt in 40:
+			var angle := rng.randf() * TAU
+			var away := sqrt(rng.randf()) * 80.0
+			var at := around + Vector3(cos(angle), 0.0, sin(angle)) * away
+			var ground: float = _terrain.height_at(at.x, at.z)
+			var above := ground - sea
+			if above < 0.8 or above > 6.0:
+				continue
+			# Not on a slope steep enough to leave the trunk hanging out of the hillside.
+			var slope: float = maxf(
+				absf(_terrain.height_at(at.x + 1.0, at.z) - _terrain.height_at(at.x - 1.0, at.z)),
+				absf(_terrain.height_at(at.x, at.z + 1.0) - _terrain.height_at(at.x, at.z - 1.0))) * 0.5
+			if slope > 0.5:
+				continue
+			var palm: StaticBody3D = Palm.instantiate()
+			palm.name = "Palm%d" % i
+			palm.size = rng.randf_range(0.75, 1.3)
+			palm.lean = rng.randf_range(4.0, 16.0)
+			palm.lean_towards = rng.randf() * 360.0
+			add_child(palm)
+			palm.global_position = Vector3(at.x, ground - 0.1, at.z)
+			palm.rotation.y = rng.randf() * TAU
+			planted += 1
+			break
+	print("palms: %d of %d" % [planted, palm_count])
 
 
 ## Fills the green band with grass.
@@ -310,6 +354,7 @@ func _ready() -> void:
 	_start_music()
 	_scatter_rocks(spawn)
 	_scatter_grass(spawn)
+	_plant_palms(spawn)
 	_place_barrels(spawn)
 	_spawn_enemies(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
