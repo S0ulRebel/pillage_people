@@ -60,6 +60,25 @@ const MAX_DYNAMIC_BAND_EMITTERS := 16
 		wave_height = value
 		_push("wave_height", value)
 
+@export_group("Optics")
+## Per-metre RGB absorption. Warm light is removed first to create turquoise shallows.
+@export var absorption := Vector3(0.42, 0.12, 0.045):
+	set(value):
+		absorption = value.max(Vector3.ZERO)
+		_push("absorption", absorption)
+@export_range(0.0, 3.0) var absorption_strength := 1.0:
+	set(value):
+		absorption_strength = value
+		_push("absorption_strength", value)
+@export_range(0.0, 1.5) var scattering_strength := 0.92:
+	set(value):
+		scattering_strength = value
+		_push("scattering_strength", value)
+@export_range(0.0, 0.05, 0.001) var refraction_strength := 0.008:
+	set(value):
+		refraction_strength = value
+		_push("refraction_strength", value)
+
 @export_group("Object Bands")
 ## Width of the square area captured by the overhead water-band camera.
 @export_range(48.0, 256.0) var band_capture_size := 144.0
@@ -88,7 +107,10 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["deep_colour", deep_colour],
 			["foam_colour", foam_colour], ["shallow_alpha", shallow_alpha],
 			["deep_alpha", deep_alpha], ["wave_height", wave_height],
-			["depth_fade", depth_fade]]:
+			["depth_fade", depth_fade], ["absorption", absorption],
+			["absorption_strength", absorption_strength],
+			["scattering_strength", scattering_strength],
+			["refraction_strength", refraction_strength]]:
 		water.set_shader_parameter(entry[0], entry[1])
 	if terrain != null:
 		water.set_shader_parameter("terrain_height", terrain.height_texture())

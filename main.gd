@@ -514,8 +514,8 @@ func _asset_view() -> void:
 		return
 	$HUD.hide()
 	$TouchControls.hide()
-	# Put the scale figure in the shallows for this material study so the same reusable
-	# dynamic band used by characters and moving props is visible beside the static rocks.
+	# Put the scale figure in the shallows so the generic scene-depth waterline can be
+	# judged beside the captured static-rock silhouettes.
 	var water_rock := _coastal_study.get_node_or_null("WaterRock2") as Node3D
 	if water_rock != null:
 		var seaward: Vector3 = -_coastal_study.global_basis.z

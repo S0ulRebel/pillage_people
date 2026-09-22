@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://c0terraindemo01"]
+[gd_scene load_steps=12 format=3 uid="uid://c0terraindemo01"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Script" path="res://terrain.gd" id="2_terrain"]
@@ -9,8 +9,6 @@
 [ext_resource type="Script" path="res://ocean.gd" id="7_ocean"]
 [ext_resource type="Material" path="res://terrain_material.tres" id="8_tmat"]
 [ext_resource type="Material" path="res://ocean_material.tres" id="9_omat"]
-[ext_resource type="Script" path="res://art/procedural/water_band_emitter.gd" id="10_band_emitter"]
-
 [sub_resource type="Curve3D" id="Curve_tunnel"]
 _data = {
 "points": PackedVector3Array(-0.0000, -0.0000, -0.0000, 0.0000, 0.0000, 0.0000, -80.6997, 2.4000, 23.6628, 1.3354, 1.7381, 6.6480, -1.3354, -1.7381, -6.6480, -83.1703, -9.0000, 11.3631, 1.3354, -1.7381, 6.6480, -1.3354, 1.7381, -6.6480, -89.4584, -9.0000, -19.9405, -0.0000, -0.0000, -0.0000, 0.0000, 0.0000, 0.0000, -91.9291, 2.4000, -32.2401),
@@ -72,9 +70,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
 shape = SubResource("Capsule_1")
 
 [node name="Body" type="Node3D" parent="Player"]
-
-[node name="WaterBandEmitter" type="Marker3D" parent="Player"]
-script = ExtResource("10_band_emitter")
 
 [node name="CameraRig" type="Node3D" parent="."]
 script = ExtResource("4_camera")

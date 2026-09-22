@@ -4,6 +4,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 // Mobile-compatible transparent water. Depth colour uses the shared heightmap;
 // contact uses reverse-Z scene depth. Surface detail is evaluated per pixel.
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest, repeat_disable;
+uniform sampler2D screen_texture : hint_screen_texture, filter_linear, repeat_disable;
 uniform sampler2D terrain_height : filter_linear, repeat_disable;
 uniform sampler2D band_sdf : filter_linear, repeat_disable;
 uniform vec2 band_mask_center = vec2(0.0);
@@ -27,6 +28,10 @@ uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.12;
 uniform float shallow_alpha : hint_range(0.0, 1.0) = 0.58;
 uniform float deep_alpha : hint_range(0.0, 1.0) = 0.94;
+// Art-directed Beer-Lambert coefficients. Red is lost first; blue travels furthest.
+uniform vec3 absorption = vec3(0.42, 0.12, 0.045);
+uniform float absorption_strength : hint_range(0.0, 3.0) = 1.0;
+uniform float scattering_strength : hint_range(0.0, 1.5) = 0.92;
 // Opaque, unshaded colour ramp for checking colours against your swatches.
 uniform bool palette_preview = false;
 
@@ -43,6 +48,10 @@ uniform float choppiness : hint_range(0.0, 1.0) = 0.85;
 uniform float detail_near = 120.0;
 uniform float detail_far = 900.0;
 
+group_uniforms Transmission;
+uniform float refraction_strength : hint_range(0.0, 0.05) = 0.008;
+uniform float refraction_depth : hint_range(0.1, 8.0) = 1.8;
+
 group_uniforms Foam;
 uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
 uniform float crest_strength : hint_range(0.0, 1.0) = 0.28;
@@ -52,10 +61,10 @@ uniform float shore_softness : hint_range(0.01, 0.5) = 0.06;
 uniform float contact_fade : hint_range(0.01, 2.0) = 0.12;
 
 group_uniforms Object_Bands;
-uniform vec3 object_band_colour : source_color = vec3(0.68, 0.96, 0.92);
-uniform float object_band_distance : hint_range(0.1, 3.0) = 0.46;
-uniform float object_band_width : hint_range(0.05, 0.6) = 0.17;
-uniform float object_band_strength : hint_range(0.0, 1.0) = 0.76;
+uniform vec3 object_band_colour : source_color = vec3(0.84, 1.0, 0.94);
+uniform float object_band_distance : hint_range(0.1, 3.0) = 0.22;
+uniform float object_band_width : hint_range(0.05, 0.6) = 0.07;
+uniform float object_band_strength : hint_range(0.0, 1.0) = 0.68;
 uniform float object_band_distortion : hint_range(0.0, 0.5) = 0.24;
 uniform float object_band_speed : hint_range(0.0, 3.0) = 0.8;
 uniform vec4 dynamic_band_emitters[16]; // world x, world z, footprint radius, phase
@@ -198,17 +207,21 @@ void fragment() {
     float breakup = noise(world_position.xz * 0.8 + vec2(clock * foam_speed * 0.12));
     float shore_break = noise(world_position.xz * 0.31 + vec2(-clock * 0.025, clock * 0.018));
     float foam_aa = max(fwidth(thickness), 0.006);
-    float shore_only = 1.0 - smoothstep(0.32, 0.55, water_depth);
-    float leading = 1.0 - smoothstep(0.025, 0.095 + foam_aa, thickness);
+    float shore_only = 1.0 - smoothstep(0.45, 0.82, water_depth);
+    float leading = 1.0 - smoothstep(0.03, 0.11 + foam_aa, thickness);
     float froth = noise(world_position.xz * 1.7 + vec2(clock * 0.035, -clock * 0.025));
     float leading_breakup = mix(0.36, 1.0, smoothstep(0.34, 0.65,
         mix(breakup, froth, 0.52)));
-    float band_centre = 0.18 + 0.018 * sin(clock * foam_speed * TAU + shore_break * TAU);
-    float band_width = 0.018 + foam_aa * 0.45;
+    float band_centre = 0.18 + 0.030 * sin(clock * foam_speed * TAU + shore_break * TAU);
+    float band_width = 0.030 + foam_aa * 0.50;
     float shore_band = 1.0 - smoothstep(band_width, band_width + foam_aa * 0.55,
         abs(thickness - band_centre));
     float band_breakup = smoothstep(0.45, 0.66, mix(shore_break, breakup, 0.35));
-	float surf = max(leading * leading_breakup * 0.88, shore_band * band_breakup * 0.72) * shore_only;
+	float wash = 1.0 - smoothstep(0.10, 0.26 + foam_aa,
+		abs(thickness - band_centre));
+	float wash_cells = smoothstep(0.40, 0.68, mix(froth, shore_break, 0.46));
+	float surf = max(leading * leading_breakup * 0.92,
+		max(shore_band * band_breakup * 0.84, wash * wash_cells * 0.34)) * shore_only;
 	surf *= step(0.001, foam_depth);
 	// Static silhouettes come from the overhead field. Moving characters and props contribute
 	// simple footprints through reusable emitters; both receive the same animated pale band.
@@ -252,6 +265,30 @@ void fragment() {
 	float object_band = 1.0 - smoothstep(object_band_width,
 		object_band_width + sdf_aa,
 		abs(distorted_distance - object_band_distance - pulse));
+	// Scene depth supplies a camera-facing waterline for every opaque depth-writing object.
+	// The authored SDF/emitter paths remain useful for full silhouettes and transparent props.
+	float depth_band_width = 0.08 + moving_noise * 0.12;
+	float depth_object_band = 1.0 - smoothstep(0.025, depth_band_width, to_solid);
+	depth_object_band *= smoothstep(0.12, 0.45, water_depth);
+	depth_object_band *= mix(0.72, 1.0, moving_noise);
+	// Look a few pixels into the opaque depth buffer so the band expands outside the visible
+	// silhouette. This makes arbitrary characters and props participate without components.
+	vec2 depth_pixel = vec2(1.0) / max(VIEWPORT_SIZE, vec2(1.0));
+	float depth_radius = 6.0 + moving_noise * 3.5;
+	float depth_silhouette = 0.0;
+	for (int i = 0; i < 4; i++) {
+		float angle = TAU * (float(i) / 4.0 + moving_noise * 0.035);
+		vec2 sample_uv = clamp(SCREEN_UV + vec2(cos(angle), sin(angle))
+			* depth_pixel * depth_radius, vec2(0.001), vec2(0.999));
+		float neighbour_depth = textureLod(depth_texture, sample_uv, 0.0).r;
+		// Godot 4 Forward+/Mobile use reverse-Z: a larger value is nearer the camera.
+		depth_silhouette = max(depth_silhouette,
+			smoothstep(0.000002, 0.00008, neighbour_depth - FRAGCOORD.z));
+	}
+	depth_silhouette *= smoothstep(0.12, 0.45, water_depth);
+	depth_silhouette *= mix(0.72, 1.0, moving_noise);
+	depth_object_band = max(depth_object_band, depth_silhouette);
+	object_band = max(object_band, depth_object_band);
     // Quiet, world-space glints replace the wide interpolated crest ribbons.
     vec2 d = wave_1.xy / max(length(wave_1.xy), 0.0001);
     float k = TAU / max(wave_1.w, 0.01);
@@ -263,18 +300,36 @@ void fragment() {
     float white = clamp(max(crest, surf), 0.0, 1.0);
     vec3 light_dir = sun_direction / max(length(sun_direction), 0.0001);
     float lambert = max(dot(n, light_dir), 0.0);
-    vec3 shaded_water = water * max(0.0, 1.0 + (lambert - max(light_dir.y, 0.0)) * wave_shading);
     vec3 view_dir = normalize(CAMERA_POSITION_WORLD - world_position);
     float fresnel = pow(1.0 - max(dot(n, view_dir), 0.0), 5.0);
-    // A broad restrained sky reflection; shallow water stays clear from overhead.
+	// Refract the already-rendered opaque scene. Fade distortion at contacts so foreground
+	// silhouettes do not bleed into the water, and keep the effect restrained for the toon look.
+	vec3 view_normal = normalize(mat3(VIEW_MATRIX) * n);
+	float refraction_amount = refraction_strength
+		* (1.0 - exp(-water_depth / max(refraction_depth, 0.001)))
+		* smoothstep(0.12, 0.8, to_solid) * (1.0 - fresnel);
+	vec2 refracted_uv = clamp(SCREEN_UV + view_normal.xy * refraction_amount,
+		vec2(0.001), vec2(0.999));
+	vec3 scene_colour = textureLod(screen_texture, refracted_uv, 0.0).rgb;
+	// The view-space depth difference is the optical path through the water. Per-channel
+	// absorption creates clear turquoise shallows and blue depths without a milky alpha wash.
+	float optical_depth = min(max(to_solid, 0.0), max(depth_fade, 0.001) * 2.0);
+	vec3 transmittance = exp(-max(absorption, vec3(0.0))
+		* absorption_strength * optical_depth);
+	vec3 water_scatter = water * max(0.0,
+		1.0 + (lambert - max(light_dir.y, 0.0)) * wave_shading);
+	vec3 scatter_amount = max(vec3(1.0) - transmittance, vec3(0.045));
+	vec3 shaded_water = scene_colour * transmittance
+		+ water_scatter * scatter_amount * scattering_strength;
+    // A broad restrained sky reflection at grazing angles.
     shaded_water = mix(shaded_water, vec3(0.36, 0.61, 0.70), fresnel * 0.30);
 	vec3 banded_water = mix(shaded_water, object_band_colour,
 		object_band * object_band_strength);
 	ALBEDO = mix(banded_water, foam_colour, white);
-    float opacity = mix(shallow_alpha, deep_alpha, smoothstep(0.0, 1.0, t));
-    opacity = mix(opacity, max(opacity, 0.75), fresnel * 0.65);
 	float band_opacity = object_band * object_band_strength;
-	ALPHA = mix(opacity, 1.0, max(white, band_opacity * 0.82)) * edge * contact;
+	// The shader already contains the transmitted scene colour, so it composites opaquely
+	// except at the shoreline. Foam and contact bands remain visible at the depth boundary.
+	ALPHA = edge * max(contact, max(white, band_opacity * 0.82));
     if (palette_preview) {
         ALBEDO = water;
         ALPHA = 1.0;

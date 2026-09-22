@@ -38,12 +38,10 @@ func _run() -> void:
 	else:
 		check(study != null and study.valid, "No valid shoreline study")
 		if study != null and study.valid:
-			var emitter := player.get_node_or_null("WaterBandEmitter") as WaterBandEmitter
-			check(emitter != null and emitter.is_in_group(&"water_band_emitters"), "Player water-band emitter missing")
 			var saved_position := player.global_position
 			player.global_position.y = terrain.sea_level() - 1.35
 			await process_frame
-			check(ocean.material.get_shader_parameter("dynamic_band_count") == 1, "Submerged dynamic emitter not sent to water")
+			check(ocean.material.get_shader_parameter("dynamic_band_count") == 0, "Opaque player unexpectedly requires a band emitter")
 			var prop := Node3D.new()
 			prop.name = "GenericBandProp"
 			scene.add_child(prop)
@@ -54,7 +52,7 @@ func _run() -> void:
 			prop_emitter.height = 1.2
 			prop.add_child(prop_emitter)
 			await process_frame
-			check(ocean.material.get_shader_parameter("dynamic_band_count") == 2, "Generic object emitter not sent to water")
+			check(ocean.material.get_shader_parameter("dynamic_band_count") == 1, "Generic fallback emitter not sent to water")
 			prop.queue_free()
 			await process_frame
 			player.global_position = saved_position
