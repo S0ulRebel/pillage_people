@@ -55,6 +55,30 @@ extends CharacterBody3D
 ## Seconds to cross-fade between clips. Too short snaps, too long makes turns feel sluggish.
 @export var clip_blend := 0.15
 
+@export_group("Weapon")
+## A stand-in cutlass, built from a box so the sword clips have something to swing. Turn it
+## off, or swap the mesh, once a real one is modelled.
+@export var show_weapon := true
+@export var weapon_bone := "mixamorig_RightHand"
+## Metres. Long axis is X, which is the direction the blade leaves the fist - see _attach_weapon.
+@export var sword_size := Vector3(0.70, 0.055, 0.018)
+## Slides the box along the blade so a short length sits inside the hand as a grip.
+@export var sword_offset := Vector3(0.28, 0.0, 0.0)
+## Only needed if a real mesh is authored along a different axis than this box.
+@export var sword_rotation := Vector3.ZERO
+@export var sword_colour := Color(0.72, 0.74, 0.78)
+
+@export_group("Combat")
+@export var clip_attack := "slash"
+## Where the swing starts inside the clip. Mixamo's "Stable Sword Inward Slash" runs 2.23s and
+## spends its first second winding up; the strike itself peaks at 1.23s. Measured from how fast
+## the right hand moves through the clip - the peak is 2.4x anything before it. Playing from
+## zero means pressing attack does nothing visible for a second.
+@export var attack_start := 0.95
+## How long the swing owns the animation before walking and idling take it back. The strike and
+## its follow-through fit in this; the clip's remaining recovery is not worth waiting through.
+@export var attack_length := 0.75
+
 @export_group("Jump feel")
 ## How high a full jump goes, in metres. The take-off speed is derived from it.
 @export var jump_height := 1.6
@@ -105,6 +129,10 @@ var _holding_jump := false
 var _holding_dive := false
 ## True between die() and revive(). Checked before anything else each frame.
 var _dead := false
+## Seconds left in the current swing; zero when not attacking.
+var _attack := 0.0
+## The placeholder blade, so it can be swapped or hidden without rebuilding the body.
+var _weapon: MeshInstance3D
 
 
 ## Take-off speed for the requested height: v = sqrt(2 * g * h).
@@ -112,6 +140,22 @@ var _dead := false
 ## fade the screen or start a respawn timer against the same frame.
 signal died
 signal revived
+## Emitted when a swing starts, not when it connects. Whatever deals damage should wait for
+## the blade to be somewhere useful rather than firing on the keypress.
+signal attacked
+
+
+func is_attacking() -> bool:
+	return _attack > 0.0
+
+
+## Starts a swing, if one is not already running. Movement is deliberately left alone - you can
+## walk while swinging, and the clip simply owns the animation until it runs out.
+func attack() -> void:
+	if _dead or _attack > 0.0:
+		return
+	_attack = attack_length
+	attacked.emit()
 
 
 func is_dead() -> bool:
@@ -187,6 +231,11 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_update_animation()
 		return
+
+	# Ticked before the swimming branch returns, or a swing started on land would never end.
+	_attack = maxf(0.0, _attack - delta)
+	if Input.is_action_just_pressed("attack"):
+		attack()
 
 	# --- jump feel: coyote time, buffered presses, short hops, heavier fall ---
 	if Input.is_action_just_pressed("jump"):
@@ -306,9 +355,81 @@ func _build_body() -> void:
 				_anim = node as AnimationPlayer
 				break
 		_set_looping()
+		_attach_weapon(model)
 		_model_loaded = true
 		return
 	_build_primitive_body()
+
+
+## Hangs the placeholder blade off the right hand.
+##
+## The blade runs along the hand bone's +X axis. That is measured rather than guessed: in this
+## rig the knuckles run index to ring along -X, so a blade leaving the fist on the index side -
+## pommel by the little finger, the way a sword is actually held - points along +X. A real mesh
+## authored along some other axis only needs sword_rotation set.
+##
+## A BoneAttachment3D follows the bone through the skeleton's own pose, so the sword stays in
+## the hand through every clip without anything being driven per frame. It has to be in the
+## tree before bone_name is set, or there is no skeleton yet to look the name up in.
+func _attach_weapon(model: Node3D) -> void:
+	if not show_weapon:
+		return
+	var skeleton: Skeleton3D = null
+	for node in _all_descendants(model):
+		if node is Skeleton3D:
+			skeleton = node as Skeleton3D
+			break
+	if skeleton == null:
+		return
+	if skeleton.find_bone(weapon_bone) == -1:
+		push_warning("player.gd: no bone called '%s', so the weapon has nowhere to hang."
+				% weapon_bone)
+		return
+	var mount := BoneAttachment3D.new()
+	mount.name = "WeaponMount"
+	skeleton.add_child(mount)
+	mount.bone_name = weapon_bone
+
+	_weapon = MeshInstance3D.new()
+	_weapon.name = "Weapon"
+	var box := BoxMesh.new()
+	box.size = sword_size
+	_weapon.mesh = box
+	_weapon.position = sword_offset
+	_weapon.rotation_degrees = sword_rotation
+	# Same flat treatment as the rest of him, so a placeholder does not arrive shinier than the
+	# character. Layer 20 is the overhead water camera - see _build_body.
+	var material := StandardMaterial3D.new()
+	material.albedo_color = sword_colour
+	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	material.metallic = 0.0
+	material.roughness = 1.0
+	material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	_weapon.material_override = material
+	mount.add_child(_weapon)
+	_weapon.set_layer_mask_value(20, true)
+	_fit_weapon.call_deferred(mount)
+
+
+## Cancels the rig's own unit scale out of the weapon.
+##
+## A BoneAttachment3D reproduces the bone's pose, and that pose carries whatever units the
+## skeleton was authored in - about 0.01 here, because the rig is in centimetres. A child
+## inherits it, so the first version of this put a 0.70 m blade in his hand measuring seven
+## millimetres. Nothing reports it: the node exists, the mesh is right, the size is what was
+## asked for, and only the render shows a sword the size of a splinter.
+##
+## Deferred because a node's global transform is not settled the moment it is added, and the
+## scale has to be read after the skeleton has posed it.
+func _fit_weapon(mount: BoneAttachment3D) -> void:
+	if _weapon == null or not is_instance_valid(mount):
+		return
+	var inherited := mount.global_transform.basis.get_scale()
+	var factor := 1.0 / maxf(inherited.x, 0.0001)
+	_weapon.scale = Vector3.ONE * factor
+	# The offset is a local position, so it is in the same inherited units and needs the same
+	# correction - otherwise the blade comes out the right size in the wrong place.
+	_weapon.position = sword_offset * factor
 
 
 ## Takes the shine off the imported material so the captain sits in the same world as the
@@ -440,6 +561,8 @@ func _update_animation() -> void:
 	var wanted := ""
 	if _dead:
 		wanted = clip_death
+	elif _attack > 0.0:
+		wanted = clip_attack
 	elif is_swimming():
 		wanted = clip_swim
 	elif not is_on_floor():
@@ -457,5 +580,9 @@ func _update_animation() -> void:
 		if candidate != "" and _anim.has_animation(candidate):
 			if candidate != _clip:
 				_anim.play(candidate, clip_blend)
+				# The swing is entered part-way in. See attack_start: the clip's first second
+				# is a wind-up, and starting at zero makes the button feel like it is not wired.
+				if candidate == clip_attack and _attack > 0.0:
+					_anim.seek(attack_start, true)
 				_clip = candidate
 			return
