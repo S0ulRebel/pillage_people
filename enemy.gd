@@ -9,6 +9,8 @@ extends CharacterBody3D
 ## script without a scene to place. It borrows the captain's own model until the grunt exists;
 ## swap model_path and the rest carries over, because the clips are Mixamo-named either way.
 
+const HealthBar = preload("res://health_bar.gd")
+
 signal damaged(amount: int, remaining: int)
 signal died
 
@@ -25,6 +27,9 @@ signal died
 ## Movement rotates nothing yet, but a model authored facing the other way still needs turning.
 @export var model_yaw := 0.0
 @export var gravity := 30.0
+## Which bone the health bar is measured from, and how far above it the bar sits.
+@export var head_bone := "mixamorig_Head"
+@export var bar_clearance := 0.35
 
 @export_group("Animation")
 ## Falls back to the walk if there is no idle, because the grunt's first set of animations is
@@ -53,6 +58,8 @@ var _body: Node3D
 ## the ground rather than sinking half into it. Measured from the mesh, not assumed.
 var _toppled := -1.0
 var _lie_lift := 0.0
+var _bar: Sprite3D
+var _bar_placed := false
 
 
 func _ready() -> void:
@@ -77,6 +84,8 @@ func take_damage(amount: int, _from: Node = null) -> void:
 	if _dead:
 		return
 	_health = maxi(0, _health - amount)
+	if _bar != null:
+		_bar.set_fraction(float(_health) / float(maxi(max_health, 1)))
 	damaged.emit(amount, _health)
 	if _health == 0:
 		_die()
@@ -95,6 +104,8 @@ func _die() -> void:
 	# Deferred because this is reached from inside a physics query - the blade's overlap check -
 	# and changing collision state mid-query is what makes Godot complain about flushing.
 	set_deferred("collision_layer", 0)
+	if _bar != null:
+		_bar.hide()
 	if _anim != null and _anim.has_animation(clip_death):
 		_play(clip_death)
 	else:
@@ -113,6 +124,8 @@ func _physics_process(delta: float) -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
 	move_and_slide()
+	if not _bar_placed:
+		_place_bar()
 	_fall_over(delta)
 
 
@@ -188,6 +201,57 @@ func _build_body() -> void:
 		if cycle != "" and _anim != null and _anim.has_animation(cycle):
 			_anim.get_animation(cycle).loop_mode = Animation.LOOP_LINEAR
 	_measure_body.call_deferred()
+	_add_bar()
+
+
+## Hangs the health bar above the body, at a default height for now.
+##
+## The real height needs the head bone, and the skeleton has not posed yet - see _place_bar,
+## which does it on the first physics frame instead.
+func _add_bar() -> void:
+	_bar = HealthBar.new()
+	_bar.name = "HealthBar"
+	add_child(_bar)
+	_bar.position = Vector3(0.0, 1.8 + bar_clearance, 0.0)
+	_bar.set_fraction(float(_health) / float(maxi(max_health, 1)))
+
+
+## Moves the bar to sit just above the head, once there is a posed skeleton to ask.
+##
+## The height comes from the head bone. The obvious route - the mesh's AABB - does not work on
+## a rigged body: that box is in the skin's own space while the render is driven by the
+## skeleton, so it reports this grunt as two centimetres tall.
+##
+## This runs on the first physics frame rather than deferred from _ready, which was the first
+## attempt and put the bar around knee height. Deferring is not long enough: the skeleton had
+## not posed, so the bone reported the body's own origin and the measurement came out as zero.
+##
+## Once placed the bar stays at a fixed height rather than following the head, so it does not
+## bob through the walk cycle or ride the body down as it dies.
+func _place_bar() -> void:
+	_bar_placed = true
+	var skeletons := find_children("*", "Skeleton3D", true, false)
+	if skeletons.is_empty():
+		return
+	var skeleton: Skeleton3D = skeletons[0]
+	var bone := skeleton.find_bone(head_bone)
+	if bone == -1:
+		return
+	# get_bone_global_pose, not get_bone_global_rest. The two are in different conventions on
+	# this rig: the pose comes back with up on -Z, which is what the skeleton's own transform
+	# expects, while the rest comes back with up on +Y. Feeding the rest through that transform
+	# put the bar at the grunt's feet, because its height landed on an axis the rotation then
+	# pointed sideways.
+	#
+	# The cost is that this reads the head mid-stride, and it bobs about 10 cm through a walk
+	# cycle. Every enemy is placed on the same frame so they agree with each other, and 10 cm
+	# above a floating bar is not something anyone will see.
+	var head: Vector3 = skeleton.global_transform * skeleton.get_bone_global_pose(bone).origin
+	var top := head.y - global_position.y
+	# A head that measures at or below the feet means the pose still is not ready; the default
+	# set in _add_bar is a better answer than a bar around the ankles.
+	if top > 0.2:
+		_bar.position = Vector3(0.0, top + bar_clearance, 0.0)
 
 
 ## Works out how far a felled body has to rise to lie on the ground, from the model's own

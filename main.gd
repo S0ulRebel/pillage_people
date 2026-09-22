@@ -6,6 +6,7 @@ extends Node3D
 
 const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
 const Enemy = preload("res://enemy.gd")
+const Hud = preload("res://hud.gd")
 var _coastal_study: Node3D
 
 ## Stand-in targets so the cutlass has something to hit. They use the captain's own model until
@@ -17,6 +18,21 @@ var _coastal_study: Node3D
 @onready var _player: CharacterBody3D = $Player
 @onready var _camera_rig: Node3D = $CameraRig
 @onready var _ocean: MeshInstance3D = $Ocean
+
+
+## Adds the player's health bar to the HUD layer that is already in the scene.
+##
+## Built here rather than placed in main.tscn so it can follow whatever the player's max_health
+## is set to, and so it is wired to the signals in one place instead of half in the scene.
+func _add_health_bar() -> void:
+	var bar: Control = Hud.new()
+	bar.name = "PlayerHealth"
+	$HUD.add_child(bar)
+	bar.show_health(_player.health(), _player.max_health)
+	_player.damaged.connect(func(_amount: int, remaining: int) -> void:
+		bar.show_health(remaining, _player.max_health))
+	_player.revived.connect(func() -> void:
+		bar.show_health(_player.health(), _player.max_health))
 
 
 ## Drops a ring of practice targets around the spawn point.
@@ -102,6 +118,7 @@ func _ready() -> void:
 				printed.append(str(tunnel.curve.get_point_position(i)))
 			print("curve points: ", ", ".join(printed))
 	_player.global_position = spawn + Vector3.UP * 2.0
+	_add_health_bar()
 	_spawn_enemies(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_player.water_level = _terrain.sea_level()
