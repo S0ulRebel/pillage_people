@@ -90,6 +90,10 @@ extends CharacterBody3D
 @export var hit_to := 0.42
 @export var damage := 1
 @export var max_health := 5
+## Sparks where the blade lands. Near-white, because the sand is warm and a gold spark measured
+## only 33 luminance above it - invisible in practice. This one manages 59, at three and a half
+## times the colour distance, and reads as steel besides.
+@export var hit_colour := Color(0.93, 0.97, 1.0)
 
 @export_group("Jump feel")
 ## How high a full jump goes, in metres. The take-off speed is derived from it.
@@ -124,6 +128,7 @@ var camera_rig: Node3D
 var touch_controls: CanvasLayer
 
 const Weapon = preload("res://weapon.gd")
+const HitSpark = preload("res://hit_spark.gd")
 const MODEL_PATH := "res://art/models/captain.glb"
 
 @onready var _body: Node3D = $Body
@@ -203,6 +208,13 @@ func _strike() -> void:
 		if body.has_method("take_damage"):
 			_struck.append(body)
 			body.take_damage(damage, self)
+			# On the target, at chest height, thrown back the way the blow travelled. Spawned
+			# on the scene rather than on either fighter so it does not ride the follow-through
+			# or vanish when a body is freed.
+			var towards: Vector3 = body.global_position - global_position
+			towards.y = 0.0
+			var contact: Vector3 = body.global_position + Vector3.UP * 1.0 					- towards.normalized() * 0.35
+			HitSpark.burst(get_parent(), contact, towards, hit_colour)
 			hit.emit(body)
 
 

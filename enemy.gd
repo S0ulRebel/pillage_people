@@ -10,6 +10,7 @@ extends CharacterBody3D
 
 const HealthBar = preload("res://health_bar.gd")
 const Weapon = preload("res://weapon.gd")
+const HitSpark = preload("res://hit_spark.gd")
 
 signal damaged(amount: int, remaining: int)
 signal died
@@ -69,6 +70,9 @@ var target: Node3D
 ## who struck from 1.7 m could hit from outside anywhere the player could answer from. Whatever
 ## these numbers become, they want to stay in step with that.
 @export var hit_reach := 1.35
+## Sparks where the grunt's blade lands. Red, against the captain's gold, so taking a hit and
+## landing one never look like the same event.
+@export var hit_colour := Color(0.95, 0.30, 0.22)
 
 @export_group("Weapon")
 @export var show_weapon := true
@@ -268,6 +272,8 @@ func _strike() -> void:
 	if target.has_method("take_damage"):
 		_struck.append(target)
 		target.take_damage(damage, self)
+		var contact: Vector3 = target.global_position + Vector3.UP * 1.0 				- (towards / distance) * 0.35
+		HitSpark.burst(get_parent(), contact, towards, hit_colour)
 
 
 ## Picks the clip for what this grunt is doing. The fallback chain matters while the animation
