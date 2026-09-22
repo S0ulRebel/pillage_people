@@ -124,6 +124,17 @@ vec2 envelopes(vec2 p, vec3 eye) {
     return vec2(shoal * broad, shoal * detail);
 }
 
+float scene_view_z(vec2 uv, mat4 inv_projection) {
+    float raw_depth = texture(depth_texture, uv).r;
+    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+    vec3 ndc = vec3(uv, raw_depth) * 2.0 - 1.0;
+    #else
+    vec3 ndc = vec3(uv * 2.0 - 1.0, raw_depth);
+    #endif
+    vec4 scene_view = inv_projection * vec4(ndc, 1.0);
+    return scene_view.z / max(abs(scene_view.w), 0.000001) * sign(scene_view.w);
+}
+
 // A radial grid gets coarser with distance. Vertex displacement must disappear before a
 // cell becomes wider than half its wavelength or the triangles turn waves into stepped
 // concentric bands. Fragment normals remain filtered independently by screen derivatives.
@@ -181,18 +192,10 @@ void fragment() {
     float thickness = world_position.y - bed;
     if (thickness <= 0.0) { discard; }
     float water_depth = max(sea_y - bed, 0.0);
-    float raw = texture(depth_texture, SCREEN_UV).r;
-    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-    vec3 ndc = vec3(SCREEN_UV, raw) * 2.0 - 1.0;
-    #else
-    vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, raw);
-    #endif
-    vec4 scene_view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
+    float scene_z = scene_view_z(SCREEN_UV, INV_PROJECTION_MATRIX);
     float to_solid = 1000.0;
-    if (abs(scene_view.w) > 0.000001) {
-        float surface_z = (VIEW_MATRIX * vec4(world_position, 1.0)).z;
-        to_solid = max(surface_z - scene_view.z / scene_view.w, 0.0);
-    }
+    float surface_z = (VIEW_MATRIX * vec4(world_position, 1.0)).z;
+    to_solid = max(surface_z - scene_z, 0.0);
     float contact = smoothstep(0.0, max(contact_fade, 0.001), to_solid);
     float edge = smoothstep(0.0, max(shore_softness, 0.001), thickness);
     float t = clamp(water_depth / max(depth_fade, 0.001), 0.0, 1.0);
@@ -317,6 +320,13 @@ void fragment() {
 		* smoothstep(0.12, 0.8, to_solid) * (1.0 - fresnel);
 	vec2 refracted_uv = clamp(SCREEN_UV + view_normal.xy * refraction_amount,
 		vec2(0.001), vec2(0.999));
+	// Screen-space refraction must not step across a foreground silhouette. If the offset
+	// lands on a character or prop that is closer than the opaque surface behind this water
+	// pixel, fall back to the original UV instead of dragging a bright halo into the sea.
+	float refracted_scene_z = scene_view_z(refracted_uv, INV_PROJECTION_MATRIX);
+	float foreground_gap = refracted_scene_z - scene_z;
+	float refraction_valid = 1.0 - smoothstep(0.02, 0.35, foreground_gap);
+	refracted_uv = mix(SCREEN_UV, refracted_uv, refraction_valid);
 	vec3 scene_colour = textureLod(screen_texture, refracted_uv, 0.0).rgb;
 	// The view-space depth difference is the optical path through the water. Per-channel
 	// absorption creates clear turquoise shallows and blue depths without a milky alpha wash.
