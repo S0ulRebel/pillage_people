@@ -8,6 +8,7 @@ const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
 const Enemy = preload("res://enemy.gd")
 const Hud = preload("res://hud.gd")
 const Rocks = preload("res://rocks.gd")
+const Barrel = preload("res://art/props/barrel.tscn")
 const Music = preload("res://music.gd")
 var _coastal_study: Node3D
 ## Survives a scene reload, because the script does and the node does not. Only --deathtest
@@ -23,6 +24,10 @@ static var _death_test_runs := 0
 @export var enemy_far := 45.0
 ## Generated rocks scattered over the island - see rocks.gd. Zero turns them off.
 @export var rock_count := 40
+## Barrels: some on the sand, some floating. They are rigid bodies, so they roll when shoved
+## and bob when they end up in the sea - see art/props/barrel.gd.
+@export var barrels_ashore := 5
+@export var barrels_afloat := 4
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
 @export var restart_delay := 3.4
@@ -121,6 +126,46 @@ func _scatter_rocks(around: Vector3) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("rocks") + randi()
 	print("scattered %d of %d rocks" % [field.scatter(_terrain, around, rng), rock_count])
+
+
+## Drops barrels on the beach and floats a few offshore.
+##
+## The floating ones are put over seabed that is actually deep enough - dropping one where the
+## water is ankle deep gives a barrel resting on the bottom, which looks like buoyancy is
+## broken rather than like shallow water.
+func _place_barrels(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args():
+		return
+	var sea: float = _terrain.sea_level()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("barrels") + randi()
+	var ashore := 0
+	var afloat := 0
+	for i in barrels_ashore + barrels_afloat:
+		var wet := i >= barrels_ashore
+		for attempt in 24:
+			var angle := rng.randf() * TAU
+			var away := rng.randf_range(6.0, 30.0)
+			var at := around + Vector3(cos(angle), 0.0, sin(angle)) * away
+			var ground: float = _terrain.height_at(at.x, at.z)
+			var depth: float = sea - ground
+			var ok: bool = depth > 1.2 if wet else ground > sea + 0.4
+			if not ok:
+				continue
+			var barrel: RigidBody3D = Barrel.instantiate()
+			barrel.name = "Barrel%d" % i
+			barrel.water_level = sea
+			add_child(barrel)
+			# Floating ones start at the surface so they settle rather than plunge and bounce
+			# back up; the rest stand on the sand.
+			barrel.global_position = Vector3(at.x, sea - 0.3 if wet else ground, at.z)
+			barrel.rotation.y = rng.randf() * TAU
+			if wet:
+				afloat += 1
+			else:
+				ashore += 1
+			break
+	print("barrels: %d ashore, %d afloat" % [ashore, afloat])
 
 
 ## Scatters grunts around the spawn point at varied distances and bearings.
@@ -230,6 +275,7 @@ func _ready() -> void:
 	_add_health_bar()
 	_start_music()
 	_scatter_rocks(spawn)
+	_place_barrels(spawn)
 	_spawn_enemies(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_player.water_level = _terrain.sea_level()
