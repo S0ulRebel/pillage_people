@@ -62,8 +62,11 @@ extends CharacterBody3D
 @export var weapon_bone := "mixamorig_RightHand"
 ## Metres. Long axis is X, which is the direction the blade leaves the fist - see _attach_weapon.
 @export var sword_size := Vector3(0.70, 0.055, 0.018)
-## Slides the box along the blade so a short length sits inside the hand as a grip.
-@export var sword_offset := Vector3(0.28, 0.0, 0.0)
+## Metres, along the hand bone's own axes. X slides the box along the blade so a short length
+## sits inside the hand as a grip. Y runs towards the fingertips, which is downwards while the
+## arm hangs, and 0 puts the blade through the wrist joint rather than in the fist - the middle
+## knuckle measures 5.2 cm along it and the joint past that 8.3 cm, so the hilt belongs between.
+@export var sword_offset := Vector3(0.28, 0.07, 0.0)
 ## Only needed if a real mesh is authored along a different axis than this box.
 @export var sword_rotation := Vector3.ZERO
 @export var sword_colour := Color(0.72, 0.74, 0.78)
