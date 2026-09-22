@@ -13,13 +13,26 @@ signal damaged(amount: int, remaining: int)
 signal died
 
 @export var model_path := "res://art/models/grunt.glb"
+## NOTE: the grunt's size is NOT set here, and cannot be. He is rigged now, so the scale has to
+## go in nodes/root_scale in art/models/grunt.glb.import, currently 1.794 - which puts him at
+## 90% of the captain's height, measured toe bone to head bone. .import files are gitignored,
+## so a fresh clone gets root_scale 1.0 back and a grunt the size of a mouse.
+##
+## The static version of this model had its scale baked into the file instead, which is better
+## because it survives a clone. That stopped being possible the moment he was rigged: a scale
+## on the root of a skinned mesh leaves its inverse-bind matrices behind and tears it apart.
 @export var max_health := 3
 ## Movement rotates nothing yet, but a model authored facing the other way still needs turning.
 @export var model_yaw := 0.0
 @export var gravity := 30.0
 
 @export_group("Animation")
+## Falls back to the walk if there is no idle, because the grunt's first set of animations is
+## walk, slash and death with nothing to stand still in. A clip that does not exist leaves the
+## model in its bind pose, which for a Mixamo rig is a T-pose - arms out, staring ahead. A
+## marching target reads as a placeholder; a T-posed one reads as broken.
 @export var clip_idle := "idle"
+@export var clip_walk := "walk"
 @export var clip_death := "death"
 @export var clip_blend := 0.15
 ## How long the body takes to fall over when the model has no death clip, which is the case
@@ -46,7 +59,7 @@ func _ready() -> void:
 	_health = max_health
 	_build_collider()
 	_build_body()
-	_play(clip_idle)
+	_play(_standing_clip())
 
 
 func health() -> int:
@@ -121,6 +134,14 @@ func _fall_over(delta: float) -> void:
 	_body.position.y = _lie_lift * eased
 
 
+## Whatever this body should be doing while it waits: the idle if there is one, else the walk.
+func _standing_clip() -> String:
+	for candidate in [clip_idle, clip_walk]:
+		if candidate != "" and _anim != null and _anim.has_animation(candidate):
+			return candidate
+	return ""
+
+
 func _play(name_: String) -> void:
 	if _anim == null or name_ == "" or name_ == _clip or not _anim.has_animation(name_):
 		return
@@ -160,9 +181,12 @@ func _build_body() -> void:
 		elif node is AnimationPlayer and _anim == null:
 			_anim = node as AnimationPlayer
 	_flatten_materials(model)
-	if _anim and _anim.has_animation(clip_idle):
-		# glTF carries no loop flag, so an idle would otherwise stop on its last frame.
-		_anim.get_animation(clip_idle).loop_mode = Animation.LOOP_LINEAR
+	# glTF carries no loop flag, so a cycle would otherwise stop on its last frame and the body
+	# would freeze mid-stride. The death clip is deliberately not in here: it ends on the floor
+	# and should stay there.
+	for cycle in [clip_idle, clip_walk]:
+		if cycle != "" and _anim != null and _anim.has_animation(cycle):
+			_anim.get_animation(cycle).loop_mode = Animation.LOOP_LINEAR
 	_measure_body.call_deferred()
 
 
