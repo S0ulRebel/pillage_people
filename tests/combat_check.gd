@@ -65,7 +65,58 @@ func _run() -> void:
 			"captain and grunt knockback have drifted apart by %.1fx - they were two"
 			% ratio + " implementations of one idea once before")
 	await _swing_travel(captain, terrain)
+	await _input_path(captain, terrain)
 	_finish()
+
+
+## Do the actual buttons still work?
+##
+## Worth its own check because nothing else tests it. --jumptest calls request_jump() directly
+## and combat_check calls attack() directly, so the whole keyboard path could be severed and
+## every other number here would stay exactly as it is. This feeds real actions through
+## Input.parse_input_event and watches what the captain does with them.
+func _input_path(captain: CharacterBody3D, terrain: Node) -> void:
+	var at := Vector3(40.0, 0.0, 40.0)
+	captain.global_position = Vector3(at.x, terrain.height_at(at.x, at.z) + 0.2, at.z)
+	captain.velocity = Vector3.ZERO
+	for i in 120:
+		await physics_frame
+		if captain.is_on_floor():
+			break
+
+	_press("attack")
+	for i in 4:
+		await physics_frame
+	var swung: bool = captain.is_attacking()
+	_release("attack")
+	for i in 60:
+		await physics_frame
+
+	var before := captain.global_position.y
+	_press("jump")
+	for i in 12:
+		await physics_frame
+	var rose: float = captain.global_position.y - before
+	_release("jump")
+	print("input path: attack pressed -> swinging=%s | jump pressed -> rose %.2f m"
+			% [swung, rose])
+	check(swung, "pressing attack did nothing - the input path to attack() is broken")
+	check(rose > 0.2, "pressing jump lifted him %.2f m - the input path to the jump is broken"
+			% rose)
+
+
+func _press(action: String) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = true
+	Input.parse_input_event(event)
+
+
+func _release(action: String) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = false
+	Input.parse_input_event(event)
 
 
 ## How far the captain gets while his own blade is out.

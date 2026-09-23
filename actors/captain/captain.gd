@@ -310,7 +310,34 @@ func _jump_velocity() -> float:
 	return sqrt(2.0 * rise_gravity * jump_height)
 
 
-## Connected to the touch jump button by main.gd (press and release).
+## Presses and releases - the things that happen once.
+##
+## These were polled in _physics_process with is_action_just_pressed. That works, but it asks
+## a question every tick that only has an answer on the tick an event arrived, and "just
+## pressed" is latched per frame: when the render rate and the physics rate differ, a press can
+## be seen on two physics ticks or fall between them and be missed. An input callback fires
+## once, for the event that actually happened.
+##
+## It also stops a click on the virtual stick from swinging the cutlass. Input consumed by the
+## touch controls never reaches here, where polling saw it regardless.
+##
+## The HELD states stay polled in _physics_process - the movement stick, sprint, swimming up
+## and diving. Those are genuinely a question asked every tick rather than a moment in time.
+func _unhandled_input(event: InputEvent) -> void:
+	# Nothing is read while he is dead, not even to buffer it, or he jumps the instant he
+	# respawns. This is the guard the polling got by sitting after the death branch.
+	if _dead:
+		return
+	if event.is_action_pressed("attack"):
+		attack()
+	elif event.is_action_pressed("jump"):
+		request_jump()
+	elif event.is_action_released("jump"):
+		release_jump()
+
+
+## Connected to the touch jump button by main.gd (press and release), and to the keyboard by
+## _unhandled_input above.
 func request_jump() -> void:
 	_buffered = jump_buffer
 	_holding_jump = true
@@ -377,16 +404,11 @@ func _physics_process(delta: float) -> void:
 	# meant every swing died before its strike window opened. Measured, that is a captain who
 	# lands one blow in six and dies - not a fight, a formality. He is still shoved and still
 	# loses control for 0.22 s; he just gets to finish what he started.
-	if Input.is_action_just_pressed("attack"):
-		attack()
 	_strike()
 
 	# --- jump feel: coyote time, buffered presses, short hops, heavier fall ---
-	if Input.is_action_just_pressed("jump"):
-		_buffered = jump_buffer
-		_holding_jump = true
-	if Input.is_action_just_released("jump"):
-		_holding_jump = false
+	# The press and the release are caught in _unhandled_input; what is left here is the
+	# countdown they start.
 	_buffered = maxf(0.0, _buffered - delta)
 	_coyote = coyote_time if is_on_floor() else maxf(0.0, _coyote - delta)
 
