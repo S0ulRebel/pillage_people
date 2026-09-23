@@ -5,7 +5,12 @@ extends Node3D
 ## everything else. What a grunt IS - the idle/chase/swing states, health, staggering, dying -
 ## lives in grunt.gd next to this. This only decides where they start.
 
-const Grunt := preload("res://actors/grunt/grunt.gd")
+## The scene rather than the script. A grunt built with Grunt.new() takes the script's own
+## defaults for all thirty-six of its exported settings and there is nowhere to change them:
+## @export puts a value in the inspector, and a node made from code never appears in one. The
+## scene is where those values live now - open grunt.tscn, set them, and every grunt spawned
+## from it has them.
+const Grunt := preload("res://actors/grunt/grunt.tscn")
 
 @export var count := 5
 ## How far out they are scattered. Far enough that none is visible from the spawn, so they are
@@ -42,11 +47,14 @@ func spawn(terrain: Node, target: Node3D, near: Vector3, rng: RandomNumberGenera
 				break
 		if not found:
 			continue
-		var grunt: CharacterBody3D = Grunt.new()
+		var grunt: CharacterBody3D = Grunt.instantiate()
 		grunt.name = "Enemy%d" % i
+		# Set before add_child where it can be: a setter may do slow work, and the docs single
+		# this out as mattering in procedural placement. global_position is the exception - it
+		# needs the node in the tree to mean anything.
+		grunt.target = target
 		add_child(grunt)
 		grunt.global_position = spot
-		grunt.target = target
 		# Announced as it is made rather than collected afterwards. The sound used to be wired
 		# by looping over the scene's Enemy children from a function that ran BEFORE any grunt
 		# existed - it connected nothing, silently, and a grunt could be cut down without a

@@ -170,9 +170,9 @@ const MODEL_PATH := "res://art/models/captain.glb"
 ## False when the model is missing and the blocky stand-in is standing in for it.
 var _model_loaded := false
 ## The model's own AnimationPlayer, or null until it has clips on it.
-var _anim: AnimationPlayer
+## The model's clips - see actors/parts/clips.gd, shared with the grunt.
+var _clips: Clips
 ## What is playing, so a clip is not restarted from the top every frame.
-var _clip := ""
 var _walk_time := 0.0
 var _coyote := 0.0
 var _buffered := 0.0
@@ -302,7 +302,7 @@ func revive() -> void:
 	_knock.clear()
 	# Clearing this makes _update_animation treat the next clip as a change and play it. Without
 	# it the captain stands back up still holding the last frame of his own death.
-	_clip = ""
+	_clips.forget()
 	revived.emit()
 
 
@@ -339,6 +339,10 @@ func _ready() -> void:
 	_knock.recovery = stagger
 	_knock.damping = knock_damping
 	add_child(_knock)
+	_clips = Clips.new()
+	_clips.name = "Clips"
+	_clips.blend = clip_blend
+	add_child(_clips)
 	_build_body()
 
 
@@ -520,7 +524,7 @@ func _build_body() -> void:
 		_flatten_materials(model)
 		for node in _all_descendants(model):
 			if node is AnimationPlayer:
-				_anim = node as AnimationPlayer
+				_clips.use(node as AnimationPlayer)
 				break
 		_set_looping()
 		_attach_weapon(model)
@@ -646,12 +650,10 @@ func _animate_walk(rest := false) -> void:
 ## worth having outlasts its 0.73s - without the loop the character freezes into its last frame
 ## on the way down.
 func _set_looping() -> void:
-	if _anim == null:
-		return
 	for name_ in [clip_idle, clip_walk, clip_run, clip_swim, clip_fall]:
-		if name_ == "" or not _anim.has_animation(name_):
+		if not _clips.has(name_):
 			continue
-		var clip := _anim.get_animation(name_)
+		var clip := _clips.animation(name_)
 		if clip.loop_mode != Animation.LOOP_LINEAR:
 			clip.loop_mode = Animation.LOOP_LINEAR
 
@@ -662,8 +664,6 @@ func _set_looping() -> void:
 ## what a generator gives you - simply stands in its rest pose, and each clip starts working
 ## the moment it is added. That way the states can be got right before the animations arrive.
 func _update_animation() -> void:
-	if _anim == null:
-		return
 	var wanted := ""
 	if _dead:
 		wanted = clip_death
@@ -680,15 +680,11 @@ func _update_animation() -> void:
 		else:
 			wanted = clip_run if ground_speed > run_above else clip_walk
 
-	# Fall back through to something that does exist, so a half-finished set still animates
+	# Falls back through to something that does exist, so a half-finished set still animates
 	# rather than freezing: no run clip yet means walking, no fall clip means the jump.
-	for candidate in [wanted, clip_walk, clip_idle]:
-		if candidate != "" and _anim.has_animation(candidate):
-			if candidate != _clip:
-				_anim.play(candidate, clip_blend)
-				# The swing is entered part-way in. See attack_start: the clip's first second
-				# is a wind-up, and starting at zero makes the button feel like it is not wired.
-				if candidate == clip_attack and _attack > 0.0:
-					_anim.seek(attack_start, true)
-				_clip = candidate
-			return
+	var was := _clips.current()
+	var playing := _clips.play(wanted, [clip_walk, clip_idle])
+	# The swing is entered part-way in. See attack_start: the clip's first second is a wind-up,
+	# and starting at zero makes the button feel like it is not wired.
+	if playing == clip_attack and playing != was and _attack > 0.0:
+		_clips.seek(attack_start)

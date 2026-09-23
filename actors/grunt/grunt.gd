@@ -114,8 +114,8 @@ const HEIGHT := 1.9
 var _hp: Health
 var _knock: Knockback
 var _dead := false
-var _anim: AnimationPlayer
-var _clip := ""
+## The model's clips - see actors/parts/clips.gd, shared with the captain.
+var _clips: Clips
 var _body: Node3D
 ## Seconds into the fall, and how far to raise the body so a model lying on its back rests on
 ## the ground rather than sinking half into it. Measured from the mesh, not assumed.
@@ -148,6 +148,10 @@ func _ready() -> void:
 	_knock.recovery = stagger
 	_knock.damping = knock_damping
 	add_child(_knock)
+	_clips = Clips.new()
+	_clips.name = "Clips"
+	_clips.blend = clip_blend
+	add_child(_clips)
 	_build_collider()
 	_build_body()
 	_play(_standing_clip())
@@ -195,7 +199,7 @@ func _die() -> void:
 	set_deferred("collision_layer", 0)
 	if _bar != null:
 		_bar.hide()
-	if _anim != null and _anim.has_animation(clip_death):
+	if _clips.has(clip_death):
 		_play(clip_death)
 	else:
 		# No rig, so nothing can be animated - tip the whole model over instead. Starting the
@@ -270,7 +274,7 @@ func _face(towards: Vector3, delta: float) -> void:
 
 
 func _swing() -> void:
-	if _anim == null or not _anim.has_animation(clip_attack):
+	if not _clips.has(clip_attack):
 		return
 	_attack = attack_length
 	_cooldown = attack_length + attack_cooldown
@@ -323,15 +327,11 @@ func _update_animation(moving: bool) -> void:
 		wanted = clip_walk
 	else:
 		wanted = _standing_clip()
-	if wanted == "" or _anim == null or not _anim.has_animation(wanted):
-		return
-	if wanted != _clip:
-		_anim.play(wanted, clip_blend)
+	var was := _clips.current()
+	if _clips.play(wanted) == clip_attack and _clips.current() != was:
 		# The swing is entered part-way in: the clip spends its first second winding up, and
 		# starting at zero means the grunt stands still for a beat before anything happens.
-		if wanted == clip_attack:
-			_anim.seek(attack_start, true)
-		_clip = wanted
+		_clips.seek(attack_start)
 
 
 ## Tips a body with no death clip onto its back.
@@ -355,16 +355,13 @@ func _fall_over(delta: float) -> void:
 ## Whatever this body should be doing while it waits: the idle if there is one, else the walk.
 func _standing_clip() -> String:
 	for candidate in [clip_idle, clip_walk]:
-		if candidate != "" and _anim != null and _anim.has_animation(candidate):
+		if _clips.has(candidate):
 			return candidate
 	return ""
 
 
 func _play(name_: String) -> void:
-	if _anim == null or name_ == "" or name_ == _clip or not _anim.has_animation(name_):
-		return
-	_anim.play(name_, clip_blend)
-	_clip = name_
+	_clips.play(name_)
 
 
 func _build_collider() -> void:
@@ -396,15 +393,15 @@ func _build_body() -> void:
 		# or the water loses this body's footprint. Same rule as the player.
 		if node is VisualInstance3D:
 			(node as VisualInstance3D).set_layer_mask_value(20, true)
-		elif node is AnimationPlayer and _anim == null:
-			_anim = node as AnimationPlayer
+		elif node is AnimationPlayer and not _clips.ready():
+			_clips.use(node as AnimationPlayer)
 	_flatten_materials(model)
 	# glTF carries no loop flag, so a cycle would otherwise stop on its last frame and the body
 	# would freeze mid-stride. The death clip is deliberately not in here: it ends on the floor
 	# and should stay there.
 	for cycle in [clip_idle, clip_walk]:
-		if cycle != "" and _anim != null and _anim.has_animation(cycle):
-			_anim.get_animation(cycle).loop_mode = Animation.LOOP_LINEAR
+		if _clips.has(cycle):
+			_clips.animation(cycle).loop_mode = Animation.LOOP_LINEAR
 	_measure_body.call_deferred()
 	_add_bar()
 	_attach_weapon(model)
