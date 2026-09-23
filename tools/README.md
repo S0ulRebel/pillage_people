@@ -19,6 +19,8 @@ not a convenience that happens to exist on one machine. Half the comments in `pr
 | `trim_clip.py` | Cut, pin, rename and drop clips on a rigged GLB. |
 | `inspect_clips.py` | Report what a rigged GLB's clips actually do — seams, length, motion. |
 | `make_loop.py` | Cut a generated music track into a seamless loop and encode it. |
+| `make_bed.py` | Pick the best ambience take and cut it into a seamless loop. Imports `make_loop`. |
+| `encode_ogg.py` | Encode a WAV to OGG Vorbis through Blender's libvorbis. |
 
 ## Running them
 
@@ -32,8 +34,10 @@ The Blender ones — `reorient_model.py`, `prepare_game_model.py`, `merge_animat
 from whatever the file they read declares, and a merge done at the wrong rate silently rescales
 every clip already in the file. `merge_animations.py` pins the rate at both ends because of it.
 
-`simplify_mesh.py` and `make_loop.py` are ordinary Python and want packages —
-`fast_simplification`, `scipy`, `trimesh`, and `av` respectively.
+`simplify_mesh.py`, `make_loop.py` and `make_bed.py` are ordinary Python and want packages —
+`fast_simplification`, `scipy` and `trimesh` for the first, `av` for the second, `numpy` for the
+third. `make_bed.py` does `from make_loop import ...`, so the two have to stay siblings; that
+import is the reason `make_loop.py` could not simply be left behind in the other workspace.
 
 ## What is deliberately not here
 
