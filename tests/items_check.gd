@@ -85,5 +85,35 @@ func _run() -> void:
 				"the cutlass and the flintlock both hang off '%s' - they are in the same fist"
 				% captain.cutlass.bone)
 
+	# Slots. Only one thing is in his hands at a time, and that is the whole reason the pistol
+	# stance reads: the Mixamo clip is a two-handed grip, so with the cutlass still drawn it
+	# dragged the sword hand across his face.
+	print("")
+	print("%-10s %-14s %s" % ["slot", "in hand", "visible"])
+	for i in captain.slots():
+		check(captain.equip(i) or captain.slot() == i, "slot %d cannot be drawn" % i)
+		for _f in 30:
+			await physics_frame
+		var shown: Array[String] = []
+		for j in captain.slots():
+			if captain._slots[j].visible:
+				shown.append(captain._slots[j].item.resource_name)
+		print("%-10d %-14s %s" % [i, captain.active_item().resource_name, ", ".join(shown)])
+		check(shown.size() == 1,
+				"%d weapons are visible at once with slot %d drawn - a held thing that stays"
+				% [shown.size(), i] + " in shot while another is out is the sword across his"
+				+ " face that started this")
+		check(captain.active() == captain._slots[i],
+				"slot %d was drawn but active() reports something else" % i)
+
+	# A number key must not rescue him from a swing he committed to. Without this the attack
+	# cooldown is optional: tap 2 then 1 and swing again immediately.
+	captain.equip(0)
+	for _f in 30:
+		await physics_frame
+	captain.attack()
+	check(captain.is_attacking(), "the swing this case depends on never started")
+	check(not captain.equip(1), "a weapon change cancelled a swing already under way")
+
 	print("items check: %s failures=%d" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures > 0 else 0)

@@ -12,8 +12,8 @@ D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\pillage_people
 See [CONVENTIONS.md](CONVENTIONS.md) for where files go and how behaviour is split up. Read
 that before adding anything.
 
-**Keyboard:** WASD move (relative to the camera) · Space jump · left click swing · **hold
-right click** to guard · **R** raise the flintlock, then left click fires · **Z** spyglass,
+**Keyboard:** WASD move (relative to the camera) · Space jump · **1** cutlass, **2** flintlock
+· left click uses whichever is in his hand · **hold right click** to guard · **Z** spyglass,
 wheel zooms while it is up · middle-drag turn and tilt the camera · mouse wheel zoom · Q/E
 turn · E beside the ship climbs onto the deck · E at the helm drives (W/S way, A/D turn, E lets go).
 
@@ -118,26 +118,53 @@ There is no block clip yet, so he guards in his idle pose, and the parry borrows
 of a landed hit. `clip_block` is an export and a dedicated parry/block pair is one generation
 away; both are one-line changes when they land.
 
+## Weapon slots
+
+**1** draws the cutlass, **2** the flintlock, and only the one he has drawn is in his hands.
+Left click uses it — one button with one meaning, rather than a click that changed sense
+depending on invisible state.
+
+That is the point of the change, but not the best reason for it. The pistol used to be free:
+always in his other hand, so you could swing *and* shoot, and the only brake was the reload. A
+weapon change takes **0.25 s** during which nothing works — no swing, no shot, no guard — so
+drawing the flintlock means giving up the parry until you put it away. "Which weapon" became a
+decision with a price.
+
+The swap also covers a visual problem. There is no sheathing animation, so the cutlass simply
+stops existing; a quarter second of committed nothing hides the pop. And the aiming stance only
+reads because the sword is gone — Mixamo's pistol clip is a **two-handed** grip, so with the
+cutlass still drawn it dragged the sword hand across his face.
+
+A number key will not rescue him from a swing he has committed to. Without that the attack
+cooldown is optional: tap 2 then 1 and swing again immediately.
+
+Weapons bring their own clips. The flintlock's `clip_idle` is the levelled hold, which is why
+that stance belongs to the weapon rather than being a mode the captain is in — see
+`actors/captain/flintlock.tres`. Empty falls back to his own, which is right for a cutlass: a
+pirate holding a sword stands like a pirate.
+
 ## The flintlock
 
-**R** raises it, left click fires, **R** again lowers it. One ball, then five seconds of
-reloading — and that is the design rather than a limitation. A pistol with a magazine turns
-the cutlass into a backup weapon, because ranged always beats melee when ammunition is free.
-The reload is the balance.
+**2** draws it, left click fires. One ball, then five seconds of reloading — and that is the
+design rather than a limitation. A pistol with a magazine turns the cutlass into a backup
+weapon, because ranged always beats melee when ammunition is free. The reload is the balance,
+and the swap is the rest of it.
 
-He keeps the cutlass in the other hand; there is no weapon swap. A captain with a sword in one
-hand and a pistol in the other is the whole picture, and it is less work besides.
+It used to live permanently in his off hand: *"a captain with a sword in one hand and a pistol
+in the other is the whole picture, and it is less work besides."* That was true until the
+aiming clip arrived, because Mixamo's is a two-handed grip — his sword hand came across to meet
+the pistol, and the picture it broke was the same one the line was defending. Slots replaced it.
 
 Aiming is a **cursor**, not a centre reticle — this is a bird's-eye camera, so a fixed
 crosshair would mean swinging the whole view round to shoot somebody standing beside you. The
 ball is traced from the **muzzle** to wherever the cursor points, not from the camera, so he
 cannot shoot through the rock he is standing behind.
 
-Raising it puts him in an **aiming stance** — both hands out, the flintlock level — held for
-as long as the pistol is up. Only while standing still: there is no aiming-walk clip and no
-upper-body blend, so moving keeps the walk and lets the pistol ride the arm swing, which is
-better than skating a pair of planted feet across the sand. There is still no fire or reload
-animation; he fires from the stance.
+Drawing it puts him in an **aiming stance** — both hands out, the flintlock level — held for
+as long as it is the weapon in his hands. Only while standing still: there is no aiming-walk
+clip and no upper-body blend, so moving keeps the walk and lets the pistol ride the arm swing,
+which is better than skating a pair of planted feet across the sand. There is still no fire or
+reload animation; he fires from the stance.
 
 ## Animations
 

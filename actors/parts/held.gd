@@ -17,6 +17,11 @@ extends MeshInstance3D
 ## way a sword or a pistol is actually held - points along +X. A mesh authored along some other
 ## axis only needs a rotation passed in.
 
+## What this is. Kept so a holder can ask the thing in its hand about itself - which clips it
+## brings, what it is called - instead of keeping an array of items alongside its array of
+## weapons and trusting the two indices to stay in step.
+var item: HeldItem
+
 var _offset := Vector3.ZERO
 
 
@@ -25,43 +30,44 @@ var _offset := Vector3.ZERO
 ##
 ## What each field of the item means, and why none of them can be worked out without looking at
 ## a render, is written down once in held_item.gd rather than at every call site.
-func mount(skeleton: Skeleton3D, item: HeldItem) -> bool:
-	if item == null or not item.is_real():
+func mount(skeleton: Skeleton3D, spec: HeldItem) -> bool:
+	if spec == null or not spec.is_real():
 		push_warning("held.gd: nothing to mount - the item is missing or empty.")
 		return false
-	if skeleton == null or skeleton.find_bone(item.bone) == -1:
+	if skeleton == null or skeleton.find_bone(spec.bone) == -1:
 		push_warning("held.gd: no bone called '%s', so there is nowhere to hang this."
-				% item.bone)
+				% spec.bone)
 		return false
-	_offset = item.offset
+	item = spec
+	_offset = spec.offset
 
 	var socket := BoneAttachment3D.new()
 	socket.name = "HandSocket"
 	skeleton.add_child(socket)
 	# Set after it is in the tree, or there is no skeleton yet to look the name up in.
-	socket.bone_name = item.bone
+	socket.bone_name = spec.bone
 
-	position = item.offset
-	if has_model(item.model):
+	position = spec.offset
+	if has_model(spec.model):
 		# A real model. This node keeps no mesh of its own and works as the socket: the model
 		# hangs off it, rotated onto the axis everything else assumes.
-		var model: Node3D = (load(item.model) as PackedScene).instantiate()
+		var model: Node3D = (load(spec.model) as PackedScene).instantiate()
 		model.name = "Model"
 		add_child(model)
 		# The rotation goes on the MODEL, not on this node. A sword's hitbox is placed along
 		# +X of this node, and turning the whole node would carry the hitbox off the blade.
-		model.rotation_degrees = item.rotation
-		model.position = item.grip
+		model.rotation_degrees = spec.rotation
+		model.position = spec.grip
 		_flatten(model)
 	else:
 		var box := BoxMesh.new()
-		box.size = item.size
+		box.size = spec.size
 		mesh = box
-		rotation_degrees = item.rotation
+		rotation_degrees = spec.rotation
 		# Flat, like everything else in this world. A placeholder that arrives shinier than the
 		# character holding it reads as a bug rather than as a stand-in.
 		var material := StandardMaterial3D.new()
-		material.albedo_color = item.colour
+		material.albedo_color = spec.colour
 		material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 		material.metallic = 0.0
 		material.roughness = 1.0

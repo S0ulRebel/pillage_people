@@ -44,7 +44,7 @@ func _run() -> void:
 		print("  blade rotation ", node.rotation_degrees, " position ", node.position)
 
 	if "--aim" in OS.get_cmdline_user_args():
-		player.set_aiming(true)
+		player.equip(1)
 		# Long enough for the 0.15 s cross-fade into the stance to finish.
 		for i in 30:
 			await process_frame

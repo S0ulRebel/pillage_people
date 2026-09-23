@@ -87,22 +87,26 @@ extends CharacterBody3D
 @export_range(0.0, 1.0) var guard_facing_dot := 0.25
 
 @export_group("Pistol")
-## A flintlock in the off hand - see actors/parts/gun.gd. He keeps the cutlass: a captain with
-## a sword in one hand and a pistol in the other is the whole picture, and it is less work than
-## a weapon-swap besides.
+## The flintlock - see actors/parts/gun.gd. Slot 1, and only one weapon is in his hands at a
+## time.
+##
+## It used to sit permanently in his off hand, on the grounds that a captain with a sword in
+## one hand and a pistol in the other is the whole picture. That held until the aiming clip
+## arrived: Mixamo's is a two-handed grip, so his sword hand comes across to meet the pistol
+## and drags the cutlass over his face. The clip broke the picture the argument was defending.
 @export var show_pistol := true
 ## Which bone, which model, and the three corrections that put the grip in his hand - all of
 ## it lives in flintlock.tres, so a weapon is a thing that can be handed around rather than
 ## eight fields spelled into whoever happens to hold it.
 @export var flintlock: HeldItem = preload("res://actors/captain/flintlock.tres")
-## The aiming stance, held while the flintlock is up and he is standing still.
+## How long a weapon change takes. Nothing is usable during it - he cannot swing, fire or
+## guard - and that is the point rather than a side effect.
 ##
-## Mixamo's two pistol clips are named the opposite way round to how they read. "Pistol Idle"
-## is the HOLD - both hands out, the pistol hand 28 cm from the hips and moving 1.3 cm across
-## four seconds - so that is this one, renamed `aim` on the way in. "Pistol Aim" is a 3.6 s
-## LOWERING that starts aimed and ends at rest, which is not a raise and is far too slow for a
-## key press, so it was left out. Measured with tools/inspect_clips.py rather than guessed.
-@export var clip_aim := "aim"
+## Before slots the flintlock was simply always in his other hand, so shooting cost nothing and
+## the only brake was the reload. A swap makes "which weapon" a decision with a price: draw the
+## pistol and you have given up the parry until you put it away. It also covers the moment the
+## cutlass stops existing, which without an animation is a one-frame pop.
+@export var swap_seconds := 0.25
 
 @export_group("Combat")
 @export var clip_attack := "slash"
@@ -211,10 +215,17 @@ var _struck: Array[Node] = []
 ## grunt's alone, separately, and they drifted; the grunt now uses the same two.
 var _hp: Health
 var _knock: Knockback
-## The flintlock, and whether it is up. Raising it is a stance rather than a held button: one
-## ball and a five second reload is a weapon you commit to, not one you tap.
 var _pistol: Gun
-var _aiming := false
+## The weapons in the order the number keys pick them, and which one is in his hands.
+##
+## All of them stay MOUNTED from the start and only their visibility changes. Building a weapon
+## costs a deferred frame - see held.gd's _fit, which cancels the rig's unit scale after the
+## socket is in the tree - so rebuilding on every key press would put an empty fist on screen
+## for a frame, every time.
+var _slots: Array[Held] = []
+var _slot := 0
+## Seconds until the weapon he just drew is usable. See swap_seconds.
+var _swap := 0.0
 ## Whether the guard is up, and how long it has been. The second is what makes a parry
 ## different from a block.
 var _guarding := false
@@ -232,8 +243,12 @@ var _was_wet := false
 ## fade the screen or start a respawn timer against the same frame.
 signal died
 signal revived
-## Emitted when the flintlock comes up or goes down, so a crosshair can appear with it.
+## Emitted when a ranged weapon comes into or out of his hands, so a crosshair can appear with
+## it. Still called aiming_changed because that is what it means to whoever listens: the
+## question "is he pointing something" has not changed, only what answers it.
 signal aiming_changed(up: bool)
+## Emitted when the weapon in his hands changes, with the slot index.
+signal equipped(slot: int)
 ## A blow turned aside, and a blow turned aside in the parry window. Separate because they
 ## should not sound or look the same - one is a thud on the guard, the other is a ring of
 ## steel and an opening.
@@ -260,7 +275,11 @@ func is_attacking() -> bool:
 ## Worth exposing rather than inferring from is_attacking(), which is false during the
 ## cooldown too and so cannot tell "swinging" from "not ready yet".
 func can_attack() -> bool:
-	return not _dead and _attack <= 0.0 and _cooldown <= 0.0
+	# Every gate attack() has. They were the same list until slots arrived, and a can_attack
+	# that says yes while he is holding a flintlock is a lie that only shows up as a swing
+	# that never happens.
+	return (not _dead and _attack <= 0.0 and _cooldown <= 0.0 and not _guarding
+			and _swap <= 0.0 and not is_aiming())
 
 
 func health() -> int:
@@ -336,7 +355,11 @@ func _strike() -> void:
 ## Starts a swing, if one is not already running. Movement is deliberately left alone - you can
 ## walk while swinging, and the clip simply owns the animation until it runs out.
 func attack() -> void:
-	if _dead or _attack > 0.0 or _cooldown > 0.0 or _guarding:
+	if _dead or _attack > 0.0 or _cooldown > 0.0 or _guarding or _swap > 0.0:
+		return
+	# Firing is main.gd's to trigger, because it needs the cursor - see shoot_at. This used to
+	# be checked at the call site; it belongs here, where it is a rule about the weapon.
+	if is_aiming():
 		return
 	_attack = attack_length
 	_cooldown = attack_length + attack_cooldown
@@ -376,8 +399,13 @@ func _jump_velocity() -> float:
 
 
 ## Whether the pistol is raised.
+## Whether he is pointing something rather than swinging it. This is the whole of what "aiming"
+## means now - it is a property of the weapon in his hands, not a mode he toggled into.
+##
+## True during a swap as well, so the crosshair appears the moment you press the key rather
+## than flickering in a quarter of a second later. Firing is blocked separately, in shoot_at.
 func is_aiming() -> bool:
-	return _aiming
+	return active() is Gun
 
 
 func is_guarding() -> bool:
@@ -388,7 +416,9 @@ func is_guarding() -> bool:
 ## division as the movement stick and sprint. What the poll has to find for itself is the
 ## RISING edge, because that is when the parry window starts.
 func _tick_guard(delta: float) -> void:
-	var wanted := Input.is_action_pressed("guard") and not _aiming
+	# Melee only, and never mid-swap. You cannot parry with a flintlock, and this is a rule
+	# about what he is holding rather than the special case it used to be.
+	var wanted := Input.is_action_pressed("guard") and not is_aiming() and _swap <= 0.0
 	if wanted and not _guarding:
 		_guard_time = 0.0
 	elif wanted:
@@ -427,13 +457,55 @@ func pistol() -> Gun:
 	return _pistol
 
 
-## Raises or lowers the flintlock.
-func set_aiming(up: bool) -> bool:
-	if _dead or _pistol == null or _aiming == up:
+## How many weapons he is carrying, and which one is out.
+func slots() -> int:
+	return _slots.size()
+
+
+func slot() -> int:
+	return _slot
+
+
+## The thing in his hands, and what that thing is. Null while he is empty-handed, which is a
+## real state: a captain built with show_weapon off has no slots at all.
+func active() -> Held:
+	return _slots[_slot] if _slot < _slots.size() else null
+
+
+func active_item() -> HeldItem:
+	var held := active()
+	return held.item if held != null else null
+
+
+## True while the weapon he just drew is still coming up. Nothing works during it.
+func is_swapping() -> bool:
+	return _swap > 0.0
+
+
+## Puts slot `index` in his hands. Returns whether it happened.
+##
+## Refused mid-swing on purpose. Letting a number key cancel a swing would make the attack
+## cooldown meaningless - you could tap 2 and 1 to swing again immediately - and "I can always
+## escape a committed animation" is the thing that makes a fight feel weightless.
+func equip(index: int) -> bool:
+	if _dead or index < 0 or index >= _slots.size() or index == _slot:
 		return false
-	_aiming = up
-	aiming_changed.emit(up)
+	if _attack > 0.0 or _swap > 0.0:
+		return false
+	_slot = index
+	_swap = swap_seconds
+	# The guard cannot survive it: the hand was busy changing weapons.
+	_guarding = false
+	_show_active()
+	equipped.emit(_slot)
+	aiming_changed.emit(is_aiming())
 	return true
+
+
+## Only the active weapon is in his hands; the rest stay mounted and hidden.
+func _show_active() -> void:
+	for i in _slots.size():
+		_slots[i].visible = (i == _slot)
 
 
 ## Fires at a point in the world, if there is a ball in it. Returns what was hit.
@@ -441,9 +513,9 @@ func set_aiming(up: bool) -> bool:
 ## The aim comes from OUTSIDE. Working out where the cursor points is a question about the
 ## camera and the screen, and the captain knows about neither - main.gd answers it.
 func shoot_at(aim: Vector3) -> Node:
-	if _dead or _pistol == null or not _aiming:
+	if _dead or not is_aiming() or _swap > 0.0:
 		return null
-	return _pistol.fire(self, aim)
+	return (active() as Gun).fire(self, aim)
 
 
 ## Presses and releases - the things that happen once.
@@ -464,13 +536,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	# respawns. This is the guard the polling got by sitting after the death branch.
 	if _dead:
 		return
-	if event.is_action_pressed("pistol"):
-		set_aiming(not _aiming)
+	if event.is_action_pressed("weapon_1"):
+		equip(0)
+	elif event.is_action_pressed("weapon_2"):
+		equip(1)
 	elif event.is_action_pressed("attack"):
-		# The cutlass only swings with the pistol down. Firing it is main.gd's to trigger,
-		# because it needs the cursor.
-		if not _aiming:
-			attack()
+		# One button, one meaning: use what you are holding. attack() returns on its own if
+		# that is a gun, because pointing it is main.gd's job.
+		attack()
 	elif event.is_action_pressed("jump"):
 		request_jump()
 	elif event.is_action_released("jump"):
@@ -585,6 +658,7 @@ func _physics_process(delta: float) -> void:
 
 	# Ticked before the swimming branch returns, or a swing started on land would never end.
 	_attack = maxf(0.0, _attack - delta)
+	_swap = maxf(0.0, _swap - delta)
 	_cooldown = maxf(0.0, _cooldown - delta)
 	_hp.tick(delta)
 	_tick_guard(delta)
@@ -784,7 +858,11 @@ func _attach_weapon(model: Node3D) -> void:
 		blade.free()
 		return
 	_sword = blade
+	_slots.append(blade)
 	_attach_pistol(skeleton)
+	# Slot 0 is whatever he drew first. Done after both are mounted rather than as each one
+	# arrives, or the cutlass would flash on screen and then be hidden again.
+	_show_active()
 
 
 ## The flintlock, in the other hand. Built separately from the cutlass rather than alongside it
@@ -799,6 +877,7 @@ func _attach_pistol(skeleton: Skeleton3D) -> void:
 		shot.free()
 		return
 	_pistol = shot
+	_slots.append(shot)
 
 
 func _flatten_materials(model: Node3D) -> void:
@@ -901,12 +980,30 @@ func _set_looping() -> void:
 	# The two stances loop for a plainer reason than the rest: they are HELD. The aim clip runs
 	# 4.03 s, so without this he freezes into its last frame the moment you hold the pistol up
 	# longer than that - which looks like nothing at all until you do.
-	for name_ in [clip_idle, clip_walk, clip_run, clip_swim, clip_fall, clip_aim, clip_block]:
+	var looping: Array[String] = [clip_idle, clip_walk, clip_run, clip_swim, clip_fall,
+			clip_block]
+	for item in [cutlass, flintlock]:
+		if item != null and item.clip_idle != "":
+			looping.append(item.clip_idle)
+	for name_ in looping:
 		if not _clips.has(name_):
 			continue
 		var clip := _clips.animation(name_)
 		if clip.loop_mode != Animation.LOOP_LINEAR:
 			clip.loop_mode = Animation.LOOP_LINEAR
+
+
+## The clip he stands in and the clip he uses: the active weapon's own if it has one, his
+## otherwise. A cutlass has no idle of its own - a pirate holding a sword stands like a pirate -
+## and the flintlock has no firing clip yet, so both fall through most of the time.
+func _stance() -> String:
+	var item := active_item()
+	return item.clip_idle if item != null and item.clip_idle != "" else clip_idle
+
+
+func _swing() -> String:
+	var item := active_item()
+	return item.clip_attack if item != null and item.clip_attack != "" else clip_attack
 
 
 ## Picks the clip that matches what the player is doing.
@@ -916,10 +1013,12 @@ func _set_looping() -> void:
 ## the moment it is added. That way the states can be got right before the animations arrive.
 func _update_animation() -> void:
 	var wanted := ""
+	var stance := _stance()
+	var swing := _swing()
 	if _dead:
 		wanted = clip_death
 	elif _attack > 0.0:
-		wanted = clip_attack
+		wanted = swing
 	elif _guarding:
 		wanted = clip_block
 	elif is_swimming():
@@ -929,18 +1028,18 @@ func _update_animation() -> void:
 	else:
 		var ground_speed := Vector2(velocity.x, velocity.z).length()
 		if ground_speed < 0.2:
-			# Standing still only. There is no aiming-walk clip and no upper-body blend, so
-			# aiming on the move keeps the walk and lets the flintlock ride the arm swing -
-			# the pistol is a mesh on a hand bone and stays visible either way. The stance
-			# has both feet planted, and playing it while he travels would skate them.
-			wanted = clip_aim if _aiming else clip_idle
+			# Standing still only. There is no walking version of any weapon's stance and no
+			# upper-body blend, so moving keeps the walk and lets whatever he holds ride the
+			# arm swing. The flintlock's stance has both feet planted, and playing it while
+			# he travels would skate them.
+			wanted = stance
 		else:
 			wanted = clip_run if ground_speed > run_above else clip_walk
 
 	# Falls back through to something that does exist, so a half-finished set still animates
 	# rather than freezing: no run clip yet means walking, no fall clip means the jump.
 	var fallbacks: Array[String] = [clip_walk, clip_idle]
-	if wanted == clip_block or wanted == clip_aim:
+	if wanted == clip_block or wanted == stance:
 		# A STANCE takes idle first. With the shared order a missing block clip fell back to
 		# walk, so guarding while standing still played a walk cycle on the spot - and it
 		# will, until a block clip exists. The same trap was waiting for the aim pose.
@@ -949,5 +1048,5 @@ func _update_animation() -> void:
 	var playing := _clips.play(wanted, fallbacks)
 	# The swing is entered part-way in. See attack_start: the clip's first second is a wind-up,
 	# and starting at zero makes the button feel like it is not wired.
-	if playing == clip_attack and playing != was and _attack > 0.0:
+	if playing == swing and playing != was and _attack > 0.0:
 		_clips.seek(attack_start)

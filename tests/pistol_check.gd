@@ -49,9 +49,17 @@ func _run() -> void:
 			"nothing listens for the shot - it will fire silently")
 
 	# Raising it is a stance, and it has to actually latch.
-	check(not captain.is_aiming(), "he starts with the pistol already up")
-	captain.set_aiming(true)
-	check(captain.is_aiming(), "raising the pistol did nothing")
+	check(not captain.is_aiming(), "he starts with the pistol already in his hands")
+	check(captain.equip(1), "the flintlock is not in a slot he can draw")
+	check(captain.is_aiming(), "drawing the flintlock did not put a ranged weapon in his hands")
+	# The draw has to finish before anything fires - that is the whole point of the swap, and
+	# it is the cost that makes choosing the pistol a decision rather than a free extra.
+	check(captain.is_swapping(), "the draw finished instantly, so a weapon change costs nothing")
+	check(captain.shoot_at(captain.global_position + Vector3.FORWARD) == null,
+			"he fired mid-draw - the swap is supposed to cost him the shot")
+	for i in 30:
+		await physics_frame
+	check(not captain.is_swapping(), "the draw never finished")
 
 	# Stand a grunt well beyond sword reach - the whole point of carrying one.
 	var here := captain.global_position
@@ -96,7 +104,7 @@ func _run() -> void:
 			"the reload took %.1f s against a setting of %.1f" % [waited, gun.reload_seconds])
 
 	# Lowering it should stop him firing at all.
-	captain.set_aiming(false)
+	captain.equip(0)
 	var down: int = grunt.health()
 	captain.shoot_at(aim)
 	await physics_frame
