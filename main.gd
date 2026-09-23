@@ -11,6 +11,7 @@ const Rocks = preload("res://props/rock/rocks.gd")
 const CargoField = preload("res://props/cargo/cargo_field.gd")
 const Grass = preload("res://props/grass/grass.gd")
 const Palms = preload("res://props/palm/palms.gd")
+const ShipScene = preload("res://props/ship/ship.tscn")
 const Music = preload("res://systems/music.gd")
 const Sfx = preload("res://systems/sfx.gd")
 const Ambience = preload("res://systems/ambience.gd")
@@ -237,6 +238,15 @@ func _wire_enemy(sfx: Node3D, grunt: Node3D) -> void:
 		sfx.play("death", grunt.global_position + Vector3.UP))
 
 
+## One hull, off the beach the player starts on. Not scattered: there is a single ship.
+func _moor_ship() -> void:
+	var ship: Node3D = ShipScene.instantiate()
+	ship.name = "Ship"
+	add_child(ship)
+	if not ship.moor_off(_coastal_study, _terrain):
+		ship.queue_free()
+
+
 ## Starts the background track. Silent in the capture and test modes, which run headless or
 ## save a picture and quit - neither wants two minutes of guitar.
 func _start_music() -> void:
@@ -438,6 +448,7 @@ func _ready() -> void:
 			spawn = _coastal_study.spawn
 			var towards: Vector3 = _coastal_study.global_position - spawn
 			_camera_rig.rotation.y = atan2(-towards.x, -towards.z)
+			_moor_ship()
 	# Start next to the tunnel mouth, looking at it: the tunnel used to be tens of metres away
 	# with nothing pointing at it, so it was easy to miss entirely.
 	if _terrain.tunnels.size() > 0:

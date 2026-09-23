@@ -52,6 +52,8 @@ func begin(main_scene: Node3D, holes: Array[Vector3]) -> void:
 		_touch_self_test()
 	elif "--shore" in args:
 		_shore_view()
+	elif "--ship" in args:
+		_ship_view()
 	elif "--overview" in args:
 		_overview()
 	elif "--assetview" in args:
@@ -119,6 +121,32 @@ func _shore_view() -> void:
 	camera.look_at(best - outward * 30.0 + Vector3.UP * 6.0, Vector3.UP)
 	camera.current = true
 	print("shore at ", best, " (error %.2f m)" % best_error)
+	_screenshot_and_quit()
+
+
+
+
+## Three-quarter on the moored hull. The chase camera looks inland at the beach, so this is
+## the shot that can actually see the ship.
+func _ship_view() -> void:
+	var ship := _main.get_node_or_null("Ship") as Node3D
+	if ship == null:
+		push_error("--ship: no ship in the scene")
+		get_tree().quit(1)
+		return
+	var camera := Camera3D.new()
+	_main.add_child(camera)
+	camera.fov = 50.0
+	camera.far = 6000.0
+	# Bow keel is the origin. Step off the starboard bow and look back at the midships deck.
+	camera.global_position = ship.global_position + ship.global_basis * Vector3(22.0, 10.0, -6.0)
+	camera.look_at(ship.global_position + ship.global_basis * Vector3(0.0, 3.2, 7.0), Vector3.UP)
+	camera.current = true
+	# Drop the captain on the weather deck, clear of the stair opening around Z=4.
+	# The print from the screenshot says whether the hull actually holds him.
+	_player.velocity = Vector3.ZERO
+	_player.global_position = ship.to_global(Vector3(0.0, 7.0, 10.0))
+	print("ship at ", ship.global_position)
 	_screenshot_and_quit()
 
 
