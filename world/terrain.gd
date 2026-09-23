@@ -105,7 +105,7 @@ func _push_colour(name: StringName, value: Variant) -> void:
 ## detail away: at 256 each quad swallowed sixteen height samples and the island came out
 ## smooth and faceted no matter what the shading did.
 @export var mesh_resolution := 512
-@export var collision_resolution := 257  ## samples per side for the collision shape (match mesh_resolution + 1)
+@export var collision_resolution := 513  ## samples per side for the collision shape (match mesh_resolution + 1)
 
 ## Tunnels that cut through this terrain. Set before generate(); each one is asked where its
 ## tube is, and the terrain is cut to exactly that shape - so an opening always matches its

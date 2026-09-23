@@ -256,8 +256,8 @@ Useful settings on the Terrain node:
 |---|---|---|
 | `world_size` | 400 | metres across |
 | `height_scale` | 60 | metres from lowest to highest |
-| `mesh_resolution` | 256 | quads per side (visual detail) |
-| `collision_resolution` | 257 | collision samples per side (match `mesh_resolution` + 1) |
+| `mesh_resolution` | 512 | quads per side (visual detail) |
+| `collision_resolution` | 513 | collision samples per side (match `mesh_resolution` + 1) |
 
 ## Tunnels
 
@@ -295,14 +295,33 @@ The project uses **Jolt**. A `NaN` sample in `HeightMapShape3D.map_data` becomes
 collision; the default engine does the same but spams "Vector3 cannot be normalized", so holes
 want Jolt.
 
-Keep `collision_resolution` near `mesh_resolution`, or you stand on a surface coarser than the
-one you see. Measured against this 1024 height map over 400 m:
+Keep `collision_resolution` at `mesh_resolution + 1`, or you stand on a surface coarser than
+the one you see. Measured against this 1024 height map over 400 m:
 
 | `collision_resolution` | spacing | mean error | worst |
 |---|---|---|---|
 | 129 | 3.12 m | 0.50 m | 8.06 m |
-| **257** (current) | 1.56 m | 0.19 m | 3.68 m |
-| 513 | 0.78 m | 0.08 m | 2.39 m |
+| 257 | 1.56 m | 0.19 m | 3.68 m |
+| **513** (current) | 0.78 m | 0.08 m | 2.39 m |
+
+**That middle row shipped, and the captain's boots sank into the grass on every hilltop.** The
+number that hid it is the one above: a *mean absolute* error. The error is not noise, it is
+**signed and systematic** — a coarser triangle chords across the real surface, so it cuts
+**below** convex ground and **above** concave ground. Sampled by curvature at 257:
+
+| ground | mean | worst |
+|---|---|---|
+| hilltop | **−0.207 m** | −1.646 m |
+| flat | +0.004 m | — |
+| bowl | +0.175 m | — |
+
+The peaks and the hollows cancel, so the average over the whole island was about a centimetre
+while he was ankle-deep on the skyline. At 513 the hilltop figure is −0.061 m, which is the
+mesh being made of triangles rather than a defect — the mesh chords the height map at the same
+spacing, so the floor and the grass now agree.
+
+`ground_check` asserts it, and samples by curvature for the reason above: an average taken
+over flat ground, which is what every other test walks on, reports success.
 
 ## Tests
 
@@ -352,6 +371,14 @@ first: if they are only `.import`/`.godot` files, discard them and pull again.
   anti-aliasing width was capped, so two hundred metres out — where one pixel spans metres of
   beach — the band resolved as a hard white line around every waterline. Take `fwidth` *before*
   any `discard`, where it is still defined.
+- **A geometry LOD silently takes the shading that depends on it.** The ocean fades its wave
+  amplitude to zero past `detail_far` so distant water cannot alias, which also takes the
+  normals to exactly `(0,1,0)` — and the sun glitter is a sharp specular off those normals, so
+  the glitter path stopped dead in open water with a flat blue sheet beyond it. The fix is not
+  a longer fade: it is to give the glitter its own, less faded, copy of the slopes and to
+  broaden the specular lobe with range, because a sun road at distance *is* a smooth streak
+  rather than resolved flecks. It costs nothing, since `wave_slope` is linear in its amplitude
+  — evaluate the slopes once at full height and scale them twice.
 - **`CPUParticles3D` arrives already emitting**, so a one-shot burst spends its cycle before
   you have configured it. Call `restart()`.
 - **Letting the captain die frees the whole scene.** `main.gd` reloads it `restart_delay`

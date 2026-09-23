@@ -84,6 +84,19 @@ uniform vec3 glitter_colour : source_color = vec3(1.0, 0.97, 0.86);
 uniform float glitter_strength : hint_range(0.0, 1.0) = 0.5;
 uniform float glitter_sharpness : hint_range(4.0, 400.0) = 90.0;
 uniform int glitter_steps : hint_range(1, 4) = 2;
+// How much wave detail the GLITTER keeps after the LOD has flattened the geometry.
+//
+// Zero is the old behaviour, and the old behaviour was a bug you could see from the clifftop:
+// the glitter path stopped dead in open water and the sea beyond it was a flat blue sheet. The
+// distance envelope exists to stop geometry and per-pixel detail from aliasing, and past
+// detail_far it takes the normals to exactly (0,1,0) - so a specular sharp enough to fleck off
+// wave faces finds nothing at all to fleck off. Costing nothing to fix, because wave_slope is
+// linear in its amplitude: the slopes are evaluated once at full height and scaled twice.
+uniform float glitter_reach : hint_range(0.0, 1.0) = 0.35;
+// The lobe the glitter falls back to once the facets are smaller than a pixel. Broad, because
+// that is what a sun road is at distance - you stop resolving individual wave faces and see
+// one streak running to the horizon.
+uniform float glitter_spread : hint_range(2.0, 60.0) = 10.0;
 group_uniforms;
 
 varying vec3 world_position;
@@ -123,7 +136,10 @@ float bed_height(vec2 p) {
 }
 
 // x = distance envelope for broad waves; y = tighter envelope for shorter waves.
-vec2 envelopes(vec2 p, vec3 eye) {
+// z = the shoal term alone, w = the distance term alone. The glitter needs those two apart:
+// it wants to ignore the DISTANCE fade while still respecting the SHOAL one, or it would put
+// a sun streak on the wet sand where there is no water to glint off.
+vec4 envelopes(vec2 p, vec3 eye) {
     float depth = sea_y - bed_height(p);
     float shoal = smoothstep(0.0, max(shoal_depth, 0.001), depth);
     float range = length(vec3(p.x, sea_y, p.y) - eye);
@@ -131,7 +147,7 @@ vec2 envelopes(vec2 p, vec3 eye) {
         max(detail_far * 0.75, detail_near + 1.0), range);
     float detail = 1.0 - smoothstep(detail_near,
         max(detail_far, detail_near + 1.0), range);
-    return vec2(shoal * broad, shoal * detail);
+    return vec4(shoal * broad, shoal * detail, shoal, detail);
 }
 
 float scene_view_z(vec2 uv, mat4 inv_projection) {
@@ -233,12 +249,23 @@ void fragment() {
     vec3 water = mix(shallow_colour, lagoon_colour, smoothstep(0.02, 0.42, ramp));
     water = mix(water, deep_colour, smoothstep(0.34, 1.0, ramp));
     float clock = water_time();
-    vec2 env = envelopes(world_position.xz, CAMERA_POSITION_WORLD) * wave_height;
-    vec2 slope = wave_slope(wave_1, world_position.xz, env.x)
-        + wave_slope(wave_2, world_position.xz, env.x)
-        + wave_slope(wave_3, world_position.xz, env.y)
-        + wave_slope(wave_4, world_position.xz, env.y);
+    vec4 env = envelopes(world_position.xz, CAMERA_POSITION_WORLD);
+    // Evaluated once at full amplitude and scaled after, which is exact because wave_slope is
+    // linear in its scale - so the glitter gets its own, less faded, copy for free.
+    vec2 broad_slope = wave_slope(wave_1, world_position.xz, 1.0)
+        + wave_slope(wave_2, world_position.xz, 1.0);
+    vec2 fine_slope = wave_slope(wave_3, world_position.xz, 1.0)
+        + wave_slope(wave_4, world_position.xz, 1.0);
+    vec2 slope = (broad_slope * env.x + fine_slope * env.y) * wave_height;
     vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
+    // The surface the SUN sees. Same waves, with a floor under the distance fade so the sea
+    // keeps a usable normal out to the horizon. The shading normal above stays fully faded:
+    // letting it ripple at distance is what the LOD was protecting the refraction and fresnel
+    // from in the first place.
+    float lit_reach = max(env.w, glitter_reach);
+    vec2 lit_slope = (broad_slope * env.z * lit_reach
+        + fine_slope * env.z * lit_reach) * wave_height;
+    vec3 lit_n = normalize(vec3(-lit_slope.x, 1.0, -lit_slope.y));
     // One deformed breaker with organic trailing strands. These are band-passed noise
     // contours, not cells, so the foam cannot be confused with seabed caustics.
     vec2 slow_flow = vec2(clock * foam_speed * 0.045,
@@ -387,7 +414,11 @@ void fragment() {
     // Sun glitter. Half-vector specular off the wave normals, then quantised, so it breaks
     // into flecks along the wave faces pointing at the sun instead of one smooth sheen.
     vec3 half_dir = normalize(light_dir + view_dir);
-    float spec = pow(max(dot(n, half_dir), 0.0), glitter_sharpness);
+    // Sharp near, broad far. wave_slope drops any wave whose phase turns faster than a pixel,
+    // so far enough out the facets go anyway however high the floor is - and the honest thing
+    // to draw there is one smooth streak rather than a field of aliasing specks.
+    float sharpness = mix(glitter_spread, glitter_sharpness, env.w);
+    float spec = pow(max(dot(lit_n, half_dir), 0.0), sharpness);
     float glitter = floor(clamp(spec, 0.0, 1.0) * float(glitter_steps) + 0.4)
         / float(glitter_steps);
     // Only where the sun is actually above the horizon, or a sunk sun still lights the sea.
