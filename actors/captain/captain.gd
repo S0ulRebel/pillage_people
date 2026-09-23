@@ -121,6 +121,9 @@ extends CharacterBody3D
 ## How long the swing owns the animation before walking and idling take it back. The strike and
 ## its follow-through fit in this; the clip's remaining recovery is not worth waiting through.
 @export var attack_length := 0.75
+## Seconds after a swing before another can start. The grunts have always had one; he never
+## did, so the button could be held and the cutlass never stopped moving.
+@export var attack_cooldown := 0.35
 ## Seconds into the swing where the blade actually connects. Not guessed: the right hand's
 ## speed through the clip peaks at 1.23s, which is 0.28s after attack_start, and stays above
 ## half that peak from 1.17s to 1.37s. Those are the edges below. Outside them the blade is
@@ -130,6 +133,9 @@ extends CharacterBody3D
 @export var hit_to := 0.42
 @export var damage := 1
 @export var max_health := 5
+## Seconds of grace after being hit - see health.gd. The grunts get none; this is the
+## difference between being surrounded and being executed.
+@export var hit_immunity := 0.55
 ## Sparks where the blade lands. Near-white, because the sand is warm and a gold spark measured
 ## only 33 luminance above it - invisible in practice. This one manages 59, at three and a half
 ## times the colour distance, and reads as steel besides.
@@ -197,6 +203,8 @@ var _holding_dive := false
 var _dead := false
 ## Seconds left in the current swing; zero when not attacking.
 var _attack := 0.0
+## Counts down from the start of a swing through the recovery after it.
+var _cooldown := 0.0
 ## The placeholder blade, so it can be swapped or hidden without rebuilding the body.
 ## The cutlass - see actors/parts/sword.gd. Typed, so its hitbox is reachable by name.
 var _sword: Sword
@@ -236,6 +244,13 @@ signal splashed(entering: bool)
 
 func is_attacking() -> bool:
 	return _attack > 0.0
+
+
+## Whether a swing would start right now - false mid-swing and through the recovery after it.
+## Worth exposing rather than inferring from is_attacking(), which is false during the
+## cooldown too and so cannot tell "swinging" from "not ready yet".
+func can_attack() -> bool:
+	return not _dead and _attack <= 0.0 and _cooldown <= 0.0
 
 
 func health() -> int:
@@ -293,9 +308,10 @@ func _strike() -> void:
 ## Starts a swing, if one is not already running. Movement is deliberately left alone - you can
 ## walk while swinging, and the clip simply owns the animation until it runs out.
 func attack() -> void:
-	if _dead or _attack > 0.0:
+	if _dead or _attack > 0.0 or _cooldown > 0.0:
 		return
 	_attack = attack_length
+	_cooldown = attack_length + attack_cooldown
 	_struck.clear()
 	attacked.emit()
 
@@ -413,6 +429,7 @@ func _ready() -> void:
 	_hp = Health.new()
 	_hp.name = "Health"
 	_hp.maximum = max_health
+	_hp.immune_seconds = hit_immunity
 	add_child(_hp)
 	_knock = Knockback.new()
 	_knock.name = "Knockback"
@@ -452,6 +469,8 @@ func _physics_process(delta: float) -> void:
 
 	# Ticked before the swimming branch returns, or a swing started on land would never end.
 	_attack = maxf(0.0, _attack - delta)
+	_cooldown = maxf(0.0, _cooldown - delta)
+	_hp.tick(delta)
 	_knock.tick(delta)
 	if _pistol != null:
 		_pistol.tick(delta)

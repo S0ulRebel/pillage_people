@@ -84,6 +84,13 @@ func _input_path(captain: CharacterBody3D, terrain: Node) -> void:
 		await physics_frame
 		if captain.is_on_floor():
 			break
+	# And until the swing before this one has finished recovering. _swing_travel runs just
+	# before this and leaves him on cooldown, so the press was landing on a captain who was
+	# not allowed to swing yet - which read as a broken input path.
+	for i in 180:
+		await physics_frame
+		if captain.can_attack():
+			break
 
 	_press("attack")
 	for i in 4:

@@ -19,6 +19,17 @@ extends Held
 ## ninety degrees to the left.
 @export var reach := 1.35
 @export_range(0.0, 1.0) var facing_dot := 0.35
+## How many people one SWING can cut through - not one call.
+##
+## The distinction is the whole of it. targets() is asked once per frame through a thirteen
+## frame strike window, and `skip` is what the swing has already hit, so a cap applied per call
+## just works through the crowd two at a time and still reaches everybody. Counted against
+## skip, it is a cap on the swing.
+##
+## Measured need: uncapped, the captain killed all five grunts on the island in three swings
+## and 1.8 seconds without being touched. A sweeping cut catching two is a good moment;
+## catching five is a lawnmower.
+@export var max_targets := 2
 
 
 ## Builds the blade and hangs it off the bone. Nothing else - a sword is a held thing that
@@ -44,6 +55,10 @@ func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
 ## The grunt had already worked around the same clip the same way. This is that, in one place.
 func targets(wielder: Node3D, facing: Vector3, skip: Array[Node]) -> Array[Node3D]:
 	var found: Array[Node3D] = []
+	# What this swing has left. skip is everybody it has already cut.
+	var room := max_targets - skip.size()
+	if room <= 0:
+		return found
 	var space := wielder.get_world_3d().direct_space_state
 	var ball := SphereShape3D.new()
 	ball.radius = reach
@@ -69,4 +84,9 @@ func targets(wielder: Node3D, facing: Vector3, skip: Array[Node]) -> Array[Node3
 		if facing.dot(towards / distance) < facing_dot:
 			continue
 		found.append(body)
-	return found
+	# Nearest first, then capped. If a swing can only reach two, they should be the two he is
+	# actually next to rather than whichever two the physics query happened to list first.
+	var near := func(body: Node3D) -> float:
+		return wielder.global_position.distance_squared_to(body.global_position)
+	found.sort_custom(func(a: Node3D, b: Node3D) -> bool: return near.call(a) < near.call(b))
+	return found.slice(0, room)
