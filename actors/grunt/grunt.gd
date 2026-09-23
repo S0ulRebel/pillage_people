@@ -173,6 +173,18 @@ func is_dead() -> bool:
 ## Called by anything that hits this - see the blade hitbox in captain.gd. Duck-typed on
 ## purpose: the hitbox asks whether a body has this method rather than what class it is, so
 ## breakable crates and the player answer the same way without a shared base class.
+## Shoved and briefly robbed of control without being hurt - what a parry does to it. The
+## swing in progress dies too, which is the opening a parry is supposed to buy.
+##
+## Named reel rather than stagger because `stagger` is already the export holding how many
+## seconds one lasts.
+func reel(from: Node) -> void:
+	if _dead:
+		return
+	_knock.hit_from(global_position, from)
+	_attack = 0.0
+
+
 func take_damage(amount: int, _from: Node = null) -> void:
 	if _dead:
 		return
@@ -289,10 +301,10 @@ func _swing() -> void:
 ## 0.51 m out to the grunt's LEFT and between -0.15 and +0.14 m forward. It never reaches out
 ## in front of him at all, so a blade volume only ever touched the grunt's own capsule.
 ##
-## The player keeps the overlap version because he aims his own swing and wants the blade to be
-## the truth. An AI that closes to a fixed distance does not need that, and a hit that depends
-## on an animation's reach matching a number somewhere else is a hit that silently stops
-## working when the animation is replaced.
+## The player ended up here too, for a different reason: a 12 cm blade volume on a hand moving
+## 20 cm per physics step tunnelled straight past people between frames. Either way, a hit that
+## depends on an animation's reach matching a number somewhere else is a hit that silently
+## stops working when the animation is replaced.
 func _strike() -> void:
 	var elapsed := attack_length - _attack
 	if elapsed < hit_from or elapsed > hit_to or not _struck.is_empty():

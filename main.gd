@@ -212,6 +212,14 @@ func _start_sfx() -> void:
 	_player.splashed.connect(func(entering: bool) -> void:
 		if entering:
 			sfx.play("splash", _player.global_position))
+	# The guard. Both borrow clang, which is steel on steel and the nearest thing in the
+	# folder - a parry rings, a block is the same sound taken down and given room. Nothing else
+	# plays clang at that moment (a parry does no damage, so no grunt is reporting a hit), so it
+	# still reads. A dedicated pair is one generation away and would be better.
+	_player.parried.connect(func(attacker: Node) -> void:
+		sfx.play("clang", (attacker as Node3D).global_position + Vector3.UP, 3.0))
+	_player.blocked.connect(func(attacker: Node) -> void:
+		sfx.play("clang", (attacker as Node3D).global_position + Vector3.UP, -5.0))
 	# The flintlock. Wired through the same signal route as everything else, so the gun knows
 	# nothing about sound - it reports where the ball went and this decides what that sounds
 	# like. Both clips are listed from the folder, so they are silent until they exist rather

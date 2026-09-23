@@ -12,9 +12,10 @@ D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\pillage_people
 See [CONVENTIONS.md](CONVENTIONS.md) for where files go and how behaviour is split up. Read
 that before adding anything.
 
-**Keyboard:** WASD move (relative to the camera) · Space jump · left click swing · **R** raise
-the flintlock, then left click fires · **Z** spyglass, wheel zooms while it is up · middle-drag
-turn and tilt the camera · mouse wheel zoom · Q/E turn.
+**Keyboard:** WASD move (relative to the camera) · Space jump · left click swing · **hold
+right click** to guard · **R** raise the flintlock, then left click fires · **Z** spyglass,
+wheel zooms while it is up · middle-drag turn and tilt the camera · mouse wheel zoom · Q/E
+turn.
 
 R and F used to tilt the camera. The middle-button drag does that better, and R is where a
 player looks for a sidearm.
@@ -45,11 +46,11 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 
 ## The fight
 
-Left click swings. The blade carries a hitbox and a hit lands when it overlaps a grunt; the
-grunts do **not** use blade overlap, because their Mixamo swing sweeps *across* the body — the
-tip travels 0.37–0.51 m to their left and barely 0.3 m forward, so it can never reach the
-person in front of them. They use a range and facing check instead (`attack_range` 1.00 m,
-`hit_reach` 1.35 m).
+Left click swings. Hits are resolved by range and facing rather than by the blade's own
+overlap — see below, that is a bug fix and not a shortcut. The grunts never used overlap at
+all, for a second reason: their Mixamo swing sweeps *across* the body — the tip travels
+0.37–0.51 m to their left and barely 0.3 m forward, so it can never reach the person in front
+of them (`attack_range` 1.00 m, `hit_reach` 1.35 m).
 
 A hit gives a spark, a knockback impulse and a moment of stagger. Knockback is a **single
 impulse**, not a per-frame push: feeding a push back into `move_toward` every frame sent the
@@ -65,6 +66,30 @@ in front. That is not a simplification, it is the fix for a bug that was there f
 the hitbox is 12 cm thick and the hand carrying it moves up to 20 cm per physics step, so the
 blade teleported past people between frames. Measured, it landed at 0.40 m and swept straight
 through anybody further, while a grunt stands off at 1.00 m and waits.
+
+## Guard and parry
+
+**Hold right click.** A blow from the front is turned aside completely — but he is slowed to
+40% speed, he cannot swing while the guard is up, and it only covers the front. A guard that
+works from behind is a bubble rather than a guard, so there is a facing check and
+`guard_check` tests it by holding one facing the wrong way and confirming the blow still lands.
+
+The first **0.18 s** of a guard parries instead, and that difference is the whole point: a
+parry throws the attacker back and kills the swing he is in the middle of, where an ordinary
+block simply costs him nothing. A parry that only negated damage would be a block with
+stricter timing, and nobody would take the risk — so the test asserts the shove, not just the
+zero.
+
+The window is not invented. A grunt's blade goes live 0.20 s into a 0.75 s swing, so the
+windup is 200 ms of visible tell: raise the guard as the swing starts and you are inside the
+parry, leave it any later and you get the block.
+
+Parrying was nearly free to build because knockback is a component — it is the same
+`hit_from()` the attacker would have called, pointed back at him.
+
+There is no block clip yet, so he guards in his idle pose, and the parry borrows the `clang`
+of a landed hit. `clip_block` is an export and a dedicated parry/block pair is one generation
+away; both are one-line changes when they land.
 
 ## The flintlock
 

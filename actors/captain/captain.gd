@@ -93,6 +93,29 @@ extends CharacterBody3D
 @export var sword_grip := Vector3(0.80, 0.0, 0.0)
 @export var sword_colour := Color(0.72, 0.74, 0.78)
 
+@export_group("Guard")
+## Held on the right mouse button. He is rooted-ish and cannot swing, and a blow from the
+## front is turned aside.
+##
+## Deliberately NOT a component yet. Only the captain guards, and one user is not a pattern -
+## if the grunts learn to block it can move to actors/parts then, the way health and knockback
+## did once there were two of them and they had drifted.
+@export var clip_block := "block"
+## Seconds at the START of a guard that parry instead of merely blocking.
+##
+## Not invented: a grunt's blade is live from 0.20 s to 0.42 s into its 0.75 s swing, so there
+## is a real 220 ms to read and answer. This is the answer being tight enough to be a skill
+## and loose enough to be possible.
+@export var parry_window := 0.18
+## What a plain block lets through. Zero turns the blow aside completely - which is strong, but
+## he is rooted, cannot swing, and it only works to the front.
+@export var block_damage := 0
+## How much of his speed he keeps with the guard up. Not zero: a captain who cannot back away
+## while blocking is a captain being surrounded on purpose.
+@export_range(0.0, 1.0) var guard_movement := 0.4
+## How far round the front the guard covers, as a dot product. Matches the blade's own cone.
+@export_range(0.0, 1.0) var guard_facing_dot := 0.25
+
 @export_group("Pistol")
 ## A flintlock in the off hand - see actors/parts/gun.gd. He keeps the cutlass: a captain with
 ## a sword in one hand and a pistol in the other is the whole picture, and it is less work than
@@ -218,6 +241,10 @@ var _knock: Knockback
 ## ball and a five second reload is a weapon you commit to, not one you tap.
 var _pistol: Gun
 var _aiming := false
+## Whether the guard is up, and how long it has been. The second is what makes a parry
+## different from a block.
+var _guarding := false
+var _guard_time := 0.0
 var _stride := 0.0
 var _was_wet := false
 
@@ -229,6 +256,11 @@ signal died
 signal revived
 ## Emitted when the flintlock comes up or goes down, so a crosshair can appear with it.
 signal aiming_changed(up: bool)
+## A blow turned aside, and a blow turned aside in the parry window. Separate because they
+## should not sound or look the same - one is a thud on the guard, the other is a ring of
+## steel and an opening.
+signal blocked(attacker: Node)
+signal parried(attacker: Node)
 ## Emitted when a swing starts, not when it connects. Whatever deals damage should wait for
 ## the blade to be somewhere useful rather than firing on the keypress.
 signal attacked
@@ -267,8 +299,26 @@ func is_staggered() -> bool:
 func take_damage(amount: int, _from: Node = null) -> void:
 	if _dead:
 		return
-	# Shoved directly away from whoever swung, so the push reads as coming from the blow.
-	_knock.hit_from(global_position, _from)
+	# The guard gets first refusal, and only to the front - a block that works from behind is
+	# not a guard, it is a bubble.
+	if _guarding and _from is Node3D and _in_guard_arc(_from as Node3D):
+		if _guard_time <= parry_window:
+			parried.emit(_from)
+			# The shove goes the OTHER way. This is the whole point of a parry and it costs
+			# three lines, because knockback is a component: it is the same call the attacker
+			# would have made, pointed back at him.
+			if _from.has_method("reel"):
+				_from.reel(self)
+			return
+		blocked.emit(_from)
+		# Still shoved by the impact, just not cut by it.
+		_knock.hit_from(global_position, _from)
+		if block_damage <= 0:
+			return
+		amount = block_damage
+	else:
+		# Shoved directly away from whoever swung, so the push reads as coming from the blow.
+		_knock.hit_from(global_position, _from)
 	var finished := _hp.take(amount)
 	damaged.emit(amount, _hp.current())
 	if finished:
@@ -308,7 +358,7 @@ func _strike() -> void:
 ## Starts a swing, if one is not already running. Movement is deliberately left alone - you can
 ## walk while swinging, and the clip simply owns the animation until it runs out.
 func attack() -> void:
-	if _dead or _attack > 0.0 or _cooldown > 0.0:
+	if _dead or _attack > 0.0 or _cooldown > 0.0 or _guarding:
 		return
 	_attack = attack_length
 	_cooldown = attack_length + attack_cooldown
@@ -350,6 +400,49 @@ func _jump_velocity() -> float:
 ## Whether the pistol is raised.
 func is_aiming() -> bool:
 	return _aiming
+
+
+func is_guarding() -> bool:
+	return _guarding
+
+
+## The guard is a HELD state, so it is polled rather than caught as an event - the same
+## division as the movement stick and sprint. What the poll has to find for itself is the
+## RISING edge, because that is when the parry window starts.
+func _tick_guard(delta: float) -> void:
+	var wanted := Input.is_action_pressed("guard") and not _aiming
+	if wanted and not _guarding:
+		_guard_time = 0.0
+	elif wanted:
+		_guard_time += delta
+	_guarding = wanted
+
+
+## Is `attacker` in front of the guard?
+func _in_guard_arc(attacker: Node3D) -> bool:
+	var towards: Vector3 = attacker.global_position - global_position
+	towards.y = 0.0
+	if towards.length() < 0.001:
+		return true
+	var facing := Vector3(sin(_body.rotation.y), 0.0, cos(_body.rotation.y)) 			if _body != null else -global_transform.basis.z
+	return facing.dot(towards.normalized()) >= guard_facing_dot
+
+
+## Whether the guard is still inside its parry window.
+func is_parrying() -> bool:
+	return _guarding and _guard_time <= parry_window
+
+
+## Shoved and briefly robbed of control, without being hurt. What a parry does to whoever
+## swung. Duck-typed the way take_damage is, so a parry does not need to know what it just
+## turned aside.
+##
+## Named reel rather than stagger because `stagger` is already the export holding how many
+## seconds one lasts.
+func reel(from: Node) -> void:
+	if _dead:
+		return
+	_knock.hit_from(global_position, from)
 
 
 func pistol() -> Gun:
@@ -471,6 +564,7 @@ func _physics_process(delta: float) -> void:
 	_attack = maxf(0.0, _attack - delta)
 	_cooldown = maxf(0.0, _cooldown - delta)
 	_hp.tick(delta)
+	_tick_guard(delta)
 	_knock.tick(delta)
 	if _pistol != null:
 		_pistol.tick(delta)
@@ -589,6 +683,8 @@ func _move_direction() -> Vector3:
 	# sprint, with the blade out, arriving somewhere else entirely by the time it landed.
 	if _attack > 0.0:
 		input *= attack_movement
+	elif _guarding:
+		input *= guard_movement
 	var basis := camera_rig.global_transform.basis if camera_rig else global_transform.basis
 	var forward := -Vector3(basis.z.x, 0.0, basis.z.z).normalized()
 	var right := Vector3(basis.x.x, 0.0, basis.x.z).normalized()
@@ -781,6 +877,8 @@ func _update_animation() -> void:
 		wanted = clip_death
 	elif _attack > 0.0:
 		wanted = clip_attack
+	elif _guarding:
+		wanted = clip_block
 	elif is_swimming():
 		wanted = clip_swim
 	elif not is_on_floor():
@@ -794,8 +892,14 @@ func _update_animation() -> void:
 
 	# Falls back through to something that does exist, so a half-finished set still animates
 	# rather than freezing: no run clip yet means walking, no fall clip means the jump.
+	var fallbacks: Array[String] = [clip_walk, clip_idle]
+	if _guarding:
+		# The guard takes idle FIRST. With the shared order it fell back to walk, so guarding
+		# while standing still played a walk cycle on the spot - and it will, until a block
+		# clip exists.
+		fallbacks = [clip_idle, clip_walk]
 	var was := _clips.current()
-	var playing := _clips.play(wanted, [clip_walk, clip_idle])
+	var playing := _clips.play(wanted, fallbacks)
 	# The swing is entered part-way in. See attack_start: the clip's first second is a wind-up,
 	# and starting at zero makes the button feel like it is not wired.
 	if playing == clip_attack and playing != was and _attack > 0.0:
