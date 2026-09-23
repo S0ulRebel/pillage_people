@@ -1,35 +1,76 @@
-# Terrain Demo (Godot 4.7)
+# Pillage People (Godot 4.7)
 
-A generated height map as playable terrain, with a bird's-eye third-person controller.
+A stylised pirate game on a generated island. A captain with a cutlass, grunts who fight
+back, a shore to swim off and a waterfall to walk through.
+
 Open the folder in Godot and press F5, or run:
 
 ```
-D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\gan\godot\terrain_demo
+D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\pillage_people
 ```
 
-**Touch (iPad / Xogot):** left half = virtual stick (appears where your thumb lands) ·
-right half drag = turn (sideways) and tilt (up/down) the camera · two-finger pinch = zoom ·
-bottom-right button = jump.
+See [CONVENTIONS.md](CONVENTIONS.md) for where files go and how behaviour is split up. Read
+that before adding anything.
 
-**Keyboard:** WASD move (relative to the camera) · Space jump · Q/E turn · R/F tilt ·
-mouse wheel zoom.
+**Keyboard:** WASD move (relative to the camera) · Space jump · left click swing · middle-drag
+turn and tilt the camera · mouse wheel zoom · Q/E turn · R/F tilt.
 
-Camera tilt runs from -85 degrees (almost straight down) to -12 (nearly level with the
-ground); the limits are `min_pitch_degrees` / `max_pitch_degrees` on the CameraRig.
-
-The touch controls show themselves automatically on a touchscreen; on desktop add `--touch`
-to see them. Mouse-to-touch emulation is on, so they can be tried with a mouse.
+**Touch (iPad):** left half = virtual stick (appears where your thumb lands) · right half drag
+= turn and tilt · two-finger pinch = zoom · bottom-right button = jump. These appear only on a
+real touchscreen; on desktop add `--touch` to see them.
 
 ## What is in it
 
 | File | What it does |
 |---|---|
-| `main.tscn` / `main.gd` | Scene: sun, sky, fog, terrain, player, camera. Picks a spawn point and wires the camera to the player. |
-| `terrain.gd` | Reads the height map and builds the mesh (vertex-coloured by altitude) + a `HeightMapShape3D` collider. |
-| `player.gd` | `CharacterBody3D`: camera-relative movement, game-feel jump (see below), and a body built from primitives (capsule torso, sphere head, box limbs that swing while walking) so the project needs no imported model. |
-| `camera_rig.gd` | `SpringArm3D` chase camera: follows smoothly, orbits, zooms, and will not clip through hills. |
-| `touch_controls.gd` | iPad controls, drawn in code (no image assets): virtual stick, jump button, drag-to-orbit, pinch-to-zoom. |
-| `terrain/*.r16`, `terrain/*.png` | Height maps from `tools\make_heightmap.py`. |
+| `main.tscn` / `main.gd` | The scene, and the orchestrator: builds the island, scatters the props, spawns the grunts, and wires everything to the audio. |
+| `player.gd` | The captain. `CharacterBody3D`: camera-relative movement, jumping, swimming, swinging a cutlass, taking hits, dying. |
+| `enemy.gd` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
+| `weapon.gd` | The blade, shared by both — hung off a hand bone with a hitbox along it. |
+| `terrain.gd` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
+| `ocean.gd` / `ocean.gdshader` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
+| `camera_rig.gd` | `SpringArm3D` chase camera: follows smoothly, orbits, zooms, will not clip through hills. |
+| `art/props/*` | Placeable prefabs: rocks, barrels and crates (which float), palms, grass, the waterfall. |
+| `sfx.gd` `music.gd` `ambience.gd` | Sound. See below. |
+| `hud.gd` `health_bar.gd` | The captain's health, and the floating bars over the grunts. |
+| `tunnel.gd` | Draw a curve, get a tunnel bored through the terrain. Opt-in with `--tunnel`. |
+| `terrain/*.r16` | Height maps from `tools\make_heightmap.py` in `D:\code\gan`. |
+
+## The fight
+
+Left click swings. The blade carries a hitbox and a hit lands when it overlaps a grunt; the
+grunts do **not** use blade overlap, because their Mixamo swing sweeps *across* the body — the
+tip travels 0.37–0.51 m to their left and barely 0.3 m forward, so it can never reach the
+person in front of them. They use a range and facing check instead (`attack_range` 1.00 m,
+`hit_reach` 1.35 m).
+
+A hit gives a spark, a knockback impulse and a moment of stagger. Knockback is a **single
+impulse**, not a per-frame push: feeding a push back into `move_toward` every frame sent the
+captain 2.31 m from a hit the grunt took for 0.43. Being hit does not cancel the captain's
+swing — when it did, he lost every fight (6 swings, 1 landed, dead). It still cancels the
+grunt's.
+
+When the captain dies the whole scene reloads after `restart_delay`, rather than putting the
+pieces back by hand — a reload cannot forget one.
+
+## Sound
+
+Three layers, all generated locally with Stable Audio 3 (see `tools/` in `D:\code\gan`).
+
+- **Effects** (`art/audio/sfx`) — swoosh, clang, flesh, death, steps, splash, dig. Fired from
+  signals the characters emit, so neither the captain nor the grunts know a sound system
+  exists.
+- **Ambience** (`art/audio/beds`, `art/audio/ambience`) — surf, wind and jungle run as
+  continuous loops whose levels follow the captain's height above the water; gulls, waves,
+  fronds and creaking cargo fire as single calls from real objects. The waterfall and pond are
+  pinned where they stand.
+- **Music** (`art/audio/beach.ogg`) — a 103 s seamless loop.
+
+Two things worth knowing. Every clip is **peak-levelled to the same loudness**, which is right
+for effects and wrong for everything else, so the levels in `ambience.gd` put the real
+difference back by hand. And a clip must hold **one** sound: the first batch shipped a swoosh
+containing four swooshes and a footstep containing five footfalls, because the scorer rewarded
+silence around the sound and a long clip has more of it.
 
 ## Jump feel
 
@@ -45,36 +86,28 @@ Real-world gravity (Godot's 9.8 default) makes a jump feel like the moon: 2.5 m 
 | `coyote_time` | 0.12 s | Still jumpable just after walking off an edge |
 | `jump_buffer` | 0.15 s | A press just before landing fires on touchdown |
 
-Measure any change with `Godot.exe --path . -- --jumptest --touch`, which prints the height
-and airtime of a held jump and a tapped one.
+Measure any change with `--jumptest`, which prints the height and airtime of a held jump and a
+tapped one. Mixamo's clips describe motion, not game needs: its "Jumping" is 2.20 s of
+approach, hop and recovery against 0.64 s of actual airtime, so the jump uses a 0.34 s slice
+of "Jumping Up" with the hips pinned.
 
-## The height map
+Wading becomes swimming past `swim_depth` (1.3 m, about chest height).
 
-`terrain/heightmap.r16` is a **stylised** map: wide flat plains with a few isolated
-flat-topped mesas, about 78% of it near-level. That is deliberate - the first map was ridges
-edge to edge, which left nowhere to build and put every tunnel mouth on a slope.
+## The island
 
-It was made with the image-generation setup:
+`terrain/heightmap.r16` is a **stylised** map: wide flat plains with a few isolated flat-topped
+mesas, about 78% of it near-level. Deliberate — the first map was ridges edge to edge, which
+left nowhere to build.
 
-```
-tools\make_heightmap.py "wide open plains with a few isolated flat-topped mesas, a shallow
-  winding valley, gentle rolling ground" --stylized --count 3 --size 1024
-  --plains 1.0 --terrace 3 --smooth 32 --detail 0.15
-```
+Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
+tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, and 5 grunts.
 
-- `--stylized` swaps in a prompt about plains and plateaus instead of eroded mountains
-- `--plains` pushes mid heights down, spreading low ground into plains
-- `--terrace` quantises heights into flat bands with walkable risers between them
-- `--smooth` / `--detail` wash out the fine ridges diffusion likes to produce
+Grass grows in **patches, not a scatter** — the patch centres are chosen first and each is
+filled with tufts crowded toward its middle, with the rocks handed in as extra centres so
+grass grows against a boulder the way it does in life. An even scatter reads as a texture
+rather than as plants, however many you use.
 
-Swapping the map means re-drawing the tunnel curve, since the curve is world-space geometry
-and the ground under it will have changed.
-
-## Swapping in another terrain
-
-Generate one (`make_terrain.bat` in `D:\code\gan`), copy the `.r16` into `terrain\`, and set
-`raw_path` on the Terrain node — or just overwrite `terrain/heightmap.r16`.
-
+Swapping the map means re-drawing any tunnel curve, since the curve is world-space geometry.
 Useful settings on the Terrain node:
 
 | Setting | Default | Meaning |
@@ -87,67 +120,41 @@ Useful settings on the Terrain node:
 ## Tunnels
 
 A tunnel is a node you place in the scene: `Tunnel` extends `Path3D`, so you draw a curve and
-set a radius. Everything else follows from those two things.
+set a radius. Everything else follows. Opt in with `--tunnel`; the island slice is about
+terrain and water, and a generated tunnel punches a hole through the shoreline that reads as a
+bug.
 
 - The tube is extruded along the curve and **clipped to the ground**: every triangle is cut
   against `terrain height - y`, so the tube ends exactly on the surface and the mouth is that
-  intersection curve, whatever the slope. Whole-ring trimming (keep the ring if its centre is
-  underground) left a flat end that hung out of a hillside on one side and was buried on the
-  other. A curve that dips, surfaces over a ridge and dips again becomes two separate tubes.
+  intersection curve, whatever the slope. Whole-ring trimming left a flat end hanging out of
+  one side of a hill and buried in the other.
 - The terrain is cut **against the tube itself**, not against a separate hole shape, so an
-  opening is always exactly the tube's cross-section where it breaks the surface - at any
-  slope, with nothing to line up by hand. (The first version cut circular holes and tried to
-  match craters to them; every mismatch was either a gap to fall through or a dome to walk over.)
+  opening is always exactly the tube's cross-section where it breaks the surface. (The first
+  version cut circular holes and tried to match craters to them; every mismatch was either a
+  gap to fall through or a dome to walk over.)
 - The cut stops short of the tube's ends and a little inside its wall (`cut_margin`), so ground
-  and tube always overlap instead of meeting exactly on one surface.
+  and tube overlap instead of meeting exactly on one surface.
 - Collision: the height field gets `NaN` wherever the opening is, the cut rim quads add a
-  trimesh for the boundary, and the tube's own trimesh has `backface_collision = true` -
-  without that the player falls straight through a tube walked on from the inside.
+  trimesh, and the tube's own trimesh has `backface_collision = true` — without it you fall
+  straight through a tube walked on from the inside.
 
-### Adding a tunnel yourself
-
-The scene already contains one **Tunnel** node - the quickest start is to select it and drag
-its curve points around, or duplicate it (Ctrl+D) for a second tunnel.
-
-1. **Add** a `Path3D` and attach `tunnel.gd` (or duplicate the existing Tunnel), as a child of
-   `Main`, next to Terrain.
-2. **Draw the curve**: start a little above the ground, dive under it, run along, come back up.
-   Three or four points is plenty; the terrain is drawn in the editor (terrain.gd is a `@tool`
-   script) so you can see where you are putting it.
-3. **Set `radius`** - 3 m is comfortable to walk through.
-
-Everything else follows: the tube is extruded, clipped to the ground, given collision, lit,
-and the terrain is cut where it comes through. `main.gd` picks up every `Tunnel` child of
-`Main` before the terrain generates; if there are none it generates one so the demo is never
-empty.
-
-The curve is world-space geometry over procedural terrain, so a tunnel that never goes
-underground simply builds nothing and warns. Keep the middle of the curve about 10-20 m below
-the surface, and the ends within about 25 degrees of the ground for a walkable ramp.
-
-Ramps want about 25 degrees. The player's `floor_max_angle` is raised to 55 degrees because
+Keep the middle of the curve 10–20 m below the surface and the ends within about 25 degrees of
+the ground for a walkable ramp. The captain's `floor_max_angle` is raised to 55 degrees because
 faceted tube walls throw normals past Godot's 45 degree default and stop you dead halfway out.
-
-**Auto-placed tunnels**: `main.gd` picks two spots near the spawn and builds a curve between
-them. Measured with `--tunneltest` over six layouts: five are walkable in, through and out
-(one of those ends standing in the mouth rather than clear of it); on the sixth the test
-walker never found the entrance, though a render shows a clean opening - a navigation quirk
-of the test rather than the geometry. Hand-placed curves are the intended way to use this.
 
 ## Is it really physics?
 
-Yes. The terrain is a `StaticBody3D` with a `HeightMapShape3D`; the player is a
-`CharacterBody3D` moved with `move_and_slide()`, so Godot (Jolt) resolves the contacts.
-Gravity is applied in script, which is how a kinematic body is meant to work. Nothing
-snaps the player to the height map - the only direct sampling is choosing the spawn point.
+Yes. The terrain is a `StaticBody3D` with a `HeightMapShape3D`; the captain is a
+`CharacterBody3D` moved with `move_and_slide()`, so Godot (Jolt) resolves the contacts. Gravity
+is applied in script, which is how a kinematic body is meant to work. Nothing snaps him to the
+height map — the only direct sampling is choosing the spawn point.
 
-The project uses **Jolt** (`physics/3d/physics_engine`). Tested on 4.7.2: a `NaN` sample in
-`HeightMapShape3D.map_data` becomes a hole with no collision — bodies fall straight through,
-while normal ground still holds them. The default engine does the same but spams
-"Vector3 cannot be normalized", so holes (pits, tunnel mouths) want Jolt.
+The project uses **Jolt**. A `NaN` sample in `HeightMapShape3D.map_data` becomes a hole with no
+collision; the default engine does the same but spams "Vector3 cannot be normalized", so holes
+want Jolt.
 
-Keep `collision_resolution` near `mesh_resolution`, or you stand on a surface coarser than
-the one you see. Measured against this 1024 height map over 400 m:
+Keep `collision_resolution` near `mesh_resolution`, or you stand on a surface coarser than the
+one you see. Measured against this 1024 height map over 400 m:
 
 | `collision_resolution` | spacing | mean error | worst |
 |---|---|---|---|
@@ -155,37 +162,55 @@ the one you see. Measured against this 1024 height map over 400 m:
 | **257** (current) | 1.56 m | 0.19 m | 3.68 m |
 | 513 | 0.78 m | 0.08 m | 2.39 m |
 
+## Tests
+
+```
+Godot.exe --headless --path . --script res://tests/coastal_smoke.gd
+Godot.exe --headless --path . --script res://tests/ambience_check.gd
+Godot.exe --headless --path . -- --deathtest
+```
+
+`coastal_smoke` checks the island builds and the captain stands on it. `ambience_check` walks
+him from the sea to the hilltop and prints what every sound bed is doing, and checks the
+assumption underneath the mix — that on this island low ground *is* the shore (ground below
+3.5 m is 12 m from water on average, ground above 34 m is 74 m). `--deathtest` kills him and
+checks the island comes back.
+
+`tests/captain_view.gd` renders him from four angles, and `tests/outline_probe.gd` renders the
+same view with one suspect disabled at a time. Both exist because the bugs they found — a
+cutlass rolled a quarter turn in his fist, a white line around everything at distance — could
+only be seen, not reasoned about.
+
 ## Working on two machines (PC + iPad)
 
-Godot writes a `.import` file next to every asset it imports, and the contents differ per
-machine - so with both a PC and an iPad in the same repo, every pull collides on files nobody
-edited. The height maps and the screenshots are data rather than textures (the `.r16` is read
-with `FileAccess`, the PNG fallback with `Image.load_from_file`), so `terrain/` and `docs/`
-each carry a `.gdignore` and Godot leaves them alone. `*.import` is gitignored.
+Godot writes a `.import` file next to every asset, and the contents differ per machine — so
+with both a PC and an iPad in one repo, every pull collides on files nobody edited. The height
+maps and the screenshots are data rather than textures, so `terrain/` and `docs/` each carry a
+`.gdignore`. `*.import` is gitignored.
 
-If Working Copy ever says a pull was aborted because of uncommitted changes, check what they
-are first: if they are only `.import`/`.godot` files, discard them and pull again.
+If Working Copy says a pull was aborted because of uncommitted changes, check what they are
+first: if they are only `.import`/`.godot` files, discard them and pull again.
 
 ## Notes worth keeping
 
 - **Use the `.r16`, not the PNG.** Godot's image loader converts a 16-bit PNG down to 8-bit,
-  which shows up as terracing. `terrain.gd` reads the raw file directly and only falls back
-  to the PNG.
+  which shows up as terracing.
 - **Vertex colours are linear.** sRGB values need `srgb_to_linear()`, or the terrain looks
   washed out.
-- **Triangle winding**: `[0,1,2] / [0,2,3]` over the grid. The other order faces away and
-  backface culling makes the terrain look like scattered fragments.
 - **Renderer is Mobile**, not Forward+, so it runs on iPad. SSAO is off for the same reason.
-- `--screenshot` (as a user arg) renders a frame after the physics settles and quits:
-  `Godot.exe --path . -- --screenshot` — it is how this project was checked without the editor.
-- `--tunneltest` walks the player in at one hole and on to the other, printing depth and
-  whether they are still standing; `--probe [--second]` casts rays down a crater and reports
-  what they hit; `--probepath` checks there is floor under the whole tunnel; `--holeview`
-  renders a crater from above. These exist because every tunnel bug so far looked identical
-  from the outside (the player falls forever) and only the probes said why.
-- `--touchtest` feeds synthetic touch events through the real input path and prints what
-  happened, so the iPad controls can be tested from a desktop run:
-  `Godot.exe --path . -- --touchtest --touch`
-  Expected: the stick moves the player several metres, the drag turns the camera, the jump
-  button sets an upward velocity. (`physics_frame` fires *before* `_physics_process`, so a
-  check straight after emitting a jump reads the old velocity — wait one more frame.)
+- **Never scale a rigged model on its root.** Skinning cancels the root against the inverse
+  bind matrices and the mesh distorts. Use `nodes/root_scale` in the `.import` — which is
+  gitignored, so any such setting has to be written down.
+- **Screen-space effects must not be sharper than a pixel.** The shoreline foam's
+  anti-aliasing width was capped, so two hundred metres out — where one pixel spans metres of
+  beach — the band resolved as a hard white line around every waterline. Take `fwidth` *before*
+  any `discard`, where it is still defined.
+- **`CPUParticles3D` arrives already emitting**, so a one-shot burst spends its cycle before
+  you have configured it. Call `restart()`.
+- **MultiMesh instance transforms are in the node's own space**, and headless reads them back
+  as identity with a zero AABB. Grass positioned in world coordinates on a rotated parent ended
+  up hundreds of metres away in the sky.
+- `--screenshot` renders a frame after the physics settles and quits. `--jumptest`,
+  `--swimtest`, `--touchtest`, `--deathtest`, `--tunneltest`, `--probe`, `--probepath`,
+  `--holeview` and `--overview` each print or render one thing. They exist because most bugs
+  here looked identical from the outside and only a measurement said why.
