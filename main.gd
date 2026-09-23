@@ -4,43 +4,43 @@ extends Node3D
 ## Run with --screenshot to save a picture after a few frames and quit (used to check the
 ## project renders without opening the editor).
 
-const CoastalStudy = preload("res://art/procedural/coastal_study.gd")
-const Enemy = preload("res://enemy.gd")
-const Hud = preload("res://hud.gd")
-const Rocks = preload("res://rocks.gd")
-const Cargo = preload("res://art/props/cargo.tscn")
-const CargoKind = preload("res://art/props/cargo.gd")
-const Grass = preload("res://art/props/grass.gd")
-const Palm = preload("res://art/props/palm.tscn")
-const Music = preload("res://music.gd")
-const Sfx = preload("res://sfx.gd")
-const Ambience = preload("res://ambience.gd")
+const CoastalStudy = preload("res://world/coastal_study.gd")
+const Enemy = preload("res://actors/grunt/grunt.gd")
+const Hud = preload("res://ui/hud.gd")
+const Rocks = preload("res://props/rock/rocks.gd")
+const Cargo = preload("res://props/cargo/cargo.tscn")
+const CargoKind = preload("res://props/cargo/cargo.gd")
+const Grass = preload("res://props/grass/grass.gd")
+const Palm = preload("res://props/palm/palm.tscn")
+const Music = preload("res://systems/music.gd")
+const Sfx = preload("res://systems/sfx.gd")
+const Ambience = preload("res://systems/ambience.gd")
 var _coastal_study: Node3D
 ## Survives a scene reload, because the script does and the node does not. Only --deathtest
 ## uses it.
 static var _death_test_runs := 0
 
 ## Grunts, scattered around the island. They idle until the player comes near, walk over and
-## swing at him - see enemy.gd.
+## swing at him - see actors/grunt/grunt.gd.
 @export var enemy_count := 5
 ## How far out they are scattered. Far enough that none is visible from the spawn, so they are
 ## something you walk into rather than something waiting on top of you.
 @export var enemy_near := 18.0
 @export var enemy_far := 45.0
-## Generated rocks scattered over the island - see rocks.gd. Zero turns them off.
+## Generated rocks scattered over the island - see props/rock/rocks.gd. Zero turns them off.
 @export var rock_count := 40
 ## Cargo washed up and adrift. Rigid bodies, so barrels roll when shoved, crates do not, and
-## both bob when they end up in the sea - see art/props/cargo.gd.
+## both bob when they end up in the sea - see props/cargo/cargo.gd.
 @export var barrels_ashore := 5
 @export var barrels_afloat := 4
 @export var crates_ashore := 6
 @export var crates_afloat := 3
 ## Grass tufts over the island's green band. One MultiMesh, so this is a count rather than a
-## node budget - see art/props/grass.gd.
-## Clumps of grass, not tufts: each patch holds 7 to 20. See art/props/grass.gd.
+## node budget - see props/grass/grass.gd.
+## Clumps of grass, not tufts: each patch holds 7 to 20. See props/grass/grass.gd.
 @export var grass_patches := 70
 ## Palms along the shore. Nodes rather than a MultiMesh: there are a dozen and you walk into
-## them - see art/props/palm.gd.
+## them - see props/palm/palm.gd.
 @export var palm_count := 14
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.

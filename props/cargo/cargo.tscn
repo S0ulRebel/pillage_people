@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://art/props/cargo.gd" id="1"]
+[ext_resource type="Script" path="res://props/cargo/cargo.gd" id="1"]
 
 [node name="Cargo" type="RigidBody3D"]
 script = ExtResource("1")

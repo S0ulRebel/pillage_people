@@ -99,7 +99,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 	position.y = sea_level
 	mesh = _radial_grid()
 	if material == null:
-		material = load("res://ocean_material.tres")
+		material = load("res://world/ocean_material.tres")
 	var water := material
 	for entry in [["shallow_colour", shallow_colour], ["lagoon_colour", lagoon_colour],
 			["deep_colour", deep_colour],

@@ -61,8 +61,8 @@ never in advance.** Two users is a coincidence. See Part 3.
 ### Moving files
 
 Godot tracks resources by UID, and moving a file **through the editor's FileSystem dock**
-rewrites the references for you. Moving one from a shell does not: `preload("res://weapon.gd")`
-is a plain string in two scripts, and it will still point at nothing afterwards. Either move in
+rewrites the references for you. Moving one from a shell does not: `preload("res://weapon.gd")` is a plain
+string in however many scripts use it, and it will still point at nothing afterwards. Either move in
 the editor, or move and fix every `preload`/`load` path in the same commit - and run the tests,
 which is what proves it.
 

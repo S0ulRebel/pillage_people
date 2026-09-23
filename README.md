@@ -21,19 +21,21 @@ real touchscreen; on desktop add `--touch` to see them.
 
 ## What is in it
 
-| File | What it does |
+Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.md).
+
+| Where | What it does |
 |---|---|
 | `main.tscn` / `main.gd` | The scene, and the orchestrator: builds the island, scatters the props, spawns the grunts, and wires everything to the audio. |
-| `player.gd` | The captain. `CharacterBody3D`: camera-relative movement, jumping, swimming, swinging a cutlass, taking hits, dying. |
-| `enemy.gd` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
-| `weapon.gd` | The blade, shared by both — hung off a hand bone with a hitbox along it. |
-| `terrain.gd` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
-| `ocean.gd` / `ocean.gdshader` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
-| `camera_rig.gd` | `SpringArm3D` chase camera: follows smoothly, orbits, zooms, will not clip through hills. |
-| `art/props/*` | Placeable prefabs: rocks, barrels and crates (which float), palms, grass, the waterfall. |
-| `sfx.gd` `music.gd` `ambience.gd` | Sound. See below. |
-| `hud.gd` `health_bar.gd` | The captain's health, and the floating bars over the grunts. |
-| `tunnel.gd` | Draw a curve, get a tunnel bored through the terrain. Opt-in with `--tunnel`. |
+| `actors/captain/` | The captain. `CharacterBody3D`: camera-relative movement, jumping, swimming, swinging a cutlass, taking hits, dying. |
+| `actors/grunt/` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
+| `actors/parts/` | Shared by both: the blade (hung off a hand bone with a hitbox along it) and the hit spark. |
+| `props/` | Placeable prefabs, one folder each: rocks, cargo (barrels and crates, which float), palms, grass, the waterfall. |
+| `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
+| `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
+| `world/tunnel.gd` | Draw a curve, get a tunnel bored through the terrain. Opt-in with `--tunnel`. |
+| `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
+| `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |
+| `art/` | Data only — imported models, generated audio, reference images. Nothing here is loaded as code. |
 | `terrain/*.r16` | Height maps from `tools\make_heightmap.py` in `D:\code\gan`. |
 
 ## The fight

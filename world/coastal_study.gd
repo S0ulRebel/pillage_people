@@ -1,9 +1,9 @@
 extends Node3D
 ## Deterministic layout in shoreline coordinates: +Z inland, +X along the beach.
-const Rock = preload("res://art/props/rock.tscn")
-const RockKind = preload("res://art/props/rock.gd")
-const Palm = preload("res://art/props/palm.tscn")
-const Grass = preload("res://art/props/grass.gd")
+const Rock = preload("res://props/rock/rock.tscn")
+const RockKind = preload("res://props/rock/rock.gd")
+const Palm = preload("res://props/palm/palm.tscn")
+const Grass = preload("res://props/grass/grass.gd")
 const OFFSETS := [Vector2(-4.5, 2.5), Vector2(-6.5, 0.5), Vector2(-3.0, -0.8),
 	Vector2(5.0, 2.0), Vector2(-1.8, -2.2), Vector2(5.8, 0.3)]
 ## Which generated model stands at each offset, and how tall it should be. Heights carry over

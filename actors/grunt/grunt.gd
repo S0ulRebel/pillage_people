@@ -8,9 +8,9 @@ extends CharacterBody3D
 ## Everything is built in code, including the collider and the weapon, so a grunt can be spawned
 ## from a script with no scene to place and no prefab to keep in step.
 
-const HealthBar = preload("res://health_bar.gd")
-const Weapon = preload("res://weapon.gd")
-const HitSpark = preload("res://hit_spark.gd")
+const HealthBar = preload("res://ui/health_bar.gd")
+const Weapon = preload("res://actors/parts/weapon.gd")
+const HitSpark = preload("res://actors/parts/hit_spark.gd")
 
 signal damaged(amount: int, remaining: int)
 signal died
@@ -148,7 +148,7 @@ func is_dead() -> bool:
 	return _dead
 
 
-## Called by anything that hits this - see the blade hitbox in player.gd. Duck-typed on
+## Called by anything that hits this - see the blade hitbox in captain.gd. Duck-typed on
 ## purpose: the hitbox asks whether a body has this method rather than what class it is, so
 ## breakable crates and the player answer the same way without a shared base class.
 func take_damage(amount: int, _from: Node = null) -> void:

@@ -11,10 +11,10 @@ extends Node3D
 ## 2.2 m, the platform 0.9 m and about 3.3 m across.
 ##
 ## What a rock is made of - flat shading, the water camera's layer, collision - lives in
-## art/props/rock.gd, which is also what you drag into a scene to place one by hand. A
+## rock.gd beside it, which is also what you drag into a scene to place one by hand. A
 ## scattered rock and an authored one are the same thing, so neither can drift from the other.
 
-const RockProp = preload("res://art/props/rock.gd")
+const RockProp = preload("res://props/rock/rock.gd")
 
 const MODELS := [
 	"res://art/models/rocks/rock_boulder.glb",

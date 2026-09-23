@@ -21,7 +21,7 @@ const MODEL := "res://art/models/foliage/grass.glb"
 ## How wide a clump spreads, in metres.
 @export var patch_radius := Vector2(1.1, 3.2)
 ## Where grass grows, in metres above sea level. The terrain shader paints sand up to 3.5 and
-## turns to jungle around 8.8, so this is the green band between - see terrain.gdshader.
+## turns to jungle around 8.8, so this is the green band between - see world/terrain.gdshader.
 @export var lowest := 3.6
 @export var highest := 9.0
 ## How far out to scatter, from the point handed in.

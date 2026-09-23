@@ -14,7 +14,7 @@ extends CPUParticles3D
 ## The colour is the whole read at this camera distance, and it has to fight the sand. Gold was
 ## the first choice and measured badly: against beach sand at RGB 229,182,106 it sat only 33
 ## luminance above it at a colour distance of 46, which looked like mustard confetti. Cool
-## white manages 163 - see player.gd. Red for the blows the captain takes, which is distinct in
+## white manages 163 - see captain.gd. Red for the blows the captain takes, which is distinct in
 ## hue rather than in brightness and does not need to compete.
 const LIFETIME := 0.45
 
@@ -23,7 +23,7 @@ const LIFETIME := 0.45
 ## `scale_up` is for making a burst read from further off without changing the particle count.
 static func burst(parent: Node, at: Vector3, away: Vector3, colour: Color,
 		scale_up := 1.0) -> CPUParticles3D:
-	var sparks: CPUParticles3D = (load("res://hit_spark.gd") as GDScript).new()
+	var sparks: CPUParticles3D = (load("res://actors/parts/hit_spark.gd") as GDScript).new()
 	sparks.name = "HitSpark"
 	parent.add_child(sparks)
 	sparks.global_position = at

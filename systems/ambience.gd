@@ -21,7 +21,7 @@ extends Node3D
 ## Everything is optional. A sound that has not been generated does not play, and the rest
 ## carries on without it.
 
-const Sfx := preload("res://sfx.gd")
+const Sfx := preload("res://systems/sfx.gd")
 
 ## Where the looping beds live. Kept apart from the one-shots because they are loaded
 ## differently - a bed has its loop flag forced on, and a one-shot must never have one.

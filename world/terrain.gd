@@ -313,7 +313,7 @@ func _build_mesh() -> void:
 	# Cel shading is where the stylised look comes from; the vertex colours only supply which
 	# biome each point is in. See terrain.gdshader.
 	if material == null:
-		material = load("res://terrain_material.tres")
+		material = load("res://world/terrain_material.tres")
 	material.set_shader_parameter("sea_y", sea_level())
 	for entry in [["caustic_colour", caustic_colour], ["seabed_colour", seabed_colour],
 			["deep_seabed_colour", deep_seabed_colour], ["seabed_weed", seabed_weed],

@@ -10,7 +10,7 @@ class_name Waterfall
 ##
 ## There is no collision. You walk through it, which is the point: the plan is caves behind.
 
-const SHADER := "res://waterfall.gdshader"
+const SHADER := "res://props/waterfall/waterfall.gdshader"
 
 @export var width := 2.4:
 	set(value):
@@ -21,7 +21,7 @@ const SHADER := "res://waterfall.gdshader"
 	set(value):
 		spread = maxf(value, 0.05)
 		_queue()
-## Distance between cross-sections along the curve - tunnel.gd's own name for the same idea.
+## Distance between cross-sections along the curve - world/tunnel.gd's own name for the same idea.
 @export var sample_spacing := 0.7:
 	set(value):
 		sample_spacing = maxf(value, 0.1)

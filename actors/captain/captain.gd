@@ -159,8 +159,8 @@ var camera_rig: Node3D
 ## Set by main.gd on touch devices; its stick overrides the keyboard when in use.
 var touch_controls: CanvasLayer
 
-const Weapon = preload("res://weapon.gd")
-const HitSpark = preload("res://hit_spark.gd")
+const Weapon = preload("res://actors/parts/weapon.gd")
+const HitSpark = preload("res://actors/parts/hit_spark.gd")
 const MODEL_PATH := "res://art/models/captain.glb"
 
 @onready var _body: Node3D = $Body
@@ -514,7 +514,7 @@ func _build_body() -> void:
 
 
 ## Hangs the placeholder blade off the right hand. The awkward parts - which way a blade leaves
-## a fist, and cancelling the rig's unit scale - live in weapon.gd, shared with the grunts.
+## a fist, and cancelling the rig's unit scale - live in actors/parts/weapon.gd, shared with the grunts.
 func _attach_weapon(model: Node3D) -> void:
 	if not show_weapon:
 		return
