@@ -204,55 +204,54 @@ func _finish() -> void:
 	quit(1 if failures > 0 else 0)
 
 
-## Does the cutlass itself connect, and how far does it actually reach?
+## Does the cutlass connect, at the distance a grunt actually stands?
 ##
-## Everything else here calls take_damage directly, so the sword could be unmounted, mis-sized
-## or missing its hitbox entirely and every other number would be unchanged.
+## Nothing checked this before, and when it was finally asked the answer was no. The blade's
+## hits came from an Area3D running along it - 12 cm thick, on a hand that moves up to 20 cm
+## per physics step - so it teleported past people between frames. Measured, it landed at
+## 0.40 m and at nothing beyond: 0.55, 0.70, 0.90 and 1.30 were all swept through and took
+## nothing off. A grunt stops at attack_range 1.00 m and waits there, so the captain could not
+## reach one that was behaving normally.
 ##
-## The distance is 0.4 m and that is not a comfortable margin, it is the measurement. Swept
-## against a held grunt the blade lands at 0.40 m and at nothing further: 0.55, 0.70, 0.90 and
-## 1.30 all miss, on this code and on the code before the sword was split out of weapon.gd.
-##
-## Which means the captain cannot reach a grunt that is behaving normally, because a grunt
-## stops at attack_range 1.00 m. His hits land when the two are jostling close enough to touch.
-## It is the same defect already found in the grunt's swing - the Mixamo clip sweeps ACROSS the
-## body, tip 0.37-0.51 m to the left and barely 0.3 m forward - and the grunt was given a range
-## and facing check to work around it while the captain kept blade overlap.
-##
-## So this asserts the blade works at the range it works at, and the gap above is written down
-## rather than hidden behind a passing test.
-const BLADE_REACH := 0.4
-
-
+## So: hit at a metre, facing him, and NOT hit the same grunt standing behind. The second half
+## matters as much as the first - a reach check that ignores facing hits everyone in a circle.
 func _blade_lands(captain: CharacterBody3D, grunt: CharacterBody3D, terrain: Node) -> void:
 	var sword := captain.find_children("Sword", "", true, false)
 	check(not sword.is_empty(), "the captain has no Sword node - nothing is in his hand")
-	if sword.is_empty():
-		return
-	var hitbox: Area3D = (sword[0] as Node).get("hitbox")
-	check(hitbox != null, "the sword has no hitbox, so no swing can ever land")
-	if hitbox == null or grunt.is_dead():
+	if sword.is_empty() or grunt.is_dead():
 		return
 
 	var at := Vector3(40.0, 0.0, 40.0)
 	var ground: float = terrain.height_at(at.x, at.z)
-	captain.global_position = Vector3(at.x, ground + 0.2, at.z)
-	captain.velocity = Vector3.ZERO
-	grunt.global_position = Vector3(at.x + BLADE_REACH, ground + 0.2, at.z)
-	# Held still: this measures the blade, not whether the AI wanders into it.
-	grunt.set_physics_process(false)
-	for i in 15:
-		await physics_frame
-
-	var before: int = grunt.health()
-	captain.attack()
-	for i in 55:
-		await physics_frame
-		if grunt.health() < before:
+	var took := {}
+	for behind in [false, true]:
+		if grunt.is_dead():
 			break
-	grunt.set_physics_process(true)
-	print("blade: grunt %d -> %d hp from one swing at %.2f m (he cannot reach 0.55 m)"
-			% [before, grunt.health(), BLADE_REACH])
-	check(grunt.health() < before,
-			"the blade took nothing off a grunt at %.2f m - it is not mounted, not sized, or"
-			% BLADE_REACH + " its hitbox is not moving with the swing")
+		captain.global_position = Vector3(at.x, ground + 0.2, at.z)
+		captain.velocity = Vector3.ZERO
+		var side := -1.0 if behind else 1.0
+		grunt.global_position = Vector3(at.x, ground + 0.2, at.z + 1.0 * side)
+		grunt.velocity = Vector3.ZERO
+		grunt.set_physics_process(false)
+		# Facing +Z, so the grunt at +Z is in front and the one at -Z is behind him.
+		captain._body.rotation.y = 0.0
+		for i in 15:
+			await physics_frame
+		var before: int = grunt.health()
+		captain.attack()
+		for i in 55:
+			await physics_frame
+			if grunt.health() < before:
+				break
+		took[behind] = before - grunt.health()
+		grunt.set_physics_process(true)
+		for i in 50:
+			await physics_frame
+
+	print("blade at 1.0 m: in front took %d hp, behind took %d hp"
+			% [took.get(false, 0), took.get(true, 0)])
+	check(took.get(false, 0) > 0,
+			"the captain swung at a grunt one metre in front of him and missed - which is"
+			+ " where grunts stand")
+	check(took.get(true, 0) == 0,
+			"the swing hit a grunt standing BEHIND him, so the facing cone is not working")

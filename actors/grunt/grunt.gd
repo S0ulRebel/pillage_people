@@ -128,7 +128,6 @@ var _attack := 0.0
 var _cooldown := 0.0
 ## The cutlass - see actors/parts/sword.gd. Typed, so its hitbox is reachable by name.
 var _sword: Sword
-var _blade: Area3D
 ## Everything hit by the current swing, so one swing cannot land twice on the same body.
 var _struck: Array[Node] = []
 
@@ -424,7 +423,6 @@ func _attach_weapon(model: Node3D) -> void:
 		blade.free()
 		return
 	_sword = blade
-	_blade = blade.hitbox
 
 
 ## Hangs the health bar above the body, at a default height for now.

@@ -1,45 +1,72 @@
 class_name Sword
 extends Held
-## A blade in a hand, with an overlap volume running along it.
+## A blade in a hand, and who a swing of it reaches.
 ##
 ## Everything about getting it INTO the hand - the bone socket, which way it leaves the fist,
 ## cancelling the rig's unit scale - is in held.gd, shared with anything else a character
-## carries. What is here is the only part that makes it a sword: a box that reports what the
-## blade is touching.
+## carries. What is here is the part that makes it a sword: the question "who does this swing
+## hit", answered once for everybody holding one.
 ##
-## Shared by the captain and the grunts, though only the captain's hits are decided by it. A
-## grunt's swing sweeps ACROSS its body - the tip travels 0.37 to 0.51 m to its left and barely
-## 0.3 m forward - so blade overlap can never reach the person in front of it, and the grunt
-## uses a range and facing check instead. The hitbox is still built, because the sword is the
-## same sword and the day a grunt gets a clip that thrusts it will already be right.
+## That question used to be answered by an Area3D running along the blade, and it never
+## really worked. See targets().
 
-## The overlap volume around the blade. Whoever owns the sword decides when a hit counts; this
-## only reports what the blade is touching.
-var hitbox: Area3D
+## How far a swing reaches, and how wide a cone in front of the swinger counts.
+##
+## Measured off the clip rather than chosen. Through the strike window the blade travels
+## forward to 0.61 m and then sweeps left to 0.85 m, with its own length beyond that - so 1.35
+## covers the arc, and is the number the grunt had already arrived at separately. The cone is
+## wide because the sweep genuinely crosses the front: it starts straight ahead and finishes
+## ninety degrees to the left.
+@export var reach := 1.35
+@export_range(0.0, 1.0) var facing_dot := 0.35
 
 
-## Builds the blade, hangs it off the bone, and puts a hitbox along it.
+## Builds the blade and hangs it off the bone. Nothing else - a sword is a held thing that
+## knows its own reach.
 func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
 		rotation_deg: Vector3, colour: Color, model_path := "",
 		grip := Vector3.ZERO) -> bool:
-	if not mount(skeleton, bone, size, offset, rotation_deg, colour, model_path, grip):
-		return false
+	return mount(skeleton, bone, size, offset, rotation_deg, colour, model_path, grip)
 
-	hitbox = Area3D.new()
-	hitbox.name = "BladeHit"
-	var collider := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = size
-	collider.shape = shape
-	hitbox.add_child(collider)
-	# Left monitoring the whole time. Toggling it costs a physics frame before overlaps are
-	# reported again, and a strike window is only a dozen frames wide - long enough to lose a
-	# hit to that delay. The owner gates whether a hit counts, not whether the area is watching.
-	hitbox.monitoring = true
-	add_child(hitbox)
-	# A modelled blade has its origin at the pommel and runs out along +X, so the hitbox is
-	# pushed out to sit over the blade rather than straddling the fist. The box mesh is centred
-	# on its own origin, so it needs no such shift.
-	if Held.has_model(model_path):
-		collider.position = Vector3(size.x * 0.5, 0.0, 0.0)
-	return true
+
+## Everybody this swing can hit, from `wielder` facing `facing`, ignoring anyone in `skip`.
+##
+## A range and cone test, not the blade's own overlap - and that is a fix, not a shortcut.
+##
+## The hitbox was 12 cm thick and the hand carrying it moves up to 20 cm in one physics step,
+## so the blade TELEPORTED PAST people between frames. It only connected when something was
+## close enough to still be inside the box on the frame the engine happened to look: measured,
+## that was 0.40 m, and 0.55 m and beyond were swept through and took nothing. A grunt stands
+## off at 1.00 m and waits there, so the captain could not reach one that was behaving
+## normally. His hits landed when the two were jostling close enough to touch, which is why it
+## worked often enough to look like bad luck rather than a bug.
+##
+## The grunt had already worked around the same clip the same way. This is that, in one place.
+func targets(wielder: Node3D, facing: Vector3, skip: Array[Node]) -> Array[Node3D]:
+	var found: Array[Node3D] = []
+	var space := wielder.get_world_3d().direct_space_state
+	var ball := SphereShape3D.new()
+	ball.radius = reach
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = ball
+	query.transform = Transform3D(Basis(), wielder.global_position)
+	query.collide_with_bodies = true
+	if wielder is CollisionObject3D:
+		query.exclude = [(wielder as CollisionObject3D).get_rid()]
+	for hit in space.intersect_shape(query, 16):
+		var body := hit.get("collider") as Node3D
+		if body == null or body == wielder or skip.has(body):
+			continue
+		if not body.has_method("take_damage"):
+			continue
+		var towards: Vector3 = body.global_position - wielder.global_position
+		towards.y = 0.0
+		var distance := towards.length()
+		if distance <= 0.001:
+			continue
+		# Roughly in front. Without this a swing lands on somebody who has already walked past,
+		# because the animation is still running while the body turns.
+		if facing.dot(towards / distance) < facing_dot:
+			continue
+		found.append(body)
+	return found

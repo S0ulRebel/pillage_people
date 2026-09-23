@@ -186,8 +186,6 @@ var _attack := 0.0
 ## The placeholder blade, so it can be swapped or hidden without rebuilding the body.
 ## The cutlass - see actors/parts/sword.gd. Typed, so its hitbox is reachable by name.
 var _sword: Sword
-## Overlap volume around the blade. Always monitoring; what changes is whether hits count.
-var _blade: Area3D
 ## Everything already struck by the current swing, so one swing cannot hit the same body twice.
 var _struck: Array[Node] = []
 ## Health and knockback are components - see actors/parts. They were his alone and the
@@ -249,25 +247,27 @@ func take_damage(amount: int, _from: Node = null) -> void:
 ## starts the strike overlapping them - and an entered signal that fired before the window
 ## never comes again.
 func _strike() -> void:
-	if _blade == null:
+	if _sword == null:
 		return
 	var elapsed := attack_length - _attack
 	if _attack <= 0.0 or elapsed < hit_from or elapsed > hit_to:
 		return
-	for body in _blade.get_overlapping_bodies():
-		if body == self or _struck.has(body):
-			continue
-		if body.has_method("take_damage"):
-			_struck.append(body)
-			body.take_damage(damage, self)
-			# On the target, at chest height, thrown back the way the blow travelled. Spawned
-			# on the scene rather than on either fighter so it does not ride the follow-through
-			# or vanish when a body is freed.
-			var towards: Vector3 = body.global_position - global_position
-			towards.y = 0.0
-			var contact: Vector3 = body.global_position + Vector3.UP * 1.0 					- towards.normalized() * 0.35
-			HitSpark.burst(get_parent(), contact, towards, hit_colour)
-			hit.emit(body)
+	# Asked of the sword by range and facing, not by what its hitbox happens to be inside on
+	# this frame. The blade is 12 cm thick and the hand moves up to 20 cm per physics step, so
+	# overlap only caught somebody at about 0.4 m and swept straight through anybody further -
+	# while a grunt stands off at 1.00 m. See Sword.targets.
+	var facing := Vector3(sin(_body.rotation.y), 0.0, cos(_body.rotation.y)) 			if _body != null else -global_transform.basis.z
+	for body in _sword.targets(self, facing, _struck):
+		_struck.append(body)
+		body.take_damage(damage, self)
+		# On the target, at chest height, thrown back the way the blow travelled. Spawned on
+		# the scene rather than on either fighter so it does not ride the follow-through or
+		# vanish when a body is freed.
+		var towards: Vector3 = body.global_position - global_position
+		towards.y = 0.0
+		var contact: Vector3 = body.global_position + Vector3.UP * 1.0 				- towards.normalized() * 0.35
+		HitSpark.burst(get_parent(), contact, towards, hit_colour)
+		hit.emit(body)
 
 
 ## Starts a swing, if one is not already running. Movement is deliberately left alone - you can
@@ -573,7 +573,6 @@ func _attach_weapon(model: Node3D) -> void:
 		blade.free()
 		return
 	_sword = blade
-	_blade = blade.hitbox
 
 
 func _flatten_materials(model: Node3D) -> void:
