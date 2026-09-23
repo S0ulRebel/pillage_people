@@ -83,10 +83,17 @@ func fire(wielder: Node3D, aim: Vector3) -> Node:
 	_reloading = reload_seconds
 
 	var from := muzzle()
+	# Fired THROUGH the aim point for the pistol's full carry, not stopped at it.
+	#
+	# The aim arrives from a camera ray, so it is a point on the SURFACE of whatever is under
+	# the cursor. A ray that ends exactly on a surface is a coin flip - it registered when the
+	# test aimed at a grunt's centre and ended up inside him, and missed in the game every
+	# time, where the cursor puts it on his chest. A ball does not stop in mid-air where you
+	# were pointing either.
 	var along := aim - from
-	if along.length() > carry:
-		along = along.normalized() * carry
-	var to := from + along
+	if along.length() < 0.001:
+		return null
+	var to := from + along.normalized() * carry
 
 	var query := PhysicsRayQueryParameters3D.create(from, to)
 	query.collide_with_bodies = true

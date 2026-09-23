@@ -211,6 +211,17 @@ func _start_sfx() -> void:
 	_player.splashed.connect(func(entering: bool) -> void:
 		if entering:
 			sfx.play("splash", _player.global_position))
+	# The flintlock. Wired through the same signal route as everything else, so the gun knows
+	# nothing about sound - it reports where the ball went and this decides what that sounds
+	# like. Both clips are listed from the folder, so they are silent until they exist rather
+	# than erroring: see sfx.gd.
+	var gun: Gun = _player.pistol()
+	if gun != null:
+		gun.fired.connect(func(from: Vector3, _to: Vector3, _hit: Node) -> void:
+			# Louder than a blade. It is a gunshot, and it is going off in your own hand.
+			sfx.play("shot", from, 4.0))
+		gun.reloaded.connect(func() -> void:
+			sfx.play("reload", _player.global_position, -4.0))
 	# The grunts are NOT wired here. _start_sfx runs before _spawn_enemies, so this used to
 	# loop over an empty scene and silently connect nothing - a grunt could be cut down without
 	# a sound and every part of it looked correct. Each one is wired as it is created instead,

@@ -40,6 +40,14 @@ func _run() -> void:
 	print("pistol: mounted at %s, loaded=%s" % [str(gun.global_position).left(26),
 			gun.is_loaded()])
 
+	# Is anything listening for the shot? The captain's _ready runs before main's, so the gun
+	# exists by the time _start_sfx looks for it - but that is the exact ordering that once
+	# left every grunt dying in silence, so it is asserted rather than assumed.
+	print("fired listeners %d, reloaded listeners %d"
+			% [gun.fired.get_connections().size(), gun.reloaded.get_connections().size()])
+	check(gun.fired.get_connections().size() > 0,
+			"nothing listens for the shot - it will fire silently")
+
 	# Raising it is a stance, and it has to actually latch.
 	check(not captain.is_aiming(), "he starts with the pistol already up")
 	captain.set_aiming(true)
