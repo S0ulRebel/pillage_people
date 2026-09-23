@@ -20,6 +20,28 @@ extends Node3D
 @export var max_pitch_degrees := -12.0
 @export var pitch_speed := 60.0      ## degrees per second on the keyboard
 
+@export_group("Spyglass")
+## Held to the captain's eye. The camera goes to his head and the field of view narrows; the
+## wheel then magnifies instead of pulling the camera back.
+##
+## FOV rather than the spring arm, which is what the wheel normally drives. Shortening the arm
+## moves the camera CLOSER - it clips through terrain and magnifies nothing. Narrowing the
+## angle is what a telescope does, and it costs nothing.
+@export var glass_fov := 22.0
+@export var glass_zoom_min := 1.0
+@export var glass_zoom_max := 5.0
+@export var glass_zoom_step := 0.5
+## Where his eye is, above the node origin at his feet.
+@export var eye_height := 1.6
+## How wide the iris sits while glassing. Not shut, or there is nothing to look through.
+@export var glass_iris := 0.62
+@export var glass_seconds := 0.35
+## Tilt limits while glassing. The chase camera cannot go above -12 degrees, which is fine
+## looking down at the captain and useless for looking at a horizon - the whole point of the
+## glass is the things level with you and slightly above.
+@export var glass_min_pitch := -70.0
+@export var glass_max_pitch := 25.0
+
 @export_group("Mouse look")
 ## Hold the middle button and move to swing the camera round and tilt it. The left button is
 ## deliberately left alone - it belongs to whatever the player is doing in the world. It used
@@ -32,7 +54,15 @@ extends Node3D
 @export var invert_mouse_pitch := false
 
 @onready var _arm: SpringArm3D = $SpringArm3D
+@onready var _camera: Camera3D = $SpringArm3D/Camera3D
 var _target: Node3D
+## The iris drawn while glassing. Separate from the one main.gd uses for openings and deaths:
+## that one is opaque and covers everything, this one has to be looked through.
+var glass: Spyglass
+var _glassing := false
+var _magnification := 1.0
+var _wide_fov := 75.0
+var _rested_length := 18.0
 ## Set by main.gd on touch devices.
 var touch_controls: CanvasLayer
 ## True while the middle button is held.
@@ -43,12 +73,52 @@ func _ready() -> void:
 	_apply_pitch()
 	_arm.spring_length = 18.0
 	_arm.margin = 0.4
+	if _camera != null:
+		_wide_fov = _camera.fov
+
+
+## Raises or lowers the glass. Returns what it did, so a caller can tell whether anything
+## happened without tracking the state itself.
+func set_glassing(looking: bool) -> bool:
+	if _glassing == looking or _target == null:
+		return false
+	_glassing = looking
+	if looking:
+		_rested_length = _arm.spring_length
+		_magnification = 1.0
+		# Arm to nothing puts the camera on the pivot, and the pivot goes to his head - so the
+		# view is from his eye rather than from eighteen metres behind him. Anything else and
+		# the iris is drawn over a shot of the back of his own head.
+		_arm.spring_length = 0.0
+	else:
+		_arm.spring_length = _rested_length
+	_apply_fov()
+	if glass != null:
+		if looking:
+			glass.to(glass_iris, glass_seconds)
+		else:
+			# clear(), not close(). Closing takes it to fully black - which is right for a
+			# transition and blacks the screen out for a captain simply lowering his glass.
+			glass.clear(glass_seconds * 0.6)
+	return true
+
+
+func is_glassing() -> bool:
+	return _glassing
+
+
+func _apply_fov() -> void:
+	if _camera == null:
+		return
+	_camera.fov = (glass_fov / _magnification) if _glassing else _wide_fov
 
 
 ## Keeps the tilt inside a range where the camera neither looks up from under the ground nor
 ## straight down onto the top of the player's head.
 func _apply_pitch() -> void:
-	pitch_degrees = clampf(pitch_degrees, min_pitch_degrees, max_pitch_degrees)
+	var lowest := glass_min_pitch if _glassing else min_pitch_degrees
+	var highest := glass_max_pitch if _glassing else max_pitch_degrees
+	pitch_degrees = clampf(pitch_degrees, lowest, highest)
 	_arm.rotation_degrees.x = pitch_degrees
 
 
@@ -65,13 +135,25 @@ func set_target(target: Node3D) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("spyglass"):
+		set_glassing(not _glassing)
+		# Coming down from a steep look, the chase camera's own limits apply again and the
+		# pitch has to be pulled back inside them or the view stays where the glass left it.
+		_apply_pitch()
+		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_MIDDLE:
 			_set_mouse_looking(event.pressed)
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_arm.spring_length = maxf(min_distance, _arm.spring_length - zoom_step)
+			if _glassing:
+				_magnify(glass_zoom_step)
+			else:
+				_arm.spring_length = maxf(min_distance, _arm.spring_length - zoom_step)
 		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_arm.spring_length = minf(max_distance, _arm.spring_length + zoom_step)
+			if _glassing:
+				_magnify(-glass_zoom_step)
+			else:
+				_arm.spring_length = minf(max_distance, _arm.spring_length + zoom_step)
 	elif event is InputEventMouseMotion and _mouse_looking:
 		# screen_relative, not relative. The project stretches canvas items to a 1920x1080 base,
 		# and relative arrives already scaled into that space - so the same physical mouse
@@ -79,8 +161,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		# different amounts horizontally and vertically once the aspect stopped matching.
 		# screen_relative is in real screen pixels and does not move when the window does.
 		var motion: Vector2 = event.screen_relative
-		rotation.y -= motion.x * mouse_orbit_speed
-		pitch_degrees += motion.y * mouse_pitch_speed * (-1.0 if invert_mouse_pitch else 1.0)
+		# Divided by the magnification. At 4x the same hand movement sweeps four times the
+		# view, and a glass that whips past what you are aiming at is unusable - this is the
+		# single thing most scoped views get wrong.
+		var steady := _look_scale()
+		rotation.y -= motion.x * mouse_orbit_speed * steady
+		pitch_degrees += motion.y * mouse_pitch_speed * steady 				* (-1.0 if invert_mouse_pitch else 1.0)
 		_apply_pitch()
 
 
@@ -110,16 +196,32 @@ func _physics_process(delta: float) -> void:
 	var weight := 1.0 - exp(-follow_speed * delta)
 	var followed := global_position.lerp(_target.global_position, weight)
 	followed.y = _target.global_position.y
+	# No lag at the eye. A pivot trailing a metre behind is unnoticeable from eighteen metres
+	# back and is the whole picture swimming when the camera IS the pivot.
+	if _glassing:
+		followed = _target.global_position
+		followed.y += eye_height
 	global_position = followed
 
 
+## How much to slow the look by, so turning feels the same whatever the glass is doing.
+func _look_scale() -> float:
+	return 1.0 / _magnification if _glassing else 1.0
+
+
+func _magnify(by: float) -> void:
+	_magnification = clampf(_magnification + by, glass_zoom_min, glass_zoom_max)
+	_apply_fov()
+
+
 func _process(delta: float) -> void:
+	var steady := _look_scale()
 	var orbit := Input.get_axis("cam_left", "cam_right")
 	if absf(orbit) > 0.01:
-		rotation.y -= orbit * orbit_speed * delta
+		rotation.y -= orbit * orbit_speed * delta * steady
 	var tilt := Input.get_axis("cam_down", "cam_up")
 	if absf(tilt) > 0.01:
-		pitch_degrees += tilt * pitch_speed * delta
+		pitch_degrees += tilt * pitch_speed * delta * steady
 		_apply_pitch()
 	if touch_controls:
 		var gesture: Dictionary = touch_controls.take_camera_input()

@@ -88,6 +88,21 @@ func close(seconds := -1.0) -> void:
 	closed.emit()
 
 
+## Animates to any openness. The transition cases are open() and close(); this is for a
+## glass being raised to the eye, which stops part way because it has to be looked through.
+func to(openness: float, seconds := -1.0) -> void:
+	await _to(openness, seconds if seconds >= 0.0 else close_seconds)
+
+
+## Gets out of the way - opens past the corners, so nothing of it is drawn.
+##
+## Not the same as close(). For the transition iris, "not showing anything" is SHUT and fully
+## black; for one being looked through, it is the opposite. Lowering the captain's glass with
+## close() blacked the whole screen out, which is exactly what it was asked to do.
+func clear(seconds := -1.0) -> void:
+	await _to(_wide, seconds if seconds >= 0.0 else close_seconds)
+
+
 ## Straight to a state with no animation, for starting a scene already shut.
 func snap(is_open: bool) -> void:
 	if _tween != null and _tween.is_valid():

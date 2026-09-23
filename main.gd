@@ -107,6 +107,20 @@ func _start_spyglass() -> void:
 	_glass.snap(false)
 	_glass.open()
 
+	# A SECOND iris, for the captain's own spyglass on Z. Separate from the one above because
+	# the two want opposite things: that one is opaque, covers everything and ends shut; this
+	# one stops part way open because it has to be looked through. Below it in the layer order,
+	# so dying while glassing still fades to black over the top rather than under it.
+	var view := Spyglass.new()
+	view.name = "GlassView"
+	view.layer = 90
+	view.falloff_strength = 0.75
+	add_child(view)
+	# Open, so there is nothing over the picture until Z is pressed. Shut would be a black
+	# screen: for this iris, out of the way means wide, not closed.
+	view.snap(true)
+	_camera_rig.glass = view
+
 
 ## Brings up the sound effects and connects them to the things that make noise.
 ##
