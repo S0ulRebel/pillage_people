@@ -160,6 +160,8 @@ var camera_rig: Node3D
 var touch_controls: CanvasLayer
 
 const Weapon = preload("res://actors/parts/weapon.gd")
+const Health = preload("res://actors/parts/health.gd")
+const Knockback = preload("res://actors/parts/knockback.gd")
 const HitSpark = preload("res://actors/parts/hit_spark.gd")
 const MODEL_PATH := "res://art/models/captain.glb"
 
@@ -187,8 +189,10 @@ var _weapon: MeshInstance3D
 var _blade: Area3D
 ## Everything already struck by the current swing, so one swing cannot hit the same body twice.
 var _struck: Array[Node] = []
-var _health := 0
-var _stagger := 0.0
+## Health and knockback are components - see actors/parts. They were his alone and the
+## grunt's alone, separately, and they drifted; the grunt now uses the same two.
+var _hp: Node
+var _knock: Node
 var _stride := 0.0
 var _was_wet := false
 
@@ -216,7 +220,12 @@ func is_attacking() -> bool:
 
 
 func health() -> int:
-	return _health
+	return _hp.current()
+
+
+## Whether the controls are being ignored because he was just hit.
+func is_staggered() -> bool:
+	return _knock.staggered()
 
 
 ## Duck-typed to match enemy.gd, so whatever ends up swinging at the captain does not need to
@@ -224,20 +233,11 @@ func health() -> int:
 func take_damage(amount: int, _from: Node = null) -> void:
 	if _dead:
 		return
-	_health = maxi(0, _health - amount)
-	_stagger = stagger
-	# Set as a single impulse on the velocity rather than added every frame. Adding it each
-	# frame fed the previous frame's push back into move_toward's starting point, so the shove
-	# compounded: the captain travelled 2.31 m where a grunt hit the same way travelled 0.43.
-	if _from is Node3D:
-		var away: Vector3 = global_position - (_from as Node3D).global_position
-		away.y = 0.0
-		if away.length() > 0.01:
-			away = away.normalized() * knockback
-			velocity.x = away.x
-			velocity.z = away.z
-	damaged.emit(amount, _health)
-	if _health == 0:
+	# Shoved directly away from whoever swung, so the push reads as coming from the blow.
+	_knock.hit_from(global_position, _from)
+	var finished: bool = _hp.take(amount)
+	damaged.emit(amount, _hp.current())
+	if finished:
 		die()
 
 
@@ -298,8 +298,8 @@ func revive() -> void:
 	if not _dead:
 		return
 	_dead = false
-	_health = max_health
-	_stagger = 0.0
+	_hp.refill()
+	_knock.clear()
 	# Clearing this makes _update_animation treat the next clip as a change and play it. Without
 	# it the captain stands back up still holding the last frame of his own death.
 	_clip = ""
@@ -329,7 +329,16 @@ func _ready() -> void:
 	# Tunnel ramps run at about 40 degrees, and faceted walls push some normals past Godot's
 	# 45 degree default, which reads as "wall" and stops the player dead halfway out.
 	floor_max_angle = deg_to_rad(55.0)
-	_health = max_health
+	_hp = Health.new()
+	_hp.name = "Health"
+	_hp.maximum = max_health
+	add_child(_hp)
+	_knock = Knockback.new()
+	_knock.name = "Knockback"
+	_knock.strength = knockback
+	_knock.recovery = stagger
+	_knock.damping = knock_damping
+	add_child(_knock)
 	_build_body()
 
 
@@ -358,7 +367,7 @@ func _physics_process(delta: float) -> void:
 
 	# Ticked before the swimming branch returns, or a swing started on land would never end.
 	_attack = maxf(0.0, _attack - delta)
-	_stagger = maxf(0.0, _stagger - delta)
+	_knock.tick(delta)
 	# The captain's swing SURVIVES being hit. A grunt's does not, and that asymmetry is the
 	# point: a grunt out-reaches the captain and swings every 2.15 s, so cancelling on contact
 	# meant every swing died before its strike window opened. Measured, that is a captain who
@@ -406,11 +415,13 @@ func _physics_process(delta: float) -> void:
 	# Shallow water drags: wading out to the drop-off should feel different from running.
 	var walk_speed := wanted * (wade_slowdown if submersion() > 0.0 else 1.0)
 	var target := direction * walk_speed
-	if _stagger > 0.0:
-		# Coasting to a stop rather than being steered. The normal deceleration is 108 m/s^2,
-		# which would kill the shove inside three frames and make a hit look like nothing.
-		velocity.x = move_toward(velocity.x, 0.0, knock_damping * delta)
-		velocity.z = move_toward(velocity.z, 0.0, knock_damping * delta)
+	if _knock.staggered():
+		# Carried by the shove rather than steered. The knockback component bleeds it off at
+		# its own gentle rate; the captain's normal deceleration is 108 m/s^2, which would kill
+		# it inside three frames and make a hit look like nothing happened.
+		var shove: Vector3 = _knock.shove()
+		velocity.x = shove.x
+		velocity.z = shove.z
 	else:
 		velocity.x = move_toward(velocity.x, target.x, acceleration * delta * sprint_speed)
 		velocity.z = move_toward(velocity.z, target.z, acceleration * delta * sprint_speed)
@@ -467,7 +478,7 @@ func _swim(delta: float) -> void:
 func _move_direction() -> Vector3:
 	# Nothing steers while staggered. Applied here rather than at each call site so it covers
 	# swimming and walking together.
-	if _stagger > 0.0:
+	if _knock.staggered():
 		return Vector3.ZERO
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if touch_controls and touch_controls.move.length() > 0.0:

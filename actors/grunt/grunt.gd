@@ -9,6 +9,8 @@ extends CharacterBody3D
 ## from a script with no scene to place and no prefab to keep in step.
 
 const HealthBar = preload("res://ui/health_bar.gd")
+const Health = preload("res://actors/parts/health.gd")
+const Knockback = preload("res://actors/parts/knockback.gd")
 const Weapon = preload("res://actors/parts/weapon.gd")
 const HitSpark = preload("res://actors/parts/hit_spark.gd")
 
@@ -111,7 +113,10 @@ var target: Node3D
 const RADIUS := 0.35
 const HEIGHT := 1.9
 
-var _health := 0
+## Health and knockback are components - see actors/parts, shared with the captain. Two
+## separate implementations of these is how they drifted apart the first time.
+var _hp: Node
+var _knock: Node
 var _dead := false
 var _anim: AnimationPlayer
 var _clip := ""
@@ -129,19 +134,36 @@ var _weapon: MeshInstance3D
 var _blade: Area3D
 ## Everything hit by the current swing, so one swing cannot land twice on the same body.
 var _struck: Array[Node] = []
-var _stagger := 0.0
-var _knock := Vector3.ZERO
 
 
 func _ready() -> void:
-	_health = max_health
+	_hp = Health.new()
+	_hp.name = "Health"
+	_hp.maximum = max_health
+	add_child(_hp)
+	# The bar follows the number rather than being told separately at every call site. That is
+	# most of what a component buys here: nothing has to remember to update it.
+	_hp.changed.connect(func(_current: int, _maximum: int) -> void:
+		if _bar != null:
+			_bar.set_fraction(_hp.fraction()))
+	_knock = Knockback.new()
+	_knock.name = "Knockback"
+	_knock.strength = knockback
+	_knock.recovery = stagger
+	_knock.damping = knock_damping
+	add_child(_knock)
 	_build_collider()
 	_build_body()
 	_play(_standing_clip())
 
 
 func health() -> int:
-	return _health
+	return _hp.current()
+
+
+## Whether this one has had its AI taken away because it was just hit.
+func is_staggered() -> bool:
+	return _knock.staggered()
 
 
 func is_dead() -> bool:
@@ -154,18 +176,11 @@ func is_dead() -> bool:
 func take_damage(amount: int, _from: Node = null) -> void:
 	if _dead:
 		return
-	_health = maxi(0, _health - amount)
-	_stagger = stagger
 	# Shoved directly away from whoever swung, so the push reads as coming from the blow.
-	if _from is Node3D:
-		var away: Vector3 = global_position - (_from as Node3D).global_position
-		away.y = 0.0
-		if away.length() > 0.01:
-			_knock = away.normalized() * knockback
-	if _bar != null:
-		_bar.set_fraction(float(_health) / float(maxi(max_health, 1)))
-	damaged.emit(amount, _health)
-	if _health == 0:
+	_knock.hit_from(global_position, _from)
+	var finished: bool = _hp.take(amount)
+	damaged.emit(amount, _hp.current())
+	if finished:
 		_die()
 
 
@@ -207,13 +222,12 @@ func _physics_process(delta: float) -> void:
 
 	_attack = maxf(0.0, _attack - delta)
 	_cooldown = maxf(0.0, _cooldown - delta)
-	_stagger = maxf(0.0, _stagger - delta)
-	_knock = _knock.move_toward(Vector3.ZERO, knock_damping * delta)
+	_knock.tick(delta)
 
 	var wants := Vector3.ZERO
 	# Staggered: no chasing, no swinging, and a swing already under way is dropped. Being hit
 	# has to interrupt something or there is no reason to hit first.
-	if _stagger > 0.0:
+	if _knock.staggered():
 		_attack = 0.0
 	elif not _dead:
 		var towards := _towards_target()
@@ -230,8 +244,9 @@ func _physics_process(delta: float) -> void:
 			wants = towards / distance
 			_face(towards, delta)
 
-	velocity.x = wants.x * speed + _knock.x
-	velocity.z = wants.z * speed + _knock.z
+	var shove: Vector3 = _knock.shove()
+	velocity.x = wants.x * speed + shove.x
+	velocity.z = wants.z * speed + shove.z
 	move_and_slide()
 	if not _bar_placed:
 		_place_bar()
@@ -427,7 +442,7 @@ func _add_bar() -> void:
 	_bar.name = "HealthBar"
 	add_child(_bar)
 	_bar.position = Vector3(0.0, 1.8 + bar_clearance, 0.0)
-	_bar.set_fraction(float(_health) / float(maxi(max_health, 1)))
+	_bar.set_fraction(_hp.fraction())
 
 
 ## Moves the bar to sit just above the head, once there is a posed skeleton to ask.
