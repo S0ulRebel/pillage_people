@@ -14,6 +14,7 @@ const Grass = preload("res://art/props/grass.gd")
 const Palm = preload("res://art/props/palm.tscn")
 const Music = preload("res://music.gd")
 const Sfx = preload("res://sfx.gd")
+const Ambience = preload("res://ambience.gd")
 var _coastal_study: Node3D
 ## Survives a scene reload, because the script does and the node does not. Only --deathtest
 ## uses it.
@@ -161,6 +162,50 @@ func _start_music() -> void:
 	var player: AudioStreamPlayer = Music.new()
 	player.name = "Music"
 	add_child(player)
+
+
+## Brings up the island's own noise and tells it what is standing on the island.
+##
+## Called LAST, after the palms and the cargo are down. The occasional sounds are placed
+## against real objects - a rustle comes from a palm that is actually there - so starting this
+## alongside the music would hand it an empty scene and leave those sounds with nowhere to come
+## from. The grunts were wired that way by mistake once and died in silence for it.
+func _start_ambience(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or "--screenshot" in OS.get_cmdline_user_args():
+		return
+	var air: Node3D = Ambience.new()
+	air.name = "Ambience"
+	add_child(air)
+	air.begin(_terrain, _player)
+
+	var palms: Array[Vector3] = []
+	var cargo: Array[Vector3] = []
+	for child in get_children():
+		var named := String((child as Node).name)
+		if named.begins_with("Palm"):
+			palms.append((child as Node3D).global_position)
+		elif named.begins_with("Cargo"):
+			cargo.append((child as Node3D).global_position)
+	air.anchor(palms, cargo)
+
+	# The waterfall gets a pinned loop rather than a bed, because it is in one place and should
+	# grow as you walk to it. Its emitter goes at the foot of its own curve - where the water
+	# lands and the noise actually is, not at the lip forty metres up.
+	var falls := get_node_or_null("Waterfall")
+	var pinned := false
+	var lapping := false
+	if falls != null and falls.curve != null and falls.curve.point_count > 0:
+		var foot: Vector3 = falls.to_global(
+				falls.curve.get_point_position(falls.curve.point_count - 1))
+		pinned = air.pin("waterfall", foot, 4.0, 70.0)
+		# The pond goes at the same spot, but quieter and carrying further. The two then trade
+		# off on their own as you walk: the roar is loud and local, so close to the falls it is
+		# all you hear, and it drops away faster than the lapping does - which leaves still
+		# water at the far side of the pond without needing to know where the far side is.
+		lapping = air.pin("pond", foot, -9.0, 120.0)
+	print("ambience: %d palms, %d cargo, waterfall %s, pond %s"
+			% [palms.size(), cargo.size(), "pinned" if pinned else "silent",
+			"pinned" if lapping else "silent"])
 
 
 ## Fills the island with the generated rocks.
@@ -415,6 +460,7 @@ func _ready() -> void:
 	_plant_palms(spawn)
 	_place_barrels(spawn)
 	_spawn_enemies(spawn)
+	_start_ambience(spawn)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_player.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig

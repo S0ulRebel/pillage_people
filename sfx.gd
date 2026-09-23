@@ -11,7 +11,11 @@ extends Node3D
 ## first two off.
 
 ## Where the clips live. A file called clang.ogg is played as "clang".
-const FOLDER := "res://art/audio/sfx"
+##
+## A setting rather than a constant, so a second one of these can be pointed at a different
+## folder. The ambience keeps its own: a gull crying must never take the voice out from under
+## a sword landing, and with one shared pool of twelve, in a busy fight it eventually would.
+@export_dir var folder := "res://art/audio/sfx"
 const EXTENSIONS := [".ogg", ".wav", ".flac", ".mp3"]
 
 ## How many sounds can overlap. Past this the oldest is taken over, which is better than
@@ -47,9 +51,9 @@ func _ready() -> void:
 ## Reads whatever is in the folder. Done by listing rather than by a hard-coded list, so
 ## dropping a new clip in is all it takes to have it available.
 func _load_clips() -> void:
-	var dir := DirAccess.open(FOLDER)
+	var dir := DirAccess.open(folder)
 	if dir == null:
-		push_warning("sfx.gd: no folder at %s, so nothing will play." % FOLDER)
+		push_warning("sfx.gd: no folder at %s, so nothing will play." % folder)
 		return
 	for file in dir.get_files():
 		# Godot appends .import to what it ships; the real resource is the base name.
@@ -57,7 +61,7 @@ func _load_clips() -> void:
 		for extension in EXTENSIONS:
 			if not name_.ends_with(extension):
 				continue
-			var path := "%s/%s" % [FOLDER, name_]
+			var path := "%s/%s" % [folder, name_]
 			if not ResourceLoader.exists(path):
 				continue
 			var key := name_.trim_suffix(extension)
@@ -71,7 +75,7 @@ func _load_clips() -> void:
 				_clips[base] = []
 			(_clips[base] as Array).append(load(path))
 	if not _clips.is_empty():
-		print("sfx: %d sounds (%s)" % [_clips.size(), ", ".join(_clips.keys())])
+		print("%s: %d sounds (%s)" % [name, _clips.size(), ", ".join(_clips.keys())])
 
 
 func has(sound: String) -> bool:

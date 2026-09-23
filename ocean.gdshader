@@ -190,6 +190,12 @@ void fragment() {
     // from the undeformed vertices. Colour depth stays tied to the terrain.
     float bed = bed_height(world_position.xz);
     float thickness = world_position.y - bed;
+    // How much the water thins across one pixel, and so how wide every shoreline transition
+    // below has to be to land softly rather than as a hard step.
+    //
+    // Taken BEFORE the discard: derivatives are gathered from neighbouring pixels, and a
+    // neighbour that has discarded leaves them undefined.
+    float pixel_span = fwidth(thickness);
     if (thickness <= 0.0) { discard; }
     float water_depth = max(sea_y - bed, 0.0);
     float scene_z = scene_view_z(SCREEN_UV, INV_PROJECTION_MATRIX);
@@ -197,7 +203,8 @@ void fragment() {
     float surface_z = (VIEW_MATRIX * vec4(world_position, 1.0)).z;
     to_solid = max(surface_z - scene_z, 0.0);
     float contact = smoothstep(0.0, max(contact_fade, 0.001), to_solid);
-    float edge = smoothstep(0.0, max(shore_softness, 0.001), thickness);
+    // Never sharper than the pixel drawing it, or the waterline itself steps at distance.
+    float edge = smoothstep(0.0, max(shore_softness, max(pixel_span, 0.001)), thickness);
     float t = clamp(water_depth / max(depth_fade, 0.001), 0.0, 1.0);
     float ramp = t;
     if (bands > 1) {
@@ -233,7 +240,20 @@ void fragment() {
         + vec2(-clock * 0.034, clock * 0.026));
     detail = detail * 0.70 + noise(world_position.xz * 1.67
         + vec2(clock * 0.021, -clock * 0.039) + vec2(3.1, 8.6)) * 0.30;
-    float foam_aa = clamp(fwidth(thickness), 0.006, 0.035);
+    // The upper clamp here used to be 0.035, and that was the white outline.
+    //
+    // Close to the camera a pixel spans a centimetre of beach and 0.035 is plenty. Two
+    // hundred metres out, at a grazing angle, a pixel spans METRES of it - so every
+    // smoothstep below was transitioning over a range far narrower than the pixel drawing
+    // it, and a band that should have been soft resolved as a single hard white line. It
+    // traced the waterline round every shore, every pond and every rock standing in the
+    // sea, which is what read as distant objects being outlined.
+    float foam_aa = max(pixel_span, 0.006);
+    // Widening the transition is only half of it. Once the foam band is narrower than the
+    // pixel it is drawn in, it should also LOSE contrast - a pixel covering a metre of beach
+    // with four centimetres of surf in it is mostly water. Without this the band keeps full
+    // white however little of the pixel it really occupies, and crawls as the camera moves.
+    float foam_resolve = clamp(0.045 / max(pixel_span, 0.0001), 0.0, 1.0);
     float shore_only = 1.0 - smoothstep(0.48, 0.92, water_depth);
 
     float advance = 0.14 + 0.075 * (0.5 + 0.5 * sin(
@@ -271,7 +291,7 @@ void fragment() {
         * (1.0 - smoothstep(-0.025, 0.018, distorted_depth));
     float remnants = landward_window * smoothstep(0.68, 0.82, detail);
     float surf = max(breaker * 0.82, max(strands, remnants * 0.24));
-    surf *= shore_only * step(0.001, foam_depth);
+    surf *= shore_only * step(0.001, foam_depth) * foam_resolve;
 	// Only the dedicated overhead camera supplies object silhouettes. Gameplay-camera depth
 	// must never create outlines: that would rim dry objects merely seen against the ocean.
 	vec2 band_uv = (world_position.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;

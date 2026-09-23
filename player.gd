@@ -81,7 +81,13 @@ extends CharacterBody3D
 ## the guard against 2.3 along the blade. A quarter turn about Z lays it along the hand bone's
 ## +X with the pommel pointing backwards, and sword_grip then slides it forward so the hand
 ## holds the grip rather than the point.
-@export var sword_rotation := Vector3(0.0, 0.0, 90.0)
+##
+## The X turn then rolls it about its own length. Laying the blade along +X gets it pointing
+## the right way but says nothing about which way its flat faces, and it was authored facing
+## the wrong one - so the captain carried a cutlass turned a quarter of a turn in his fist.
+## Godot applies these in Y, X, Z order, so by the time X runs the blade is already on +X and
+## this spins it in place rather than swinging it somewhere else.
+@export var sword_rotation := Vector3(90.0, 0.0, 90.0)
 ## How far to slide the model along the blade so its grip meets the fist - the blade's length,
 ## for a sword whose origin is its tip.
 @export var sword_grip := Vector3(0.80, 0.0, 0.0)
