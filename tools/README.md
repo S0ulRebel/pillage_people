@@ -41,9 +41,15 @@ The generation side — the ComfyUI graphs, the LoRA training, the dataset build
 downloads — stays in the separate workspace. It is a much larger pile, it needs a GPU and a
 ComfyUI install, and nothing in this repository calls it.
 
-`art/references/ship-kit/START_HERE.md` also says `python tools/build_kit.py` and three more
-like it. Those are **not** this directory: they belong to the ship-kit workspace and are
-relative to its own `tools/`. Run them from there, not from the repository root.
+The ship kit has its own `ship_kit/tools/` - `build_kit.py` builds the hull modules and
+`validate_kit.py` checks them. Run those from `ship_kit/`, not from the repository root: they
+resolve their output relative to the script, so `ship_kit/canonical/` is where the geometry
+lands. That directory is generated and is not committed.
+
+`art/references/ship-kit/START_HERE.md` also names `render_kit.py`, `package_kit.py`,
+`build_handoff.py`, `build_floors.py` and `build_rounded_stern.py`. The first two are previews
+and a distributable ZIP, which the game does not need. The last three do not exist anywhere on
+disk - the doc is stale about them.
 
 The line is import-shaped rather than a matter of taste: a tool belongs here when it runs
 against an asset on its own. `make_heightmap.py` is the one the game names that stayed behind,
