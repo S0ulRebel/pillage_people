@@ -256,14 +256,16 @@ func _hull_distance(local: Vector3) -> float:
 
 
 func _build() -> void:
-	if get_node_or_null("Model") != null:
-		return
-	if not ResourceLoader.exists(MODEL):
-		push_warning("ship: no model at %s" % MODEL)
-		return
-	var model: Node3D = (load(MODEL) as PackedScene).instantiate()
-	model.name = "Model"
-	add_child(model)
+	# The mesh lives in the scene so the editor can show the hull. A missing one is filled in
+	# here, and either way the surfaces still need the flat toon pass and deck collision.
+	var model := get_node_or_null("Model") as Node3D
+	if model == null:
+		if not ResourceLoader.exists(MODEL):
+			push_warning("ship: no model at %s" % MODEL)
+			return
+		model = (load(MODEL) as PackedScene).instantiate()
+		model.name = "Model"
+		add_child(model)
 	for node in _descendants(model):
 		if not (node is MeshInstance3D):
 			continue

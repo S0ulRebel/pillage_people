@@ -495,9 +495,13 @@ func _stock_fish(around: Vector3) -> void:
 
 
 func _moor_ship() -> void:
-	var ship: Node3D = ShipScene.instantiate()
-	ship.name = "Ship"
-	add_child(ship)
+	# The hull is placed in the main scene so it shows in the editor. Reuse that node; only
+	# build one when the scene has none.
+	var ship := get_node_or_null("Ship") as Node3D
+	if ship == null:
+		ship = ShipScene.instantiate()
+		ship.name = "Ship"
+		add_child(ship)
 	if not ship.moor_off(_coastal_study, _terrain):
 		ship.queue_free()
 		return

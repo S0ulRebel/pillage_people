@@ -13,6 +13,7 @@
 [ext_resource type="Script" uid="uid://b01d3irkaowh3" path="res://props/waterfall/waterfall.gd" id="10_waterfall"]
 [ext_resource type="Material" path="res://world/sky_material.tres" id="11_sky"]
 [ext_resource type="PackedScene" uid="uid://drmo55pskacng" path="res://art/models/rocks/rock_arch.glb" id="90_arch"]
+[ext_resource type="PackedScene" path="res://props/ship/ship.tscn" id="92_ship"]
 
 [sub_resource type="Sky" id="Sky_2"]
 sky_material = ExtResource("11_sky")
@@ -124,6 +125,9 @@ directional_shadow_max_distance = 160.0
 
 [node name="RockArch" parent="." unique_id=882351900 instance=ExtResource("90_arch")]
 transform = Transform3D(0.49329036, 0, -0.8698649, 0, 1, 0, 0.8698649, 0, 0.49329036, 59.200207, 27.347553, -15.312895)
+
+[node name="Ship" parent="." unique_id=1902847561 instance=ExtResource("92_ship")]
+transform = Transform3D(0.814127, 0, 0.580686, 0, 1, 0, -0.580686, 0, 0.814127, 176.5263, 16, -128.2173)
 
 [node name="Terrain" type="StaticBody3D" parent="." unique_id=873208375]
 script = ExtResource("2_terrain")

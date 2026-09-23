@@ -1,6 +1,9 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://btmjjhgk6x2j4"]
 
-[ext_resource type="Script" path="res://props/ship/ship.gd" id="1"]
+[ext_resource type="Script" uid="uid://dunnj3sehkoqa" path="res://props/ship/ship.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://dv5acgjp4s4xh" path="res://art/models/ship/double_deck.glb" id="2_model"]
 
 [node name="Ship" type="Node3D"]
 script = ExtResource("1")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
