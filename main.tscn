@@ -209,4 +209,5 @@ offset_top = 12.0
 offset_right = 420.0
 offset_bottom = 110.0
 text = "Touch: left stick moves, right drag turns and tilts, pinch zooms, button jumps
-Keyboard: WASD move, Space jump, Q/E turn, R/F tilt, wheel zoom"
+Keyboard: WASD move, Space jump, Q/E turn, middle-drag camera, wheel zoom
+Fight: left click swings, hold right click guards, R raises the flintlock, Z the spyglass"

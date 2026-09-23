@@ -106,8 +106,40 @@ crosshair would mean swinging the whole view round to shoot somebody standing be
 ball is traced from the **muzzle** to wherever the cursor points, not from the camera, so he
 cannot shoot through the rock he is standing behind.
 
-There is no aim, fire or reload animation yet — the clip set is idle, walk, run, jump, fall,
-swim, slash and death. He fires from whatever pose he is in.
+Raising it puts him in an **aiming stance** — both hands out, the flintlock level — held for
+as long as the pistol is up. Only while standing still: there is no aiming-walk clip and no
+upper-body blend, so moving keeps the walk and lets the pistol ride the arm swing, which is
+better than skating a pair of planted feet across the sand. There is still no fire or reload
+animation; he fires from the stance.
+
+## Animations
+
+Eleven clips live in `art/models/captain.glb` as one file: idle, walk, run, jump, fall, swim,
+dig, punch, slash, death and aim. They are Mixamo's, and they work on a Tripo-generated rig
+without retargeting because both use `mixamorig:` bone names — an action written against one
+armature applies to the other. `tools/merge_animations.py` bakes a folder of them in;
+`tools/trim_clip.py` cuts, pins and renames afterwards without a second Blender pass.
+
+Two traps, both caught by measuring rather than looking.
+
+**Names describe the motion, not the need.** Mixamo's "Jumping" is a run-up — approach, hop,
+landing, recovery, 2.20 s — against a controller that leaves the ground and is back down in
+0.6 s, so the jump is a 0.34 s slice of "Jumping Up" with the hips pinned. The two pistol
+clips are named backwards from how they read: **"Pistol Idle" is the aiming hold** (both hands
+out, the pistol hand 28 cm from the hips and travelling 1.3 cm across four seconds) and
+**"Pistol Aim" is a 3.6 s lowering** that starts aimed and ends at rest. Only the first is in
+the file, as `aim`.
+
+**The frame rate moves under you.** Blender's factory scene is 24 fps and the FBX importer
+overwrites it from whatever file it reads — so merging one new clip into a finished character
+keyed the existing animations at 24 fps and exported them at 30, and every clip the captain
+already had came out 20% shorter in a file that was otherwise perfect. `merge_animations.py`
+pins the rate at both ends now. Check any merge with `inspect_clips.py`, which prints each
+clip's length, root drift and foot contact: the lengths have to round-trip exactly.
+
+A held clip must also loop, or it freezes into its last frame — which looks like nothing at
+all until you hold the pistol up for longer than the aim clip's 4.03 s. `clips_check` asserts
+both that and the stance itself.
 
 ## Sound
 

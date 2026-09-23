@@ -130,6 +130,14 @@ extends CharacterBody3D
 @export var pistol_grip := Vector3.ZERO
 @export var pistol_offset := Vector3(-0.05, 0.07, 0.0)
 @export var pistol_size := Vector3(0.24, 0.06, 0.06)
+## The aiming stance, held while the flintlock is up and he is standing still.
+##
+## Mixamo's two pistol clips are named the opposite way round to how they read. "Pistol Idle"
+## is the HOLD - both hands out, the pistol hand 28 cm from the hips and moving 1.3 cm across
+## four seconds - so that is this one, renamed `aim` on the way in. "Pistol Aim" is a 3.6 s
+## LOWERING that starts aimed and ends at rest, which is not a raise and is far too slow for a
+## key press, so it was left out. Measured with tools/inspect_clips.py rather than guessed.
+@export var clip_aim := "aim"
 
 @export_group("Combat")
 @export var clip_attack := "slash"
@@ -881,7 +889,10 @@ func _animate_walk(rest := false) -> void:
 ## worth having outlasts its 0.73s - without the loop the character freezes into its last frame
 ## on the way down.
 func _set_looping() -> void:
-	for name_ in [clip_idle, clip_walk, clip_run, clip_swim, clip_fall]:
+	# The two stances loop for a plainer reason than the rest: they are HELD. The aim clip runs
+	# 4.03 s, so without this he freezes into its last frame the moment you hold the pistol up
+	# longer than that - which looks like nothing at all until you do.
+	for name_ in [clip_idle, clip_walk, clip_run, clip_swim, clip_fall, clip_aim, clip_block]:
 		if not _clips.has(name_):
 			continue
 		var clip := _clips.animation(name_)
@@ -909,17 +920,21 @@ func _update_animation() -> void:
 	else:
 		var ground_speed := Vector2(velocity.x, velocity.z).length()
 		if ground_speed < 0.2:
-			wanted = clip_idle
+			# Standing still only. There is no aiming-walk clip and no upper-body blend, so
+			# aiming on the move keeps the walk and lets the flintlock ride the arm swing -
+			# the pistol is a mesh on a hand bone and stays visible either way. The stance
+			# has both feet planted, and playing it while he travels would skate them.
+			wanted = clip_aim if _aiming else clip_idle
 		else:
 			wanted = clip_run if ground_speed > run_above else clip_walk
 
 	# Falls back through to something that does exist, so a half-finished set still animates
 	# rather than freezing: no run clip yet means walking, no fall clip means the jump.
 	var fallbacks: Array[String] = [clip_walk, clip_idle]
-	if _guarding:
-		# The guard takes idle FIRST. With the shared order it fell back to walk, so guarding
-		# while standing still played a walk cycle on the spot - and it will, until a block
-		# clip exists.
+	if wanted == clip_block or wanted == clip_aim:
+		# A STANCE takes idle first. With the shared order a missing block clip fell back to
+		# walk, so guarding while standing still played a walk cycle on the spot - and it
+		# will, until a block clip exists. The same trap was waiting for the aim pose.
 		fallbacks = [clip_idle, clip_walk]
 	var was := _clips.current()
 	var playing := _clips.play(wanted, fallbacks)

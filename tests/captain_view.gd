@@ -9,6 +9,9 @@ extends SceneTree
 ## not recoverable from anything but the mesh.
 ##
 ## --spin writes four views a quarter turn apart, for when one angle cannot settle it.
+## --aim raises the flintlock first, which is the only way to see whether the aiming stance
+## actually points it at anything - the numbers say the hand is 28 cm out and level with the
+## hips, and numbers cannot tell you which way the barrel faces.
 
 const SHOTS := "user://captain"
 
@@ -40,6 +43,14 @@ func _run() -> void:
 		var node := blade[0] as Node3D
 		print("  blade rotation ", node.rotation_degrees, " position ", node.position)
 
+	if "--aim" in OS.get_cmdline_user_args():
+		player.set_aiming(true)
+		# Long enough for the 0.15 s cross-fade into the stance to finish.
+		for i in 30:
+			await process_frame
+		var clips: Clips = player.get_node("Clips")
+		print("  aiming, playing '%s'" % clips.current())
+
 	DirAccess.make_dir_recursive_absolute(SHOTS)
 	# Chest height, a couple of metres out - close enough that the grip is readable.
 	var focus: Vector3 = player.global_position + Vector3.UP * 1.05
@@ -53,7 +64,8 @@ func _run() -> void:
 		for i in 4:
 			await process_frame
 		await RenderingServer.frame_post_draw
-		get_root().get_texture().get_image().save_png("%s/captain_%03d.png" % [SHOTS, int(angle)])
+		var tag := "aim" if "--aim" in OS.get_cmdline_user_args() else "captain"
+		get_root().get_texture().get_image().save_png("%s/%s_%03d.png" % [SHOTS, tag, int(angle)])
 		print("  view at %d degrees" % int(angle))
 	print("captain view: ", ProjectSettings.globalize_path(SHOTS))
 	quit()

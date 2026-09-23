@@ -73,7 +73,30 @@ func _run() -> void:
 	for i in 60:
 		await physics_frame
 
-	print("captain clips: standing=%s  moving=%s  swinging=%s" % [standing, walking, swinging])
+	# The flintlock up, standing still. Two things can go wrong here and neither shows up
+	# anywhere else: the stance can fall back to the WALK cycle and play it on the spot, and
+	# a 4.03 s held clip that does not loop freezes into its last frame - which looks like
+	# nothing at all until you hold the pistol up for four seconds.
+	captain.set_aiming(true)
+	for i in 20:
+		await physics_frame
+	var aiming := clips.current()
+	var aim_loops := false
+	var aim_clip := clips.animation(captain.clip_aim)
+	if aim_clip != null:
+		aim_loops = aim_clip.loop_mode == Animation.LOOP_LINEAR
+	captain.set_aiming(false)
+	for i in 10:
+		await physics_frame
+
+	print("captain clips: standing=%s  moving=%s  swinging=%s  aiming=%s (loops=%s)"
+			% [standing, walking, swinging, aiming, aim_loops])
+	check(aiming == captain.clip_aim,
+			"aiming plays '%s', expected '%s' - a stance that falls back to the walk cycle"
+			% [aiming, captain.clip_aim] + " runs it on the spot")
+	check(aim_loops,
+			"the aim clip does not loop - he freezes into its last frame after %.2fs of"
+			% (aim_clip.length if aim_clip != null else 0.0) + " holding the pistol up")
 	check(standing != "", "the captain plays nothing at all while standing")
 	check(walking != standing,
 			"the captain plays '%s' whether standing or running - the clip never changes"
