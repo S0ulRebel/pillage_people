@@ -184,7 +184,8 @@ var _dead := false
 ## Seconds left in the current swing; zero when not attacking.
 var _attack := 0.0
 ## The placeholder blade, so it can be swapped or hidden without rebuilding the body.
-var _weapon: MeshInstance3D
+## The cutlass - see actors/parts/sword.gd. Typed, so its hitbox is reachable by name.
+var _sword: Sword
 ## Overlap volume around the blade. Always monitoring; what changes is whether hits count.
 var _blade: Area3D
 ## Everything already struck by the current swing, so one swing cannot hit the same body twice.
@@ -565,13 +566,13 @@ func _attach_weapon(model: Node3D) -> void:
 		if node is Skeleton3D:
 			skeleton = node as Skeleton3D
 			break
-	var blade := Weapon.new()
-	blade.name = "Weapon"
+	var blade := Sword.new()
+	blade.name = "Sword"
 	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
 			sword_colour, sword_model, sword_grip):
 		blade.free()
 		return
-	_weapon = blade
+	_sword = blade
 	_blade = blade.hitbox
 
 

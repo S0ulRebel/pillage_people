@@ -126,7 +126,8 @@ var _bar_placed := false
 ## Seconds left in the current swing, and until the next one is allowed.
 var _attack := 0.0
 var _cooldown := 0.0
-var _weapon: MeshInstance3D
+## The cutlass - see actors/parts/sword.gd. Typed, so its hitbox is reachable by name.
+var _sword: Sword
 var _blade: Area3D
 ## Everything hit by the current swing, so one swing cannot land twice on the same body.
 var _struck: Array[Node] = []
@@ -416,13 +417,13 @@ func _attach_weapon(model: Node3D) -> void:
 		if node is Skeleton3D:
 			skeleton = node as Skeleton3D
 			break
-	var blade := Weapon.new()
-	blade.name = "Weapon"
+	var blade := Sword.new()
+	blade.name = "Sword"
 	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
 			sword_colour):
 		blade.free()
 		return
-	_weapon = blade
+	_sword = blade
 	_blade = blade.hitbox
 
 

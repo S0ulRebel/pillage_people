@@ -66,6 +66,7 @@ func _run() -> void:
 			% ratio + " implementations of one idea once before")
 	await _swing_travel(captain, terrain)
 	await _input_path(captain, terrain)
+	await _blade_lands(captain, grunt, terrain)
 	_finish()
 
 
@@ -201,3 +202,57 @@ func _staggered(body: Node) -> bool:
 func _finish() -> void:
 	print("combat check: %s failures=%d" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures > 0 else 0)
+
+
+## Does the cutlass itself connect, and how far does it actually reach?
+##
+## Everything else here calls take_damage directly, so the sword could be unmounted, mis-sized
+## or missing its hitbox entirely and every other number would be unchanged.
+##
+## The distance is 0.4 m and that is not a comfortable margin, it is the measurement. Swept
+## against a held grunt the blade lands at 0.40 m and at nothing further: 0.55, 0.70, 0.90 and
+## 1.30 all miss, on this code and on the code before the sword was split out of weapon.gd.
+##
+## Which means the captain cannot reach a grunt that is behaving normally, because a grunt
+## stops at attack_range 1.00 m. His hits land when the two are jostling close enough to touch.
+## It is the same defect already found in the grunt's swing - the Mixamo clip sweeps ACROSS the
+## body, tip 0.37-0.51 m to the left and barely 0.3 m forward - and the grunt was given a range
+## and facing check to work around it while the captain kept blade overlap.
+##
+## So this asserts the blade works at the range it works at, and the gap above is written down
+## rather than hidden behind a passing test.
+const BLADE_REACH := 0.4
+
+
+func _blade_lands(captain: CharacterBody3D, grunt: CharacterBody3D, terrain: Node) -> void:
+	var sword := captain.find_children("Sword", "", true, false)
+	check(not sword.is_empty(), "the captain has no Sword node - nothing is in his hand")
+	if sword.is_empty():
+		return
+	var hitbox: Area3D = (sword[0] as Node).get("hitbox")
+	check(hitbox != null, "the sword has no hitbox, so no swing can ever land")
+	if hitbox == null or grunt.is_dead():
+		return
+
+	var at := Vector3(40.0, 0.0, 40.0)
+	var ground: float = terrain.height_at(at.x, at.z)
+	captain.global_position = Vector3(at.x, ground + 0.2, at.z)
+	captain.velocity = Vector3.ZERO
+	grunt.global_position = Vector3(at.x + BLADE_REACH, ground + 0.2, at.z)
+	# Held still: this measures the blade, not whether the AI wanders into it.
+	grunt.set_physics_process(false)
+	for i in 15:
+		await physics_frame
+
+	var before: int = grunt.health()
+	captain.attack()
+	for i in 55:
+		await physics_frame
+		if grunt.health() < before:
+			break
+	grunt.set_physics_process(true)
+	print("blade: grunt %d -> %d hp from one swing at %.2f m (he cannot reach 0.55 m)"
+			% [before, grunt.health(), BLADE_REACH])
+	check(grunt.health() < before,
+			"the blade took nothing off a grunt at %.2f m - it is not mounted, not sized, or"
+			% BLADE_REACH + " its hitbox is not moving with the swing")

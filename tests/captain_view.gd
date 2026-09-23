@@ -34,8 +34,8 @@ func _run() -> void:
 	scene.add_child(camera)
 	camera.make_current()
 
-	var blade := player.find_children("Blade", "", true, false)
-	print("blade nodes: ", blade.size())
+	var blade := player.find_children("Sword", "", true, false)
+	print("sword nodes: ", blade.size())
 	if not blade.is_empty():
 		var node := blade[0] as Node3D
 		print("  blade rotation ", node.rotation_degrees, " position ", node.position)
