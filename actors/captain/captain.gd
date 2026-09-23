@@ -57,42 +57,11 @@ extends CharacterBody3D
 @export var clip_blend := 0.15
 
 @export_group("Weapon")
-## A stand-in cutlass, built from a box so the sword clips have something to swing. Turn it
-## off, or swap the mesh, once a real one is modelled.
+## Whether he carries one at all. Turn it off for a captain who should be empty-handed.
 @export var show_weapon := true
-@export var weapon_bone := "mixamorig_RightHand"
-## The cutlass. Leave empty and a plain box stands in, which is what this was before the model
-## existed - useful for a character whose weapon is not modelled yet.
-@export_file("*.glb") var sword_model := "res://art/models/weapons/cutlass.glb"
-## Metres, along the hand bone's axes. Once a model is set this is the HITBOX only - nothing
-## here is drawn - so it is deliberately fatter than the blade looks. Matched to the steel at
-## 0.075 x 0.030 the captain hit once in three swings at a metre: the strike sweeps sideways
-## and a three-centimetre plate slips straight past. Widening it costs nothing visually and is
-## the difference between a sword that connects and one that does not.
-@export var sword_size := Vector3(0.80, 0.12, 0.12)
-## Metres, along the hand bone's own axes. X slides the box along the blade so a short length
-## sits inside the hand as a grip. Y runs towards the fingertips, which is downwards while the
-## arm hangs, and 0 puts the blade through the wrist joint rather than in the fist - the middle
-## knuckle measures 5.2 cm along it and the joint past that 8.3 cm, so the hilt belongs between.
-## With a model the origin is the pommel, not the middle of a box, so X sits near zero - a
-## little back, to bury the pommel in the fist rather than float it at the fingertips.
-@export var sword_offset := Vector3(-0.05, 0.07, 0.0)
-## The cutlass is modelled tip-down: the point sits at the origin and the guard is three
-## quarters of the way up, which the mesh's own cross-sections give away - 16.75 units wide at
-## the guard against 2.3 along the blade. A quarter turn about Z lays it along the hand bone's
-## +X with the pommel pointing backwards, and sword_grip then slides it forward so the hand
-## holds the grip rather than the point.
-##
-## The X turn then rolls it about its own length. Laying the blade along +X gets it pointing
-## the right way but says nothing about which way its flat faces, and it was authored facing
-## the wrong one - so the captain carried a cutlass turned a quarter of a turn in his fist.
-## Godot applies these in Y, X, Z order, so by the time X runs the blade is already on +X and
-## this spins it in place rather than swinging it somewhere else.
-@export var sword_rotation := Vector3(90.0, 0.0, 90.0)
-## How far to slide the model along the blade so its grip meets the fist - the blade's length,
-## for a sword whose origin is its tip.
-@export var sword_grip := Vector3(0.80, 0.0, 0.0)
-@export var sword_colour := Color(0.72, 0.74, 0.78)
+## The cutlass itself - bone, model, hitbox and the corrections that put the grip in his fist.
+## See cutlass.tres, and held_item.gd for what each field means and why you cannot guess them.
+@export var cutlass: HeldItem = preload("res://actors/captain/cutlass.tres")
 
 @export_group("Guard")
 ## Held on the right mouse button. He is rooted-ish and cannot swing, and a blow from the
@@ -122,14 +91,10 @@ extends CharacterBody3D
 ## a sword in one hand and a pistol in the other is the whole picture, and it is less work than
 ## a weapon-swap besides.
 @export var show_pistol := true
-@export var pistol_bone := "mixamorig_LeftHand"
-@export_file("*.glb") var pistol_model := "res://art/models/weapons/pistol.glb"
-## The same three settings the cutlass needed, for the same reason: a model says nothing about
-## which way it leaves a fist. Expect to set these against a render, not by reasoning.
-@export var pistol_rotation := Vector3(0.0, 0.0, 90.0)
-@export var pistol_grip := Vector3.ZERO
-@export var pistol_offset := Vector3(-0.05, 0.07, 0.0)
-@export var pistol_size := Vector3(0.24, 0.06, 0.06)
+## Which bone, which model, and the three corrections that put the grip in his hand - all of
+## it lives in flintlock.tres, so a weapon is a thing that can be handed around rather than
+## eight fields spelled into whoever happens to hold it.
+@export var flintlock: HeldItem = preload("res://actors/captain/flintlock.tres")
 ## The aiming stance, held while the flintlock is up and he is standing still.
 ##
 ## Mixamo's two pistol clips are named the opposite way round to how they read. "Pistol Idle"
@@ -757,8 +722,9 @@ func _build_body() -> void:
 	_build_primitive_body()
 
 
-## Hangs the placeholder blade off the right hand. The awkward parts - which way a blade leaves
-## a fist, and cancelling the rig's unit scale - live in actors/parts/weapon.gd, shared with the grunts.
+## Hangs the cutlass off the hand it belongs to. The awkward parts - which way a blade leaves a
+## fist, and cancelling the rig's unit scale - live in actors/parts/held.gd, shared with the
+## grunts; which bone and which corrections live in the item itself.
 func _attach_weapon(model: Node3D) -> void:
 	if not show_weapon:
 		return
@@ -769,8 +735,7 @@ func _attach_weapon(model: Node3D) -> void:
 			break
 	var blade := Sword.new()
 	blade.name = "Sword"
-	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
-			sword_colour, sword_model, sword_grip):
+	if not blade.mount(skeleton, cutlass):
 		blade.free()
 		return
 	_sword = blade
@@ -785,8 +750,7 @@ func _attach_pistol(skeleton: Skeleton3D) -> void:
 		return
 	var shot := Gun.new()
 	shot.name = "Pistol"
-	if not shot.setup(skeleton, pistol_bone, pistol_size, pistol_offset, pistol_rotation,
-			sword_colour, pistol_model, pistol_grip):
+	if not shot.mount(skeleton, flintlock):
 		shot.free()
 		return
 	_pistol = shot

@@ -67,6 +67,33 @@ the hitbox is 12 cm thick and the hand carrying it moves up to 20 cm per physics
 blade teleported past people between frames. Measured, it landed at 0.40 m and swept straight
 through anybody further, while a grunt stands off at 1.00 m and waits.
 
+## Held things
+
+Anything in a hand — the cutlass, the flintlock, and whatever comes next — is a `Held` node
+mounted on a bone socket, configured by a **`HeldItem` resource**: `actors/captain/cutlass.tres`,
+`actors/captain/flintlock.tres`, `actors/grunt/sword.tres`. Edit them in the inspector.
+
+This was extracted at the third user, which is what CONVENTIONS asks for. Those three each
+carried the same six or seven exports under their own prefix — `sword_offset`, `pistol_offset`
+— and the paragraph explaining what an offset even means was written out more than once. A
+fourth weapon would have put eighteen fields on one actor.
+
+An item answers *where it is and which way it is pointing*, and nothing else. Reach, reload
+and damage stay on `sword.gd` and `gun.gd`, one script per kind of thing.
+
+Three corrections turn "a mesh exists" into "he is holding it properly": `rotation` turns the
+model onto the hand bone's +X, `grip` slides it along itself so the hand meets the handle
+rather than the blade's origin, and `offset` moves it relative to the bone. **Expect to set all
+three against a render**, not by reasoning — `tests/captain_view.gd --spin`. The cutlass has
+been wrong twice, once upside down and once rolled a quarter turn in his fist, and which way a
+blade's flat faces is not recoverable from anything but the mesh. The full reasoning, and the
+cutlass worked through as an example, is in `actors/parts/held_item.gd`.
+
+`items_check` covers the failure this design introduced. A weapon that *fails* to mount was
+already caught, because a null sword swings at nothing — but one that mounts **successfully on
+the wrong bone** is a working sword in the wrong fist, and hits are resolved by range and
+facing, so every combat test passes and the only evidence is a picture.
+
 ## Guard and parry
 
 **Hold right click.** A blow from the front is turned aside completely — but he is slowed to
@@ -263,6 +290,11 @@ him from the sea to the hilltop and prints what every sound bed is doing, and ch
 assumption underneath the mix — that on this island low ground *is* the shore (ground below
 3.5 m is 12 m from water on average, ground above 34 m is 74 m). `--deathtest` kills him and
 checks the island comes back.
+
+`items_check` confirms every held thing hangs where its resource says. `clips_check` drives
+both characters through their states and reads back which clip is playing, because a character
+frozen in its rest pose fights exactly as well as one that animates. `guard_check` and
+`balance_check` cover the fight.
 
 `tests/captain_view.gd` renders him from four angles, and `tests/outline_probe.gd` renders the
 same view with one suspect disabled at a time. Both exist because the bugs they found — a

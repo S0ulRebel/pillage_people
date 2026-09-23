@@ -82,14 +82,10 @@ var target: Node3D
 
 @export_group("Weapon")
 @export var show_weapon := true
-@export var weapon_bone := "mixamorig_RightHand"
-## Shorter and plainer than the captain's, so the two read apart at a glance.
-@export var sword_size := Vector3(0.62, 0.05, 0.016)
-## Y runs towards the fingertips. The grunt's middle knuckle measures 9.6 cm along it, against
-## the captain's 5.2 - different rig, bigger hands - so his grip sits further out than 0.07.
-@export var sword_offset := Vector3(0.25, 0.12, 0.0)
-@export var sword_rotation := Vector3.ZERO
-@export var sword_colour := Color(0.58, 0.56, 0.54)
+## A plain box, not a model: shorter and plainer than the captain's so the two read apart at a
+## glance, and his grip sits further out because his middle knuckle measures 9.6 cm along the
+## bone against the captain's 5.2 - different rig, bigger hands. See sword.tres.
+@export var blade: HeldItem = preload("res://actors/grunt/sword.tres")
 
 @export_group("Animation")
 ## The idle exists now, but the fallback to the walk stays. A clip that is missing leaves the
@@ -428,13 +424,12 @@ func _attach_weapon(model: Node3D) -> void:
 		if node is Skeleton3D:
 			skeleton = node as Skeleton3D
 			break
-	var blade := Sword.new()
-	blade.name = "Sword"
-	if not blade.setup(skeleton, weapon_bone, sword_size, sword_offset, sword_rotation,
-			sword_colour):
-		blade.free()
+	var weapon := Sword.new()
+	weapon.name = "Sword"
+	if not weapon.mount(skeleton, blade):
+		weapon.free()
 		return
-	_sword = blade
+	_sword = weapon
 
 
 ## Hangs the health bar above the body, at a default height for now.

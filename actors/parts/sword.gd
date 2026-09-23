@@ -32,14 +32,6 @@ extends Held
 @export var max_targets := 2
 
 
-## Builds the blade and hangs it off the bone. Nothing else - a sword is a held thing that
-## knows its own reach.
-func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
-		rotation_deg: Vector3, colour: Color, model_path := "",
-		grip := Vector3.ZERO) -> bool:
-	return mount(skeleton, bone, size, offset, rotation_deg, colour, model_path, grip)
-
-
 ## Everybody this swing can hit, from `wielder` facing `facing`, ignoring anyone in `skip`.
 ##
 ## A range and cone test, not the blade's own overlap - and that is a fix, not a shortcut.

@@ -28,14 +28,6 @@ var _loaded := true
 var _reloading := 0.0
 
 
-## Hangs the pistol off the bone. Nothing else - a gun is a held thing that knows its own
-## reload.
-func setup(skeleton: Skeleton3D, bone: String, size: Vector3, offset: Vector3,
-		rotation_deg: Vector3, colour: Color, model_path := "",
-		grip := Vector3.ZERO) -> bool:
-	return mount(skeleton, bone, size, offset, rotation_deg, colour, model_path, grip)
-
-
 func is_loaded() -> bool:
 	return _loaded
 

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="HeldItem" format=3]
+
+[ext_resource type="Script" path="res://actors/parts/held_item.gd" id="1_husc1"]
+
+[resource]
+resource_name = "Grunt sword"
+script = ExtResource("1_husc1")
+size = Vector3(0.62, 0.05, 0.016)
+offset = Vector3(0.25, 0.12, 0)
+colour = Color(0.58, 0.56, 0.54, 1)
