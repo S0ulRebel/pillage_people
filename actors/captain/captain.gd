@@ -137,10 +137,20 @@ extends CharacterBody3D
 ## Seconds of grace after being hit - see health.gd. The grunts get none; this is the
 ## difference between being surrounded and being executed.
 @export var hit_immunity := 0.55
-## Sparks where the blade lands. Near-white, because the sand is warm and a gold spark measured
-## only 33 luminance above it - invisible in practice. This one manages 59, at three and a half
-## times the colour distance, and reads as steel besides.
-@export var hit_colour := Color(0.93, 0.97, 1.0)
+## Sparks, by what HAPPENED rather than by who swung.
+##
+## Red means somebody lost health, whoever they are. White means steel met steel and nobody
+## did - a block or a parry. That split is the whole point: in a scrap you cannot read a health
+## bar, and the colour has to tell you whether the last exchange cost anything.
+##
+## They used to be keyed to the attacker, so the captain cutting a grunt threw WHITE sparks
+## into somebody who was losing health, which said exactly the wrong thing.
+##
+## Near-white rather than gold: the sand is warm and a gold spark measured only 33 luminance
+## above it, invisible in practice. This manages 59 at three and a half times the colour
+## distance, and reads as steel besides.
+@export var hurt_colour := Color(0.95, 0.30, 0.22)
+@export var clash_colour := Color(0.93, 0.97, 1.0)
 ## Being hit shoves the captain back and takes the controls away for a moment. Deliberately
 ## shorter than the grunt's: losing control of your own character is far more irritating than
 ## watching someone else lose theirs, and a long stun turns two grunts into a death sentence.
@@ -305,6 +315,7 @@ func take_damage(amount: int, _from: Node = null) -> void:
 	# The guard gets first refusal, and only to the front - a block that works from behind is
 	# not a guard, it is a bubble.
 	if _guarding and _from is Node3D and _in_guard_arc(_from as Node3D):
+		_clash(_from as Node3D)
 		if _guard_time <= parry_window:
 			parried.emit(_from)
 			# The shove goes the OTHER way. This is the whole point of a parry and it costs
@@ -354,7 +365,7 @@ func _strike() -> void:
 		var towards: Vector3 = body.global_position - global_position
 		towards.y = 0.0
 		var contact: Vector3 = body.global_position + Vector3.UP * 1.0 				- towards.normalized() * 0.35
-		HitSpark.burst(get_parent(), contact, towards, hit_colour)
+		HitSpark.burst(get_parent(), contact, towards, hurt_colour)
 		hit.emit(body)
 
 
@@ -522,6 +533,22 @@ func _show_active() -> void:
 func aim_at(point: Vector3) -> void:
 	_aim_at = point
 	_has_aim = true
+
+
+## White sparks where the two blades meet: out in front of his chest, towards whoever swung.
+##
+## Between the fighters rather than on either of them, because that is where the steel is - a
+## burst on his own chest reads as a wound, which is the one thing a block is not.
+func _clash(attacker: Node3D) -> void:
+	if attacker == null:
+		return
+	var towards := attacker.global_position - global_position
+	towards.y = 0.0
+	if towards.length() < 0.01:
+		return
+	towards = towards.normalized()
+	HitSpark.burst(get_parent(), global_position + Vector3.UP * 1.15 + towards * 0.45,
+			-towards, clash_colour)
 
 
 ## Turns the body, once, from whichever source should win.
@@ -931,7 +958,7 @@ func _attach_pistol(skeleton: Skeleton3D) -> void:
 	shot.struck.connect(func(body: Node, at: Vector3, direction: Vector3) -> void:
 		if body == null or not body.has_method("take_damage"):
 			return
-		HitSpark.burst(get_parent(), at, direction, hit_colour)
+		HitSpark.burst(get_parent(), at, direction, hurt_colour)
 		hit.emit(body))
 
 
@@ -1032,11 +1059,14 @@ func _animate_walk(rest := false) -> void:
 ## worth having outlasts its 0.73s - without the loop the character freezes into its last frame
 ## on the way down.
 func _set_looping() -> void:
-	# The two stances loop for a plainer reason than the rest: they are HELD. The aim clip runs
-	# 4.03 s, so without this he freezes into its last frame the moment you hold the pistol up
-	# longer than that - which looks like nothing at all until you do.
-	var looping: Array[String] = [clip_idle, clip_walk, clip_run, clip_swim, clip_fall,
-			clip_block]
+	# Loop a clip only when its SEAM is small - how far the pose jumps between its last frame
+	# and its first. Measured on this rig: idle 0.0 cm, aim 0.0 cm, both authored as cycles.
+	#
+	# The block clip is 36.7 cm, because it is a brace rather than a cycle: he steps in, plants
+	# and stays there. Looping it teleported the sword hand a third of a metre five times a
+	# second. So it is deliberately NOT here - it plays once and holds its last frame, which is
+	# what a guard should do anyway. Measure before adding a clip to this list.
+	var looping: Array[String] = [clip_idle, clip_walk, clip_run, clip_swim, clip_fall]
 	for item in [cutlass, flintlock]:
 		if item != null and item.clip_idle != "":
 			looping.append(item.clip_idle)

@@ -323,8 +323,6 @@ func _start_sfx() -> void:
 	add_child(sfx)
 	_player.attacked.connect(func() -> void:
 		sfx.play("swoosh", _player.global_position + Vector3.UP))
-	_player.hit.connect(func(target: Node) -> void:
-		sfx.play("flesh", (target as Node3D).global_position + Vector3.UP))
 	_player.damaged.connect(func(_amount: int, _left: int) -> void:
 		# The captain's own hits carry louder: they are happening to you, not near you.
 		sfx.play("flesh", _player.global_position + Vector3.UP, 3.0))
@@ -335,7 +333,10 @@ func _start_sfx() -> void:
 	_player.splashed.connect(func(entering: bool) -> void:
 		if entering:
 			sfx.play("splash", _player.global_position))
-	# The guard. Both borrow clang, which is steel on steel and the nearest thing in the
+	# The guard. Clang is steel on steel and now means ONLY that - a block or a parry. It used
+	# to play on every grunt that took a hit as well, which made a cut and a turned blade sound
+	# the same, and the sound is the fastest way to tell them apart.
+	# Both borrow the one clip, because it is the nearest thing in the
 	# folder - a parry rings, a block is the same sound taken down and given room. Nothing else
 	# plays clang at that moment (a parry does no damage, so no grunt is reporting a hit), so it
 	# still reads. A dedicated pair is one generation away and would be better.
@@ -363,8 +364,11 @@ func _start_sfx() -> void:
 ## One grunt's noises. Split out because the lambdas need to capture this grunt, not the last
 ## one in the loop.
 func _wire_enemy(sfx: Node3D, grunt: Node3D) -> void:
+	# Whatever hurt him, and from wherever. Keyed to the grunt being damaged rather than to the
+	# captain landing a blow, so a pistol ball and a cutlass both sound like a hit without the
+	# gun needing its own wiring.
 	grunt.damaged.connect(func(_amount: int, _left: int) -> void:
-		sfx.play("clang", grunt.global_position + Vector3.UP))
+		sfx.play("flesh", grunt.global_position + Vector3.UP))
 	grunt.died.connect(func() -> void:
 		sfx.play("death", grunt.global_position + Vector3.UP))
 

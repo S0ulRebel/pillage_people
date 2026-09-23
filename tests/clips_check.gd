@@ -89,6 +89,26 @@ func _run() -> void:
 	for i in 30:
 		await physics_frame
 
+	# The guard. A brace, not a cycle - see the note in _set_looping. If this ever starts
+	# looping, the sword hand jumps 36.7 cm every 0.53 s and it reads as a twitch.
+	Input.action_press("guard")
+	for i in 40:
+		await physics_frame
+	var guarding := clips.current()
+	var block_loops := false
+	var block_clip := clips.animation(captain.clip_block)
+	if block_clip != null:
+		block_loops = block_clip.loop_mode == Animation.LOOP_LINEAR
+	Input.action_release("guard")
+	for i in 20:
+		await physics_frame
+
+	check(guarding == captain.clip_block,
+			"guarding plays '%s', expected '%s'" % [guarding, captain.clip_block])
+	check(not block_loops,
+			"the block clip is looping - its seam is 36.7 cm, so it will snap the sword hand"
+			+ " back five times a second. It is a brace and should hold its last frame")
+
 	print("captain clips: standing=%s  moving=%s  swinging=%s  aiming=%s (loops=%s)"
 			% [standing, walking, swinging, aiming, aim_loops])
 	check(aiming == captain.flintlock.clip_idle,

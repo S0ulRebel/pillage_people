@@ -43,6 +43,15 @@ func _run() -> void:
 		var node := blade[0] as Node3D
 		print("  blade rotation ", node.rotation_degrees, " position ", node.position)
 
+	if "--block" in OS.get_cmdline_user_args():
+		# Through the real action, because _tick_guard polls input and would clear a flag set
+		# by hand on the very next physics frame.
+		Input.action_press("guard")
+		for i in 40:
+			await process_frame
+		var guard_clips: Clips = player.get_node("Clips")
+		print("  guarding=%s, playing '%s'" % [player.is_guarding(), guard_clips.current()])
+
 	if "--aim" in OS.get_cmdline_user_args():
 		player.equip(1)
 		# Long enough for the 0.15 s cross-fade into the stance to finish.
@@ -70,7 +79,11 @@ func _run() -> void:
 		for i in 4:
 			await process_frame
 		await RenderingServer.frame_post_draw
-		var tag := "aim" if "--aim" in OS.get_cmdline_user_args() else "captain"
+		var tag := "captain"
+		if "--aim" in OS.get_cmdline_user_args():
+			tag = "aim"
+		elif "--block" in OS.get_cmdline_user_args():
+			tag = "block"
 		get_root().get_texture().get_image().save_png("%s/%s_%03d.png" % [SHOTS, tag, int(angle)])
 		print("  view at %d degrees" % int(angle))
 	print("captain view: ", ProjectSettings.globalize_path(SHOTS))
