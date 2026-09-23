@@ -585,6 +585,15 @@ func _screenshot_and_quit() -> void:
 	print("player settled at ", _player.global_position, " ground ",
 			_terrain.height_at(_player.global_position.x, _player.global_position.z),
 			" on_floor=", _player.is_on_floor())
+	# Headless has no renderer, so frame_post_draw never fires and awaiting it waits forever.
+	# Every mode that finishes by calling this then hangs instead of quitting - silently, with
+	# no error and no window, which is how three --touchtest runs sat in the process list for
+	# twenty-two hours holding a log file open. The run still has to END; it just cannot take
+	# a picture.
+	if DisplayServer.get_name() == "headless":
+		print("screenshot: skipped, this run has no renderer")
+		get_tree().quit()
+		return
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
 	image.save_png("user://screenshot.png")
@@ -667,7 +676,13 @@ func _touch_self_test() -> void:
 	print("tilt (drag): pitch %.1f -> %.1f degrees" % [before_pitch, camera_rig.pitch_degrees])
 	_send_touch(2, Vector2(1000, 420), false)
 
-	# and R / F on the keyboard
+	# and R / F on the keyboard.
+	#
+	# Put the camera back to the middle of its range first. The drag above finishes at -12
+	# degrees, which IS the upper limit, so pressing R from there moved it from -12.0 to -12.0
+	# and the check reported that as a result. It could not have failed, whatever R did.
+	camera_rig.pitch_degrees = (camera_rig.min_pitch_degrees + camera_rig.max_pitch_degrees) * 0.5
+	await get_tree().process_frame
 	before_pitch = camera_rig.pitch_degrees
 	var key := InputEventKey.new()
 	key.keycode = KEY_R
