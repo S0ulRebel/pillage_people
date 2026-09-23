@@ -9,10 +9,6 @@ extends CharacterBody3D
 ## from a script with no scene to place and no prefab to keep in step.
 
 const HealthBar = preload("res://ui/health_bar.gd")
-const Health = preload("res://actors/parts/health.gd")
-const Knockback = preload("res://actors/parts/knockback.gd")
-const Weapon = preload("res://actors/parts/weapon.gd")
-const HitSpark = preload("res://actors/parts/hit_spark.gd")
 
 signal damaged(amount: int, remaining: int)
 signal died
@@ -115,8 +111,8 @@ const HEIGHT := 1.9
 
 ## Health and knockback are components - see actors/parts, shared with the captain. Two
 ## separate implementations of these is how they drifted apart the first time.
-var _hp: Node
-var _knock: Node
+var _hp: Health
+var _knock: Knockback
 var _dead := false
 var _anim: AnimationPlayer
 var _clip := ""
@@ -178,7 +174,7 @@ func take_damage(amount: int, _from: Node = null) -> void:
 		return
 	# Shoved directly away from whoever swung, so the push reads as coming from the blow.
 	_knock.hit_from(global_position, _from)
-	var finished: bool = _hp.take(amount)
+	var finished := _hp.take(amount)
 	damaged.emit(amount, _hp.current())
 	if finished:
 		_die()

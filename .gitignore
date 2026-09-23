@@ -11,3 +11,11 @@ export_presets.cfg
 # project is opened on both a PC and an iPad. The height maps and screenshots are data, not
 # textures - the .gdignore files next to them keep Godot from importing them at all.
 *.import
+
+# ...except the two that carry settings which exist NOWHERE ELSE. A rigged model's scale has
+# to be nodes/root_scale, because scaling above a Skeleton3D breaks skinning - so ignoring
+# these meant a fresh clone regenerated them with defaults and got a captain at 53% height
+# with a broken jump. Two files, so the conflict surface stays tiny; tests/import_check.gd
+# fails if either is ever lost again.
+!art/models/captain.glb.import
+!art/models/grunt.glb.import

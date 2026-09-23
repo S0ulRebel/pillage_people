@@ -1,3 +1,4 @@
+class_name Weapon
 extends MeshInstance3D
 ## A placeholder blade hung off a hand bone, with a hitbox running along it.
 ##

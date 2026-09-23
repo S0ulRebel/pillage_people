@@ -1,6 +1,6 @@
 @tool
-extends Path3D
 class_name Tunnel
+extends Path3D
 ## A tunnel you place in the scene: draw a curve, set a radius, done.
 ##
 ## The tube is extruded along the curve and stops where it breaks the surface, and the

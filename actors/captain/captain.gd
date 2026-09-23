@@ -163,10 +163,6 @@ var camera_rig: Node3D
 ## Set by main.gd on touch devices; its stick overrides the keyboard when in use.
 var touch_controls: CanvasLayer
 
-const Weapon = preload("res://actors/parts/weapon.gd")
-const Health = preload("res://actors/parts/health.gd")
-const Knockback = preload("res://actors/parts/knockback.gd")
-const HitSpark = preload("res://actors/parts/hit_spark.gd")
 const MODEL_PATH := "res://art/models/captain.glb"
 
 @onready var _body: Node3D = $Body
@@ -195,8 +191,8 @@ var _blade: Area3D
 var _struck: Array[Node] = []
 ## Health and knockback are components - see actors/parts. They were his alone and the
 ## grunt's alone, separately, and they drifted; the grunt now uses the same two.
-var _hp: Node
-var _knock: Node
+var _hp: Health
+var _knock: Knockback
 var _stride := 0.0
 var _was_wet := false
 
@@ -239,7 +235,7 @@ func take_damage(amount: int, _from: Node = null) -> void:
 		return
 	# Shoved directly away from whoever swung, so the push reads as coming from the blow.
 	_knock.hit_from(global_position, _from)
-	var finished: bool = _hp.take(amount)
+	var finished := _hp.take(amount)
 	damaged.emit(amount, _hp.current())
 	if finished:
 		die()

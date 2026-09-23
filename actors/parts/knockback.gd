@@ -1,3 +1,4 @@
+class_name Knockback
 extends Node
 ## The shove a hit gives, and the moment of lost control that follows it.
 ##

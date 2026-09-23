@@ -1,6 +1,6 @@
 @tool
-extends Path3D
 class_name Waterfall
+extends Path3D
 ## A waterfall you place in the scene: draw a curve down the rock, set a width, done.
 ##
 ## Built the same way tunnel.gd is - a @tool Path3D that rebuilds as you drag the curve - so
@@ -119,7 +119,7 @@ func rebuild() -> void:
 	if length < 0.2:
 		return
 
-	var steps := maxi(2, int(ceil(length / sample_spacing)))
+	var steps := maxi(2, int(ceilf(length / sample_spacing)))
 	_length = length
 	for sheet in sheets:
 		var offset := (float(sheet) - float(sheets - 1) * 0.5) * sheet_gap

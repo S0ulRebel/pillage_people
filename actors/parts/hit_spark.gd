@@ -1,3 +1,4 @@
+class_name HitSpark
 extends CPUParticles3D
 ## A short burst of chunky sparks where a blade actually lands.
 ##
@@ -23,7 +24,10 @@ const LIFETIME := 0.45
 ## `scale_up` is for making a burst read from further off without changing the particle count.
 static func burst(parent: Node, at: Vector3, away: Vector3, colour: Color,
 		scale_up := 1.0) -> CPUParticles3D:
-	var sparks: CPUParticles3D = (load("res://actors/parts/hit_spark.gd") as GDScript).new()
+	# Named rather than loaded by path. This used to load its own file by string, which is a
+	# path that has to be kept in step with where the file lives - it survived the move into
+	# actors/parts only because the rewrite caught the string.
+	var sparks := HitSpark.new()
 	sparks.name = "HitSpark"
 	parent.add_child(sparks)
 	sparks.global_position = at

@@ -1,6 +1,6 @@
 @tool
-extends Marker3D
 class_name WaterBandEmitter
+extends Marker3D
 ## Marks a character, boat, barrel, or prop for the overhead water-interaction camera.
 ## The water shader still reads the captured top-down silhouette; this node creates no
 ## camera-facing or analytic outline of its own.
@@ -9,6 +9,11 @@ class_name WaterBandEmitter
 
 
 func _ready() -> void:
+	# Runtime only. This reaches up and sets a layer bit on its PARENT's meshes, and a @tool
+	# script that edits other nodes in the editor has those edits saved into the scene file -
+	# so the mask would be baked in by whoever next hit Ctrl+S, silently.
+	if Engine.is_editor_hint():
+		return
 	_apply_capture_layer.call_deferred()
 
 

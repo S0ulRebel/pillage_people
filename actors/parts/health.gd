@@ -1,3 +1,4 @@
+class_name Health
 extends Node
 ## How much damage a thing can take before it is finished.
 ##

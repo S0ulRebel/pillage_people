@@ -51,7 +51,7 @@ func set_fraction(fraction: float) -> void:
 		return
 	var shown := clampf(fraction, 0.0, 1.0)
 	_image.fill(backing)
-	var filled := int(round((WIDTH - 2) * shown))
+	var filled := int(roundf((WIDTH - 2) * shown))
 	var colour := low.lerp(full, shown)
 	for x in range(1, 1 + filled):
 		for y in range(1, HEIGHT - 1):

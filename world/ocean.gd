@@ -1,6 +1,6 @@
 @tool
-extends MeshInstance3D
 class_name Ocean
+extends MeshInstance3D
 ## The sea: a displaced surface, not a coloured plane.
 ##
 ## Sea level is not stored here - it comes from the terrain, because the height map was
@@ -183,6 +183,12 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 func _process(delta: float) -> void:
 	_clock += delta
 	_push("preview_time", _clock)
+	# The wave preview above runs in the editor too - that is what @tool is for here, and it
+	# is how the sea is judged without pressing play. The overhead band camera below is not:
+	# it is a SubViewport rendering the whole shore every frame to feed a runtime shader mask,
+	# and nothing in the editor reads it.
+	if Engine.is_editor_hint():
+		return
 	if _camera != get_viewport().get_camera_3d():
 		_camera = get_viewport().get_camera_3d()
 		if _camera == null:
