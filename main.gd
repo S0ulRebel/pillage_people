@@ -8,6 +8,7 @@ const CoastalStudy = preload("res://world/coastal_study.gd")
 const Grunts = preload("res://actors/grunt/grunts.gd")
 const Hud = preload("res://ui/hud.gd")
 const Rocks = preload("res://props/rock/rocks.gd")
+const FishSchoolScript = preload("res://props/fish/fish_school.gd")
 const CargoField = preload("res://props/cargo/cargo_field.gd")
 const Grass = preload("res://props/grass/grass.gd")
 const Palms = preload("res://props/palm/palms.gd")
@@ -53,6 +54,15 @@ var _coastal_study: Node3D
 ## Palms along the shore. Nodes rather than a MultiMesh: there are a dozen and you walk into
 ## them - see props/palm/palm.gd.
 @export var palm_count := 14
+
+## Metres of water a school needs. It keeps 1.2 m under the surface and 0.7 m over the seabed,
+## so below about three there is nowhere left for it to swim and it spends its life pinned
+## between the two rules.
+const WATER_FOR_FISH := 3.2
+
+## Fish. Several small schools beat one large one - see _stock_fish.
+@export var fish_schools := 3
+@export var fish_per_school := 120
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
 @export var restart_delay := 3.4
@@ -401,6 +411,62 @@ func _loose_shark(around: Vector3) -> void:
 	print("shark patrolling (%.0f, %.0f), %.0f m each way" % [out.x, out.z, shark.patrol])
 
 
+## Schools of fish in the lagoon, on the same side of the island the shark patrols, so that the
+## two are in the same water and the shark actually scatters something.
+##
+## Several small schools rather than one large one. Boids cost time per fish per NEIGHBOUR, and
+## neighbours are what a dense school is made of, so doubling one school costs more than twice
+## as much while two schools cost exactly twice - and two schools moving independently read as
+## a populated sea, where one large one reads as a single object.
+func _stock_fish(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args():
+		return
+	var shark := get_node_or_null("Shark")
+	var seaward := Vector3(around.x, 0.0, around.z)
+	seaward = seaward.normalized() if seaward.length() > 0.01 else Vector3.FORWARD
+	var along := Vector3(-seaward.z, 0.0, seaward.x)
+	var sea: float = _terrain.sea_level()
+	var total := 0
+	for i in fish_schools:
+		# Spread along the shore inside the shark's beat, and short of it, so they are in water
+		# the player can see into from the beach rather than out in the deep.
+		var side: float = (float(i) - (float(fish_schools) - 1.0) * 0.5) * 24.0
+		# Fish need water under them, and the shoreline is not a circle, so the distance out
+		# cannot be written down - a figure that clears the sand on one bearing runs a school
+		# aground on the next. Walk out from the beach until there is enough water and stop
+		# there, so each school sits as close in as its own stretch of coast allows and the
+		# player can actually see it from the shore.
+		var base := Vector3(around.x, sea, around.z) + along * side
+		var home := Vector3.ZERO
+		var water := 0.0
+		var step := 16.0
+		while step <= 96.0:
+			var at: Vector3 = base + seaward * step
+			var deep: float = sea - _terrain.height_at(at.x, at.z)
+			if deep > water:
+				water = deep
+				home = at
+			if deep >= WATER_FOR_FISH:
+				break
+			step += 6.0
+		if water < WATER_FOR_FISH:
+			print("fish: school %d skipped, deepest water on that bearing is %.1f m" % [i, water])
+			continue
+		var school: MultiMeshInstance3D = FishSchoolScript.new()
+		school.name = "FishSchool%d" % i
+		school.count = fish_per_school
+		add_child(school)
+		school.terrain = _terrain
+		if shark != null:
+			school.predators = [shark] as Array[Node3D]
+		if not school.setup(home, sea, hash(home)):
+			print("fish: school %d failed to build" % i)
+			school.queue_free()
+			continue
+		total += school.fish_count()
+	print("fish: %d in the lagoon" % total)
+
+
 func _moor_ship() -> void:
 	var ship: Node3D = ShipScene.instantiate()
 	ship.name = "Ship"
@@ -641,6 +707,7 @@ func _ready() -> void:
 	_plant_palms(spawn)
 	_place_barrels(spawn)
 	_loose_shark(spawn)
+	_stock_fish(spawn)
 	_spawn_enemies(spawn)
 	_start_ambience(spawn)
 	# Shut before anything else is visible, then opened once the island is built. Sound comes

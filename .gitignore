@@ -12,10 +12,16 @@ export_presets.cfg
 # textures - the .gdignore files next to them keep Godot from importing them at all.
 *.import
 
-# ...except the two that carry settings which exist NOWHERE ELSE. A rigged model's scale has
+# ...except the few that carry settings which exist NOWHERE ELSE. A rigged model's scale has
 # to be nodes/root_scale, because scaling above a Skeleton3D breaks skinning - so ignoring
 # these meant a fresh clone regenerated them with defaults and got a captain at 53% height
-# with a broken jump. Two files, so the conflict surface stays tiny; tests/import_check.gd
-# fails if either is ever lost again.
+# with a broken jump. tests/import_check.gd fails if any of them is ever lost again.
+#
+# An UNRIGGED model does not need an exception: tools/reorient_model.py --scale bakes the size
+# into the .glb, which is why fish_blue.glb has root_scale 1.0 and is not listed here. The arch
+# is listed rather than baked only because it is already placed by hand in main.tscn and a
+# re-bake would be a chance to move it.
 !art/models/captain.glb.import
 !art/models/grunt.glb.import
+!art/models/shark.glb.import
+!art/models/rocks/rock_arch.glb.import

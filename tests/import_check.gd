@@ -10,8 +10,12 @@ extends SceneTree
 ## `.import` files were gitignored: a fresh clone regenerated them with the defaults, and the
 ## captain came out at 53% of his height with his jump broken, silently, looking merely odd.
 ##
-## This is here because a comment warning about it was not enough. The two files that carry
-## non-default settings are committed now, and this fails loudly if either is ever lost.
+## This is here because a comment warning about it was not enough. The files that carry
+## non-default settings are committed now, and this fails loudly if any is ever lost.
+##
+## An unrigged model should not need an entry at all - tools/reorient_model.py --scale bakes the
+## size into the .glb, where git keeps it. fish_blue is listed the other way round, pinned at the
+## default, so a scale cannot quietly move back into a file a fresh clone will not receive.
 
 ## file -> the settings it must carry, and why.
 const REQUIRED := {
@@ -23,6 +27,22 @@ const REQUIRED := {
 	},
 	"res://art/models/grunt.glb.import": {
 		"nodes/root_scale": "1.794",
+	},
+	# Rigged, so this one has no choice either - the swim is written onto its spine bones.
+	"res://art/models/shark.glb.import": {
+		"nodes/root_scale": "4.0",
+	},
+	# Not rigged, so this COULD have been baked into the .glb with reorient_model.py --scale.
+	# It is here instead because the arch is already placed by hand in main.tscn, and re-baking
+	# a placed asset is a chance to move it.
+	"res://art/models/rocks/rock_arch.glb.import": {
+		"nodes/root_scale": "8.0",
+	},
+	# The opposite case, and the one to copy: the fish carries its 0.35 m length in the .glb, so
+	# the .import holds nothing and stays ignored. Pinned at the default here so that nobody
+	# "fixes" the size by putting a scale back into a file a fresh clone will not get.
+	"res://art/models/fish_blue.glb.import": {
+		"nodes/root_scale": "1.0",
 	},
 }
 
