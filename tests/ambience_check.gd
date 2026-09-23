@@ -169,14 +169,13 @@ func _climb(air: Node, terrain: Node, player: CharacterBody3D) -> void:
 
 ## The occasionals are placed against real objects, so there have to be some.
 func _anchors(scene: Node3D, air: Node) -> void:
-	var palms := 0
-	var cargo := 0
-	for child in scene.get_children():
-		var named := String((child as Node).name)
-		if named.begins_with("Palm"):
-			palms += 1
-		elif named.begins_with("Cargo"):
-			cargo += 1
+	# Counted from the containers, which is also where the ambience gets them from. Counting
+	# by name prefix across the scene's children only worked while every palm was a direct
+	# child of main.
+	var stand := scene.get_node_or_null("Palms")
+	var crates := scene.get_node_or_null("Cargo")
+	var palms: int = stand.get_child_count() if stand != null else 0
+	var cargo: int = crates.get_child_count() if crates != null else 0
 	print("anchors: %d palms, %d cargo in the scene; ambience holds %d and %d"
 			% [palms, cargo, air._palms.size(), air._cargo.size()])
 	# The whole reason _start_ambience runs last. Wired alongside the music it would see an

@@ -5,13 +5,12 @@ extends Node3D
 ## project renders without opening the editor).
 
 const CoastalStudy = preload("res://world/coastal_study.gd")
-const Enemy = preload("res://actors/grunt/grunt.gd")
+const Grunts = preload("res://actors/grunt/grunts.gd")
 const Hud = preload("res://ui/hud.gd")
 const Rocks = preload("res://props/rock/rocks.gd")
-const Cargo = preload("res://props/cargo/cargo.tscn")
-const CargoKind = preload("res://props/cargo/cargo.gd")
+const CargoField = preload("res://props/cargo/cargo_field.gd")
 const Grass = preload("res://props/grass/grass.gd")
-const Palm = preload("res://props/palm/palm.tscn")
+const Palms = preload("res://props/palm/palms.gd")
 const Music = preload("res://systems/music.gd")
 const Sfx = preload("res://systems/sfx.gd")
 const Ambience = preload("res://systems/ambience.gd")
@@ -145,14 +144,17 @@ func _start_ambience(around: Vector3) -> void:
 	add_child(air)
 	air.begin(_terrain, _player)
 
+	# Asked of the containers rather than scanned out of the scene by name. Matching children
+	# whose name begins with "Palm" worked only while every palm was a direct child of main,
+	# and would have said nothing the moment that stopped being true.
 	var palms: Array[Vector3] = []
 	var cargo: Array[Vector3] = []
-	for child in get_children():
-		var named := String((child as Node).name)
-		if named.begins_with("Palm"):
-			palms.append((child as Node3D).global_position)
-		elif named.begins_with("Cargo"):
-			cargo.append((child as Node3D).global_position)
+	var stand := get_node_or_null("Palms")
+	if stand != null:
+		palms = stand.positions()
+	var crates := get_node_or_null("Cargo")
+	if crates != null:
+		cargo = crates.positions()
 	air.anchor(palms, cargo)
 
 	# The waterfall gets a pinned loop rather than a bed, because it is in one place and should
@@ -192,44 +194,20 @@ func _scatter_rocks(around: Vector3) -> void:
 	print("scattered %d of %d rocks" % [field.scatter(_terrain, around, rng), rock_count])
 
 
-## Plants palms along the shore.
+## Plants palms along the shore - see props/palm/palms.gd for where they will grow.
 ##
-## Lower down than the grass and closer to the water: palms belong on the sand and the first
-## rise behind it, not up on the hillside. Each gets its own lean and size, because a stand of
-## identical upright palms reads as wallpaper rather than as trees.
+## Its own RandomNumberGenerator, seeded from the project seed, for the same reason the rocks
+## have one: sharing the global one means adding a palm moves every grunt.
 func _plant_palms(around: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args() or palm_count <= 0:
 		return
-	var sea: float = _terrain.sea_level()
+	var stand: Node3D = Palms.new()
+	stand.name = "Palms"
+	stand.count = palm_count
+	add_child(stand)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("palms") + randi()
-	var planted := 0
-	for i in palm_count:
-		for attempt in 40:
-			var angle := rng.randf() * TAU
-			var away := sqrt(rng.randf()) * 80.0
-			var at := around + Vector3(cos(angle), 0.0, sin(angle)) * away
-			var ground: float = _terrain.height_at(at.x, at.z)
-			var above := ground - sea
-			if above < 0.8 or above > 6.0:
-				continue
-			# Not on a slope steep enough to leave the trunk hanging out of the hillside.
-			var slope: float = maxf(
-				absf(_terrain.height_at(at.x + 1.0, at.z) - _terrain.height_at(at.x - 1.0, at.z)),
-				absf(_terrain.height_at(at.x, at.z + 1.0) - _terrain.height_at(at.x, at.z - 1.0))) * 0.5
-			if slope > 0.5:
-				continue
-			var palm: StaticBody3D = Palm.instantiate()
-			palm.name = "Palm%d" % i
-			palm.size = rng.randf_range(0.75, 1.3)
-			palm.lean = rng.randf_range(4.0, 16.0)
-			palm.lean_towards = rng.randf() * 360.0
-			add_child(palm)
-			palm.global_position = Vector3(at.x, ground - 0.1, at.z)
-			palm.rotation.y = rng.randf() * TAU
-			planted += 1
-			break
-	print("palms: %d of %d" % [planted, palm_count])
+	print("palms: %d of %d" % [stand.plant(_terrain, around, rng), palm_count])
 
 
 ## Fills the green band with grass.
@@ -258,101 +236,43 @@ func _scatter_grass(around: Vector3) -> void:
 			against_rocks.size()])
 
 
-## Drops cargo on the beach and floats some of it offshore.
-##
-## The floating pieces are put over seabed that is actually deep enough - dropping one where
-## the water is ankle deep gives a barrel resting on the bottom, which looks like buoyancy is
-## broken rather than like shallow water.
+## Drops cargo on the beach and floats some of it offshore - see props/cargo/cargo_field.gd.
 func _place_barrels(around: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args():
 		return
-	var sea: float = _terrain.sea_level()
+	var field: Node3D = CargoField.new()
+	field.name = "Cargo"
+	field.barrels_ashore = barrels_ashore
+	field.barrels_afloat = barrels_afloat
+	field.crates_ashore = crates_ashore
+	field.crates_afloat = crates_afloat
+	add_child(field)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("cargo") + randi()
-	var counts := {
-		CargoKind.Kind.BARREL: [barrels_ashore, barrels_afloat],
-		CargoKind.Kind.CRATE: [crates_ashore, crates_afloat],
-	}
-	var placed := {}
-	var index := 0
-	for kind in counts:
-		var dry: int = counts[kind][0]
-		var wet_count: int = counts[kind][1]
-		placed[kind] = [0, 0]
-		for i in dry + wet_count:
-			var wet := i >= dry
-			for attempt in 24:
-				var angle := rng.randf() * TAU
-				var away := rng.randf_range(6.0, 32.0)
-				var at := around + Vector3(cos(angle), 0.0, sin(angle)) * away
-				var ground: float = _terrain.height_at(at.x, at.z)
-				var depth: float = sea - ground
-				var ok: bool = depth > 1.2 if wet else ground > sea + 0.4
-				if not ok:
-					continue
-				var piece: RigidBody3D = Cargo.instantiate()
-				piece.kind = kind
-				piece.name = "Cargo%d" % index
-				piece.water_level = sea
-				add_child(piece)
-				# Floating pieces start at the surface so they settle rather than plunge and
-				# bounce back up; the rest stand on the sand.
-				piece.global_position = Vector3(at.x, sea - 0.3 if wet else ground, at.z)
-				piece.rotation.y = rng.randf() * TAU
-				placed[kind][1 if wet else 0] += 1
-				index += 1
-				break
-	print("cargo: %d barrels (%d afloat), %d crates (%d afloat)"
-			% [placed[CargoKind.Kind.BARREL][0] + placed[CargoKind.Kind.BARREL][1],
-			placed[CargoKind.Kind.BARREL][1],
-			placed[CargoKind.Kind.CRATE][0] + placed[CargoKind.Kind.CRATE][1],
-			placed[CargoKind.Kind.CRATE][1]])
+	print(field.summary(field.place(_terrain, around, rng)))
 
 
-## Scatters grunts around the spawn point at varied distances and bearings.
+## Scatters grunts around the spawn point - see actors/grunt/grunts.gd.
 ##
-## Built from a script rather than placed in the scene, so the count and spread are one export
-## away and nothing has to be re-laid-out when more enemy types arrive.
-##
-## Each one is dropped onto the terrain surface, not at the spawn height - the spawn is lifted
-## clear of the ground for the player to fall from, and a grunt started up there would drop
-## through his own idle. Anywhere at or below the waterline is rejected and the bearing retried,
-## because a grunt standing on the seabed is not a fight, it is a bug report.
+## Their sounds are connected here rather than inside the grunt, so a grunt never has to know
+## a sound system exists. The field announces each one as it is made, which is what makes that
+## possible without this having to find them afterwards.
 func _spawn_enemies(near: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args() or enemy_count <= 0:
 		return
-	var placed := 0
-	for i in enemy_count:
-		var spot := Vector3.ZERO
-		var found := false
-		for attempt in 16:
-			# Sweep the bearing further on each retry. Jitter alone kept searching the same
-			# sector, so a grunt whose slice of the circle is all sea never found land and was
-			# dropped - two of five went missing that way.
-			var angle := TAU * (float(i) / float(enemy_count)) + randf_range(-0.4, 0.4) 					+ attempt * 0.4
-			var away := randf_range(enemy_near, enemy_far)
-			var at := near + Vector3(cos(angle), 0.0, sin(angle)) * away
-			var ground: float = _terrain.height_at(at.x, at.z)
-			if ground > _terrain.sea_level() + 0.5:
-				spot = Vector3(at.x, ground + 0.1, at.z)
-				found = true
-				break
-		if not found:
-			continue
-		var enemy: CharacterBody3D = Enemy.new()
-		enemy.name = "Enemy%d" % i
-		add_child(enemy)
-		enemy.global_position = spot
-		enemy.target = _player
-		# Wired here, not in _start_sfx. That runs before this does, so its loop over the
-		# scene's Enemy children found an empty scene and connected nothing - a grunt could
-		# be cut down in silence while every part of the setup looked correct.
-		var noise := get_node_or_null("Sfx")
-		if noise != null:
-			_wire_enemy(noise, enemy)
-		placed += 1
+	var band: Node3D = Grunts.new()
+	band.name = "Grunts"
+	band.count = enemy_count
+	band.nearest = enemy_near
+	band.furthest = enemy_far
+	add_child(band)
+	var noise := get_node_or_null("Sfx")
+	if noise != null:
+		band.spawned.connect(func(grunt: Node3D) -> void: _wire_enemy(noise, grunt))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("grunts") + randi()
 	print("spawned %d of %d grunts between %.0f and %.0f m out"
-			% [placed, enemy_count, enemy_near, enemy_far])
+			% [band.spawn(_terrain, _player, near, rng), enemy_count, enemy_near, enemy_far])
 
 
 func _ready() -> void:

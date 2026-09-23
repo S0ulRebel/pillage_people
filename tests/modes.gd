@@ -74,13 +74,12 @@ func _death_test() -> void:
 	# stops - which it did.
 	_death_test_runs += 1
 	if _death_test_runs > 1:
-		var grunts := 0
-		for c in _main.get_children():
-			if c.name.begins_with("Enemy"):
-				grunts += 1
+		var band := _main.get_node_or_null("Grunts")
+		var rocks := _main.get_node_or_null("Rocks")
 		print("death test: the island came back - player %d/%d hp, dead=%s, %d grunts, %d rocks"
-				% [_player.health(), _player.max_health, _player.is_dead(), grunts,
-				_main.get_node("Rocks").get_child_count() if _main.has_node("Rocks") else 0])
+				% [_player.health(), _player.max_health, _player.is_dead(),
+				band.get_child_count() if band != null else 0,
+				rocks.get_child_count() if rocks != null else 0])
 		get_tree().quit(0)
 		return
 	for i in 60:
