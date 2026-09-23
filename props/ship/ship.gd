@@ -17,6 +17,13 @@ const BEAM := 6.0
 const DRAFT := 2.0
 ## Extra water under the keel, so a sloping seabed does not poke through the bilge.
 const CLEARANCE := 0.6
+## Top of the weather-deck slab. Measured off the mesh: feet land here.
+const DECK_Y := 5.2
+## How far from the hull a climb still counts. The collision stops him short of the planks.
+const BOARD_MARGIN := 3.0
+## Where a climb puts his feet: centreline, aft of the stair opening, a metre above the deck
+## so he drops onto it instead of spawning in the slab.
+const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 10.0)
 
 
 func _ready() -> void:
@@ -49,6 +56,37 @@ func moor_off(beach: Node3D, terrain: Node) -> bool:
 					return true
 	push_warning("ship: no water deep enough off this beach")
 	return false
+
+
+## True when `who` is beside the hull and not already standing on it.
+## The deck is the only way up, and there is no ladder, so this is the whole climb.
+func can_board(who: Node3D) -> bool:
+	var local := to_local(who.global_position)
+	if _on_deck(local):
+		return false
+	return _hull_distance(local) <= BOARD_MARGIN
+
+
+## Drops `who` onto the weather deck. The caller has already checked can_board.
+func board(who: Node3D) -> void:
+	who.global_position = to_global(BOARD_SPOT)
+	if who is CharacterBody3D:
+		(who as CharacterBody3D).velocity = Vector3.ZERO
+
+
+func _on_deck(local: Vector3) -> bool:
+	return local.y > DECK_Y - 0.6 and absf(local.x) <= BEAM * 0.5 and local.z >= 0.0 and local.z <= LENGTH
+
+
+## Metres from the hull's rectangular outline. Zero when he is inside it.
+func _hull_distance(local: Vector3) -> float:
+	var dx := maxf(absf(local.x) - BEAM * 0.5, 0.0)
+	var dz := 0.0
+	if local.z < 0.0:
+		dz = -local.z
+	elif local.z > LENGTH:
+		dz = local.z - LENGTH
+	return Vector2(dx, dz).length()
 
 
 func _build() -> void:

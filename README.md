@@ -15,7 +15,7 @@ that before adding anything.
 **Keyboard:** WASD move (relative to the camera) · Space jump · left click swing · **hold
 right click** to guard · **R** raise the flintlock, then left click fires · **Z** spyglass,
 wheel zooms while it is up · middle-drag turn and tilt the camera · mouse wheel zoom · Q/E
-turn.
+turn · E beside the ship climbs onto the deck.
 
 R and F used to tilt the camera. The middle-button drag does that better, and R is where a
 player looks for a sidearm.

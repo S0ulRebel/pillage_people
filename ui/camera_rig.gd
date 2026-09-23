@@ -235,6 +235,10 @@ func _magnify(by: float) -> void:
 func _process(delta: float) -> void:
 	var steady := _look_scale()
 	var orbit := Input.get_axis("cam_left", "cam_right")
+	# E is also the climb. While he is close enough to board, that press should put him on
+	# deck rather than yaw the camera out from under him.
+	if orbit > 0.01 and _target != null and _target.has_method("boarding") and _target.boarding():
+		orbit = 0.0
 	if absf(orbit) > 0.01:
 		rotation.y -= orbit * orbit_speed * delta * steady
 	if touch_controls:

@@ -1,6 +1,7 @@
 extends CharacterBody3D
 ## Bird's-eye third-person controller: WASD moves relative to the camera, Space jumps,
-## Q/E orbit, mouse wheel zooms. The body is the captain model when it is present, and a
+## Q/E orbit, mouse wheel zooms. Beside the ship, E climbs aboard instead of turning.
+## The body is the captain model when it is present, and a
 ## blocky stand-in built from primitives when it is not.
 
 ## Normal movement. The walk clip plays below run_above, so this sits under it.
@@ -246,6 +247,8 @@ var _aiming := false
 var _guarding := false
 var _guard_time := 0.0
 var _stride := 0.0
+## The hull he can climb. Set from main once it is moored; nothing, until then.
+var _ship: Node3D
 var _was_wet := false
 
 
@@ -497,6 +500,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		request_jump()
 	elif event.is_action_released("jump"):
 		release_jump()
+	elif event.is_action_pressed("board"):
+		try_board()
 
 
 ## Connected to the touch jump button by main.gd (press and release), and to the keyboard by
@@ -508,6 +513,24 @@ func request_jump() -> void:
 
 func release_jump() -> void:
 	_holding_jump = false
+
+
+## Handed the moored hull. He does not go looking for it.
+func set_ship(ship: Node3D) -> void:
+	_ship = ship
+
+
+## True while E would climb rather than turn the camera.
+func boarding() -> bool:
+	return _ship != null and _ship.can_board(self)
+
+
+## Climbs aboard if he is beside the hull. Returns whether it happened.
+func try_board() -> bool:
+	if _ship == null or not _ship.can_board(self):
+		return false
+	_ship.board(self)
+	return true
 
 
 ## Connected to the touch dive button by main.gd.

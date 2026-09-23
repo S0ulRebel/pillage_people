@@ -253,6 +253,8 @@ func _moor_ship() -> void:
 	add_child(ship)
 	if not ship.moor_off(_coastal_study, _terrain):
 		ship.queue_free()
+		return
+	_player.set_ship(ship)
 
 
 ## Starts the background track. Silent in the capture and test modes, which run headless or

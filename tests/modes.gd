@@ -54,6 +54,8 @@ func begin(main_scene: Node3D, holes: Array[Vector3]) -> void:
 		_shore_view()
 	elif "--ship" in args:
 		_ship_view()
+	elif "--boardtest" in args:
+		_board_test()
 	elif "--overview" in args:
 		_overview()
 	elif "--assetview" in args:
@@ -148,6 +150,41 @@ func _ship_view() -> void:
 	_player.global_position = ship.to_global(Vector3(0.0, 7.0, 10.0))
 	print("ship at ", ship.global_position)
 	_screenshot_and_quit()
+
+
+## Puts him beside the hull, climbs, and checks he is standing on the deck.
+func _board_test() -> void:
+	var ship := _main.get_node_or_null("Ship") as Node3D
+	if ship == null:
+		push_error("board test: no ship")
+		get_tree().quit(1)
+		return
+	var beside := ship.to_global(Vector3(4.5, 1.2, 7.0))
+	_player.global_position = beside
+	_player.velocity = Vector3.ZERO
+	if not _player.try_board():
+		push_error("board test: beside the hull should climb")
+		get_tree().quit(1)
+		return
+	for _i in 40:
+		await get_tree().physics_frame
+	var local: Vector3 = ship.to_local(_player.global_position)
+	print("board test: local ", local, " on_floor=", _player.is_on_floor())
+	if local.y < 4.8 or not _player.is_on_floor():
+		push_error("board test: he is not standing on the deck")
+		get_tree().quit(1)
+		return
+	if _player.boarding():
+		push_error("board test: still offering a climb once he is up")
+		get_tree().quit(1)
+		return
+	_player.global_position = ship.to_global(Vector3(30.0, 1.2, 7.0))
+	if _player.try_board():
+		push_error("board test: thirty metres off should not climb")
+		get_tree().quit(1)
+		return
+	print("board test: ok")
+	get_tree().quit()
 
 
 
