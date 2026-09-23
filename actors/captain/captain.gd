@@ -1,6 +1,6 @@
 extends CharacterBody3D
 ## Bird's-eye third-person controller: WASD moves relative to the camera, Space jumps,
-## Q/E orbit, mouse wheel zooms. Beside the ship, E climbs aboard instead of turning.
+## Q/E orbit, mouse wheel zooms. Beside the ship, E climbs aboard. At the helm, E drives.
 ## The body is the captain model when it is present, and a
 ## blocky stand-in built from primitives when it is not.
 
@@ -222,6 +222,8 @@ var _guard_time := 0.0
 var _stride := 0.0
 ## The hull he can climb. Set from main once it is moored; nothing, until then.
 var _ship: Node3D
+## At the wheel. E took him there; E lets go. Jumping off the deck is how he leaves the ship.
+var _helming := false
 var _was_wet := false
 
 
@@ -474,7 +476,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_released("jump"):
 		release_jump()
 	elif event.is_action_pressed("board"):
-		try_board()
+		if not try_helm():
+			try_board()
 
 
 ## Connected to the touch jump button by main.gd (press and release), and to the keyboard by
@@ -493,9 +496,33 @@ func set_ship(ship: Node3D) -> void:
 	_ship = ship
 
 
-## True while E would climb rather than turn the camera.
+## True while E would climb, or take the wheel, rather than turn the camera.
 func boarding() -> bool:
-	return _ship != null and _ship.can_board(self)
+	if _helming:
+		return true
+	return _ship != null and (_ship.can_board(self) or _ship.can_helm(self))
+
+
+## Takes the wheel if he is at it, or lets go if he already has it. Returns whether E was used.
+func try_helm() -> bool:
+	if _ship == null:
+		return false
+	if _helming:
+		_helming = false
+		_set_helm_view(false)
+		return true
+	if not _ship.can_helm(self):
+		return false
+	_helming = true
+	velocity = Vector3.ZERO
+	global_position = _ship.helm_feet()
+	_set_helm_view(true)
+	return true
+
+
+func _set_helm_view(driving: bool) -> void:
+	if camera_rig != null and camera_rig.has_method("set_helming"):
+		camera_rig.set_helming(driving)
 
 
 ## Climbs aboard if he is beside the hull. Returns whether it happened.
@@ -564,6 +591,9 @@ func _physics_process(delta: float) -> void:
 	_knock.tick(delta)
 	if _pistol != null:
 		_pistol.tick(delta)
+	if _helming and _ship != null:
+		_steer(delta)
+		return
 	# The captain's swing SURVIVES being hit. A grunt's does not, and that asymmetry is the
 	# point: a grunt out-reaches the captain and swings every 2.15 s, so cancelling on contact
 	# meant every swing died before its strike window opened. Measured, that is a captain who
@@ -632,6 +662,21 @@ func _physics_process(delta: float) -> void:
 	else:
 		_walk_time = 0.0
 		_animate_walk(true)
+	_update_animation()
+
+
+## At the wheel the stick is the ship, not his feet. Ahead is the bow, A and D yaw it.
+func _steer(delta: float) -> void:
+	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if touch_controls and touch_controls.move.length() > 0.0:
+		input = touch_controls.move
+	_ship.drive(delta, -input.y, input.x)
+	global_position = _ship.helm_feet()
+	velocity = Vector3.ZERO
+	var bow: Vector3 = _ship.helm_facing()
+	_body.rotation.y = atan2(bow.x, bow.z)
+	_walk_time = 0.0
+	_animate_walk(true)
 	_update_animation()
 
 

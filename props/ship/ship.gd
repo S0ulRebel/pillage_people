@@ -24,10 +24,22 @@ const BOARD_MARGIN := 3.0
 ## Where a climb puts his feet: centreline, aft of the stair opening, a metre above the deck
 ## so he drops onto it instead of spawning in the slab.
 const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 10.0)
+## Deck contact of the wheel, on the stern weather deck. The real F01_HELM drops in here.
+const HELM_AT := Vector3(0.0, DECK_Y, 12.4)
+## Where his feet go: aft of the wheel, looking toward the bow.
+const HELM_FEET := Vector3(0.0, DECK_Y, 13.25)
+const HELM_REACH := 1.6
+const AHEAD_SPEED := 7.0
+const ASTERN_SPEED := 3.5
+const YAW_RATE := 0.45
+
+var _terrain: Node
+var _sea := 0.0
 
 
 func _ready() -> void:
 	_build()
+	_build_helm()
 
 
 ## Floats broadside to the beach the coastal study picked, close enough to swim to.
@@ -52,6 +64,8 @@ func moor_off(beach: Node3D, terrain: Node) -> bool:
 				if _afloat(origin, aft, terrain, sea):
 					global_position = origin
 					global_basis = Basis(Vector3.UP.cross(aft).normalized(), Vector3.UP, aft)
+					_terrain = terrain
+					_sea = sea
 					print("ship moored at ", global_position, " draft ", DRAFT)
 					return true
 	push_warning("ship: no water deep enough off this beach")
@@ -65,6 +79,51 @@ func can_board(who: Node3D) -> bool:
 	if _on_deck(local):
 		return false
 	return _hull_distance(local) <= BOARD_MARGIN
+
+
+## True when he is on the weather deck and within reach of the wheel.
+func can_helm(who: Node3D) -> bool:
+	var local := to_local(who.global_position)
+	if not _on_deck(local):
+		return false
+	return Vector2(local.x - HELM_AT.x, local.z - HELM_AT.z).length() <= HELM_REACH
+
+
+func helm_feet() -> Vector3:
+	return to_global(HELM_FEET)
+
+
+## Bow, flat. The wheel faces this way.
+func helm_facing() -> Vector3:
+	var bow := -global_basis.z
+	bow.y = 0.0
+	return bow.normalized() if bow.length_squared() > 0.0001 else Vector3.FORWARD
+
+
+## `throttle` is +1 ahead. `yaw` is +1 to starboard.
+func drive(delta: float, throttle: float, yaw: float) -> void:
+	if _terrain == null:
+		return
+	throttle = clampf(throttle, -1.0, 1.0)
+	yaw = clampf(yaw, -1.0, 1.0)
+	if absf(yaw) > 0.01:
+		# Positive yaw is starboard, so the bow swings to +X.
+		global_rotate(Vector3.UP, -yaw * YAW_RATE * delta)
+	var aft := global_basis.z
+	aft.y = 0.0
+	if aft.length_squared() < 0.0001:
+		return
+	aft = aft.normalized()
+	var next := global_position
+	if absf(throttle) > 0.01:
+		var rate := AHEAD_SPEED if throttle > 0.0 else ASTERN_SPEED
+		var candidate := global_position - aft * throttle * rate * delta
+		candidate.y = _sea - DRAFT
+		# A grounded move is refused. Turning still happened, so he can aim back at water.
+		if _afloat(candidate, aft, _terrain, _sea):
+			next = candidate
+	next.y = _sea - DRAFT
+	global_position = next
 
 
 ## Drops `who` onto the weather deck. The caller has already checked can_board.
@@ -118,6 +177,77 @@ func _build() -> void:
 				mesh_node.set_surface_override_material(surface, flat)
 		# The deck and the stairs are part of the mesh. A box would fill the hatch.
 		mesh_node.create_trimesh_collision()
+
+
+## A wheel and a stand, in the kit's helm box, until a real F01_HELM model replaces it.
+## The node is named Helm and sits on HELM_AT so the swap is a mesh, not a new place.
+func _build_helm() -> void:
+	if get_node_or_null("Helm") != null:
+		return
+	var helm := Node3D.new()
+	helm.name = "Helm"
+	helm.position = HELM_AT
+	add_child(helm)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	var brass := _flat(Color(0.75, 0.58, 0.22))
+	_box(helm, Vector3(0.0, 0.06, 0.0), Vector3(0.7, 0.12, 0.36), timber)
+	_box(helm, Vector3(-0.16, 0.48, 0.0), Vector3(0.08, 0.84, 0.08), timber)
+	_box(helm, Vector3(0.16, 0.48, 0.0), Vector3(0.08, 0.84, 0.08), timber)
+	_box(helm, Vector3(0.0, 0.9, 0.0), Vector3(0.4, 0.08, 0.08), iron)
+	var wheel := Node3D.new()
+	wheel.name = "Wheel"
+	wheel.position = Vector3(0.0, 1.15, 0.08)
+	helm.add_child(wheel)
+	for i in 8:
+		var ang := TAU * float(i) / 8.0
+		var spoke := _box(wheel, Vector3(cos(ang) * 0.24, sin(ang) * 0.24, 0.0), Vector3(0.36, 0.05, 0.05), timber)
+		spoke.rotation.z = ang
+		var rim := _box(wheel, Vector3(cos(ang) * 0.46, sin(ang) * 0.46, 0.0), Vector3(0.2, 0.07, 0.07), timber)
+		rim.rotation.z = ang + PI * 0.5
+	_cylinder(wheel, Vector3.ZERO, 0.08, 0.1, brass)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.55, 1.35, 0.28)
+	shape.shape = box
+	shape.position = Vector3(0.0, 0.7, 0.0)
+	body.add_child(shape)
+	helm.add_child(body)
+
+
+func _box(parent: Node3D, at: Vector3, size: Vector3, material: Material) -> MeshInstance3D:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = at
+	node.material_override = material
+	parent.add_child(node)
+	return node
+
+
+func _cylinder(parent: Node3D, at: Vector3, radius: float, height: float, material: Material) -> void:
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = at
+	node.rotation_degrees.x = 90.0
+	node.material_override = material
+	parent.add_child(node)
+
+
+func _flat(colour: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = colour
+	material.roughness = 1.0
+	material.metallic = 0.0
+	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	return material
 
 
 ## True when every sample under the hull has enough water for the draft.

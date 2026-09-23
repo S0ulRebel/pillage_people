@@ -178,6 +178,23 @@ func _board_test() -> void:
 		push_error("board test: still offering a climb once he is up")
 		get_tree().quit(1)
 		return
+	_player.global_position = ship.to_global(Vector3(0.0, 5.4, 13.2))
+	_player.velocity = Vector3.ZERO
+	if not _player.try_helm():
+		push_error("board test: at the wheel should take the helm")
+		get_tree().quit(1)
+		return
+	var before: Vector3 = ship.global_position
+	for _j in 20:
+		ship.drive(0.05, 1.0, 0.0)
+	if ship.global_position.distance_to(before) < 1.0:
+		push_error("board test: the hull did not move ahead")
+		get_tree().quit(1)
+		return
+	if not _player.try_helm():
+		push_error("board test: E again should leave the wheel")
+		get_tree().quit(1)
+		return
 	_player.global_position = ship.to_global(Vector3(30.0, 1.2, 7.0))
 	if _player.try_board():
 		push_error("board test: thirty metres off should not climb")

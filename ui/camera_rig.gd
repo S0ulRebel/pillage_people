@@ -77,6 +77,8 @@ var _rested_length := 18.0
 var touch_controls: CanvasLayer
 ## True while the middle button is held.
 var _mouse_looking := false
+var _helm_view := false
+var _length_before_helm := 18.0
 
 
 func _ready() -> void:
@@ -115,6 +117,18 @@ func set_glassing(looking: bool) -> bool:
 
 func is_glassing() -> bool:
 	return _glassing
+
+
+## Pulls back while he has the wheel, so the hull and the water ahead are both in frame.
+func set_helming(driving: bool) -> void:
+	if driving == _helm_view or _arm == null:
+		return
+	_helm_view = driving
+	if driving:
+		_length_before_helm = _arm.spring_length
+		_arm.spring_length = minf(max_distance, 34.0)
+	else:
+		_arm.spring_length = _length_before_helm
 
 
 func _apply_fov() -> void:
@@ -235,8 +249,8 @@ func _magnify(by: float) -> void:
 func _process(delta: float) -> void:
 	var steady := _look_scale()
 	var orbit := Input.get_axis("cam_left", "cam_right")
-	# E is also the climb. While he is close enough to board, that press should put him on
-	# deck rather than yaw the camera out from under him.
+	# E climbs, and E takes the wheel. While either of those is what the key will do, it
+	# should not also yaw the view.
 	if orbit > 0.01 and _target != null and _target.has_method("boarding") and _target.boarding():
 		orbit = 0.0
 	if absf(orbit) > 0.01:
