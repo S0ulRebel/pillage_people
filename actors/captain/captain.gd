@@ -93,6 +93,20 @@ extends CharacterBody3D
 @export var sword_grip := Vector3(0.80, 0.0, 0.0)
 @export var sword_colour := Color(0.72, 0.74, 0.78)
 
+@export_group("Pistol")
+## A flintlock in the off hand - see actors/parts/gun.gd. He keeps the cutlass: a captain with
+## a sword in one hand and a pistol in the other is the whole picture, and it is less work than
+## a weapon-swap besides.
+@export var show_pistol := true
+@export var pistol_bone := "mixamorig_LeftHand"
+@export_file("*.glb") var pistol_model := "res://art/models/weapons/pistol.glb"
+## The same three settings the cutlass needed, for the same reason: a model says nothing about
+## which way it leaves a fist. Expect to set these against a render, not by reasoning.
+@export var pistol_rotation := Vector3(0.0, 0.0, 90.0)
+@export var pistol_grip := Vector3.ZERO
+@export var pistol_offset := Vector3(-0.05, 0.07, 0.0)
+@export var pistol_size := Vector3(0.24, 0.06, 0.06)
+
 @export_group("Combat")
 @export var clip_attack := "slash"
 ## How much of his own speed he keeps while swinging. Zero plants him, which is what a grunt
@@ -192,6 +206,10 @@ var _struck: Array[Node] = []
 ## grunt's alone, separately, and they drifted; the grunt now uses the same two.
 var _hp: Health
 var _knock: Knockback
+## The flintlock, and whether it is up. Raising it is a stance rather than a held button: one
+## ball and a five second reload is a weapon you commit to, not one you tap.
+var _pistol: Gun
+var _aiming := false
 var _stride := 0.0
 var _was_wet := false
 
@@ -201,6 +219,8 @@ var _was_wet := false
 ## fade the screen or start a respawn timer against the same frame.
 signal died
 signal revived
+## Emitted when the flintlock comes up or goes down, so a crosshair can appear with it.
+signal aiming_changed(up: bool)
 ## Emitted when a swing starts, not when it connects. Whatever deals damage should wait for
 ## the blade to be somewhere useful rather than firing on the keypress.
 signal attacked
@@ -311,6 +331,34 @@ func _jump_velocity() -> float:
 	return sqrt(2.0 * rise_gravity * jump_height)
 
 
+## Whether the pistol is raised.
+func is_aiming() -> bool:
+	return _aiming
+
+
+func pistol() -> Gun:
+	return _pistol
+
+
+## Raises or lowers the flintlock.
+func set_aiming(up: bool) -> bool:
+	if _dead or _pistol == null or _aiming == up:
+		return false
+	_aiming = up
+	aiming_changed.emit(up)
+	return true
+
+
+## Fires at a point in the world, if there is a ball in it. Returns what was hit.
+##
+## The aim comes from OUTSIDE. Working out where the cursor points is a question about the
+## camera and the screen, and the captain knows about neither - main.gd answers it.
+func shoot_at(aim: Vector3) -> Node:
+	if _dead or _pistol == null or not _aiming:
+		return null
+	return _pistol.fire(self, aim)
+
+
 ## Presses and releases - the things that happen once.
 ##
 ## These were polled in _physics_process with is_action_just_pressed. That works, but it asks
@@ -329,8 +377,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	# respawns. This is the guard the polling got by sitting after the death branch.
 	if _dead:
 		return
-	if event.is_action_pressed("attack"):
-		attack()
+	if event.is_action_pressed("pistol"):
+		set_aiming(not _aiming)
+	elif event.is_action_pressed("attack"):
+		# The cutlass only swings with the pistol down. Firing it is main.gd's to trigger,
+		# because it needs the cursor.
+		if not _aiming:
+			attack()
 	elif event.is_action_pressed("jump"):
 		request_jump()
 	elif event.is_action_released("jump"):
@@ -400,6 +453,8 @@ func _physics_process(delta: float) -> void:
 	# Ticked before the swimming branch returns, or a swing started on land would never end.
 	_attack = maxf(0.0, _attack - delta)
 	_knock.tick(delta)
+	if _pistol != null:
+		_pistol.tick(delta)
 	# The captain's swing SURVIVES being hit. A grunt's does not, and that asymmetry is the
 	# point: a grunt out-reaches the captain and swings every 2.15 s, so cancelling on contact
 	# meant every swing died before its strike window opened. Measured, that is a captain who
@@ -573,6 +628,22 @@ func _attach_weapon(model: Node3D) -> void:
 		blade.free()
 		return
 	_sword = blade
+	_attach_pistol(skeleton)
+
+
+## The flintlock, in the other hand. Built separately from the cutlass rather than alongside it
+## because a captain who has one and not the other should still work: a missing pistol model
+## leaves him with a sword, not with an error.
+func _attach_pistol(skeleton: Skeleton3D) -> void:
+	if not show_pistol or skeleton == null:
+		return
+	var shot := Gun.new()
+	shot.name = "Pistol"
+	if not shot.setup(skeleton, pistol_bone, pistol_size, pistol_offset, pistol_rotation,
+			sword_colour, pistol_model, pistol_grip):
+		shot.free()
+		return
+	_pistol = shot
 
 
 func _flatten_materials(model: Node3D) -> void:

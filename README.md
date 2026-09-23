@@ -12,8 +12,12 @@ D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\pillage_people
 See [CONVENTIONS.md](CONVENTIONS.md) for where files go and how behaviour is split up. Read
 that before adding anything.
 
-**Keyboard:** WASD move (relative to the camera) · Space jump · left click swing · middle-drag
-turn and tilt the camera · mouse wheel zoom · Q/E turn · R/F tilt.
+**Keyboard:** WASD move (relative to the camera) · Space jump · left click swing · **R** raise
+the flintlock, then left click fires · **Z** spyglass, wheel zooms while it is up · middle-drag
+turn and tilt the camera · mouse wheel zoom · Q/E turn.
+
+R and F used to tilt the camera. The middle-button drag does that better, and R is where a
+player looks for a sidearm.
 
 **Touch (iPad):** left half = virtual stick (appears where your thumb lands) · right half drag
 = turn and tilt · two-finger pinch = zoom · bottom-right button = jump. These appear only on a
@@ -55,6 +59,30 @@ grunt's.
 
 When the captain dies the whole scene reloads after `restart_delay`, rather than putting the
 pieces back by hand — a reload cannot forget one.
+
+**Hits are resolved by range and facing, not by the blade's own overlap** — 1.35 m in a cone
+in front. That is not a simplification, it is the fix for a bug that was there from the start:
+the hitbox is 12 cm thick and the hand carrying it moves up to 20 cm per physics step, so the
+blade teleported past people between frames. Measured, it landed at 0.40 m and swept straight
+through anybody further, while a grunt stands off at 1.00 m and waits.
+
+## The flintlock
+
+**R** raises it, left click fires, **R** again lowers it. One ball, then five seconds of
+reloading — and that is the design rather than a limitation. A pistol with a magazine turns
+the cutlass into a backup weapon, because ranged always beats melee when ammunition is free.
+The reload is the balance.
+
+He keeps the cutlass in the other hand; there is no weapon swap. A captain with a sword in one
+hand and a pistol in the other is the whole picture, and it is less work besides.
+
+Aiming is a **cursor**, not a centre reticle — this is a bird's-eye camera, so a fixed
+crosshair would mean swinging the whole view round to shoot somebody standing beside you. The
+ball is traced from the **muzzle** to wherever the cursor points, not from the camera, so he
+cannot shoot through the rock he is standing behind.
+
+There is no aim, fire or reload animation yet — the clip set is idle, walk, run, jump, fall,
+swim, slash and death. He fires from whatever pose he is in.
 
 ## Sound
 

@@ -15,8 +15,10 @@ const Music = preload("res://systems/music.gd")
 const Sfx = preload("res://systems/sfx.gd")
 const Ambience = preload("res://systems/ambience.gd")
 const Modes = preload("res://tests/modes.gd")
+const Crosshair = preload("res://ui/crosshair.gd")
 
 var _glass: Spyglass
+var _crosshair: Crosshair
 var _coastal_study: Node3D
 
 ## Grunts, scattered around the island. They idle until the player comes near, walk over and
@@ -135,6 +137,54 @@ func _tell_sky_about(to_sun: Vector3) -> void:
 	var material := world.environment.sky.sky_material
 	if material is ShaderMaterial:
 		(material as ShaderMaterial).set_shader_parameter("sun_direction", to_sun)
+
+
+## The flintlock's cursor, and firing it.
+##
+## Here rather than in the captain because both halves are questions about the CAMERA. Where
+## the cursor points is a ray from the camera through the mouse, and the captain knows nothing
+## about either - he is handed a point in the world and told to shoot at it.
+func _start_crosshair() -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or "--screenshot" in OS.get_cmdline_user_args():
+		return
+	_crosshair = Crosshair.new()
+	_crosshair.name = "Crosshair"
+	add_child(_crosshair)
+	_player.aiming_changed.connect(func(up: bool) -> void:
+		_crosshair.visible = up)
+
+
+## Turns the mouse position into a point in the world.
+##
+## Cast from the camera through the pointer. Nothing under the cursor - open sky over the sea -
+## still gives an aim: the far end of the ray, so a shot at nothing goes somewhere rather than
+## being swallowed.
+func aim_point() -> Vector3:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return _player.global_position - _player.global_transform.basis.z * 10.0
+	var at := get_viewport().get_mouse_position()
+	var from := camera.project_ray_origin(at)
+	var along := camera.project_ray_normal(at) * 400.0
+	var query := PhysicsRayQueryParameters3D.create(from, from + along)
+	query.exclude = [_player.get_rid()]
+	var found := get_world_3d().direct_space_state.intersect_ray(query)
+	return found["position"] if not found.is_empty() else from + along
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _player == null or not _player.is_aiming():
+		return
+	if event.is_action_pressed("attack"):
+		_player.shoot_at(aim_point())
+
+
+func _process(_delta: float) -> void:
+	if _crosshair == null or not _crosshair.visible:
+		return
+	var gun: Gun = _player.pistol()
+	_crosshair.track(get_viewport().get_mouse_position(),
+			gun.reload_fraction() if gun != null else 1.0)
 
 
 ## Brings up the sound effects and connects them to the things that make noise.
@@ -408,6 +458,7 @@ func _ready() -> void:
 	# up over the same span - music fades in over 2 s, ambience over 3 - so the two arrive
 	# together rather than the picture beating the noise by a second.
 	_start_spyglass()
+	_start_crosshair()
 	# The water is told where the sun is, rather than carrying its own guess. They disagreed:
 	# the shader's default had its Z the wrong way round, so the sea was lit from roughly the
 	# opposite bearing to the sand it meets.

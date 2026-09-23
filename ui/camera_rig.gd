@@ -18,7 +18,9 @@ extends Node3D
 @export var pitch_degrees := -55.0   ## -90 is straight down, -15 is nearly level
 @export var min_pitch_degrees := -85.0
 @export var max_pitch_degrees := 8.0
-@export var pitch_speed := 60.0      ## degrees per second on the keyboard
+## Was the R/F keyboard tilt, which the middle-button drag does better and which was holding
+## on to the R key. Kept as a setting because a gamepad stick will want it back.
+@export var pitch_speed := 60.0
 
 @export_group("Spyglass")
 ## Held to the captain's eye. The camera goes to his head and the field of view narrows; the
@@ -235,10 +237,6 @@ func _process(delta: float) -> void:
 	var orbit := Input.get_axis("cam_left", "cam_right")
 	if absf(orbit) > 0.01:
 		rotation.y -= orbit * orbit_speed * delta * steady
-	var tilt := Input.get_axis("cam_down", "cam_up")
-	if absf(tilt) > 0.01:
-		pitch_degrees += tilt * pitch_speed * delta * steady
-		_apply_pitch()
 	if touch_controls:
 		var gesture: Dictionary = touch_controls.take_camera_input()
 		rotation.y -= gesture["orbit"]
