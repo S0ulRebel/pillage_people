@@ -15,6 +15,8 @@ const Music = preload("res://systems/music.gd")
 const Sfx = preload("res://systems/sfx.gd")
 const Ambience = preload("res://systems/ambience.gd")
 const Modes = preload("res://tests/modes.gd")
+
+var _glass: Spyglass
 var _coastal_study: Node3D
 
 ## Grunts, scattered around the island. They idle until the player comes near, walk over and
@@ -76,9 +78,34 @@ func _add_health_bar() -> void:
 func _on_player_died() -> void:
 	if not is_inside_tree():
 		return
-	await get_tree().create_timer(restart_delay).timeout
+	# The iris shuts ON him rather than after him: it starts closing straight away and takes
+	# restart_delay to do it, so the last thing visible is the captain going down, framed
+	# tighter and tighter. Waiting the delay and THEN fading would spend the whole death clip
+	# on a wide shot and the reload on a black one.
+	if _glass != null:
+		await _glass.close(restart_delay)
+	else:
+		await get_tree().create_timer(restart_delay).timeout
 	if is_inside_tree():
 		get_tree().reload_current_scene()
+
+
+## The spyglass iris, shut, so the scene opens into view rather than appearing.
+##
+## Skipped in the capture and test modes for the same reason the music is: --screenshot settles
+## for ninety frames and then grabs a picture, and a picture taken part-way through the opening
+## is a black circle.
+func _start_spyglass() -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or "--screenshot" in OS.get_cmdline_user_args():
+		return
+	_glass = Spyglass.new()
+	_glass.name = "Spyglass"
+	add_child(_glass)
+	# Shut before the first frame is drawn, then opened. Snapping shut rather than starting
+	# open and fading is what stops a single bright frame of the island appearing before the
+	# iris takes hold - the usual giveaway that a fade was added afterwards.
+	_glass.snap(false)
+	_glass.open()
 
 
 ## Brings up the sound effects and connects them to the things that make noise.
@@ -348,6 +375,10 @@ func _ready() -> void:
 	_place_barrels(spawn)
 	_spawn_enemies(spawn)
 	_start_ambience(spawn)
+	# Shut before anything else is visible, then opened once the island is built. Sound comes
+	# up over the same span - music fades in over 2 s, ambience over 3 - so the two arrive
+	# together rather than the picture beating the noise by a second.
+	_start_spyglass()
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_player.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig
