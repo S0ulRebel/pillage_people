@@ -144,6 +144,9 @@ extends CharacterBody3D
 ## Water resists: momentum from running does not carry far once you are in it.
 @export var water_drag := 3.0
 @export var wade_slowdown := 0.55
+## Metres between footfalls. Shorter than a real stride on purpose - the walk clip lands two
+## feet per cycle and one sound per cycle reads as limping.
+@export var stride_length := 1.5
 
 ## Set by main.gd - movement is relative to whichever way the camera is facing.
 var camera_rig: Node3D
@@ -180,6 +183,8 @@ var _blade: Area3D
 var _struck: Array[Node] = []
 var _health := 0
 var _stagger := 0.0
+var _stride := 0.0
+var _was_wet := false
 
 
 ## Take-off speed for the requested height: v = sqrt(2 * g * h).
@@ -193,6 +198,11 @@ signal attacked
 ## The blade reached something. Carries what was hit, so scoring or effects can hang off it.
 signal hit(target: Node)
 signal damaged(amount: int, remaining: int)
+## A footfall. Emitted by distance covered rather than on a timer, so it keeps pace with a
+## sprint without anything having to know how fast he is going.
+signal stepped
+## Crossing into water, either way. True going in.
+signal splashed(entering: bool)
 
 
 func is_attacking() -> bool:
@@ -362,6 +372,11 @@ func _physics_process(delta: float) -> void:
 	_coyote = coyote_time if is_on_floor() else maxf(0.0, _coyote - delta)
 
 	var swimming := is_swimming()
+	# Only on the crossing, not every frame spent wet.
+	var wet := submersion() > 0.25
+	if wet != _was_wet:
+		_was_wet = wet
+		splashed.emit(wet)
 	if touch_controls:
 		touch_controls.show_dive(swimming)
 	if swimming:
@@ -400,6 +415,12 @@ func _physics_process(delta: float) -> void:
 		_body.rotation.y = lerp_angle(_body.rotation.y, yaw, turn_speed * delta)
 		_walk_time += delta * velocity.length()
 		_animate_walk()
+		# A footfall every stride_length of ground covered, and only with feet on it.
+		if is_on_floor():
+			_stride += Vector2(velocity.x, velocity.z).length() * delta
+			if _stride >= stride_length:
+				_stride = 0.0
+				stepped.emit()
 	else:
 		_walk_time = 0.0
 		_animate_walk(true)

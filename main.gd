@@ -13,6 +13,7 @@ const CargoKind = preload("res://art/props/cargo.gd")
 const Grass = preload("res://art/props/grass.gd")
 const Palm = preload("res://art/props/palm.tscn")
 const Music = preload("res://music.gd")
+const Sfx = preload("res://sfx.gd")
 var _coastal_study: Node3D
 ## Survives a scene reload, because the script does and the node does not. Only --deathtest
 ## uses it.
@@ -111,6 +112,45 @@ func _on_player_died() -> void:
 	await get_tree().create_timer(restart_delay).timeout
 	if is_inside_tree():
 		get_tree().reload_current_scene()
+
+
+## Brings up the sound effects and connects them to the things that make noise.
+##
+## Wired here rather than inside the player and the grunts, so neither has to know a sound
+## system exists. They emit what happened; this decides what that sounds like.
+func _start_sfx() -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or "--screenshot" in OS.get_cmdline_user_args():
+		return
+	var sfx: Node3D = Sfx.new()
+	sfx.name = "Sfx"
+	add_child(sfx)
+	_player.attacked.connect(func() -> void:
+		sfx.play("swoosh", _player.global_position + Vector3.UP))
+	_player.hit.connect(func(target: Node) -> void:
+		sfx.play("flesh", (target as Node3D).global_position + Vector3.UP))
+	_player.damaged.connect(func(_amount: int, _left: int) -> void:
+		# The captain's own hits carry louder: they are happening to you, not near you.
+		sfx.play("flesh", _player.global_position + Vector3.UP, 3.0))
+	_player.stepped.connect(func() -> void:
+		# Quieter than anything else here. Footsteps are constant, and at full volume they are
+		# the only thing you hear.
+		sfx.play("steps", _player.global_position, -9.0))
+	_player.splashed.connect(func(entering: bool) -> void:
+		if entering:
+			sfx.play("splash", _player.global_position))
+	# The grunts are NOT wired here. _start_sfx runs before _spawn_enemies, so this used to
+	# loop over an empty scene and silently connect nothing - a grunt could be cut down without
+	# a sound and every part of it looked correct. Each one is wired as it is created instead,
+	# which also covers any spawned later.
+
+
+## One grunt's noises. Split out because the lambdas need to capture this grunt, not the last
+## one in the loop.
+func _wire_enemy(sfx: Node3D, grunt: Node3D) -> void:
+	grunt.damaged.connect(func(_amount: int, _left: int) -> void:
+		sfx.play("clang", grunt.global_position + Vector3.UP))
+	grunt.died.connect(func() -> void:
+		sfx.play("death", grunt.global_position + Vector3.UP))
 
 
 ## Starts the background track. Silent in the capture and test modes, which run headless or
@@ -292,6 +332,12 @@ func _spawn_enemies(near: Vector3) -> void:
 		add_child(enemy)
 		enemy.global_position = spot
 		enemy.target = _player
+		# Wired here, not in _start_sfx. That runs before this does, so its loop over the
+		# scene's Enemy children found an empty scene and connected nothing - a grunt could
+		# be cut down in silence while every part of the setup looked correct.
+		var noise := get_node_or_null("Sfx")
+		if noise != null:
+			_wire_enemy(noise, enemy)
 		placed += 1
 	print("spawned %d of %d grunts between %.0f and %.0f m out"
 			% [placed, enemy_count, enemy_near, enemy_far])
@@ -363,6 +409,7 @@ func _ready() -> void:
 	_player.died.connect(_on_player_died)
 	_add_health_bar()
 	_start_music()
+	_start_sfx()
 	_scatter_rocks(spawn)
 	_scatter_grass(spawn)
 	_plant_palms(spawn)
