@@ -374,6 +374,33 @@ func _wire_enemy(sfx: Node3D, grunt: Node3D) -> void:
 
 
 ## One hull, off the beach the player starts on. Not scattered: there is a single ship.
+## One shark, circling out past the shallows. Scenery - see props/shark/shark.gd.
+##
+## Placed off the beach the player starts on rather than somewhere in the round, because a
+## shark nobody ever sees is the same as no shark.
+func _loose_shark(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args():
+		return
+	var shark := Shark.new()
+	shark.name = "Shark"
+	add_child(shark)
+	shark.ocean = _ocean
+	# Straight out from the island's centre through the beach, so the beat sits in open water
+	# rather than halfway up the sand.
+	var seaward := Vector3(around.x, 0.0, around.z)
+	if seaward.length() < 0.01:
+		seaward = Vector3.FORWARD
+	seaward = seaward.normalized()
+	var out: Vector3 = Vector3(around.x, _terrain.sea_level(), around.z) + seaward * 46.0
+	# Along the shore is across the seaward line. He works up and down it, so from the beach
+	# he passes rather than circles.
+	var along := Vector3(-seaward.z, 0.0, seaward.x)
+	if not shark.setup(out, along):
+		shark.queue_free()
+		return
+	print("shark patrolling (%.0f, %.0f), %.0f m each way" % [out.x, out.z, shark.patrol])
+
+
 func _moor_ship() -> void:
 	var ship: Node3D = ShipScene.instantiate()
 	ship.name = "Ship"
@@ -611,6 +638,7 @@ func _ready() -> void:
 	_scatter_grass(spawn)
 	_plant_palms(spawn)
 	_place_barrels(spawn)
+	_loose_shark(spawn)
 	_spawn_enemies(spawn)
 	_start_ambience(spawn)
 	# Shut before anything else is visible, then opened once the island is built. Sound comes
