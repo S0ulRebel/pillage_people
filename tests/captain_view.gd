@@ -57,8 +57,14 @@ func _run() -> void:
 	var angles := [0.0]
 	if "--spin" in OS.get_cmdline_user_args():
 		angles = [0.0, 90.0, 180.0, 270.0]
+	# Angles are relative to the way he is FACING, not to the world. He turns to face whatever
+	# aim point main.gd feeds him, and headless has no cursor - so a fixed world angle used to
+	# photograph the back of his head and call it the front.
+	var body: Node3D = player.get_node_or_null("Body")
+	var heading := rad_to_deg(body.rotation.y) if body != null else 0.0
 	for angle in angles:
-		var away := Vector3(sin(deg_to_rad(angle)), 0.22, cos(deg_to_rad(angle))) * 2.6
+		var bearing := deg_to_rad(angle + heading)
+		var away := Vector3(sin(bearing), 0.22, cos(bearing)) * 2.6
 		camera.global_position = focus + away
 		camera.look_at(focus, Vector3.UP)
 		for i in 4:

@@ -21,6 +21,10 @@ extends MeshInstance3D
 ## brings, what it is called - instead of keeping an array of items alongside its array of
 ## weapons and trusting the two indices to stay in step.
 var item: HeldItem
+## The scale _fit settled on. Kept because anything that rewrites this node's basis - the gun
+## pointing itself at the cursor - would otherwise drop the rig's cancelled unit scale and put
+## a 0.4 m pistol back to 4 mm.
+var rest_scale := Vector3.ONE
 
 var _offset := Vector3.ZERO
 
@@ -129,7 +133,10 @@ func _fit(socket: BoneAttachment3D) -> void:
 		return
 	var inherited := socket.global_transform.basis.get_scale()
 	var factor := 1.0 / maxf(inherited.x, 0.0001)
-	scale = Vector3.ONE * factor
+	# The rig's unit scale cancelled, then the item's own dial on top.
+	var wanted := item.model_scale if item != null else 1.0
+	rest_scale = Vector3.ONE * factor * wanted
+	scale = rest_scale
 	# The offset is a local position, so it is in the same inherited units and needs the same
 	# correction - otherwise the thing comes out the right size in the wrong place.
 	position = _offset * factor

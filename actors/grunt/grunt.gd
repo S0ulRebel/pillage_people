@@ -129,6 +129,9 @@ var _struck: Array[Node] = []
 
 
 func _ready() -> void:
+	# Also on the damageable layer, so a swing can ask the physics server for things that can
+	# be hurt rather than for everything nearby. Adds the bit; layer 1 is untouched.
+	set_collision_layer_value(Layers.DAMAGEABLE, true)
 	_hp = Health.new()
 	_hp.name = "Health"
 	_hp.maximum = max_health

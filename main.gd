@@ -17,6 +17,15 @@ const Sfx = preload("res://systems/sfx.gd")
 const Ambience = preload("res://systems/ambience.gd")
 const Modes = preload("res://tests/modes.gd")
 const Crosshair = preload("res://ui/crosshair.gd")
+## How far up a body the shot is aimed, in metres. Its origin is at the feet, so this is the
+## difference between shooting a man in the chest and shooting the sand he is standing on.
+const AIM_CHEST := 1.0
+## Degrees the barrel swings between the top of the screen and the bottom. See aim_look.
+const AIM_SKY_DEGREES := 55.0
+const AIM_GROUND_DEGREES := 40.0
+## How far out an aim at nothing is placed, in metres. Only has to be past anything he could
+## be shooting at; the shot itself is capped by the gun's own carry.
+const AIM_SKY_RANGE := 120.0
 
 var _glass: Spyglass
 var _crosshair: Crosshair
@@ -157,20 +166,129 @@ func _start_crosshair() -> void:
 
 ## Turns the mouse position into a point in the world.
 ##
-## Cast from the camera through the pointer. Nothing under the cursor - open sky over the sea -
-## still gives an aim: the far end of the ray, so a shot at nothing goes somewhere rather than
-## being swallowed.
+## Where the gun POINTS, as opposed to where the ball goes. Screen space, not world space.
+##
+## These are two different questions and answering both with one world point is why the pistol
+## looked broken. The camera looks down, so every world point under the cursor is below him -
+## and a gun honestly pointing at one reads as pointing at the floor no matter how high up the
+## screen the pointer is. Aiming at the man rather than the sand under him helped and did not
+## fix it; nothing that starts from a world point can, because the world point is down there.
+##
+## So the pose comes from the pointer instead: bearing from the camera, pitch from how far up
+## the screen the cursor sits. Point up, the barrel goes up. What it will actually HIT is still
+## aim_point below, and the two are allowed to disagree - a shot through palm fronds lands
+## somewhere behind them, and that is fine. Looking wrong is not.
+func aim_look() -> Vector3:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or _player == null:
+		return Vector3.ZERO
+	var at := get_viewport().get_mouse_position()
+	var bearing := camera.project_ray_normal(at)
+	bearing.y = 0.0
+	if bearing.length() < 0.001:
+		bearing = -camera.global_transform.basis.z
+		bearing.y = 0.0
+	bearing = bearing.normalized()
+
+	var height := float(get_viewport().get_visible_rect().size.y)
+	var horizon := _horizon_row(camera, at.x)
+	# With the horizon off screen there is no natural zero, so the middle of the view is level.
+	if horizon < 0.0:
+		horizon = height * 0.5
+	var pitch := 0.0
+	if at.y < horizon:
+		pitch = deg_to_rad(AIM_SKY_DEGREES) * clampf((horizon - at.y) / maxf(horizon, 1.0),
+				0.0, 1.0)
+	else:
+		pitch = -deg_to_rad(AIM_GROUND_DEGREES) * clampf((at.y - horizon)
+				/ maxf(height - horizon, 1.0), 0.0, 1.0)
+	var eye: Vector3 = _player.global_position + Vector3.UP * AIM_CHEST
+	return eye + (bearing * cos(pitch) + Vector3.UP * sin(pitch)) * AIM_SKY_RANGE
+
+
+## Where the shot is aimed, in world space.
+##
+## Two answers, because there are two situations and they do not overlap.
+##
+## With something under the cursor there IS a world point, and it wins: click the thing, hit
+## the thing. That is the whole promise of aiming with a cursor rather than a centre reticle,
+## and screen position must not be allowed to argue with it.
+##
+## With NOTHING under the cursor - open sky, sea past the island, beyond the 400 m world -
+## there is no world point to be consistent with, so the cursor's height on screen sets the
+## elevation directly and he fires into the air. This used to return the far end of the camera
+## ray, and that ray points DOWN from a camera looking down: a cursor on the sky aimed at a
+## patch of ground hundreds of metres away, and slammed the barrel at the floor.
 func aim_point() -> Vector3:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return _player.global_position - _player.global_transform.basis.z * 10.0
 	var at := get_viewport().get_mouse_position()
+	# Above the horizon he is pointing at sky, whatever a 400 m ray eventually lands on. This
+	# used to ask whether the ray MISSED, and it almost never did: the height map runs on under
+	# the sea for the width of the world, so a cursor at the very top of the screen still found
+	# distant ground. The elevation only engaged once the pointer left the window, and then it
+	# jumped straight to full - which is exactly what it looked like.
+	var horizon := _horizon_row(camera, at.x)
+	if horizon >= 0.0 and at.y < horizon:
+		return _sky_aim(camera, at, horizon)
 	var from := camera.project_ray_origin(at)
 	var along := camera.project_ray_normal(at) * 400.0
 	var query := PhysicsRayQueryParameters3D.create(from, from + along)
 	query.exclude = [_player.get_rid()]
 	var found := get_world_3d().direct_space_state.intersect_ray(query)
-	return found["position"] if not found.is_empty() else from + along
+	if found.is_empty():
+		# Below the horizon and still nothing: off the edge of the world. Aim level and far.
+		return _player.global_position + Vector3.UP * AIM_CHEST 				+ camera.project_ray_normal(at).slide(Vector3.UP).normalized() * AIM_SKY_RANGE
+	# Aim at the MAN, not at the patch of him the ray grazed.
+	#
+	# Everything else returns the surface it struck, which is right for the ground and a rock.
+	# But a target is a body, and the ground in front of it is roughly a metre below the
+	# captain's hands - so with surface points alone the barrel could only ever point DOWN,
+	# further down or level, and never up. Whichever way the cursor moved.
+	var body := found.get("collider") as Node3D
+	if body != null and body.has_method("take_damage"):
+		return body.global_position + Vector3.UP * AIM_CHEST
+	return found["position"]
+
+
+## An aim at nothing. Keeps the camera's bearing, but takes the pitch from how far up the
+## screen the cursor is: level at the horizon, AIM_SKY_DEGREES at the very top.
+##
+## The horizon is found rather than assumed, because the camera tilts - it is the screen row
+## where the camera's own ray comes out flat.
+## The screen row where the camera's own ray comes out flat, or -1 when the horizon is not on
+## screen at all - which is a camera looking too steeply down for there to be any sky to aim at.
+##
+## Found rather than assumed at mid-screen, because the camera tilts. Binary search: the ray's
+## y component falls monotonically as the row goes down the screen.
+func _horizon_row(camera: Camera3D, x: float) -> float:
+	var height := float(get_viewport().get_visible_rect().size.y)
+	if camera.project_ray_normal(Vector2(x, 0.0)).y < 0.0:
+		return -1.0
+	var high := 0.0
+	var low := height
+	for step in 12:
+		var middle := (high + low) * 0.5
+		if camera.project_ray_normal(Vector2(x, middle)).y >= 0.0:
+			high = middle
+		else:
+			low = middle
+	return low
+
+
+func _sky_aim(camera: Camera3D, at: Vector2, horizon: float) -> Vector3:
+	var bearing := camera.project_ray_normal(at)
+	bearing.y = 0.0
+	if bearing.length() < 0.001:
+		bearing = -camera.global_transform.basis.z
+		bearing.y = 0.0
+	bearing = bearing.normalized()
+	# Level at the horizon, climbing to AIM_SKY_DEGREES at the top of the screen.
+	var above := clampf((horizon - at.y) / maxf(horizon, 1.0), 0.0, 1.0)
+	var pitch := deg_to_rad(AIM_SKY_DEGREES) * above
+	var eye: Vector3 = _player.global_position + Vector3.UP * AIM_CHEST
+	return eye + (bearing * cos(pitch) + Vector3.UP * sin(pitch)) * AIM_SKY_RANGE
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -181,6 +299,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
+	# He turns to face the cursor while a ranged weapon is out. Where the cursor points is a
+	# question about the camera and the screen, which he knows nothing about, so it is answered
+	# here and handed over - the same split as shoot_at.
+	if _player != null and _player.is_aiming():
+		_player.aim_at(aim_look())
 	if _crosshair == null or not _crosshair.visible:
 		return
 	var gun: Gun = _player.pistol()

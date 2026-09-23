@@ -105,6 +105,11 @@ attack={
 ]
 }
 
+[layer_names]
+
+3d_physics/layer_1="World"
+3d_physics/layer_2="Damageable"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

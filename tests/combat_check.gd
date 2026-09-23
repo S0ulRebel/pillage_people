@@ -18,6 +18,22 @@ extends SceneTree
 ## control of your own character is more irritating than watching someone else lose theirs.
 const DRIFT_LIMIT := 2.5
 
+## Where the fighting is measured. It used to be (40, 40), which is a 49.5 degree slope - and
+## the coarse collision shape smoothed it into something he stuck to, so the test believed it
+## was flat ground for months. With the collider matching the mesh the captain runs straight
+## off it: measured, he was AIRBORNE for 44 of the 45 frames of a swing, and the test called
+## that "running through his own strike".
+##
+## So: a real clearing, and an assertion that it still is one. Hardcoded rather than searched
+## for, because a spot that goes looking for itself can quietly move somewhere with different
+## ground and take the numbers with it.
+## Also well clear of the grunt spawn ring. The first clearing chosen was 35 m from the
+## spawn, so he teleported into a standing grunt and could not move at all - which the
+## test reported as "the captain never got moving".
+const FLAT := Vector3(69.4, 0.0, -105.4)
+## Degrees. Anything above this is a hillside and nothing measured on it means what it says.
+const FLAT_ENOUGH := 8.0
+
 var failures := 0
 
 
@@ -47,7 +63,15 @@ func _run() -> void:
 	var grunt := band.get_child(0) as CharacterBody3D
 
 	print("%-9s %8s %8s %9s %8s" % ["who", "hp", "shoved", "settled", "stunned"])
-	var cap := await _hit(captain, terrain, Vector3(40.0, 0.0, 40.0))
+	# Checked before anything is measured on it. This is the assumption every number below
+	# rests on, and it was wrong and silent.
+	var slope := _slope(terrain, FLAT.x, FLAT.z)
+	print("measuring on ground at %.1f degrees" % slope)
+	check(slope < FLAT_ENOUGH,
+			"the test ground is a %.1f degree slope - nothing measured on it is about combat"
+			% slope)
+
+	var cap := await _hit(captain, terrain, FLAT)
 	var gru := await _hit(grunt, terrain, Vector3(-40.0, 0.0, 40.0))
 
 	for who in [cap, gru]:
@@ -77,7 +101,7 @@ func _run() -> void:
 ## every other number here would stay exactly as it is. This feeds real actions through
 ## Input.parse_input_event and watches what the captain does with them.
 func _input_path(captain: CharacterBody3D, terrain: Node) -> void:
-	var at := Vector3(40.0, 0.0, 40.0)
+	var at := FLAT
 	captain.global_position = Vector3(at.x, terrain.height_at(at.x, at.z) + 0.2, at.z)
 	captain.velocity = Vector3.ZERO
 	for i in 120:
@@ -133,7 +157,7 @@ func _release(action: String) -> void:
 ## else entirely by the time it landed. A grunt plants itself mid-swing for the same reason:
 ## running through your own strike reads as a shove rather than a cut.
 func _swing_travel(captain: CharacterBody3D, terrain: Node) -> void:
-	var at := Vector3(40.0, 0.0, 40.0)
+	var at := FLAT
 	captain.global_position = Vector3(at.x, terrain.height_at(at.x, at.z) + 0.2, at.z)
 	captain.velocity = Vector3.ZERO
 	for i in 20:
@@ -228,7 +252,7 @@ func _blade_lands(captain: CharacterBody3D, grunt: CharacterBody3D, terrain: Nod
 	if sword.is_empty() or grunt.is_dead():
 		return
 
-	var at := Vector3(40.0, 0.0, 40.0)
+	var at := FLAT
 	var ground: float = terrain.height_at(at.x, at.z)
 	var took := {}
 	for behind in [false, true]:
@@ -262,3 +286,11 @@ func _blade_lands(captain: CharacterBody3D, grunt: CharacterBody3D, terrain: Nod
 			+ " where grunts stand")
 	check(took.get(true, 0) == 0,
 			"the swing hit a grunt standing BEHIND him, so the facing cone is not working")
+
+
+## Steepness of the ground in degrees, from the height map rather than the collider, so it
+## says what the surface IS rather than what the physics currently thinks.
+func _slope(terrain: Node, x: float, z: float) -> float:
+	var dx: float = float(terrain.height_at(x + 1.0, z)) - float(terrain.height_at(x - 1.0, z))
+	var dz: float = float(terrain.height_at(x, z + 1.0)) - float(terrain.height_at(x, z - 1.0))
+	return rad_to_deg(atan(Vector2(dx, dz).length() / 2.0))

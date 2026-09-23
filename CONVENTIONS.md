@@ -144,6 +144,63 @@ and a half here — the captain moves camera-relative with swimming and jumping,
 toward a target with `move_toward`. A shared movement component would buy the indirection and
 none of the reuse.
 
+## Part 4 — Engine and language practice
+
+Standard Godot and general practice. Nothing here is invented for this project; the project
+examples are only there to show where we currently break it.
+
+**1. Call down, signal up.** A parent may call its children. A child talks back by emitting a
+signal. A node never reaches upwards or sideways with `get_node("../Sibling")` — that hardcodes
+where it happened to sit and breaks on any rename or re-parent.
+
+*Broken in three places:* `world/ocean.gd` and `world/terrain.gd` both do
+`get_node_or_null("../Sun")`, and `world/tunnel.gd` does it for `../Terrain`.
+
+**2. A scene is the unit of reuse, and must run on its own.** If a scene only works when
+instanced under one particular parent, it is not a scene, it is a fragment. Take external
+dependencies as `@export`s and let whoever builds the scene supply them.
+
+**3. Composition over inheritance.** Behaviour goes in nodes you attach, not in a deepening
+base-class chain. This is already Part 2 of this document, and it is also the standard Godot
+recommendation.
+
+**4. Use static typing.** Typed GDScript is checked at parse time and runs faster than
+untyped. Annotate parameters, returns and members.
+
+**5. Physics work belongs in `_physics_process`.** Anything reading or writing physics state,
+or moving a body, runs at the fixed tick. `_process` is for things tied to the drawn frame.
+
+**6. Name your collision layers in Project Settings, and always set `collision_mask` on a
+query.** Godot provides layer names precisely so that layer 2 is not an anonymous number.
+
+*Currently unused:* no `layer_names` are set at all, and of the project's three spatial queries
+only one sets a mask.
+
+**7. Do not allocate in a hot path.** Reuse objects across frames instead of constructing them
+per call.
+
+*Broken:* `actors/parts/sword.gd` builds a new `SphereShape3D` and a new
+`PhysicsShapeQueryParameters3D` on every call to `targets()`, which runs every physics frame of
+the strike window.
+
+**8. Prefer groups or a declared interface over probing for method names.** `has_method("x")`
+is a string-keyed contract the compiler cannot check; renaming the method fails silently.
+Godot's node groups are the normal way to ask "is this one of those".
+
+*Currently:* seven method names are probed this way — `take_damage` in three files, plus
+`reel`, `is_dead`, `boarding` and `set_helming`.
+
+**9. Single responsibility.** A script owns one subject. This is not a line-count rule — see
+Part 3 — but `actors/captain/captain.gd` currently owns movement, jumping, swimming, the camera
+relationship, combat, the guard, weapon slots, animation, boarding and the ship's wheel.
+
+**10. Constrain exported ranges.** An `@export_range` stops a tunable being given a value that
+means nothing. `facing_dot` has one; `max_targets` does not, and at 0 it silently disables the
+weapon.
+
+**11. Keep data in Resources, not in code.** Tunables and item definitions belong in `.tres`
+files that can be edited and swapped without touching a script — as `HeldItem` now does.
+
 ## Comments
 
 Explain **why**, not what. The code says what. A comment earns its place by recording something

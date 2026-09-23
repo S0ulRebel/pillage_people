@@ -73,13 +73,26 @@ func _run() -> void:
 
 	var before: int = grunt.health()
 	var aim := grunt.global_position + Vector3.UP * 0.9
-	var struck: Node = captain.shoot_at(aim)
+	var ball: Node = captain.shoot_at(aim)
 	await physics_frame
-	print("shot at %.1f m: hit %s, grunt %d -> %d hp"
-			% [here.distance_to(grunt.global_position),
-			struck.name if struck != null else "nothing", before, grunt.health()])
-	check(struck == grunt, "the ball did not reach a grunt eight metres away, in the open")
-	check(grunt.health() < before, "it connected but took nothing off him")
+	# The shot is a ball in flight, not a result. Damage on the frame of the click would mean
+	# the tracer is decoration painted over something that already happened.
+	var instant: bool = grunt.health() < before
+	var range_m := here.distance_to(grunt.global_position)
+	check(ball != null, "firing produced no ball at all")
+	var flew := 0
+	while is_instance_valid(ball) and flew < 240:
+		await physics_frame
+		flew += 1
+	print("shot at %.1f m: %d frames in flight, grunt %d -> %d hp"
+			% [range_m, flew, before, grunt.health()])
+	check(not instant,
+			"the grunt lost health on the frame of the shot - the ball is not carrying the"
+			+ " hit, it is decoration over a hitscan")
+	check(flew > 1, "the ball arrived in one frame, so there is no travel time to see")
+	check(grunt.health() < before,
+			"the ball reached a grunt %.1f m away in the open and took nothing off him"
+			% range_m)
 
 	# And now the part that matters.
 	check(not gun.is_loaded(), "it is still loaded after firing - there is only one ball")

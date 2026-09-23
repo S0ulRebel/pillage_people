@@ -58,6 +58,10 @@ func targets(wielder: Node3D, facing: Vector3, skip: Array[Node]) -> Array[Node3
 	query.shape = ball
 	query.transform = Transform3D(Basis(), wielder.global_position)
 	query.collide_with_bodies = true
+	# Only things that can be hurt. Unmasked this asked for everything within reach, and once
+	# the terrain collider doubled in resolution its triangles filled the result cap on their
+	# own: 16 of 16 results were terrain and a grunt 0.90 m in front ranked 17th.
+	query.collision_mask = Layers.bit(Layers.DAMAGEABLE)
 	if wielder is CollisionObject3D:
 		query.exclude = [(wielder as CollisionObject3D).get_rid()]
 	for hit in space.intersect_shape(query, 16):

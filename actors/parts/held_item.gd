@@ -81,6 +81,13 @@ extends Resource
 ## origin is its tip, that is the blade's length.
 @export var grip := Vector3.ZERO
 
+## Multiplies the model's own size. 1.0 shows it exactly as authored.
+##
+## Needed because `size` does NOT scale a model - held.gd's _fit only cancels the rig's own
+## unit scale, so a model arrives at whatever size the artist left it. This is the only dial
+## that makes a modelled weapon bigger or smaller in his hand.
+@export_range(0.1, 5.0, 0.05) var model_scale := 1.0
+
 ## Only used by the stand-in box. A placeholder that arrives shinier than the character holding
 ## it reads as a bug rather than as a stand-in, so held.gd flattens it to match the world.
 @export var colour := Color(0.72, 0.74, 0.78)

@@ -228,6 +228,12 @@ var _slot := 0
 var _swap := 0.0
 ## Whether the guard is up, and how long it has been. The second is what makes a parry
 ## different from a block.
+## Where he is pointing, in world space, and whether anyone has said yet.
+##
+## Set from outside. Working out where the cursor points is a question about the camera and the
+## screen and the captain knows about neither - main.gd answers it, the same split as shoot_at.
+var _aim_at := Vector3.ZERO
+var _has_aim := false
 var _guarding := false
 var _guard_time := 0.0
 var _stride := 0.0
@@ -512,6 +518,46 @@ func _show_active() -> void:
 ##
 ## The aim comes from OUTSIDE. Working out where the cursor points is a question about the
 ## camera and the screen, and the captain knows about neither - main.gd answers it.
+## Hands him a point to turn towards. Only used while a ranged weapon is out.
+func aim_at(point: Vector3) -> void:
+	_aim_at = point
+	_has_aim = true
+
+
+## Turns the body, once, from whichever source should win.
+##
+## Aiming beats movement: with the flintlock up he faces the cursor and strafes, which is the
+## point of a cursor rather than a centre reticle. Before this the yaw was only ever taken from
+## the movement direction and only while actually moving - so standing still with the pistol up
+## he never turned at all, and firing sideways looked like the shot had missed the model.
+func _face(delta: float, direction: Vector3) -> void:
+	if _body == null:
+		return
+	var yaw := _body.rotation.y
+	if is_aiming() and _has_aim:
+		var towards := _aim_at - global_position
+		towards.y = 0.0
+		# The cursor landing on his own feet says nothing about where to point.
+		if towards.length() < 0.05:
+			return
+		yaw = atan2(towards.x, towards.z)
+	elif direction.length() > 0.05:
+		yaw = atan2(direction.x, direction.z)
+	else:
+		return
+	_body.rotation.y = lerp_angle(_body.rotation.y, yaw, turn_speed * delta)
+
+
+## Lets whatever he is holding point itself, for the axis his body does not cover. He turns on
+## yaw only; the pitch has to come from the weapon.
+func _aim_held() -> void:
+	if not _has_aim or not is_aiming():
+		return
+	var held := active()
+	if held != null and held.has_method("aim_along"):
+		held.aim_along(_aim_at)
+
+
 func shoot_at(aim: Vector3) -> Node:
 	if _dead or not is_aiming() or _swap > 0.0:
 		return null
@@ -612,6 +658,9 @@ func set_diving(pressed: bool) -> void:
 
 
 func _ready() -> void:
+	# Also on the damageable layer, so a swing can ask the physics server for things that can
+	# be hurt rather than for everything nearby. Adds the bit; layer 1 is untouched.
+	set_collision_layer_value(Layers.DAMAGEABLE, true)
 	# Tunnel ramps run at about 40 degrees, and faceted walls push some normals past Godot's
 	# 45 degree default, which reads as "wall" and stops the player dead halfway out.
 	floor_max_angle = deg_to_rad(55.0)
@@ -722,9 +771,9 @@ func _physics_process(delta: float) -> void:
 		velocity.z = move_toward(velocity.z, target.z, acceleration * delta * sprint_speed)
 	move_and_slide()
 
+	_face(delta, direction)
+	_aim_held()
 	if direction.length() > 0.05:
-		var yaw := atan2(direction.x, direction.z)
-		_body.rotation.y = lerp_angle(_body.rotation.y, yaw, turn_speed * delta)
 		_walk_time += delta * velocity.length()
 		_animate_walk()
 		# A footfall every stride_length of ground covered, and only with feet on it.
@@ -776,9 +825,8 @@ func _swim(delta: float) -> void:
 	velocity.y = move_toward(velocity.y, vertical, water_drag * delta * swim_speed * 2.0)
 	move_and_slide()
 
+	_face(delta, direction)
 	if direction.length() > 0.05:
-		var yaw := atan2(direction.x, direction.z)
-		_body.rotation.y = lerp_angle(_body.rotation.y, yaw, turn_speed * delta)
 		_walk_time += delta * velocity.length()
 	_animate_walk()
 	_update_animation()
@@ -878,6 +926,13 @@ func _attach_pistol(skeleton: Skeleton3D) -> void:
 		return
 	_pistol = shot
 	_slots.append(shot)
+	# The ball landing is reported as an ordinary hit, so a shot sparks and sounds exactly like
+	# a cut. main.gd already turns `hit` into a noise; nothing there needs to learn about guns.
+	shot.struck.connect(func(body: Node, at: Vector3, direction: Vector3) -> void:
+		if body == null or not body.has_method("take_damage"):
+			return
+		HitSpark.burst(get_parent(), at, direction, hit_colour)
+		hit.emit(body))
 
 
 func _flatten_materials(model: Node3D) -> void:
