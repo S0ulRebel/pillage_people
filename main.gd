@@ -60,7 +60,9 @@ var _coastal_study: Node3D
 ## between the two rules.
 const WATER_FOR_FISH := 3.2
 
-## Fish. Several small schools beat one large one - see _stock_fish.
+## Fish, for when NO FishSchool nodes have been placed in main.tscn. Three are placed, so these
+## are the fallback - a placed school's size is its own `count`, set on the node. Several small
+## schools beat one large one either way, for the reason in _stock_fish.
 @export var fish_schools := 3
 @export var fish_per_school := 120
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
@@ -422,6 +424,29 @@ func _stock_fish(around: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args():
 		return
 	var shark := get_node_or_null("Shark")
+	# Hand-placed schools win. A FishSchool is a @tool node that draws a still school in the
+	# editor at wherever it has been dragged to, so the water can be stocked by eye - and if
+	# any have been placed, nothing here should be second-guessing them by adding more.
+	var placed: Array[Node] = []
+	for node in get_children():
+		if node is FishSchool:
+			placed.append(node)
+	if not placed.is_empty():
+		var counted := 0
+		for school in placed:
+			school.terrain = _terrain
+			if shark != null:
+				school.predators = [shark] as Array[Node3D]
+			var at: Vector3 = school.global_position
+			if not school.setup(at, _terrain.sea_level(), hash(at)):
+				continue
+			var under: float = _terrain.sea_level() - _terrain.height_at(at.x, at.z)
+			if under < WATER_FOR_FISH:
+				push_warning("%s is in %.1f m of water at (%.0f, %.0f) - it wants %.1f"
+						% [school.name, under, at.x, at.z, WATER_FOR_FISH])
+			counted += school.fish_count()
+		print("fish: %d in %d placed schools" % [counted, placed.size()])
+		return
 	var seaward := Vector3(around.x, 0.0, around.z)
 	seaward = seaward.normalized() if seaward.length() > 0.01 else Vector3.FORWARD
 	var along := Vector3(-seaward.z, 0.0, seaward.x)
@@ -464,6 +489,8 @@ func _stock_fish(around: Vector3) -> void:
 			school.queue_free()
 			continue
 		total += school.fish_count()
+		print("fish: %s found %.1f m of water at (%.0f, %.0f)"
+				% [school.name, water, home.x, home.z])
 	print("fish: %d in the lagoon" % total)
 
 

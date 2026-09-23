@@ -1,3 +1,4 @@
+@tool
 class_name FishSchool
 extends MultiMeshInstance3D
 ## A school of fish that swims as a school, in one draw call.
@@ -185,16 +186,11 @@ func _build_mesh() -> bool:
 	multimesh = mm
 	material_override = material
 
-	# The instance transforms written below are world-space, so this node must not add one of
-	# its own on top.
-	top_level = true
-	global_transform = Transform3D.IDENTITY
-
-	# Godot sizes a MultiMesh's bounds from the instance transforms, and it does not recompute
-	# them as the fish swim. Without a box big enough to hold the whole beat, the school gets
-	# culled the moment its starting position leaves the frustum.
+	# Godot sizes a MultiMesh's bounds from the instance transforms and does not recompute them
+	# as the fish swim. Without a box big enough to hold the whole beat, the school is culled
+	# the moment its starting position leaves the frustum.
 	var reach := home_radius + 8.0
-	custom_aabb = AABB(_home - Vector3.ONE * reach, Vector3.ONE * reach * 2.0)
+	custom_aabb = AABB(-Vector3.ONE * reach, Vector3.ONE * reach * 2.0)
 
 	root.queue_free()
 	return true
@@ -244,7 +240,27 @@ func _populate() -> void:
 		_bed[i] = -1000.0
 
 
+## A still school in the editor, at wherever this node has been dragged to.
+##
+## Still, not swimming. A simulated preview would drift away from the node it is supposed to be
+## marking, and moving the node while it swam would fight whoever was placing it. The fish are
+## each at their own point in the tail beat, so it is a school rather than a rack of identical
+## stiff models - enough to see the size and shape of the thing being positioned.
+func _ready() -> void:
+	if not Engine.is_editor_hint():
+		return
+	var sea := global_position.y
+	var terrain := get_node_or_null("../Terrain")
+	if terrain != null and terrain.has_method("sea_level"):
+		sea = terrain.sea_level()
+	if setup(global_position, sea, 1):
+		_publish()
+
+
 func _process(delta: float) -> void:
+	# The editor gets the still preview built in _ready and nothing more.
+	if Engine.is_editor_hint():
+		return
 	if _pos.is_empty() or multimesh == null:
 		return
 	# A long frame - a load, an alt-tab - would otherwise step every fish metres forward at once
@@ -433,7 +449,23 @@ func _decide(i: int, danger: PackedVector3Array) -> void:
 
 func _publish() -> void:
 	var mm := multimesh
+	# The simulation runs in world space - the seabed, the sea level and the shark are all
+	# world facts - but the instances are written relative to this node, so that the node's own
+	# transform is what says where the school is. That is what lets it be dragged into place in
+	# the editor instead of being spawned at a computed point nobody can see until the game is
+	# running. One matrix inverse a frame, not one per fish.
+	var into_local := global_transform.affine_inverse()
 	for i in _pos.size():
-		mm.set_instance_transform(i,
-				Transform3D(Basis.looking_at(_dir[i], Vector3.UP), _pos[i]))
+		mm.set_instance_transform(i, placement(i, into_local))
 		mm.set_instance_custom_data(i, Color(_phase[i], _lit[i], 0.0, 0.0))
+
+
+## Where one fish is drawn, relative to this node.
+##
+## Split out so that it can be checked. MultiMesh.get_instance_transform does NOT read back
+## under the headless display server - it returns a zero transform for everything, whatever was
+## written - so a test that asks the MultiMesh where its instances are passes no matter what,
+## and the first version of this check did exactly that. Asking the class what it produces is
+## the next best thing.
+func placement(i: int, into_local: Transform3D) -> Transform3D:
+	return into_local * Transform3D(Basis.looking_at(_dir[i], Vector3.UP), _pos[i])

@@ -58,6 +58,19 @@ func _run() -> void:
 	print("%d schools, %d fish in the first" % [schools.size(), school.fish_count()])
 	check(school.fish_count() > 0, "the first school has no fish in it")
 
+	# From here the schools do not step themselves: every measurement below is taken after a
+	# known number of fixed 1/60 steps from a known seed, so the numbers are the same on any
+	# machine under any load.
+	#
+	# They were not before. The sixty frames awaited above run each school's own _process with
+	# REAL frame deltas, so on a loaded machine the school had lived several times longer by the
+	# time it was measured than it had on an idle one - and this check failed once inside a full
+	# suite run while passing five times on its own, which is the worst way for a test to
+	# behave. Thresholds tuned against a number that moves are not thresholds.
+	for node in schools:
+		node.set_process(false)
+	school.setup(school.global_position, terrain.sea_level(), 1)
+
 	_check_model(school)
 	if school.fish_count() == 0:
 		_finish()
@@ -69,6 +82,7 @@ func _run() -> void:
 		school._hash()
 		school._steer(STEP)
 
+	_check_placement(school)
 	_check_school(school)
 	_check_water(school, terrain)
 	_check_swim(school)
@@ -138,6 +152,35 @@ func _check_model(school: MultiMeshInstance3D) -> void:
 	check(nose > tail * 2.0,
 			"the -Z end is %.4f m wide and the +Z end %.4f - the thin end is the tail fin, so"
 			% [nose, tail] + " this model has its head at +Z and will swim backwards")
+
+
+## The node's own transform has to be what says where the school is, because that is the only
+## thing anybody can drag in the editor. The instances are therefore written RELATIVE to it.
+##
+## This fails the obvious regression: writing world-space transforms instead. The school would
+## still look perfectly correct in the running game - the node sits at the origin of the scene,
+## so world and local agree there - and would render a hundred and eighty metres from the node
+## in the editor, and jump there the moment anyone moved it.
+##
+## It asks FishSchool.placement rather than the MultiMesh, because MultiMesh.get_instance_
+## transform returns a zero transform for every instance under the headless display server
+## whatever was written into it. The first version of this check read the MultiMesh, measured
+## "0.0 m" and passed both with the code right and with it deliberately broken.
+func _check_placement(school: MultiMeshInstance3D) -> void:
+	var at: Vector3 = school.global_position
+	check(at.length() > 10.0,
+			"this school is at the scene origin, so local and world space cannot be told apart"
+			+ " and the check below proves nothing")
+	var into_local: Transform3D = school.global_transform.affine_inverse()
+	var furthest := 0.0
+	for i in school.fish_count():
+		furthest = maxf(furthest, school.placement(i, into_local).origin.length())
+	print("node at %s, furthest instance %.1f m from it" % [str(at.round()), furthest])
+	check(furthest < school.home_radius + 8.0,
+			"the furthest fish is %.1f m from the node it belongs to, which is at %s - the"
+			% [furthest, str(at.round())]
+			+ " instances are being written in world space, so the school ignores the node and"
+			+ " moving it in the editor will not move the fish")
 
 
 ## Is it a school, or a swarm, or a single point? None of these is set anywhere in the

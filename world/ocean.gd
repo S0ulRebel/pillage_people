@@ -187,6 +187,26 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 	custom_aabb = AABB(Vector3(-extent, -60.0, -extent), Vector3(extent * 2.0, 120.0, extent * 2.0))
 
 
+## Builds the sea in the editor, so it can be seen without pressing play.
+##
+## The wave preview in _process was already written to run in the editor, but nothing ever
+## called setup(), which is what builds the mesh and attaches the material - main.gd calls it
+## at runtime and nowhere else. So the Ocean node sat in the editor as an empty transform,
+## under a comment claiming the sea could be judged without running the game. It could not, and
+## anything that belongs in the water - a school of fish, a moored ship, a rock in the shallows
+## - had to be placed against a bare heightmap and guessed at.
+func _ready() -> void:
+	if not Engine.is_editor_hint():
+		return
+	# Terrain is the sibling above this one in main.tscn, so its own _ready has already loaded
+	# the height map by the time this runs. The sea level is its, not ours - two answers to
+	# where the waterline is would drift apart the first time either was tuned.
+	var terrain := get_node_or_null("../Terrain")
+	if terrain == null or not terrain.has_method("sea_level"):
+		return
+	setup(terrain.sea_level(), terrain as Node3D)
+
+
 func _process(delta: float) -> void:
 	_clock += delta
 	_push("preview_time", _clock)
@@ -243,6 +263,11 @@ func surface_y(x: float, z: float) -> float:
 
 
 func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:
+	if Engine.is_editor_hint():
+		# Not in the editor. This is a SubViewport rendering the whole shore every frame to
+		# feed the shore-foam mask, and the preview only has to show where the water IS - so
+		# the editor gets the sea without the foam band rather than a permanent second render.
+		return
 	if _band_viewport != null:
 		_band_viewport.queue_free()
 	_band_viewport = SubViewport.new()
