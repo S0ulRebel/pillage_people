@@ -85,6 +85,20 @@ extends Resource
 ## it reads as a bug rather than as a stand-in, so held.gd flattens it to match the world.
 @export var colour := Color(0.72, 0.74, 0.78)
 
+## How the holder stands while this is the thing in his hands and he is not moving. Empty
+## means his own idle, which is right for a cutlass - a pirate holding a sword stands like a
+## pirate.
+##
+## The flintlock is why this exists. Mixamo's "Pistol Idle" is a two-handed levelled hold, and
+## it is the pistol's idle rather than a mode the captain is in: it belongs to the weapon, and
+## putting it here is what stops the captain carrying a clip name for every weapon that will
+## ever exist.
+@export var clip_idle := ""
+
+## The clip for using it. Empty falls back to the holder's own attack clip, which is what a
+## weapon with no swing of its own gets - the flintlock has no firing animation yet.
+@export var clip_attack := ""
+
 
 ## Whether this is worth mounting at all. An item with neither a model nor a box would hang an
 ## invisible nothing off a bone and report success, which is the sort of thing that looks like
