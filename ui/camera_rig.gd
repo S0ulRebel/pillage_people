@@ -41,6 +41,14 @@ extends Node3D
 ## glass is the things level with you and slightly above.
 @export var glass_min_pitch := -70.0
 @export var glass_max_pitch := 25.0
+## Flips the mouse tilt while the glass is up, and it is on by default because the two modes
+## mean genuinely different things by the same movement.
+##
+## The chase camera ORBITS him: drag up and it swings up and over, so you end up looking down
+## at him. That is what orbiting a subject should do. The glass is first person - you are not
+## moving a camera around something, you are turning your head - and there drag up has to look
+## up. Same code, opposite convention, which is why it reads as reversed rather than as wrong.
+@export var glass_invert_pitch := true
 
 @export_group("Mouse look")
 ## Hold the middle button and move to swing the camera round and tilt it. The left button is
@@ -166,7 +174,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		# single thing most scoped views get wrong.
 		var steady := _look_scale()
 		rotation.y -= motion.x * mouse_orbit_speed * steady
-		pitch_degrees += motion.y * mouse_pitch_speed * steady 				* (-1.0 if invert_mouse_pitch else 1.0)
+		pitch_degrees += motion.y * mouse_pitch_speed * steady * _pitch_sign()
 		_apply_pitch()
 
 
@@ -202,6 +210,14 @@ func _physics_process(delta: float) -> void:
 		followed = _target.global_position
 		followed.y += eye_height
 	global_position = followed
+
+
+## Which way the mouse tilts the view. See glass_invert_pitch.
+func _pitch_sign() -> float:
+	var sign_ := -1.0 if invert_mouse_pitch else 1.0
+	if _glassing and glass_invert_pitch:
+		sign_ = -sign_
+	return sign_
 
 
 ## How much to slow the look by, so turning feels the same whatever the glass is doing.
