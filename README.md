@@ -209,6 +209,14 @@ first: if they are only `.import`/`.godot` files, discard them and pull again.
   any `discard`, where it is still defined.
 - **`CPUParticles3D` arrives already emitting**, so a one-shot burst spends its cycle before
   you have configured it. Call `restart()`.
+- **Letting the captain die frees the whole scene.** `main.gd` reloads it `restart_delay`
+  after his `died` signal — measured, the scene and every node in it are gone at exactly
+  3.40 s. A test holding a reference to him, a grunt or the scene past that point is holding
+  a freed object, and touching one raises an error that aborts the test function. Since that
+  function is the only thing that calls `quit()`, the run does not fail — it hangs, with no
+  window and no output. Either keep the damage below fatal, or do what `--deathtest` does and
+  carry state across the reload in a `static var`, which lives on the script rather than the
+  node.
 - **MultiMesh instance transforms are in the node's own space**, and headless reads them back
   as identity with a zero AABB. Grass positioned in world coordinates on a rotated parent ended
   up hundreds of metres away in the sky.
