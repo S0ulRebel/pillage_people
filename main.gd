@@ -249,7 +249,7 @@ func _place_barrels(around: Vector3) -> void:
 	add_child(field)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("cargo") + randi()
-	print(field.summary(field.place(_terrain, around, rng)))
+	print(field.summary(field.place(_terrain, around, rng, _ocean)))
 
 
 ## Scatters grunts around the spawn point - see actors/grunt/grunts.gd.

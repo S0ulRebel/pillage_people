@@ -58,6 +58,40 @@ class_name Ocean
 	set(value):
 		wave_height = value
 		_push("wave_height", value)
+## The four Gerstner waves the surface is built from: direction x and y, steepness, then
+## wavelength in metres.
+##
+## Held here and pushed to the shader, the way the colours are - not left to the shader's own
+## declared defaults. Anything that floats has to work the surface out on the CPU, and a
+## uniform that is never assigned reads back as null from the material AND from
+## shader_get_parameter_default, so the defaults in the shader are unreachable from here. The
+## buoyancy silently summed four skipped waves and put every barrel at the mean sea level.
+@export var wave_1 := Vector4(1.0, 0.25, 0.72, 21.0):
+	set(value):
+		wave_1 = value
+		_push("wave_1", value)
+@export var wave_2 := Vector4(-0.5, 0.9, 0.55, 12.5):
+	set(value):
+		wave_2 = value
+		_push("wave_2", value)
+@export var wave_3 := Vector4(0.75, -0.7, 0.42, 7.0):
+	set(value):
+		wave_3 = value
+		_push("wave_3", value)
+@export var wave_4 := Vector4(-0.85, -0.3, 0.30, 3.6):
+	set(value):
+		wave_4 = value
+		_push("wave_4", value)
+@export_range(0.1, 40.0) var wave_speed := 1.0:
+	set(value):
+		wave_speed = value
+		_push("wave_speed", value)
+## How deep the water has to be before waves reach full height. They flatten as the seabed
+## rises, which is why cargo in the shallows bobs less than cargo offshore.
+@export_range(0.5, 40.0) var shoal_depth := 2.5:
+	set(value):
+		shoal_depth = value
+		_push("shoal_depth", value)
 
 @export_group("Optics")
 ## Per-metre RGB absorption. Warm light is removed first to create turquoise shallows.
@@ -92,10 +126,21 @@ var _camera: Camera3D
 var _band_viewport: SubViewport
 var _band_camera: Camera3D
 var _sea_level := 0.0
+var _terrain: Node3D
+## The water clock, advanced here and pushed to the shader, rather than the shader reading its
+## own TIME.
+##
+## Anything that floats has to know where the surface IS, and the surface is computed in the
+## vertex shader. Working it out again on the CPU means using the same clock, and "roughly the
+## same seconds since startup" is not the same clock: a fixed offset leaves a barrel bobbing at
+## the right rate at the wrong moment, sitting in the trough while the crest goes past it. One
+## number, set here and read by both, cannot drift.
+var _clock := 0.0
 
 
 func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO) -> void:
 	_sea_level = sea_level
+	_terrain = terrain
 	position.y = sea_level
 	mesh = _radial_grid()
 	if material == null:
@@ -105,6 +150,8 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["deep_colour", deep_colour],
 			["foam_colour", foam_colour], ["shallow_alpha", shallow_alpha],
 			["deep_alpha", deep_alpha], ["wave_height", wave_height],
+			["wave_1", wave_1], ["wave_2", wave_2], ["wave_3", wave_3], ["wave_4", wave_4],
+			["wave_speed", wave_speed], ["shoal_depth", shoal_depth],
 			["depth_fade", depth_fade], ["absorption", absorption],
 			["absorption_strength", absorption_strength],
 			["scattering_strength", scattering_strength],
@@ -133,7 +180,9 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 	custom_aabb = AABB(Vector3(-extent, -60.0, -extent), Vector3(extent * 2.0, 120.0, extent * 2.0))
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_clock += delta
+	_push("preview_time", _clock)
 	if _camera != get_viewport().get_camera_3d():
 		_camera = get_viewport().get_camera_3d()
 		if _camera == null:
@@ -143,6 +192,41 @@ func _process(_delta: float) -> void:
 	var eye := _camera.global_position
 	global_position = Vector3(eye.x, global_position.y, eye.z)
 	_position_band_camera(eye)
+
+
+## The height of the water surface at a world point - the same Gerstner sum the vertex shader
+## adds to the flat sea, evaluated on the CPU so that things can float on it.
+##
+## Two terms of the shader's version are deliberately left out.
+##
+## The camera-distance fade is one: the shader flattens waves far from the eye because the mesh
+## out there cannot resolve them, and a barrel that rose and fell as you walked towards it would
+## be far worse than one that is slightly wrong at a distance where nothing can tell.
+##
+## The horizontal part of the Gerstner displacement is the other. A Gerstner wave moves water
+## sideways as well as up, so the surface above a point is not exactly the sample taken at that
+## point. At this wave height the error is centimetres, and correcting it means solving for the
+## sample position rather than reading it.
+func surface_y(x: float, z: float) -> float:
+	if wave_height <= 0.0:
+		return _sea_level
+	# Waves flatten as the seabed rises. This one is real rather than a rendering concession,
+	# so it stays: without it cargo in the shallows bobs as hard as cargo in open water.
+	var shoal := 1.0
+	if _terrain != null:
+		shoal = smoothstep(0.0, maxf(shoal_depth, 0.001),
+				_sea_level - _terrain.height_at(x, z))
+	var offset := 0.0
+	for wave in [wave_1, wave_2, wave_3, wave_4]:
+		var direction := Vector2(wave.x, wave.y)
+		var reach := direction.length()
+		if reach < 0.0001 or wave.z <= 0.0:
+			continue
+		direction /= reach
+		var k: float = TAU / maxf(wave.w, 0.01)
+		var phase: float = k * direction.dot(Vector2(x, z)) - sqrt(9.8 * k) * _clock * wave_speed
+		offset += (wave.z / k) * shoal * wave_height * sin(phase)
+	return _sea_level + offset
 
 
 func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:

@@ -9,8 +9,9 @@ extends RigidBody3D
 ## A RigidBody3D rather than the StaticBody the rocks use, because cargo that cannot be knocked
 ## over is scenery pretending to be a prop - and because floating needs forces.
 ##
-## The buoyancy is deliberately crude: one upward force proportional to how much of it is under
-## the surface, plus drag while it is down there. No wave sampling and no per-face displacement.
+## The buoyancy is one upward force proportional to how much of it is under the surface, plus
+## drag while it is down there - no per-face displacement. The surface itself IS wave-sampled:
+## see ocean.gd's surface_y, which repeats the vertex shader's Gerstner sum on the CPU.
 ## At this camera distance what sells a floating barrel is that it sits at the right depth and
 ## settles instead of oscillating, and both of those come out of the equilibrium and the damping
 ## rather than out of the model being right.
@@ -41,6 +42,11 @@ const SIZES := {
 
 ## Upward acceleration when fully submerged. Gravity here is 9.8, so 20 balances at a little
 ## under half submerged, which is where a sealed empty barrel sits.
+## The ocean, so the buoyancy can ask where the surface is rather than assume it is flat.
+## Optional: without it this falls back to water_level and floats on the average, which is what
+## it used to do for everything.
+var ocean: Node3D
+
 @export var buoyancy := 20.0
 ## Water resists. Without these it bobs up and down forever, because nothing takes the energy
 ## out of the spring the buoyancy makes.
@@ -138,7 +144,15 @@ func _add_shape() -> void:
 func _physics_process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
-	var depth := water_level - global_position.y
+	# The surface, not the sea level. These are not the same thing: the ocean's vertex shader
+	# lifts the water into waves, so a barrel floating against the flat plane sits at the
+	# average height while the water visibly rises and falls around it - which reads as the
+	# barrel being pinned rather than as it floating. Asking the ocean where its surface
+	# actually is puts the barrel on the wave.
+	var surface := water_level
+	if ocean != null:
+		surface = ocean.surface_y(global_position.x, global_position.z)
+	var depth := surface - global_position.y
 	if depth <= 0.0:
 		linear_damp = 0.0
 		angular_damp = 0.2

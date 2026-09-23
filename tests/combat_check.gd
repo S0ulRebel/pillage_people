@@ -64,7 +64,42 @@ func _run() -> void:
 	check(ratio <= DRIFT_LIMIT,
 			"captain and grunt knockback have drifted apart by %.1fx - they were two"
 			% ratio + " implementations of one idea once before")
+	await _swing_travel(captain, terrain)
 	_finish()
+
+
+## How far the captain gets while his own blade is out.
+##
+## He used to cross 4.88 m during a 0.75 s swing - a full sprint, blade out, arriving somewhere
+## else entirely by the time it landed. A grunt plants itself mid-swing for the same reason:
+## running through your own strike reads as a shove rather than a cut.
+func _swing_travel(captain: CharacterBody3D, terrain: Node) -> void:
+	var at := Vector3(40.0, 0.0, 40.0)
+	captain.global_position = Vector3(at.x, terrain.height_at(at.x, at.z) + 0.2, at.z)
+	captain.velocity = Vector3.ZERO
+	for i in 20:
+		await physics_frame
+	# Held through the touch path, which _move_direction reads exactly like real input.
+	var touch := current_scene.get_node("TouchControls")
+	touch.move = Vector2(0.0, -1.0)
+	for i in 30:
+		await physics_frame
+	var running := Vector2(captain.velocity.x, captain.velocity.z).length()
+	var from := captain.global_position
+	captain.attack()
+	var frames := 0
+	while captain.is_attacking() and frames < 300:
+		await physics_frame
+		frames += 1
+	var moved := captain.global_position - from
+	moved.y = 0.0
+	touch.move = Vector2.ZERO
+	print("swing: running at %.1f m/s, travelled %.2f m over %.2f s of swing"
+			% [running, moved.length(), frames / 60.0])
+	check(running > 1.0, "the captain never got moving, so this measured nothing")
+	check(moved.length() < 0.5,
+			"the captain covered %.2f m mid-swing - he is running through his own strike"
+			% moved.length())
 
 
 ## Puts `body` on flat ground, hits it from a fixed bearing, and follows it until it stops.

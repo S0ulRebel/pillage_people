@@ -95,6 +95,10 @@ extends CharacterBody3D
 
 @export_group("Combat")
 @export var clip_attack := "slash"
+## How much of his own speed he keeps while swinging. Zero plants him, which is what a grunt
+## does; it is a dial rather than a hard stop because a swing that kills all momentum can read
+## as hitting a wall, and the right amount is a matter of feel rather than of measurement.
+@export_range(0.0, 1.0) var attack_movement := 0.0
 ## Where the swing starts inside the clip. Mixamo's "Stable Sword Inward Slash" runs 2.23s and
 ## spends its first second winding up; the strike itself peaks at 1.23s. Measured from how fast
 ## the right hand moves through the clip - the peak is 2.4x anything before it. Playing from
@@ -483,6 +487,11 @@ func _move_direction() -> Vector3:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	if touch_controls and touch_controls.move.length() > 0.0:
 		input = touch_controls.move
+	# Planted mid-swing, the way a grunt is. Running through your own strike reads as a shove
+	# rather than a cut, and it let the captain cross 4.88 m during a 0.75 s swing - a full
+	# sprint, with the blade out, arriving somewhere else entirely by the time it landed.
+	if _attack > 0.0:
+		input *= attack_movement
 	var basis := camera_rig.global_transform.basis if camera_rig else global_transform.basis
 	var forward := -Vector3(basis.z.x, 0.0, basis.z.z).normalized()
 	var right := Vector3(basis.x.x, 0.0, basis.x.z).normalized()
