@@ -32,9 +32,33 @@ const HELM_REACH := 1.6
 const AHEAD_SPEED := 7.0
 const ASTERN_SPEED := 3.5
 const YAW_RATE := 0.45
+## Keel to the top of the bulwark. The fraction of this under the surface is the buoyancy.
+const HULL_HEIGHT := 6.0
+## How hard a difference in submersion heels the hull, in radians per second squared.
+const PITCH_RESPONSE := 6.0
+const ROLL_RESPONSE := 8.0
+const MAX_HEEL := 0.14
+
+## The ocean, so the lift is taken from the waves rather than the flat sea level. Same sampler
+## the barrels use. Without it the hull sits on the average.
+var ocean: Node3D
+## Whoever is standing on deck. The hull moves, and a character body is not carried along by a
+## static floor that teleports, so he is moved with it while his feet are over the deck.
+var rider: Node3D
 
 var _terrain: Node
 var _sea := 0.0
+## Bow origin in the horizontal, and which way aft points. Heave and heel are separate so
+## steering never flattens the float.
+var _planar := Vector3.ZERO
+var _heading := 0.0
+## Height of the keel at midships, and how fast it is rising.
+var _keel_y := 0.0
+var _rise := 0.0
+var _pitch := 0.0
+var _pitch_rate := 0.0
+var _roll := 0.0
+var _roll_rate := 0.0
 
 
 func _ready() -> void:
@@ -62,10 +86,12 @@ func moor_off(beach: Node3D, terrain: Node) -> bool:
 				var origin := centre - aft * (LENGTH * 0.5)
 				origin.y = sea - DRAFT
 				if _afloat(origin, aft, terrain, sea):
-					global_position = origin
-					global_basis = Basis(Vector3.UP.cross(aft).normalized(), Vector3.UP, aft)
+					_planar = origin
+					_heading = atan2(aft.x, aft.z)
+					_keel_y = sea - DRAFT
 					_terrain = terrain
 					_sea = sea
+					_apply_pose()
 					print("ship moored at ", global_position, " draft ", DRAFT)
 					return true
 	push_warning("ship: no water deep enough off this beach")
@@ -100,7 +126,9 @@ func helm_facing() -> Vector3:
 	return bow.normalized() if bow.length_squared() > 0.0001 else Vector3.FORWARD
 
 
-## `throttle` is +1 ahead. `yaw` is +1 to starboard.
+## `throttle` is +1 ahead. `yaw` is +1 to starboard. Only the heading and the
+## horizontal move: the draft is the buoyancy's, and writing it here pinned the hull to a
+## flat sea while the waves went past it.
 func drive(delta: float, throttle: float, yaw: float) -> void:
 	if _terrain == null:
 		return
@@ -108,22 +136,101 @@ func drive(delta: float, throttle: float, yaw: float) -> void:
 	yaw = clampf(yaw, -1.0, 1.0)
 	if absf(yaw) > 0.01:
 		# Positive yaw is starboard, so the bow swings to +X.
-		global_rotate(Vector3.UP, -yaw * YAW_RATE * delta)
-	var aft := global_basis.z
-	aft.y = 0.0
-	if aft.length_squared() < 0.0001:
-		return
-	aft = aft.normalized()
-	var next := global_position
+		_heading -= yaw * YAW_RATE * delta
+	var aft := _aft()
 	if absf(throttle) > 0.01:
 		var rate := AHEAD_SPEED if throttle > 0.0 else ASTERN_SPEED
-		var candidate := global_position - aft * throttle * rate * delta
+		var candidate := _planar - aft * throttle * rate * delta
 		candidate.y = _sea - DRAFT
 		# A grounded move is refused. Turning still happened, so he can aim back at water.
 		if _afloat(candidate, aft, _terrain, _sea):
-			next = candidate
-	next.y = _sea - DRAFT
-	global_position = next
+			_planar.x = candidate.x
+			_planar.z = candidate.z
+	_apply_pose()
+
+
+func _physics_process(delta: float) -> void:
+	if _terrain == null:
+		return
+	var before := global_transform
+	var held := Vector3.ZERO
+	var riding := false
+	if rider != null:
+		held = before.affine_inverse() * rider.global_position
+		riding = _on_deck(held)
+	_buoy(delta)
+	_apply_pose()
+	if riding:
+		rider.global_position = global_transform * held
+
+
+## Lift from how much hull is under the surface, damped so it settles on the draft instead of
+## bobbing forever. The same arrangement as a barrel: too deep and the lift beats gravity, too
+## shallow and it does not. Pitch and roll are that difference measured along the hull.
+func _buoy(delta: float) -> void:
+	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	# Full submersion pushes this hard, so the balance sits at the designed draft rather than
+	# at half the hull. Gunports are above that line; a barrel's half-submerged balance would
+	# put them under.
+	var lift := gravity * HULL_HEIGHT / DRAFT
+	var aft := _aft()
+	var starboard := Vector3(aft.z, 0.0, -aft.x)
+	var bow := Vector3(_planar.x, 0.0, _planar.z)
+	var mid := bow + aft * (LENGTH * 0.5)
+	var stern := bow + aft * LENGTH
+	var half_len := LENGTH * 0.5
+	var half_beam := BEAM * 0.5
+	var bow_y := _keel_y + sin(_pitch) * half_len
+	var stern_y := _keel_y - sin(_pitch) * half_len
+	var port_y := _keel_y - sin(_roll) * half_beam
+	var star_y := _keel_y + sin(_roll) * half_beam
+	var mid_sub := _submerged(_surface(mid.x, mid.z) - _keel_y)
+	var bow_sub := _submerged(_surface(bow.x, bow.z) - bow_y)
+	var stern_sub := _submerged(_surface(stern.x, stern.z) - stern_y)
+	var port_sub := _submerged(_surface(mid.x - starboard.x * half_beam, mid.z - starboard.z * half_beam) - port_y)
+	var star_sub := _submerged(_surface(mid.x + starboard.x * half_beam, mid.z + starboard.z * half_beam) - star_y)
+	_rise += (lift * mid_sub - gravity) * delta
+	# Critical damping, and not only while submerged. Scaled by the submerged fraction the
+	# drag vanished the moment the keel cleared a crest, so the hull fell and then launched
+	# itself back out.
+	var heave_omega := sqrt(lift / HULL_HEIGHT)
+	_rise *= exp(-2.0 * heave_omega * delta)
+	_rise = clampf(_rise, -1.2, 1.2)
+	_keel_y += _rise * delta
+	_pitch_rate += PITCH_RESPONSE * (bow_sub - stern_sub) * delta
+	_roll_rate += ROLL_RESPONSE * (star_sub - port_sub) * delta
+	var pitch_omega := sqrt(PITCH_RESPONSE * LENGTH / HULL_HEIGHT)
+	var roll_omega := sqrt(ROLL_RESPONSE * BEAM / HULL_HEIGHT)
+	_pitch_rate *= exp(-2.0 * pitch_omega * delta)
+	_roll_rate *= exp(-2.0 * roll_omega * delta)
+	_pitch = clampf(_pitch + _pitch_rate * delta, -MAX_HEEL, MAX_HEEL)
+	_roll = clampf(_roll + _roll_rate * delta, -MAX_HEEL, MAX_HEEL)
+	if absf(_pitch) >= MAX_HEEL - 0.0001:
+		_pitch_rate = 0.0
+	if absf(_roll) >= MAX_HEEL - 0.0001:
+		_roll_rate = 0.0
+
+
+func _submerged(depth: float) -> float:
+	return clampf(depth / HULL_HEIGHT, 0.0, 1.0)
+
+
+func _surface(x: float, z: float) -> float:
+	if ocean != null and ocean.has_method("surface_y"):
+		return ocean.surface_y(x, z)
+	return _sea
+
+
+func _aft() -> Vector3:
+	return Vector3(sin(_heading), 0.0, cos(_heading))
+
+
+func _apply_pose() -> void:
+	var bow_lift := sin(_pitch) * LENGTH * 0.5
+	global_position = Vector3(_planar.x, _keel_y + bow_lift, _planar.z)
+	# Yaw, then heel about the ship's own axes. Built rather than read back, so the float
+	# cannot accumulate a tilt the way a decomposed basis does.
+	global_basis = Basis(Vector3.UP, _heading) * Basis(Vector3.RIGHT, _pitch) * Basis(Vector3(0.0, 0.0, 1.0), _roll)
 
 
 ## Drops `who` onto the weather deck. The caller has already checked can_board.

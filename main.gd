@@ -408,6 +408,8 @@ func _moor_ship() -> void:
 	if not ship.moor_off(_coastal_study, _terrain):
 		ship.queue_free()
 		return
+	ship.ocean = _ocean
+	ship.rider = _player
 	_player.set_ship(ship)
 
 

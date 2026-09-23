@@ -191,6 +191,32 @@ func _board_test() -> void:
 		push_error("board test: the hull did not move ahead")
 		get_tree().quit(1)
 		return
+	var sea: float = _terrain.sea_level()
+	var low := ship.global_position.y
+	var high := low
+	var sum := 0.0
+	for _k in 180:
+		await get_tree().physics_frame
+		var keel: float = ship.global_position.y
+		low = minf(low, keel)
+		high = maxf(high, keel)
+		sum += keel
+	var mean := sum / 180.0
+	print("board test: heave %.3f m, mean keel %.2f (flat draft %.2f)" % [high - low, mean, sea - 2.0])
+	if high - low < 0.02:
+		push_error("board test: the hull did not rise and fall with the water")
+		get_tree().quit(1)
+		return
+	# The long swell stacks to about a metre. More than that, with the mean still on the
+	# draft, would be the hull throwing itself.
+	if high - low > 1.6:
+		push_error("board test: the hull heaved %.2f m" % (high - low))
+		get_tree().quit(1)
+		return
+	if absf(mean - (sea - 2.0)) > 0.45:
+		push_error("board test: buoyancy did not settle near the draft")
+		get_tree().quit(1)
+		return
 	if not _player.try_helm():
 		push_error("board test: E again should leave the wheel")
 		get_tree().quit(1)
