@@ -82,6 +82,12 @@ extends MeshInstance3D
 	set(value):
 		wave_4 = value
 		_push("wave_4", value)
+## Direction TO the sun, set by main.gd from the scene's DirectionalLight so the water and
+## everything standing on the beach agree about where the light comes from.
+@export var sun_direction := Vector3(-0.53, 0.37, 0.76):
+	set(value):
+		sun_direction = value
+		_push("sun_direction", value)
 @export_range(0.1, 40.0) var wave_speed := 1.0:
 	set(value):
 		wave_speed = value
@@ -152,6 +158,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["deep_alpha", deep_alpha], ["wave_height", wave_height],
 			["wave_1", wave_1], ["wave_2", wave_2], ["wave_3", wave_3], ["wave_4", wave_4],
 			["wave_speed", wave_speed], ["shoal_depth", shoal_depth],
+			["sun_direction", sun_direction],
 			["depth_fade", depth_fade], ["absorption", absorption],
 			["absorption_strength", absorption_strength],
 			["scattering_strength", scattering_strength],

@@ -27,9 +27,27 @@ uniform float cloud_speed : hint_range(0.0, 0.2) = 0.012;
 uniform float preview_time = -1.0; // Negative uses live drift. Fixed for captures.
 
 group_uniforms Sun;
-uniform vec3 sun_colour : source_color = vec3(1.0, 0.95, 0.82);
-uniform float sun_size : hint_range(0.001, 0.08) = 0.014;
+uniform vec3 sun_colour : source_color = vec3(1.0, 0.97, 0.86);
+// Angular RADIUS in degrees, not a cosine threshold. The real sun is a quarter of a degree;
+// this is a cartoon one and wants to be a shape you can see.
+uniform float sun_degrees : hint_range(0.5, 12.0) = 2.6;
+// A stepped halo rather than a smooth falloff. The terrain bands its colours and the sea
+// bands its depth, so a sun with a soft photographic bloom around it is the one object in the
+// scene lit by a different set of rules. These are rings you can count.
+uniform float halo_degrees : hint_range(0.0, 20.0) = 5.5;
+uniform int halo_rings : hint_range(1, 5) = 2;
+uniform float halo_strength : hint_range(0.0, 1.0) = 0.45;
+// The broad warm lift across the sky around it. Kept, because that is atmosphere rather than
+// a lens artifact, and it is what stops the disc looking pasted on.
 uniform float sun_glow : hint_range(0.0, 1.0) = 0.28;
+// Direction TO the sun, pushed from main.gd off the scene's DirectionalLight.
+//
+// LIGHT0_DIRECTION below is the engine's own route and is used when this is left at zero, but
+// it cannot be relied on: it only arrives if the light is feeding the sky, and when it does
+// not the shader silently falls back to a constant. The disc then sits at a bearing and an
+// elevation that have nothing to do with the light, the shadows point one way and the sun is
+// somewhere else, and nothing errors. Setting it explicitly means both agree by construction.
+uniform vec3 sun_direction = vec3(0.0, 0.0, 0.0);
 
 
 // One cumulus mass: three overlapping ellipses, so the outline is a lump rather
@@ -53,7 +71,11 @@ void sky() {
 	// LIGHT0_DIRECTION is where the photons travel, down into the island. The disc
 	// sits the other way, or the sun and the shadows disagree.
 	vec3 to_sun = vec3(0.42, 0.64, 0.64);
-	if (LIGHT0_ENABLED) {
+	if (length(sun_direction) > 0.001) {
+		to_sun = normalize(sun_direction);
+	} else if (LIGHT0_ENABLED) {
+		// LIGHT0_DIRECTION is where the photons travel, down into the island. The disc sits
+		// the other way, or the sun and the shadows disagree.
 		to_sun = normalize(-LIGHT0_DIRECTION);
 	}
 	float facing = dot(dir, to_sun);
@@ -92,8 +114,19 @@ void sky() {
 		float lift = smoothstep(0.02, 0.1, up);
 		vec3 cloud = mix(cloud_shadow_colour, cloud_colour, smoothstep(0.15, 0.7, lit));
 		col = mix(col, cloud, cover * lift);
-		float disc = smoothstep(1.0 - sun_size, 1.0 - sun_size * 0.2, facing);
-		col = mix(col, sun_colour, disc);
+		// Worked in degrees from the sun's centre, which is what the sizes above mean.
+		float away = degrees(acos(clamp(facing, -1.0, 1.0)));
+		// One pixel's worth of angle, so the rim is clean rather than stair-stepped - and it
+		// tracks the field of view, which matters here: through the spyglass at 4x a pixel
+		// covers a hundredth of the angle it does normally, and a fixed feather that looks
+		// crisp at 60 degrees is thirty pixels of blur at 5.5.
+		float aa = max(fwidth(away), 0.0001);
+		float disc = 1.0 - smoothstep(sun_degrees - aa, sun_degrees + aa, away);
+		// Stepped rings outside the disc. floor() is what makes them rings instead of a fade.
+		float out_t = clamp((away - sun_degrees) / max(halo_degrees, 0.001), 0.0, 1.0);
+		float rings = 1.0 - floor(out_t * float(halo_rings)) / float(halo_rings);
+		rings *= step(away, sun_degrees + halo_degrees) * halo_strength;
+		col = mix(col, sun_colour, max(disc, rings));
 	} else {
 		col = mix(horizon_colour, below_colour, pow(clamp(-up, 0.0, 1.0), 0.45));
 	}

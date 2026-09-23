@@ -72,8 +72,18 @@ uniform float object_band_distortion : hint_range(0.0, 0.5) = 0.24;
 uniform float object_band_speed : hint_range(0.0, 3.0) = 0.8;
 
 group_uniforms Lighting;
-uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
+// Direction TO the sun. Pushed from ocean.gd, which reads it off the scene's own
+// DirectionalLight - this used to be a hardcoded guess with its Z the wrong way round, so the
+// water was lit from roughly the opposite bearing to everything standing on the beach.
+uniform vec3 sun_direction = vec3(-0.53, 0.37, 0.76);
 uniform float wave_shading : hint_range(0.0, 1.0) = 0.18;
+// The bright path the sun lays across the water. Stepped rather than a smooth highlight: this
+// sea bands its depth colours and the sky steps its halo, and a photographic specular here
+// would be the one thing in frame obeying different rules.
+uniform vec3 glitter_colour : source_color = vec3(1.0, 0.97, 0.86);
+uniform float glitter_strength : hint_range(0.0, 1.0) = 0.5;
+uniform float glitter_sharpness : hint_range(4.0, 400.0) = 90.0;
+uniform int glitter_steps : hint_range(1, 4) = 2;
 group_uniforms;
 
 varying vec3 world_position;
@@ -373,6 +383,16 @@ void fragment() {
 		+ water_scatter * scatter_amount * scattering_strength;
     // A broad restrained sky reflection at grazing angles.
     shaded_water = mix(shaded_water, vec3(0.36, 0.61, 0.70), fresnel * 0.30);
+
+    // Sun glitter. Half-vector specular off the wave normals, then quantised, so it breaks
+    // into flecks along the wave faces pointing at the sun instead of one smooth sheen.
+    vec3 half_dir = normalize(light_dir + view_dir);
+    float spec = pow(max(dot(n, half_dir), 0.0), glitter_sharpness);
+    float glitter = floor(clamp(spec, 0.0, 1.0) * float(glitter_steps) + 0.4)
+        / float(glitter_steps);
+    // Only where the sun is actually above the horizon, or a sunk sun still lights the sea.
+    glitter *= step(0.02, light_dir.y);
+    shaded_water = mix(shaded_water, glitter_colour, glitter * glitter_strength);
 	vec3 banded_water = mix(shaded_water, object_band_colour,
 		object_band * object_band_strength);
 	ALBEDO = mix(banded_water, foam_colour, white);

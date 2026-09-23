@@ -17,7 +17,7 @@ extends Node3D
 @export var max_distance := 40.0
 @export var pitch_degrees := -55.0   ## -90 is straight down, -15 is nearly level
 @export var min_pitch_degrees := -85.0
-@export var max_pitch_degrees := -12.0
+@export var max_pitch_degrees := 8.0
 @export var pitch_speed := 60.0      ## degrees per second on the keyboard
 
 @export_group("Spyglass")

@@ -122,6 +122,21 @@ func _start_spyglass() -> void:
 	_camera_rig.glass = view
 
 
+## Hands the sky the sun's real direction.
+##
+## The sky shader can read it from the engine as LIGHT0_DIRECTION, but only when the light is
+## actually feeding the sky - and when it is not, the shader falls back to a constant without
+## complaining. That is how the disc ended up at a bearing sixty degrees away from the light
+## casting the shadows, visible only by going looking for it. Pushed here, they cannot differ.
+func _tell_sky_about(to_sun: Vector3) -> void:
+	var world := get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if world == null or world.environment == null or world.environment.sky == null:
+		return
+	var material := world.environment.sky.sky_material
+	if material is ShaderMaterial:
+		(material as ShaderMaterial).set_shader_parameter("sun_direction", to_sun)
+
+
 ## Brings up the sound effects and connects them to the things that make noise.
 ##
 ## Wired here rather than inside the player and the grunts, so neither has to know a sound
@@ -393,6 +408,15 @@ func _ready() -> void:
 	# up over the same span - music fades in over 2 s, ambience over 3 - so the two arrive
 	# together rather than the picture beating the noise by a second.
 	_start_spyglass()
+	# The water is told where the sun is, rather than carrying its own guess. They disagreed:
+	# the shader's default had its Z the wrong way round, so the sea was lit from roughly the
+	# opposite bearing to the sand it meets.
+	var sun := get_node_or_null("Sun") as DirectionalLight3D
+	if sun != null:
+		# A DirectionalLight sends its photons along -Z, so +Z is the way back to the sun.
+		var to_sun := sun.global_transform.basis.z
+		_ocean.sun_direction = to_sun
+		_tell_sky_about(to_sun)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_player.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig

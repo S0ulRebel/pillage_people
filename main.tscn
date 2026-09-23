@@ -115,7 +115,7 @@ script = ExtResource("1_main")
 environment = SubResource("Env_1")
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=607479247]
-transform = Transform3D(0.81915206, 0.43938506, -0.36868784, 0, 0.64278764, 0.76604444, 0.57357645, -0.62750685, 0.5265408, 0, 60, 0)
+transform = Transform3D(0.81915204, 0.21486552, -0.53181081, 0, 0.92718385, 0.37460659, 0.57357644, -0.30685976, 0.75950455, 0, 60, 0)
 shadow_enabled = true
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 160.0
