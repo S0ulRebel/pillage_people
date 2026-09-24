@@ -221,6 +221,9 @@ var _holding_dive := false
 ## is set the water holds him wherever he is: C takes him down, Space brings him up, letting
 ## go of both leaves him at that depth. It ends only by rising through swimming depth.
 var _diving := false
+## His breath, while he is under - see bubbles.gd. Hung off his head, or at head height on
+## the stand-in body.
+var _bubbles: Bubbles
 ## True between die() and revive(). Checked before anything else each frame.
 var _dead := false
 ## Seconds left in the current swing; zero when not attacking.
@@ -803,6 +806,10 @@ func _set_diving(under: bool) -> void:
 	if under == _diving:
 		return
 	_diving = under
+	if _bubbles != null:
+		# The water level is known by now - main.gd sets it after the body is built.
+		_bubbles.set_water_level(water_level)
+		_bubbles.breathe(under)
 	dived.emit(under)
 
 
@@ -1042,9 +1049,37 @@ func _build_body() -> void:
 				break
 		_set_looping()
 		_attach_weapon(model)
+		_attach_bubbles(_find_skeleton(model))
 		_model_loaded = true
 		return
 	_build_primitive_body()
+	_attach_bubbles(null)
+
+
+func _find_skeleton(model: Node3D) -> Skeleton3D:
+	for node in _all_descendants(model):
+		if node is Skeleton3D:
+			return node as Skeleton3D
+	return null
+
+
+## Puts the bubbles on his head, so they leave from the mouth whatever the swim clip is doing
+## with him; at head height on the stand-in body, which has no bones. They live under the
+## captain, not under the bone, and follow a socket on it - see bubbles.gd for why.
+func _attach_bubbles(skeleton: Skeleton3D) -> void:
+	_bubbles = Bubbles.new()
+	add_child(_bubbles)
+	if skeleton != null and skeleton.find_bone("mixamorig_Head") != -1:
+		var socket := BoneAttachment3D.new()
+		socket.name = "HeadSocket"
+		skeleton.add_child(socket)
+		# Set after it is in the tree, or there is no skeleton yet to look the name up in.
+		socket.bone_name = "mixamorig_Head"
+		_bubbles.follow(socket)
+		return
+	if skeleton != null:
+		push_warning("captain: no 'mixamorig_Head' bone, so the bubbles come from a fixed point")
+	_bubbles.position = Vector3(0.0, 1.5, 0.0)
 
 
 ## Hangs the cutlass off the hand it belongs to. The awkward parts - which way a blade leaves a
@@ -1053,11 +1088,7 @@ func _build_body() -> void:
 func _attach_weapon(model: Node3D) -> void:
 	if not show_weapon:
 		return
-	var skeleton: Skeleton3D = null
-	for node in _all_descendants(model):
-		if node is Skeleton3D:
-			skeleton = node as Skeleton3D
-			break
+	var skeleton := _find_skeleton(model)
 	var blade := Sword.new()
 	blade.name = "Sword"
 	if not blade.mount(skeleton, cutlass):

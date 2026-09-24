@@ -312,6 +312,25 @@ func _swim_test() -> void:
 		failures += 1
 		push_error("holding dive should take him down and leave him diving")
 
+	# His breath: bubbles while he is under, none once he is up. Found by name under him, on
+	# the head socket when the model is in, at head height when it is not.
+	var bubbles: CPUParticles3D = _player.find_child("Bubbles", true, false)
+	if bubbles == null:
+		failures += 1
+		push_error("no Bubbles under the captain")
+	elif not bubbles.emitting:
+		failures += 1
+		push_error("diving, and no bubbles")
+	else:
+		# On his head, and not under the bone that would shrink them to the rig's units.
+		var head: Node3D = _player.find_child("HeadSocket", true, false)
+		var off: float = bubbles.global_position.distance_to(head.global_position) if head != null else -1.0
+		print("bubbles: emitting, parent %s, %.3f m from the head socket, scale %s"
+				% [bubbles.get_parent().name, off, bubbles.global_transform.basis.get_scale()])
+		if bubbles.get_parent() != _player or (head != null and off > 0.05) \
+				or not bubbles.global_transform.basis.get_scale().is_equal_approx(Vector3.ONE):
+			failures += 1
+			push_error("the bubbles should sit under the captain at his head, at unit scale")
 	# ...and held there once it is let go. This is the rule: no floating back up. Measured
 	# after the water has taken his momentum, which is a dozen frames of drift - and with
 	# water under him, or the seabed would be doing the holding and the check would prove
@@ -372,12 +391,16 @@ func _swim_test() -> void:
 	_player.release_jump()
 	for i in 60:
 		await get_tree().physics_frame
-	print("surface: dive over after %d frames, settled %.2f m under, swimming=%s diving=%s"
-			% [frames, _player.submersion(), _player.is_swimming(), _player.is_diving()])
+	print("surface: dive over after %d frames, settled %.2f m under, swimming=%s diving=%s, bubbles=%s"
+			% [frames, _player.submersion(), _player.is_swimming(), _player.is_diving(),
+			bubbles != null and bubbles.emitting])
 	if _player.is_diving() or not _player.is_swimming() \
 			or absf(_player.submersion() - surface) > 0.2:
 		failures += 1
 		push_error("holding jump to the surface should end the dive and leave him swimming on it")
+	if bubbles != null and bubbles.emitting:
+		failures += 1
+		push_error("surfaced, and still blowing bubbles")
 
 	# The camera: under the water with him while he dives, back up once he surfaces - and
 	# not at all with the follow switched off.
