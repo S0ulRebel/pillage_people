@@ -48,6 +48,11 @@ uniform float sun_glow : hint_range(0.0, 1.0) = 0.28;
 // elevation that have nothing to do with the light, the shadows point one way and the sun is
 // somewhere else, and nothing errors. Setting it explicitly means both agree by construction.
 uniform vec3 sun_direction = vec3(0.0, 0.0, 0.0);
+// 1 is noon colour, 0 is the night mix. The day clock writes this; the disc and the
+// clouds ride along because they are already in the daylight colour.
+uniform float daylight : hint_range(0.0, 1.0) = 1.0;
+uniform vec3 night_zenith : source_color = vec3(0.02, 0.05, 0.12);
+uniform vec3 night_horizon : source_color = vec3(0.06, 0.12, 0.22);
 
 
 // One cumulus mass: three overlapping ellipses, so the outline is a lump rather
@@ -130,5 +135,6 @@ void sky() {
 	} else {
 		col = mix(horizon_colour, below_colour, pow(clamp(-up, 0.0, 1.0), 0.45));
 	}
-	COLOR = col;
+	vec3 night = mix(night_horizon, night_zenith, haze);
+	COLOR = mix(night, col, clamp(daylight, 0.0, 1.0));
 }

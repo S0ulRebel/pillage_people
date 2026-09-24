@@ -1,3 +1,4 @@
+@tool
 class_name Ship
 extends Node3D
 ## The double-deck hull from the canonical kit, moored off the beach.
@@ -9,6 +10,9 @@ extends Node3D
 ## Axes and sizes are the kit's, in metres: X starboard, Y up, Z aft, keel at Y=0, bow at Z=0,
 ## stern at Z=14, beam 6. The gunport sills are at Y=3.4, so the keel sits two metres under
 ## the still waterline and the ports stay clear of the waves.
+##
+## This script runs in the editor so the mast, sail, guns and the other fittings — which are
+## built in code, not saved into the scene — are visible on the hull while it is open.
 
 const MODEL := "res://art/models/ship/double_deck.glb"
 const LENGTH := 14.0
@@ -25,13 +29,17 @@ const BOARD_MARGIN := 3.0
 ## so he drops onto it instead of spawning in the slab.
 const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 10.0)
 ## Deck contact of the wheel, on the stern weather deck. The real F01_HELM drops in here.
-const HELM_AT := Vector3(0.0, DECK_Y, 12.4)
+const HELM_AT := Vector3(0.0, DECK_Y, 13.05)
 ## Where his feet go: aft of the wheel, looking toward the bow.
-const HELM_FEET := Vector3(0.0, DECK_Y, 13.25)
+const HELM_FEET := Vector3(0.0, DECK_Y, 13.9)
 const HELM_REACH := 1.6
-## Deck contact of the mast, aft of the stair hatch and forward of the wheel. A real
-## M01/M02/M03 stack drops in here. One mast is the whole rig for a hull this short.
+## Deck contact of the mainmast, aft of the stair hatch and forward of the wheel.
 const MAST_AT := Vector3(0.0, DECK_Y, 9.0)
+## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
+const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
+## Deck contact of the capstan, on solid planks between the mast and the wheel. The bars
+## fill the kit's 1.4 m box; a real F02_CAPSTAN drops in on this node.
+const CAPSTAN_AT := Vector3(0.0, DECK_Y, 10.8)
 ## Base of the bowsprit, seated in the raked stem just under the rail. The spar's own
 ## length runs forward from here. A real F03_BOWSPRIT drops in on this node.
 const BOWSPRIT_AT := Vector3(0.0, 5.65, -2.66)
@@ -44,6 +52,7 @@ const RUDDER_AT := Vector3(0.0, 1.8, 14.9)
 const GUN_DECK_Y := 2.6
 const GUN_PORT_Z := [5.0, 7.0, 9.0, 11.0]
 const CannonScene := preload("res://props/cannon/cannon.tscn")
+const SailScript := preload("res://props/ship/sail.gd")
 const AHEAD_SPEED := 7.0
 const ASTERN_SPEED := 3.5
 const YAW_RATE := 0.45
@@ -80,9 +89,17 @@ func _ready() -> void:
 	_build()
 	_build_helm()
 	_build_mast()
+	_build_top_rail()
+	_build_shrouds()
+	_build_foremast()
 	_build_bowsprit()
+	_build_bobstay()
 	_build_rudder()
+	_build_capstan()
 	_build_guns()
+	_build_sail()
+	_build_topsail()
+	_build_backstays()
 
 
 ## Floats broadside to the beach the coastal study picked, close enough to swim to.
@@ -169,7 +186,9 @@ func drive(delta: float, throttle: float, yaw: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _terrain == null:
+	# The fittings are built in the editor so the mast and guns are visible there. The float
+	# is not: running it would walk the saved pose off the mooring.
+	if Engine.is_editor_hint() or _terrain == null:
 		return
 	var before := global_transform
 	var held := Vector3.ZERO
@@ -304,15 +323,25 @@ func _build() -> void:
 				flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
 				mesh_node.set_surface_override_material(surface, flat)
 		# The deck and the stairs are part of the mesh. A box would fill the hatch.
-		mesh_node.create_trimesh_collision()
+		# Skip when one is already there: a tool script's _ready runs again on reload, and a
+		# second body would stack on the first.
+		var blocked := false
+		for child in mesh_node.get_children():
+			if child is StaticBody3D:
+				blocked = true
+				break
+		if not blocked:
+			mesh_node.create_trimesh_collision()
 
 
 ## A wheel and a stand, in the kit's helm box, until a real F01_HELM model replaces it.
 ## The node is named Helm and sits on HELM_AT so the swap is a mesh, not a new place.
 func _build_helm() -> void:
-	if get_node_or_null("Helm") != null:
+	var helm := get_node_or_null("Helm") as Node3D
+	if helm != null:
+		helm.position = HELM_AT
 		return
-	var helm := Node3D.new()
+	helm = Node3D.new()
 	helm.name = "Helm"
 	helm.position = HELM_AT
 	add_child(helm)
@@ -347,7 +376,11 @@ func _build_helm() -> void:
 ## Lower mast, topmast and a lookout, in the kit's sizes, until those models replace it.
 ## The node is named Mast and sits on MAST_AT so the swap is a mesh, not a new place.
 func _build_mast() -> void:
-	if get_node_or_null("Mast") != null:
+	var existing := get_node_or_null("Mast") as Node3D
+	if existing != null:
+		var old_foot := existing.get_node_or_null("FootYard")
+		if old_foot != null:
+			old_foot.free()
 		return
 	var mast := Node3D.new()
 	mast.name = "Mast"
@@ -367,6 +400,20 @@ func _build_mast() -> void:
 	for i in 8:
 		var ang := TAU * float(i) / 8.0
 		_box(mast, Vector3(cos(ang) * 0.95, 6.05, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
+	# One course yard under the top. The kit never sized one; this is the crosspiece that
+	# makes the pole read as a mast. Eight metres, so it clears the six-metre beam.
+	var yard := Node3D.new()
+	yard.name = "Yard"
+	yard.position = Vector3(0.0, 4.6, 0.0)
+	# Local up lies along starboard, so the spar runs athwartships and tapers to both tips.
+	yard.rotation_degrees.z = -90.0
+	mast.add_child(yard)
+	_spar(yard, -2.0, 0.06, 0.12, 4.0, timber)
+	_spar(yard, 2.0, 0.12, 0.06, 4.0, timber)
+	_spar(yard, 0.0, 0.2, 0.2, 0.12, iron)
+	var old_foot := mast.get_node_or_null("FootYard")
+	if old_foot != null:
+		old_foot.free()
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
@@ -374,6 +421,48 @@ func _build_mast() -> void:
 	col.height = 5.5
 	shape.shape = col
 	shape.position = Vector3(0.0, 2.75, 0.0)
+	body.add_child(shape)
+	mast.add_child(body)
+
+
+## A ring on the post tops. The floor was already there; this is the fence around it.
+func _build_top_rail() -> void:
+	var mast := get_node_or_null("Mast") as Node3D
+	if mast == null or mast.get_node_or_null("TopRail") != null:
+		return
+	var mesh := TorusMesh.new()
+	mesh.inner_radius = 0.86
+	mesh.outer_radius = 1.04
+	mesh.rings = 24
+	mesh.ring_segments = 6
+	var rail := MeshInstance3D.new()
+	rail.name = "TopRail"
+	rail.mesh = mesh
+	rail.position = Vector3(0.0, 6.6, 0.0)
+	rail.material_override = _flat(Color(0.55, 0.36, 0.18))
+	mast.add_child(rail)
+
+
+## A shorter mast on the bow, forward of the hatch. The jib stays to this, not to the main.
+func _build_foremast() -> void:
+	if get_node_or_null("Foremast") != null:
+		return
+	var mast := Node3D.new()
+	mast.name = "Foremast"
+	mast.position = FOREMAST_AT
+	add_child(mast)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	_spar(mast, 2.1, 0.2, 0.12, 4.2, timber)
+	_spar(mast, 1.1, 0.24, 0.24, 0.08, iron)
+	_spar(mast, 3.3, 0.16, 0.16, 0.08, iron)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var col := CylinderShape3D.new()
+	col.radius = 0.22
+	col.height = 4.2
+	shape.shape = col
+	shape.position = Vector3(0.0, 2.1, 0.0)
 	body.add_child(shape)
 	mast.add_child(body)
 
@@ -402,6 +491,18 @@ func _build_bowsprit() -> void:
 	shape.position = Vector3(0.0, 1.5, 0.0)
 	body.add_child(shape)
 	sprit.add_child(body)
+
+
+## From the bowsprit tip down to the stem, so the jib cannot lift the spar.
+func _build_bobstay() -> void:
+	if get_node_or_null("Bobstay") != null or get_node_or_null("Bowsprit") == null:
+		return
+	var stay := Node3D.new()
+	stay.name = "Bobstay"
+	add_child(stay)
+	var sprit := Basis(Vector3.RIGHT, deg_to_rad(-77.0))
+	var tip: Vector3 = BOWSPRIT_AT + sprit * Vector3(0.0, 2.9, 0.0)
+	_rope(stay, tip, Vector3(0.0, 2.6, -0.6), 0.02, _flat(Color(0.45, 0.34, 0.22)))
 
 
 ## A blade on the stern hinge, under the counter, until a real rudder replaces it.
@@ -434,6 +535,174 @@ func _build_rudder() -> void:
 	rudder.add_child(body)
 
 
+## A drum and two bars, inside the kit's capstan box, until a real F02_CAPSTAN replaces it.
+## The node is named Capstan and sits on CAPSTAN_AT so the swap is a mesh, not a new place.
+## Only the drum collides. The bars are the working radius, and a solid box that wide would
+## close the path from the hatch to the wheel.
+func _build_capstan() -> void:
+	if get_node_or_null("Capstan") != null:
+		return
+	var capstan := Node3D.new()
+	capstan.name = "Capstan"
+	capstan.position = CAPSTAN_AT
+	add_child(capstan)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	_spar(capstan, 0.08, 0.55, 0.55, 0.16, timber)
+	_spar(capstan, 0.52, 0.34, 0.28, 0.72, timber)
+	_spar(capstan, 0.7, 0.36, 0.36, 0.06, iron)
+	_spar(capstan, 0.98, 0.42, 0.5, 0.2, timber)
+	# Two bars through the head, out to the 1.4 m bound on each axis.
+	_box(capstan, Vector3(0.0, 0.88, 0.0), Vector3(2.8, 0.08, 0.08), timber)
+	_box(capstan, Vector3(0.0, 0.88, 0.0), Vector3(0.08, 0.08, 2.8), timber)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var col := CylinderShape3D.new()
+	col.radius = 0.5
+	col.height = 1.1
+	shape.shape = col
+	shape.position = Vector3(0.0, 0.55, 0.0)
+	body.add_child(shape)
+	capstan.add_child(body)
+
+
+## The course hangs from its yard. The jib runs from the foremast to the bowsprit.
+func _build_sail() -> void:
+	if get_node_or_null("Mast") == null:
+		return
+	var old_sail := get_node_or_null("Sail")
+	if old_sail != null:
+		old_sail.free()
+	var sail := SailScript.new() as Node3D
+	sail.name = "Sail"
+	sail.call("pin_foot", false)
+	add_child(sail)
+	if get_node_or_null("Foremast") == null or get_node_or_null("Bowsprit") == null:
+		return
+	var old_jib := get_node_or_null("Jib")
+	if old_jib != null:
+		old_jib.free()
+	var sprit := Basis(Vector3.RIGHT, deg_to_rad(-77.0))
+	var foot_from: Vector3 = BOWSPRIT_AT + sprit * Vector3(0.0, 0.4, 0.0)
+	var foot_to: Vector3 = BOWSPRIT_AT + sprit * Vector3(0.0, 2.85, 0.0)
+	# A short span on the forward side of the foremast head.
+	var head_from := FOREMAST_AT + Vector3(0.0, 3.5, -0.22)
+	var head_to := FOREMAST_AT + Vector3(0.0, 4.15, -0.22)
+	var jib := SailScript.new() as Node3D
+	jib.name = "Jib"
+	jib.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.35, 0.0, 0.0))
+	add_child(jib)
+
+
+## A shorter course above the lookout. The topmast was a bare pole past the platform.
+func _build_topsail() -> void:
+	var mast := get_node_or_null("Mast") as Node3D
+	if mast == null:
+		return
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	# Just under the tip, and just clear of the lookout rails. Shorter than the course yard.
+	_crossyard(mast, "TopsailYard", 8.15, 2.6, 0.09, timber, iron)
+	_crossyard(mast, "TopsailFoot", 6.9, 2.6, 0.07, timber, iron)
+	if get_node_or_null("Topsail") != null:
+		return
+	var head_y := MAST_AT.y + 8.15
+	var foot_y := MAST_AT.y + 6.9
+	var z := MAST_AT.z + 0.12
+	var half := 2.3
+	var sail := SailScript.new() as Node3D
+	sail.name = "Topsail"
+	sail.call("rig_between", Vector3(-half, head_y, z), Vector3(half, head_y, z), Vector3(-half, foot_y, z), Vector3(half, foot_y, z), Vector3(0.0, 0.0, 0.3))
+	add_child(sail)
+
+
+func _crossyard(mast: Node3D, yard_name: String, y: float, half: float, thick: float, timber: Material, iron: Material) -> void:
+	if mast.get_node_or_null(yard_name) != null:
+		return
+	var yard := Node3D.new()
+	yard.name = yard_name
+	yard.position = Vector3(0.0, y, 0.12)
+	yard.rotation_degrees.z = -90.0
+	mast.add_child(yard)
+	_spar(yard, -half * 0.5, thick * 0.55, thick, half, timber)
+	_spar(yard, half * 0.5, thick, thick * 0.55, half, timber)
+	_spar(yard, 0.0, thick + 0.04, thick + 0.04, 0.1, iron)
+
+
+## One rope a side from the topmast head down to the stern quarters. The shrouds hold the
+## mast sideways; these hold it aft. No collision, same as the shrouds.
+func _build_backstays() -> void:
+	if get_node_or_null("Mast") == null or get_node_or_null("Backstays") != null:
+		return
+	var stays := Node3D.new()
+	stays.name = "Backstays"
+	add_child(stays)
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	# Just above the topsail yard and a little aft of it, so the rope clears the cloth.
+	var head_y := MAST_AT.y + 8.4
+	var head_z := MAST_AT.z + 0.35
+	for side in [-1.0, 1.0]:
+		var head := Vector3(side * 0.22, head_y, head_z)
+		var foot := Vector3(side * 2.3, 6.0, 15.2)
+		_rope(stays, head, foot, 0.02, rope)
+
+
+## Three ropes a side, from just under the lookout to the rail, and the ratlines across them.
+## No collision: a solid cage here would close the deck. A real rope mesh can replace this node.
+func _build_shrouds() -> void:
+	var mast := get_node_or_null("Mast") as Node3D
+	if mast == null:
+		return
+	var old := mast.get_node_or_null("Shrouds")
+	if old != null:
+		old.free()
+	var shrouds := Node3D.new()
+	shrouds.name = "Shrouds"
+	mast.add_child(shrouds)
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	# Mast-local, and all of them forward of the sail. Port stays on the port side, starboard
+	# on the starboard side, so a rope never crosses the spar or the cloth.
+	var upper_z: Array[float] = [-0.55, -0.4, -0.25]
+	var lower_z: Array[float] = [-1.15, -0.55, -0.2]
+	for side in [-1.0, 1.0]:
+		var tops: Array[Vector3] = []
+		var feet: Array[Vector3] = []
+		for i in 3:
+			var top := Vector3(side * 0.42, 5.25, upper_z[i])
+			var foot := Vector3(side * 2.95, 0.8, lower_z[i])
+			tops.append(top)
+			feet.append(foot)
+			_rope(shrouds, top, foot, 0.02, rope)
+		var steps := int(tops[0].distance_to(feet[0]) / 0.42)
+		for s in range(1, steps):
+			var t := float(s) / float(steps)
+			for i in 2:
+				_rope(shrouds, tops[i].lerp(feet[i], t), tops[i + 1].lerp(feet[i + 1], t), 0.012, rope)
+
+
+func _rope(parent: Node3D, a: Vector3, b: Vector3, radius: float, material: Material) -> void:
+	var span := b - a
+	var length := span.length()
+	if length < 0.001:
+		return
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = length
+	mesh.radial_segments = 6
+	var y := span / length
+	var x := y.cross(Vector3.UP)
+	if x.length_squared() < 0.0001:
+		x = y.cross(Vector3.FORWARD)
+	x = x.normalized()
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = (a + b) * 0.5
+	node.basis = Basis(x, y, x.cross(y))
+	node.material_override = material
+	parent.add_child(node)
+
+
 ## One of the cannon prefabs behind each gunport, barrel out through the opening.
 func _build_guns() -> void:
 	if get_node_or_null("Guns") != null:
@@ -453,6 +722,15 @@ func _gun(parent: Node3D, at: Vector3, yaw: float, side: String) -> void:
 	gun.position = at
 	gun.rotation.y = yaw
 	gun.set("sit_on_ground", false)
+	# A gun in a hull is a different weapon from the one on the hill, and these four numbers
+	# are the whole difference. It swings inside its port rather than anywhere, it cannot be
+	# lobbed, and it looks out through the opening instead of over the player's shoulder - so
+	# a broadside is aimed by turning the ship and fired on timing, not by judging an arc.
+	gun.set("traverse_limit", 22.0)
+	gun.set("min_elevation", 0.0)
+	gun.set("max_elevation", 14.0)
+	gun.set("rest_elevation", 3.0)
+	gun.set("first_person", true)
 	parent.add_child(gun)
 
 

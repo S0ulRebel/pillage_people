@@ -830,6 +830,15 @@ func _ready() -> void:
 	# The water is told where the sun is, rather than carrying its own guess. They disagreed:
 	# the shader's default had its Z the wrong way round, so the sea was lit from roughly the
 	# opposite bearing to the sand it meets.
+	# The clock turns the sun from here on. The wind is the same breeze the sail and the
+	# waves read. Both are created in code so the scene file does not have to grow a node
+	# for something that has no mesh of its own.
+	var day := (load("res://world/day.gd") as GDScript).new() as Node
+	day.name = "Day"
+	add_child(day)
+	var wind := (load("res://world/wind.gd") as GDScript).new() as Node
+	wind.name = "Wind"
+	add_child(wind)
 	var sun := get_node_or_null("Sun") as DirectionalLight3D
 	if sun != null:
 		# A DirectionalLight sends its photons along -Z, so +Z is the way back to the sun.

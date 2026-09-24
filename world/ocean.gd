@@ -139,6 +139,36 @@ var _terrain: Node3D
 ## the right rate at the wrong moment, sitting in the trough while the crest goes past it. One
 ## number, set here and read by both, cannot drift.
 var _clock := 0.0
+## The wave directions as authored. Wind leans them toward itself and back; without a
+## stored copy the lean would compound every frame until every wave faced the same way.
+var _wave_bases: Array[Vector4] = []
+
+
+## Pulls the four wave headings toward `wind_dir` by `amount` (0 leaves them, 1 faces them
+## all downwind). Steepness and wavelength stay put, so the sea changes its lean, not its size.
+func lean_into(wind_dir: Vector3, amount: float) -> void:
+	if _wave_bases.is_empty():
+		_wave_bases = [wave_1, wave_2, wave_3, wave_4]
+	var aim := Vector2(wind_dir.x, wind_dir.z)
+	if aim.length_squared() < 0.0001:
+		return
+	aim = aim.normalized()
+	var leaned: Array[Vector4] = []
+	for base in _wave_bases:
+		var heading := Vector2(base.x, base.y)
+		var span := heading.length()
+		if span < 0.0001:
+			leaned.append(base)
+			continue
+		var mixed := heading.normalized().lerp(aim, clampf(amount, 0.0, 1.0))
+		if mixed.length_squared() < 0.0001:
+			mixed = aim
+		mixed = mixed.normalized() * span
+		leaned.append(Vector4(mixed.x, mixed.y, base.z, base.w))
+	wave_1 = leaned[0]
+	wave_2 = leaned[1]
+	wave_3 = leaned[2]
+	wave_4 = leaned[3]
 
 
 func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO) -> void:
