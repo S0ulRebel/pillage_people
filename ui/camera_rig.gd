@@ -89,6 +89,8 @@ var _target: Node3D
 ## that one is opaque and covers everything, this one has to be looked through.
 var glass: Spyglass
 var _glassing := false
+var _gun: Node3D = null
+var _length_before_gun := 0.0
 var _magnification := 1.0
 var _wide_fov := 75.0
 var _rested_length := 18.0
@@ -158,6 +160,29 @@ func is_glassing() -> bool:
 
 
 ## Pulls back while he has the wheel, so the hull and the water ahead are both in frame.
+## Take the view to a gun, or give it back.
+##
+## Two shapes, chosen by the gun: a gun in a hull puts the camera AT the muzzle, which is the
+## only useful angle on a gun deck and the one that frames the port. A gun in the open just
+## pulls in closer - the shot there is aimed by watching the ground ahead, so the overview has
+## to survive; it only tightens so that manning the thing feels like something happened.
+func set_gun(gun: Node3D) -> void:
+	if gun == _gun or _arm == null:
+		return
+	if gun != null and _gun == null:
+		_length_before_gun = _arm.spring_length
+	_gun = gun
+	if gun == null:
+		_arm.spring_length = _length_before_gun
+		return
+	var close: bool = gun.get("first_person")
+	_arm.spring_length = 0.0 if close else minf(_length_before_gun, 9.0)
+
+
+func is_gunning() -> bool:
+	return _gun != null and is_instance_valid(_gun)
+
+
 func set_helming(driving: bool) -> void:
 	if driving == _helm_view or _arm == null:
 		return
@@ -343,7 +368,23 @@ func _physics_process(delta: float) -> void:
 	if _glassing:
 		followed = _target.global_position
 		followed.y += eye_height
+	# A manned gun takes the pivot off the player entirely. No lag, for the same reason the
+	# glass has none: a pivot trailing behind is invisible from eighteen metres back and is the
+	# whole picture swimming when the camera IS the pivot.
+	if is_gunning():
+		followed = _gun.eye() if _gun.get("first_person") else _gun.global_position
 	global_position = followed
+	# Look DOWN THE BARREL. The pivot alone is not enough: the rig keeps its own yaw, which is
+	# the player's, so moving the camera to the gun without this leaves it staring off at
+	# whatever the player last turned towards while the gun points somewhere else entirely.
+	#
+	# Only for the first-person guns. The gun on open ground is aimed by watching the ground
+	# ahead, and wrenching the view round with every traverse would take that away.
+	if is_gunning() and _gun.get("first_person"):
+		var along: Vector3 = _gun.call("aim_velocity")
+		along.y = 0.0
+		if along.length() > 0.001:
+			rotation.y = atan2(-along.x, -along.z)
 	# Switched off mid-dive: come back up now, not when he surfaces.
 	if _diving and not follow_dives:
 		set_diving(false)

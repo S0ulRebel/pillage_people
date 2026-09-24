@@ -483,6 +483,24 @@ func _loose_shark(around: Vector3) -> void:
 ## neighbours are what a dense school is made of, so doubling one school costs more than twice
 ## as much while two schools cost exactly twice - and two schools moving independently read as
 ## a populated sea, where one large one reads as a single object.
+## The camera follows whoever takes hold of a gun. Wired once, to every cannon in the scene,
+## rather than from the captain - the rig is a scene concern and the captain knows nothing
+## about it, the same split as shoot_at and aim_point.
+func _watch_cannons() -> void:
+	for node in get_tree().get_nodes_in_group("cannons"):
+		var gun := node as Node3D
+		if gun == null or not gun.has_signal("manned_changed"):
+			continue
+		if gun.manned_changed.is_connected(_on_manned):
+			continue
+		gun.manned_changed.connect(_on_manned.bind(gun))
+
+
+func _on_manned(manned: bool, gun: Node3D) -> void:
+	if _camera_rig != null and _camera_rig.has_method("set_gun"):
+		_camera_rig.set_gun(gun if manned else null)
+
+
 func _stock_fish(around: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args():
 		return
@@ -821,6 +839,8 @@ func _ready() -> void:
 	_loose_shark(spawn)
 	_stock_fish(spawn)
 	_spawn_enemies(spawn)
+	# After the ship: its guns join the group when they enter the tree.
+	_watch_cannons.call_deferred()
 	_start_ambience(spawn)
 	# Shut before anything else is visible, then opened once the island is built. Sound comes
 	# up over the same span - music fades in over 2 s, ambience over 3 - so the two arrive

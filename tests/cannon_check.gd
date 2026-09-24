@@ -64,6 +64,7 @@ func _run() -> void:
 	# which is worse than a failing check, because nothing says it did not happen.
 	await _check_barrel(scene, terrain, spawn)
 	await _check_manning(scene)
+	_check_two_kinds(scene)
 	_finish()
 
 
@@ -431,6 +432,58 @@ func _check_manning(scene: Node3D) -> void:
 			% [balls.size(), gun.reload_fraction() * 100.0])
 	check(balls.size() > 0, "a full press-drag-release through the viewport fired nothing")
 	check(gun.reload_fraction() < 1.0, "the gun is ready again the instant it fired")
+
+
+## The ship's guns and the hilltop gun must be DIFFERENT WEAPONS, out of one script.
+##
+## They share every line of code; four exported numbers are the whole difference. If those stop
+## being applied, the ship quietly gets an artillery piece that can turn all the way round and
+## lob shells over its own rigging - which would not error, would not fail any other check, and
+## would remove the reason the two exist separately.
+func _check_two_kinds(scene: Node3D) -> void:
+	var ship_guns: Array = []
+	var open_guns: Array = []
+	for node in scene.get_tree().get_nodes_in_group("cannons"):
+		if node.traverse_limit > 0.0:
+			ship_guns.append(node)
+		else:
+			open_guns.append(node)
+	print("guns: %d limited (ship), %d free (open ground)" % [ship_guns.size(), open_guns.size()])
+	check(not ship_guns.is_empty(), "no limited guns - the ship's broadside is not being set up")
+	check(not open_guns.is_empty(), "no free gun - the hilltop cannon is missing")
+	if ship_guns.is_empty() or open_guns.is_empty():
+		return
+
+	var ship: Node3D = ship_guns[0]
+	var open: Node3D = open_guns[0]
+	check(ship.max_elevation < open.max_elevation,
+			"a ship gun reaches %.0f degrees against the open gun's %.0f. A gun in a hull cannot"
+			% [ship.max_elevation, open.max_elevation]
+			+ " lob - that limit is what makes a broadside a flat-trajectory weapon")
+	check(ship.first_person and not open.first_person,
+			"the two guns want the same camera. The hull gun looks out of its port; the open gun"
+			+ " needs the ground ahead, because that is how its arc is judged")
+
+	# The clamp itself, asked for far more than it can give.
+	var forward: Vector3 = -ship.global_transform.basis.z
+	forward.y = 0.0
+	forward = forward.normalized()
+	ship.aim_towards(ship.global_position + forward.rotated(Vector3.UP, deg_to_rad(90.0)) * 20.0)
+	var swung: float = absf(rad_to_deg(forward.signed_angle_to(ship._bearing, Vector3.UP)))
+	print("ship gun asked 90 deg off its port, swung %.1f (limit %.0f)" % [swung, ship.traverse_limit])
+	check(swung <= ship.traverse_limit + 0.1,
+			"it swung %.1f degrees past a %.0f degree port. The gun would be through the hull"
+			% [swung, ship.traverse_limit])
+
+	# And the open gun must NOT be limited, or the hilltop weapon loses its point.
+	var open_forward: Vector3 = -open.global_transform.basis.z
+	open_forward.y = 0.0
+	open_forward = open_forward.normalized()
+	open.aim_towards(open.global_position + open_forward.rotated(Vector3.UP, PI) * 20.0)
+	var about: float = absf(rad_to_deg(open_forward.signed_angle_to(open._bearing, Vector3.UP)))
+	check(about > 90.0,
+			"the open gun only turned %.0f degrees when asked to face about. It stands in the"
+			% about + " open and should turn anywhere")
 
 
 func _finish() -> void:

@@ -46,6 +46,24 @@ extends Node3D
 ## counts until release, so the drag cannot spin the gun while you set the angle. False: the
 ## cursor keeps steering the bearing all the way through, which is looser and worth trying.
 @export var lock_bearing_on_press := true
+## How far the gun may swing from the way its NODE faces, in degrees. 0 means no limit, which
+## is the hilltop gun: it stands in the open and turns anywhere. A gun in a hull swings inside
+## its port, and that restriction is what makes it a different weapon rather than the same one
+## somewhere else - you aim a broadside by turning the ship.
+@export var traverse_limit := 0.0
+## Put the camera at the gun rather than behind the player while it is manned.
+##
+## Right for a gun in a hull: there is no useful shot of a carriage on a gun deck, the chase
+## camera ends up inside the planking, and the port framing is the whole character of it. Wrong
+## for the hilltop gun, where seeing the ground ahead IS the weapon - the shot is aimed by
+## watching where the last one fell, and a view down the barrel takes that away.
+@export var first_person := false
+## Where the camera sits for a first_person gun, relative to the gun: metres BEHIND it and
+## metres ABOVE. Far enough back that the barrel is in shot - at the muzzle you see nothing but
+## sea, and the gun you are aiming is the thing that tells you where it points, what the
+## traverse limit is doing, and that it just recoiled. Exported because this is judged by eye.
+@export var view_back := 2.4
+@export var view_up := 1.05
 
 @export_group("Shot")
 @export var damage := 3
@@ -323,8 +341,23 @@ func aim_towards(point: Vector3) -> void:
 		return
 	var along := point - global_position
 	along.y = 0.0
-	if along.length() > 0.001:
-		_bearing = along.normalized()
+	if along.length() <= 0.001:
+		return
+	_bearing = along.normalized()
+	if traverse_limit <= 0.0:
+		return
+	# Clamped into the arc the mounting allows, measured from the way the node faces. Done here
+	# rather than at the call site so that every way of aiming - cursor, a future gamepad, a
+	# test - is limited by the same rule, and so the gun owns what it can physically do.
+	var forward := -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length() < 0.001:
+		return
+	forward = forward.normalized()
+	var off := rad_to_deg(forward.signed_angle_to(_bearing, Vector3.UP))
+	if absf(off) > traverse_limit:
+		_bearing = forward.rotated(Vector3.UP,
+				deg_to_rad(clampf(off, -traverse_limit, traverse_limit)))
 
 
 func press(screen_y: float) -> void:
@@ -378,6 +411,15 @@ func muzzle() -> Vector3:
 	# sixty metres apart, so a muzzle measured from the node would be out at sea.
 	var middle := to_global(box.position + box.size * 0.5)
 	return middle + _bearing * muzzle_reach + Vector3.UP * muzzle_height
+
+
+## Where the camera sits when this gun is manned first-person: just behind the muzzle and a
+## little above the bore, so the port frames the shot.
+func eye() -> Vector3:
+	var box := bounds()
+	# Behind the breech and above the bore, along the way the gun is actually pointing - so the
+	# barrel lies down the middle of the shot and swings across frame as the gun traverses.
+	return to_global(box.position + box.size * 0.5) + Vector3.UP * view_up - _bearing * view_back
 
 
 func fire() -> Node:
