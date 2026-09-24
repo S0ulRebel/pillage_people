@@ -237,6 +237,14 @@ Every one had a reason. Together they were unlearnable, because nothing on scree
 player which of four rules is in force. The orbit idiom is a real one and we gave it up
 deliberately: one rule a hand can learn beats four that are each locally right.
 
+**A limit is not an exception.** Each mode may stop the tilt somewhere different - the chase
+camera, the spyglass and a dive all have their own pair of stops, and a dive under water also
+has a moving floor, because the camera has to stay in the sea. What none of them may do is
+change what the gesture MEANS. Up is up in all of them; they only differ in how far it goes.
+If a mode ever wants to hold the view somewhere the player did not ask for, it spends the
+picture first - a dive pulls the camera in until the look he asked for fits - and only holds
+the view as the very last resort.
+
 ### Where the sign belongs
 
 **Screen Y grows downward.** That is the source of almost every inversion here, so convert once,
