@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" uid="uid://oidw6xkr6g6q" path="res://props/cannon/cannon.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://cv2hg4bgy2gah" path="res://art/models/props/cannon.glb" id="2_model"]
+
+[node name="Cannon" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]

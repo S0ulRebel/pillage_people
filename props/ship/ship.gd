@@ -29,6 +29,21 @@ const HELM_AT := Vector3(0.0, DECK_Y, 12.4)
 ## Where his feet go: aft of the wheel, looking toward the bow.
 const HELM_FEET := Vector3(0.0, DECK_Y, 13.25)
 const HELM_REACH := 1.6
+## Deck contact of the mast, aft of the stair hatch and forward of the wheel. A real
+## M01/M02/M03 stack drops in here. One mast is the whole rig for a hull this short.
+const MAST_AT := Vector3(0.0, DECK_Y, 9.0)
+## Base of the bowsprit, seated in the raked stem just under the rail. The spar's own
+## length runs forward from here. A real F03_BOWSPRIT drops in on this node.
+const BOWSPRIT_AT := Vector3(0.0, 5.65, -2.66)
+## Hinge of the rudder, on the stern under the counter. The blade hangs aft of this
+## point. A real F04_RUDDER drops in on this node.
+const RUDDER_AT := Vector3(0.0, 1.8, 14.9)
+## Gun deck the ports look out of. One opening per side in each centre bay, centred a metre
+## aft of the bay's forward station. The carriage sits high enough for this model's barrel to
+## meet that opening: the sill is 0.8 m off the deck and the barrel axis is only 0.62 m up.
+const GUN_DECK_Y := 2.6
+const GUN_PORT_Z := [5.0, 7.0, 9.0, 11.0]
+const CannonScene := preload("res://props/cannon/cannon.tscn")
 const AHEAD_SPEED := 7.0
 const ASTERN_SPEED := 3.5
 const YAW_RATE := 0.45
@@ -64,6 +79,10 @@ var _roll_rate := 0.0
 func _ready() -> void:
 	_build()
 	_build_helm()
+	_build_mast()
+	_build_bowsprit()
+	_build_rudder()
+	_build_guns()
 
 
 ## Floats broadside to the beach the coastal study picked, close enough to swim to.
@@ -323,6 +342,130 @@ func _build_helm() -> void:
 	shape.position = Vector3(0.0, 0.7, 0.0)
 	body.add_child(shape)
 	helm.add_child(body)
+
+
+## Lower mast, topmast and a lookout, in the kit's sizes, until those models replace it.
+## The node is named Mast and sits on MAST_AT so the swap is a mesh, not a new place.
+func _build_mast() -> void:
+	if get_node_or_null("Mast") != null:
+		return
+	var mast := Node3D.new()
+	mast.name = "Mast"
+	mast.position = MAST_AT
+	add_child(mast)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	# M01: 5.5 m, radius 0.25 at the deck narrowing to 0.18 at the head.
+	_spar(mast, 2.75, 0.25, 0.18, 5.5, timber)
+	# M02 sits on that head and runs another 3 m, down to a 0.08 m tip.
+	_spar(mast, 7.0, 0.18, 0.08, 3.0, timber)
+	_spar(mast, 1.4, 0.3, 0.3, 0.08, iron)
+	_spar(mast, 3.6, 0.24, 0.24, 0.08, iron)
+	_spar(mast, 5.42, 0.22, 0.22, 0.1, iron)
+	# M03 wraps the joint: a platform and a rail, not a socket in the spar.
+	_spar(mast, 5.5, 1.05, 1.05, 0.18, timber)
+	for i in 8:
+		var ang := TAU * float(i) / 8.0
+		_box(mast, Vector3(cos(ang) * 0.95, 6.05, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var col := CylinderShape3D.new()
+	col.radius = 0.28
+	col.height = 5.5
+	shape.shape = col
+	shape.position = Vector3(0.0, 2.75, 0.0)
+	body.add_child(shape)
+	mast.add_child(body)
+
+
+## A 3 m spar out of the stem, rising a little as it goes forward, until a real bowsprit replaces it.
+## The node is named Bowsprit and its origin is the mount, so the swap keeps this place.
+func _build_bowsprit() -> void:
+	if get_node_or_null("Bowsprit") != null:
+		return
+	var sprit := Node3D.new()
+	sprit.name = "Bowsprit"
+	sprit.position = BOWSPRIT_AT
+	# Local up is turned to point forward (-Z) and a little above the horizontal.
+	sprit.rotation_degrees.x = -77.0
+	add_child(sprit)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	_spar(sprit, 1.5, 0.15, 0.08, 3.0, timber)
+	_spar(sprit, 0.35, 0.2, 0.2, 0.12, iron)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var col := CylinderShape3D.new()
+	col.radius = 0.16
+	col.height = 3.0
+	shape.shape = col
+	shape.position = Vector3(0.0, 1.5, 0.0)
+	body.add_child(shape)
+	sprit.add_child(body)
+
+
+## A blade on the stern hinge, under the counter, until a real rudder replaces it.
+## The node is named Rudder and its origin is the hinge, so the swap keeps this place.
+func _build_rudder() -> void:
+	if get_node_or_null("Rudder") != null:
+		return
+	var rudder := Node3D.new()
+	rudder.name = "Rudder"
+	rudder.position = RUDDER_AT
+	add_child(rudder)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	# The hinge post. The blade's forward edge is this axis.
+	_spar(rudder, -0.5, 0.08, 0.08, 2.0, iron)
+	# Wider at the foot, shorter under the counter, still inside the kit's box.
+	for i in 6:
+		var t := float(i) / 5.0
+		var y := -1.35 + t * 1.7
+		var length := lerpf(0.95, 0.55, t)
+		_box(rudder, Vector3(0.0, y, 0.08 + length * 0.5), Vector3(0.16, 0.26, length), timber)
+	_box(rudder, Vector3(0.0, -0.5, 0.35), Vector3(0.2, 1.7, 0.06), iron)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.24, 2.0, 1.0)
+	shape.shape = box
+	shape.position = Vector3(0.0, -0.5, 0.5)
+	body.add_child(shape)
+	rudder.add_child(body)
+
+
+## One of the cannon prefabs behind each gunport, barrel out through the opening.
+func _build_guns() -> void:
+	if get_node_or_null("Guns") != null:
+		return
+	var guns := Node3D.new()
+	guns.name = "Guns"
+	add_child(guns)
+	for z in GUN_PORT_Z:
+		# Muzzle is 1 m along local -Z and 0.62 m up. -90° yaw sends -Z to starboard.
+		_gun(guns, Vector3(2.15, GUN_DECK_Y + 0.58, z), -PI * 0.5, "Starboard")
+		_gun(guns, Vector3(-2.15, GUN_DECK_Y + 0.58, z), PI * 0.5, "Port")
+
+
+func _gun(parent: Node3D, at: Vector3, yaw: float, side: String) -> void:
+	var gun := CannonScene.instantiate() as Node3D
+	gun.name = "Cannon%s%d" % [side, int(at.z)]
+	gun.position = at
+	gun.rotation.y = yaw
+	gun.set("sit_on_ground", false)
+	parent.add_child(gun)
+
+
+func _spar(parent: Node3D, y: float, bottom: float, top: float, height: float, material: Material) -> void:
+	var mesh := CylinderMesh.new()
+	mesh.bottom_radius = bottom
+	mesh.top_radius = top
+	mesh.height = height
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = Vector3(0.0, y, 0.0)
+	node.material_override = material
+	parent.add_child(node)
 
 
 func _box(parent: Node3D, at: Vector3, size: Vector3, material: Material) -> MeshInstance3D:
