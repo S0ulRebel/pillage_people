@@ -164,8 +164,43 @@ func _run() -> void:
 		_failures += 1
 		push_error("the underwater pass is still on with the camera 3 m above the sea")
 
+	# Night, from four metres down in open water. The pass mirrors the sea's daylight and
+	# darkens its fog with the sky; measured before the check was written, the frame's median
+	# luminance went from 0.51 to 0.10, a ratio of 0.19. A pass with no night is 1.0.
+	camera.global_position = Vector3(deep.x, sea - 4.0, deep.z)
+	camera.look_at(camera.global_position + out * 10.0, Vector3.UP)
+	var deep_day := await _shot("06_deep_day", camera)
+	_night(scene, true)
+	for i in 20:
+		await process_frame
+	var deep_night := await _shot("06_deep_night", camera)
+	_night(scene, false)
+	var night_ratio := _luminance_spread(deep_night).y / maxf(_luminance_spread(deep_day).y, 0.001)
+	print("night: median luminance %.3f by day, %.3f at night (ratio %.2f; 0.19 when written)"
+			% [_luminance_spread(deep_day).y, _luminance_spread(deep_night).y, night_ratio])
+	if night_ratio > 0.35:
+		_failures += 1
+		push_error("the underwater pass does not darken at night (ratio %.2f)" % night_ratio)
+	if night_ratio < 0.05:
+		_failures += 1
+		push_error("the underwater pass goes black at night (ratio %.2f)" % night_ratio)
+
 	print("underwater views: ", "PASS" if _failures == 0 else "FAIL")
 	quit(0 if _failures == 0 else 1)
+
+
+## What world/day.gd sets with the sun down (its daylight 0), and back to noon. The sea reads
+## the daylight off the environment and the pass mirrors it from the sea.
+func _night(scene: Node, on: bool) -> void:
+	var daylight := 0.0 if on else 1.0
+	var environment: Environment = scene.get_node("WorldEnvironment").environment
+	environment.ambient_light_sky_contribution = daylight
+	environment.fog_light_color = Color(0.06, 0.10, 0.18).lerp(Color(0.70, 0.86, 0.92), daylight)
+	(environment.sky.sky_material as ShaderMaterial).set_shader_parameter("daylight", daylight)
+	(scene.get_node("Terrain").get("material") as ShaderMaterial).set_shader_parameter("daylight", daylight)
+	var sun := scene.get_node("Sun") as DirectionalLight3D
+	sun.light_energy = lerpf(0.04, 1.15, daylight)
+	sun.light_color = Color(0.62, 0.74, 1.0).lerp(Color(1.0, 0.96, 0.88), daylight)
 
 
 ## The waterline at `at`, three ways, which have to agree to the millimetre.

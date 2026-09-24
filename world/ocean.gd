@@ -85,6 +85,14 @@ extends MeshInstance3D
 	set(value):
 		sun_direction = value
 		_push("sun_direction", value)
+## How bright the day is, 1 at noon to 0 at night. Read every frame from the environment's
+## ambient_light_sky_contribution, which world/day.gd sets to its daylight (see _process), so
+## setting it by hand only holds until the next frame; the water's own colours, the foam and
+## the underside darken with it (the Night group in ocean.gdshader).
+@export_range(0.0, 1.0) var daylight := 1.0:
+	set(value):
+		daylight = value
+		_push("daylight", value)
 @export_range(0.1, 40.0) var wave_speed := 1.0:
 	set(value):
 		wave_speed = value
@@ -187,7 +195,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["wave_1", wave_1], ["wave_2", wave_2], ["wave_3", wave_3], ["wave_4", wave_4],
 			["choppiness", choppiness],
 			["wave_speed", wave_speed], ["shoal_depth", shoal_depth],
-			["sun_direction", sun_direction],
+			["sun_direction", sun_direction], ["daylight", daylight],
 			["depth_fade", depth_fade], ["absorption", absorption],
 			["absorption_strength", absorption_strength],
 			["scattering_strength", scattering_strength],
@@ -284,6 +292,13 @@ func _process(delta: float) -> void:
 	if environment != null and environment.fog_light_color != _haze_colour:
 		_haze_colour = environment.fog_light_color
 		_push("haze_colour", _haze_colour)
+	# And how bright the day is. day.gd publishes its daylight as the environment's
+	# ambient_light_sky_contribution - 1 is the sky's own light, the day; 0 the moonlit fill,
+	# night - so the sea reads it there, the way it reads the fog, and needs no line in the
+	# clock. (day.gd already holds the Ocean node; setting `daylight` from there instead would
+	# be one line, and this read would then have to go.)
+	if environment != null and environment.ambient_light_sky_contribution != daylight:
+		daylight = environment.ambient_light_sky_contribution
 	# Horizontal follow only. The wave field is evaluated in world space in the shader, so the
 	# sea itself stays put - only the grid of vertices slides along underneath it.
 	var eye := _camera.global_position

@@ -74,6 +74,16 @@ extends MeshInstance3D
 		foam_colour = value
 		_push("foam_colour", value)
 
+@export_group("Night")
+@export var night_tint := Color(0.55, 0.62, 1.0):
+	set(value):
+		night_tint = value
+		_push("night_tint", value)
+@export_range(0.0, 1.0) var night_level := 0.10:
+	set(value):
+		night_level = value
+		_push("night_level", value)
+
 @export_group("Light shafts")
 @export_range(0.0, 1.0) var shaft_strength := 0.35:
 	set(value):
@@ -102,7 +112,7 @@ extends MeshInstance3D
 const MIRRORED: Array[StringName] = [
 	&"terrain_height", &"terrain_size", &"terrain_scale", &"terrain_center", &"terrain_base_y",
 	&"sea_y", &"preview_time", &"wave_1", &"wave_2", &"wave_3", &"wave_4", &"wave_height",
-	&"wave_speed", &"shoal_depth", &"choppiness", &"sun_direction",
+	&"wave_speed", &"shoal_depth", &"choppiness", &"sun_direction", &"daylight",
 ]
 
 var material: ShaderMaterial
@@ -131,6 +141,7 @@ func setup(sea: Ocean) -> void:
 			["band_strength", band_strength], ["deep_fade", deep_fade],
 			["surface_glow", surface_glow],
 			["waterline_pixels", waterline_pixels], ["foam_colour", foam_colour],
+			["night_tint", night_tint], ["night_level", night_level],
 			["shaft_strength", shaft_strength], ["shaft_width", shaft_width],
 			["shaft_range", shaft_range], ["shaft_speed", shaft_speed]]:
 		material.set_shader_parameter(entry[0], entry[1])

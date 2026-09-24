@@ -81,6 +81,16 @@ uniform float waterline_pixels : hint_range(0.0, 24.0) = 10.0;
 // The line's colour. The same white as the sea's foam, but its own value, not mirrored.
 uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
 
+// ---- Night ------------------------------------------------------------------------------
+group_uniforms Night;
+// How bright the day is, 1 to 0. Mirrored from the ocean every frame, which reads it off the
+// environment where world/day.gd publishes it. The water's colours and the waterline - all of
+// it lit by the sky through the surface - fade to night_tint * night_level of themselves at
+// night, the same two numbers the sea and the ground use, and the shafts go out with the sun.
+uniform float daylight : hint_range(0.0, 1.0) = 1.0;
+uniform vec3 night_tint : source_color = vec3(0.55, 0.62, 1.0);
+uniform float night_level : hint_range(0.0, 1.0) = 0.10;
+
 // ---- Light shafts -----------------------------------------------------------------------
 group_uniforms Light;
 // Direction TO the sun. Mirrored from the ocean every frame, which gets it from world/day.gd.
@@ -164,6 +174,9 @@ void fragment() {
     far_water = mix(far_water, glow_colour, smoothstep(0.0, 0.4, up) * (1.0 - dim * 0.6));
     vec3 water = mix(water_colour, far_water, f);
     water = mix(water, abyss_colour, dim * 0.7);
+    // All of it is the sky's light through the surface, so all of it goes with the day.
+    vec3 sky_light = mix(night_tint * night_level, vec3(1.0), clamp(daylight, 0.0, 1.0));
+    water *= sky_light;
 
     // ---- 4. The fog's coverage, in bands -----------------------------------------------
     // The colour above was mixed with the smooth f; what steps is the ALPHA, so distant things
@@ -237,10 +250,11 @@ void fragment() {
     // the deeper the camera is, and off once the sun is within a degree of the horizon.
     float sunward = smoothstep(-0.1, 0.6, up * 0.6 + dot(dir, sun) * 0.4);
     shaft *= sunward * (1.0 - dim * 0.7) * shaft_strength * step(0.02, sun.y);
-    water = mix(water, glow_colour, shaft);
+    // Sunlight: gone with the day, not merely dimmed with the sky.
+    water = mix(water, glow_colour, shaft * clamp(daylight, 0.0, 1.0));
 
     // ---- 6. Output ----------------------------------------------------------------------
-    ALBEDO = mix(water, foam_colour, line);
+    ALBEDO = mix(water, foam_colour * sky_light, line);
     ALPHA = max(alpha, line) * submerged;
     if (split_preview) {
         ALBEDO = vec3(line, submerged, 0.0);

@@ -182,6 +182,34 @@ func _run() -> void:
 		push_error("an edge at the horizon from a height: two rows differ by %.3f" % worst_step)
 		_failures += 1
 	high.current = false
+	# Night. The sea reads world/day.gd's daylight off the environment (ocean.gd, _process)
+	# and darkens everything the sky lights; the same view by day and by night, from the
+	# beach toward the sun, has to show it. Measured before the check was written: the sea's
+	# median luminance went from 0.52 to 0.08 from the hill, a ratio of 0.15, between the
+	# moonlit grass (0.19) and the night sky (0.13); a sea with no night at all is 1.0.
+	var rig_camera := scene.get_node("CameraRig/SpringArm3D/Camera3D") as Camera3D
+	rig_camera.current = true
+	rig.rotation.y = bearing
+	rig.pitch_degrees = -14.0
+	rig._apply_pitch()
+	for i in 20:
+		await process_frame
+	await _shot("06_sea_day", rig)
+	_night(scene, sun, true)
+	for i in 20:
+		await process_frame
+	await _shot("06_sea_night", rig)
+	_night(scene, sun, false)
+	var day_sea := _median_luminance("06_sea_day")
+	var night_sea := _median_luminance("06_sea_night")
+	var night_ratio := night_sea / maxf(day_sea, 0.001)
+	print("night: the sea's median luminance goes from %.3f by day to %.3f at night (ratio %.2f; 0.15 when written)" % [day_sea, night_sea, night_ratio])
+	if night_ratio > 0.35:
+		push_error("the sea does not darken at night (ratio %.2f)" % night_ratio)
+		_failures += 1
+	if night_ratio < 0.05:
+		push_error("the sea goes black at night (ratio %.2f)" % night_ratio)
+		_failures += 1
 	print("sun views: ", ProjectSettings.globalize_path(SHOTS))
 	print("sun views: ", "PASS" if _failures == 0 else "FAIL")
 	quit(0 if _failures == 0 else 1)
@@ -191,3 +219,27 @@ func _shot(tag: String, rig: Node) -> void:
 	await RenderingServer.frame_post_draw
 	get_root().get_texture().get_image().save_png("%s/%s.png" % [SHOTS, tag])
 	print("  %-18s pitch %+6.1f" % [tag, rig.pitch_degrees])
+
+
+## What world/day.gd sets with the sun down (its daylight 0), and back to noon. The sun is
+## left where it is, so the two frames differ by the light alone.
+func _night(scene: Node, sun: DirectionalLight3D, on: bool) -> void:
+	var daylight := 0.0 if on else 1.0
+	var environment: Environment = scene.get_node("WorldEnvironment").environment
+	environment.ambient_light_sky_contribution = daylight
+	environment.fog_light_color = Color(0.06, 0.10, 0.18).lerp(Color(0.70, 0.86, 0.92), daylight)
+	(environment.sky.sky_material as ShaderMaterial).set_shader_parameter("daylight", daylight)
+	(scene.get_node("Terrain").get("material") as ShaderMaterial).set_shader_parameter("daylight", daylight)
+	sun.light_energy = lerpf(0.04, 1.15, daylight)
+	sun.light_color = Color(0.62, 0.74, 1.0).lerp(Color(1.0, 0.96, 0.88), daylight)
+
+
+## Median luminance of the sea rows (30% to 60% of the frame's height) of a saved shot.
+func _median_luminance(tag: String) -> float:
+	var image := Image.load_from_file(ProjectSettings.globalize_path("%s/%s.png" % [SHOTS, tag]))
+	var values := PackedFloat32Array()
+	for y in range(image.get_height() * 30 / 100, image.get_height() * 60 / 100, 3):
+		for x in range(0, image.get_width(), 3):
+			values.append(image.get_pixel(x, y).get_luminance())
+	values.sort()
+	return values[values.size() / 2]

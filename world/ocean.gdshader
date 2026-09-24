@@ -17,7 +17,8 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 // ocean.gd from the Ocean node's exports at setup() (some every frame) - edit those on the
 // Ocean node in the inspector; a value typed into ocean_material.tres is overwritten. The
 // rest are the material's own: edit them on the material. sun_direction is pushed every
-// frame by world/day.gd, which turns the sun.
+// frame by world/day.gd, which turns the sun; daylight comes from the same clock by way of
+// the environment (see the Night group).
 //
 // fragment() builds the picture in stages, each under its own heading:
 //   0. where on the sea plane this pixel really is (the horizon band is found by ray)
@@ -173,12 +174,26 @@ uniform vec3 sun_direction = vec3(-0.53, 0.37, 0.76);
 // Material-only.
 uniform float wave_shading : hint_range(0.0, 1.0) = 0.18;
 // A broad restrained reflection of the sky at grazing angles, by fresnel. The colour is the
-// sky's own pale blue; there is no daylight uniform here, so at night the NEAR sea keeps its
-// day colours - only the haze (stage 13) and the streak (stage 10) follow the clock.
-// Material-only. (source_color means the value is sRGB, as a colour picker gives
+// sky's own pale blue by day; at night it darkens with everything else the sky lights (the
+// Night group). Material-only. (source_color means the value is sRGB, as a colour picker gives
 // it; this default is the sRGB of the linear (0.36, 0.61, 0.70) the shader used to hardcode.)
 uniform vec3 sky_reflection_colour : source_color = vec3(0.634, 0.804, 0.854);
 uniform float sky_reflection_strength : hint_range(0.0, 1.0) = 0.30;
+
+// ---- Night ------------------------------------------------------------------------------
+group_uniforms Night;
+// How bright the day is, 1 at noon to 0 at night, pushed: world/day.gd's own daylight, which
+// it publishes as the environment's ambient_light_sky_contribution and ocean.gd reads there,
+// the way the haze colour is read from the fog. Everything the SKY lights - the water's own
+// colour, the sky's reflection, the foam, the object bands, the underside - fades to
+// night_tint * night_level of itself as it goes to 0, the same two numbers the ground's own
+// fill fades to in terrain.gdshader (night_fill_tint, night_fill), so sea and ground darken
+// together. What is seen THROUGH the water - the seabed, a hull - is not touched: the
+// scene's light already dims it. The streak is sunlight and goes out with the sun on its
+// own; the haze follows the fog colour, which is night's already.
+uniform float daylight : hint_range(0.0, 1.0) = 1.0;
+uniform vec3 night_tint : source_color = vec3(0.55, 0.62, 1.0);
+uniform float night_level : hint_range(0.0, 1.0) = 0.10;
 
 // ---- The sun's streak -------------------------------------------------------------------
 group_uniforms Streak;
@@ -628,6 +643,9 @@ void fragment() {
     float lambert = max(dot(n, light_dir), 0.0);
     vec3 view_dir = normalize(CAMERA_POSITION_WORLD - world_point);
     float fresnel = pow(1.0 - max(dot(n, view_dir), 0.0), 5.0);
+    // How much light the sky gives the water right now: all of it by day, a dim moonlit blue
+    // at night (the Night group). Multiplied into everything the sky lights from here on.
+    vec3 sky_light = mix(night_tint * night_level, vec3(1.0), clamp(daylight, 0.0, 1.0));
 
     // ---- 8. Transmission ----------------------------------------------------------------
     // Refract the already-rendered opaque scene. Fade distortion at contacts so foreground
@@ -659,10 +677,10 @@ void fragment() {
         1.0 + (lambert - max(light_dir.y, 0.0)) * wave_shading);
     vec3 scatter_amount = max(vec3(1.0) - transmittance, vec3(0.045));
     vec3 shaded_water = scene_colour * transmittance
-        + water_scatter * scatter_amount * scattering_strength;
+        + water_scatter * scatter_amount * scattering_strength * sky_light;
 
     // ---- 9. Sky reflection --------------------------------------------------------------
-    shaded_water = mix(shaded_water, sky_reflection_colour, fresnel * sky_reflection_strength);
+    shaded_water = mix(shaded_water, sky_reflection_colour * sky_light, fresnel * sky_reflection_strength);
 
     // ---- 10. The sun's streak -----------------------------------------------------------
     // A cone of bearings from the eye, centred on the sun's. `aside` is the sine of the
@@ -718,9 +736,9 @@ void fragment() {
     // The band rides on the shaded water; the foam and crests go on top in foam_colour. The
     // shader already contains the transmitted scene colour, so it composites opaquely except
     // at its two edges; foam and the band stay visible right up to those.
-    vec3 banded_water = mix(shaded_water, object_band_colour,
+    vec3 banded_water = mix(shaded_water, object_band_colour * sky_light,
         object_band * object_band_strength);
-    ALBEDO = mix(banded_water, foam_colour, white);
+    ALBEDO = mix(banded_water, foam_colour * sky_light, white);
     float band_opacity = object_band * object_band_strength;
     ALPHA = edge * max(contact, max(white, band_opacity * 0.82));
 
@@ -765,7 +783,8 @@ void fragment() {
         // Streaks cross the mirror as well as the window - the reference streaks the whole
         // ceiling - only a little fainter where the sky is not behind them.
         under = mix(under, underside_shine_colour, shine * underside_shine * mix(0.7, 1.0, window));
-        ALBEDO = under;
+        // Lit by the sky through the surface, so it goes with the sky at night.
+        ALBEDO = under * sky_light;
         ALPHA = edge;
     }
 
