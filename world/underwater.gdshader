@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_never, depth_test_disabled, cull_disabled, unshaded, fog_disabled;
 
-// The view from under the sea, drawn over the whole frame once the camera is in the water.
+// THE VIEW FROM UNDER THE SEA, drawn over the whole frame once the camera is in the water.
 //
 // A colour laid over the picture, not a rewrite of it. The screen texture Godot offers a
 // shader holds only the opaque pass - the sea surface seen from below, the waterfall and the
@@ -20,11 +20,28 @@ render_mode blend_mix, depth_draw_never, depth_test_disabled, cull_disabled, uns
 // "Underwater (shallow)" and "Underwater (deep)" views. Bright cyan where the light comes in,
 // mid blue level with the eye, navy below. Distance flattens things to silhouettes of that
 // blue, in soft steps - the art has no blur.
+//
+// WHO SETS WHAT. Everything in the include - the waves, the seabed, the clock - and
+// sun_direction are copied off the ocean's material every frame by underwater.gd. Every
+// uniform declared in THIS file is an export on the Underwater node, pushed by underwater.gd
+// at setup: edit them there. split_preview is the one exception, a test switch.
+//
+// fragment(), in stages:
+//   1. this pixel: its point on the near plane, the scene behind it, which side of the
+//      surface it is on
+//   2. how much water the ray crosses, and the fog that earns
+//   3. the colour of that fog, by where the ray looks and how deep the camera is
+//   4. the fog's coverage, in bands
+//   5. light shafts
+//   6. output
 
 #include "res://world/waves.gdshaderinc"
 
+// ---- Engine input -----------------------------------------------------------------------
+// The opaque pass's depth: how far away the first solid thing behind each pixel is.
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest, repeat_disable;
 
+// ---- Colour -----------------------------------------------------------------------------
 group_uniforms Colour;
 // What everything close is tinted with. "Underwater (shallow)" middle third, p50: the teal
 // the sand and rocks a few metres off are seen through.
@@ -37,41 +54,51 @@ uniform vec3 level_colour : source_color = vec3(0.02, 0.46, 0.75);
 uniform vec3 floor_colour : source_color = vec3(0.01, 0.31, 0.52);
 // What the whole palette drifts toward as the camera goes deeper. The ruins panel, mid third.
 uniform vec3 abyss_colour : source_color = vec3(0.05, 0.33, 0.47);
-uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
+
+// ---- Fog --------------------------------------------------------------------------------
 group_uniforms Fog;
 // Metres to 63% fog. Rocks a few metres off keep their colour; thirty metres out is flat blue.
 uniform float fog_distance : hint_range(1.0, 100.0) = 14.0;
 // The tint the nearest things still get. Nothing underwater is drawn in its dry colours: in
 // the reference the sand under the camera is half sand and half teal, measured, not a wash.
 uniform float haze : hint_range(0.0, 0.8) = 0.5;
-// Depth steps, the way the sea bands its colours from above. Distant things become layered
-// silhouettes rather than a smooth gradient - see the ruins panel.
+// The fog's coverage is stepped into this many bands, this strongly, the way the sea bands its
+// depth colours from above. Distant things become layered silhouettes rather than a smooth
+// gradient - see the ruins panel. (Stage 4: it is the coverage that steps, not the colour.)
 uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.35;
 // Metres of camera depth over which the glow goes and the palette turns to abyss_colour.
 uniform float deep_fade : hint_range(1.0, 40.0) = 12.0;
-// How much of the glow an upward look gets however close the surface is. Was 0.55 while the
-// sea drew its underside in its top-side colours; now the sea draws Snell's window and its
-// streaks itself, and this only has to keep the far ceiling glowing, not paint the near one.
+// How much fog an upward look gets at least, however close the surface is. The sea draws its
+// own window and streaks on the underside; this only has to keep the far ceiling glowing.
 uniform float surface_glow : hint_range(0.0, 1.0) = 0.2;
+
+// ---- Waterline --------------------------------------------------------------------------
 group_uniforms Waterline;
 // The bright line where the surface meets the lens, in pixels. The near plane is centimetres
 // from the eye, so a width in metres would be the whole screen or nothing.
 uniform float waterline_pixels : hint_range(0.0, 24.0) = 10.0;
+// The line's colour. The same white as the sea's foam, but its own value, not mirrored.
+uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
+
+// ---- Light shafts -----------------------------------------------------------------------
 group_uniforms Light;
-// Direction TO the sun, mirrored from the ocean, which gets it from the scene's light.
+// Direction TO the sun. Mirrored from the ocean every frame, which gets it from world/day.gd.
 uniform vec3 sun_direction = vec3(-0.53, 0.37, 0.76);
 uniform float shaft_strength : hint_range(0.0, 1.0) = 0.35;
 // Metres between shafts, measured across the sun's bearing at the surface.
 uniform float shaft_width : hint_range(0.5, 20.0) = 6.0;
 // Metres of water in front of the camera the shafts are looked for in.
 uniform float shaft_range : hint_range(1.0, 60.0) = 24.0;
+// How fast the shaft pattern drifts, in pattern-cycles per second (one cycle is shaft_width).
 uniform float shaft_speed : hint_range(0.0, 2.0) = 0.25;
 group_uniforms;
+
+// ---- Test switch ------------------------------------------------------------------------
 // Opaque: green where the near plane is under the surface, red along the waterline band.
 // tests/underwater_view.gd reads it to prove the split is in the frame - the picture alone
-// cannot, because a seabed the terrain already paints teal looks fogged when nothing is
-// being drawn over it at all.
+// cannot, because a seabed the terrain already paints teal looks fogged when nothing is being
+// drawn over it at all.
 uniform bool split_preview = false;
 
 void vertex() {
@@ -81,47 +108,68 @@ void vertex() {
 }
 
 void fragment() {
-    // This pixel's point on the near plane, and the first solid thing behind it.
+    // ---- 1. This pixel --------------------------------------------------------------------
+    // Its point on the near plane (`eye`), the first solid thing behind it (`scene`), and the
+    // ray between them.
     vec3 eye = unproject(SCREEN_UV, near_depth(), INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
     float raw = texture(depth_texture, SCREEN_UV).r;
     vec3 scene = unproject(SCREEN_UV, raw, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
     vec3 to_scene = scene - eye;
     float range = length(to_scene);
     vec3 dir = to_scene / max(range, 0.0001);
+    float up = dir.y;
 
     // Metres of water above this point of the near plane. Negative in air.
     float under = surface_height(eye.xz) - eye.y;
-    // Gathered before anything branches on it. One pixel of the near plane is a tenth of a
-    // millimetre of world, so the edge is drawn at pixel width, not at a width in metres.
+    // The screen derivatives are taken here, before the shafts' loop breaks early, because
+    // a derivative next to a pixel that has left a loop early is undefined. One pixel of the
+    // near plane is a tenth of a millimetre of world, so the edge is drawn at pixel width, not
+    // at a width in metres.
     float span = max(fwidth(under), 0.00001);
+    // `submerged`: 1 under the surface, 0 in air, one pixel of slope between. Everything
+    // below is multiplied by it at the end, so the air half of the frame is untouched.
     float submerged = smoothstep(-span, span, under);
+    // `line`: the waterline band, 1 at the surface fading out over waterline_pixels of water.
+    // It is 1 in air as well, and relies on `submerged` to cut it there.
     float line = (1.0 - smoothstep(0.0, span * max(waterline_pixels, 0.001), under))
         * step(0.001, waterline_pixels);
-    // The near plane sits centimetres from the eye, so this is the camera's own depth too.
+    // `dim`: how deep the camera is, 0 at the surface to 1 at deep_fade metres. The near
+    // plane sits centimetres from the eye, so `under` is the camera's own depth too.
     float dim = smoothstep(0.0, max(deep_fade, 0.001), under);
 
-    // How much water is between the eye and the thing behind this pixel. A ray that leaves
-    // the water is fogged as far as the surface, not as far as the sky beyond it: otherwise
-    // looking up is a flat sheet of glow with the surface itself lost in it.
+    // ---- 2. How much water the ray crosses ------------------------------------------------
+    // `wet_range`: metres of water between the eye and the thing behind this pixel. A ray
+    // that leaves the water is fogged as far as the surface, not as far as the sky beyond it:
+    // otherwise looking up is a flat sheet of glow with the surface itself lost in it. The
+    // surface here is the flat sea_y - the swell's few centimetres do not matter over metres
+    // of fog, and it saves a wave sum per pixel. `range` is the whole ray; use it only to ask
+    // whether the ray got out.
     float wet_range = range;
-    if (dir.y > 0.001) {
-        wet_range = min(range, (sea_y - eye.y) / dir.y);
+    if (up > 0.001) {
+        wet_range = min(range, (sea_y - eye.y) / up);
     }
+    bool left_water = wet_range < range - 0.01;
+    // `f`: the fog, 0 clear to 1 solid, by the usual exponential law over fog_distance.
     float f = 1.0 - exp(-max(wet_range, 0.0) / max(fog_distance, 0.001));
-    // The surface seen from a few metres down is too close to be fogged, and drawn from
-    // below it is the sea's top-side colour, which is not the bright ceiling the reference
-    // has. So an upward look always carries at least this much glow, and the waves show
-    // through the rest of it.
-    float up = dir.y;
+    // The surface seen from a few metres down is too close to be fogged, so an upward look
+    // always carries at least surface_glow of it, and the sea's own underside shows through
+    // the rest.
     f = max(f, smoothstep(0.0, 0.6, up) * surface_glow);
 
+    // ---- 3. The fog's colour ------------------------------------------------------------
     // Where the light is: up is bright, down is dark, and both fade toward the abyss as the
-    // camera goes deeper. The glow starts at the horizontal, because at a level view the
-    // top of the reference frame is already the bright water the light comes in through.
+    // camera goes deeper. The glow starts at the horizontal, because at a level view the top
+    // of the reference frame is already the bright water the light comes in through.
     vec3 far_water = mix(level_colour, floor_colour, smoothstep(0.0, 0.75, -up));
     far_water = mix(far_water, glow_colour, smoothstep(0.0, 0.4, up) * (1.0 - dim * 0.6));
     vec3 water = mix(water_colour, far_water, f);
     water = mix(water, abyss_colour, dim * 0.7);
+
+    // ---- 4. The fog's coverage, in bands -----------------------------------------------
+    // The colour above was mixed with the smooth f; what steps is the ALPHA, so distant things
+    // sit at a few discrete fog levels - the layered silhouettes - while the tint stays
+    // continuous. The loop bound is the slider's maximum less one; a shader loop needs a
+    // constant.
     if (bands > 1) {
         float steps = float(bands - 1);
         float quantized = 0.0;
@@ -135,25 +183,27 @@ void fragment() {
         f = mix(f, quantized, band_strength);
     }
     // The haze is for what is in the water with him - sand, rock, the wall of a crater - which
-    // the reference tints half teal however close. It is not for the surface overhead: that
-    // is the brightest thing in the water and the sea draws its own window and streaks on it,
-    // and half a teal wash over four metres of water flattened them to nothing. So a ray that
+    // the reference tints half teal however close. It is not for the surface overhead: that is
+    // the brightest thing in the water and the sea draws its own window and streaks on it, and
+    // half a teal wash over four metres of water flattened them to nothing. So a ray that
     // LEAVES the water gets no floor, only the fog its distance earns; a ray that ends on
     // something submerged keeps it, however steeply it looks up at a wall.
-    float near_tint = haze * (1.0 - step(wet_range + 0.01, range));
+    float near_tint = left_water ? 0.0 : haze;
     float alpha = mix(near_tint, 1.0, f);
 
-    // Light shafts. A shaft is the column the sun's light takes down from one spot on the
-    // surface, so every point in the water is dragged back up the sun's direction to where
-    // its light came in, and a pattern of spots is drawn there, in the surface plane. Each
-    // spot is a column in the water.
+    // ---- 5. Light shafts ----------------------------------------------------------------
+    // A shaft is the column the sun's light takes down from one spot on the surface, so every
+    // point in the water is dragged back up the sun's direction to where its light came in,
+    // and a pattern of spots is drawn there, in the surface plane. Each spot is a column in
+    // the water.
     //
     // Walked along the ray rather than sampled once. A column cut by one sphere of distance
     // is a blob - that is what a single sample drew - and a column seen through a length of
-    // water is a streak, which is what twelve short steps add up to. Two sines beating
+    // water is a streak, which is what sixteen short steps add up to. Two sines beating
     // against each other for the spots: a few columns rather than a haze, and no noise table
     // to carry for it.
     vec3 sun = sun_direction / max(length(sun_direction), 0.0001);
+    // The sun's bearing on the surface and the direction across it: the pattern's two axes.
     vec2 bearing = normalize(vec2(sun.x, sun.z) + vec2(0.0001, 0.0));
     vec2 across = vec2(-bearing.y, bearing.x);
     float t = water_time() * shaft_speed;
@@ -164,26 +214,32 @@ void fragment() {
         // Never printed on a rock that is closer than the water being lit.
         if (d > wet_range) { break; }
         vec3 p = eye + dir * d;
+        // Back up the light to the surface. The 0.05 floor on sun.y keeps the reach finite
+        // with the sun on the horizon; the shafts are off by then anyway (below).
         vec3 entry = p + sun * ((sea_y - p.y) / max(sun.y, 0.05));
         float u = dot(entry.xz, across) / max(shaft_width, 0.01);
         float v = dot(entry.xz, bearing) / max(shaft_width, 0.01);
         // Kept smooth here and thresholded after the sum. Sixteen steps a metre and a half
         // apart cannot resolve a hard-edged spot, and a hard edge sampled that coarsely came
-        // out as speckle; a soft lobe averages to a soft streak.
+        // out as speckle; a soft lobe averages to a soft streak. The spots repeat every
+        // shaft_width across the bearing and every two along it, skewed (u * 1.3) so they do
+        // not line up in a grid, drifting in opposite directions on the two axes.
         float spot = max(sin(u * TAU + t) * sin(v * TAU * 0.5 + u * 1.3 - t * 0.6), 0.0);
-        // Fainter the deeper the light has come.
-        float reach = 1.0 - smoothstep(0.0, max(deep_fade, 0.001) * 1.5, sea_y - p.y);
-        shaft += spot * reach;
+        // Fainter the deeper the light has come: gone by one and a half deep_fade down.
+        float light_left = 1.0 - smoothstep(0.0, max(deep_fade, 0.001) * 1.5, sea_y - p.y);
+        shaft += spot * light_left;
     }
+    // The average over the steps is at most 1; below 0.16 of it nothing shows, above 0.42
+    // it is full. Then two levels, the way the sea steps its glitter.
     shaft = smoothstep(0.16, 0.42, shaft / 16.0);
-    // Two levels, the way the sea steps its glitter.
     shaft = floor(shaft * 2.0 + 0.5) / 2.0;
-    // Toward the light: strongest looking up or sunward, gone below the horizontal, and
-    // fainter the deeper the camera is.
+    // Toward the light: strongest looking up or sunward, gone below the horizontal, fainter
+    // the deeper the camera is, and off once the sun is within a degree of the horizon.
     float sunward = smoothstep(-0.1, 0.6, up * 0.6 + dot(dir, sun) * 0.4);
     shaft *= sunward * (1.0 - dim * 0.7) * shaft_strength * step(0.02, sun.y);
     water = mix(water, glow_colour, shaft);
 
+    // ---- 6. Output ----------------------------------------------------------------------
     ALBEDO = mix(water, foam_colour, line);
     ALPHA = max(alpha, line) * submerged;
     if (split_preview) {

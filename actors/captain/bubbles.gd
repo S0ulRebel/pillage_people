@@ -1,14 +1,13 @@
 class_name Bubbles
 extends CPUParticles3D
 ## Breath, let go a little at a time while he is under: a thin stream of bubbles from his head
-## that rise, spread and pop at the surface. The one thing that says "under water" that no
-## colour can.
+## that rise, spread and pop just short of the surface. The one thing that says "under water"
+## that no colour can.
 ##
 ## CPUParticles3D, like the hit spark and the waterfall's mist: a few dozen particles, no
-## process material, no shader compile on the first dive, and it can be watched in a headless
-## test. Built in code like everything else here. The bubble itself is a quad with a shader
-## that faces the camera, fogs itself, and pops itself short of the surface - see
-## bubble.gdshader.
+## process material, and it can be watched in a headless test. Built in code like everything
+## else here. The bubble itself is a quad with a shader that faces the camera, fogs itself, and
+## pops itself short of the surface - see bubble.gdshader.
 ##
 ## Not hung off the head bone, though that is where they come from: it FOLLOWS the head,
 ## copying its position each frame. A BoneAttachment3D carries the rig's own units - 0.01 on
@@ -25,6 +24,8 @@ var _follow: Node3D
 
 func _ready() -> void:
 	name = "Bubbles"
+	# Three dozen in the air at once, each living about two and a half seconds - enough to
+	# rise the couple of metres he usually dives to before it pops.
 	amount = 36
 	lifetime = 2.6
 	local_coords = false
@@ -32,6 +33,7 @@ func _ready() -> void:
 	# From a small volume around the mouth, not a point: a point reads as a hose.
 	emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 	emission_sphere_radius = 0.12
+	# Up, within a 28 degree cone, at 0.3 to 0.9 m/s; some live a third shorter than others.
 	direction = Vector3.UP
 	spread = 28.0
 	initial_velocity_min = 0.3
@@ -47,15 +49,17 @@ func _ready() -> void:
 	tangential_accel_min = -1.6
 	tangential_accel_max = 1.6
 	randomness = 0.7
+	# Five to eleven centimetres across (the quad is a metre, scaled).
 	scale_amount_min = 0.05
 	scale_amount_max = 0.11
 	# Small when they leave him and growing on the way up, the way a bubble does as the
-	# pressure comes off it.
+	# pressure comes off it: from just over half size to full by mid-life.
 	var grow := Curve.new()
 	grow.add_point(Vector2(0.0, 0.55))
 	grow.add_point(Vector2(0.5, 1.0))
 	grow.add_point(Vector2(1.0, 1.0))
 	scale_amount_curve = grow
+	# Fading a little with age, to 60%; the shader reads this alpha as its `fade`.
 	var fade := Gradient.new()
 	fade.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
 	fade.set_color(1, Color(1.0, 1.0, 1.0, 0.6))

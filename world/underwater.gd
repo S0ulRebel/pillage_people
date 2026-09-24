@@ -8,6 +8,10 @@ extends MeshInstance3D
 ## the waterline this draws is the surface the ocean draws, at the same moment. Two answers to
 ## where the surface is would drift apart the first time either was tuned, and this one would
 ## then split the screen a hand's width off the waves.
+##
+## Everything else the shader has is an export below, by the shader's own name, and pushed at
+## setup() and whenever it changes. What each one does is on the uniform in
+## underwater.gdshader.
 
 ## The sea this is the underside of. Handed in by whoever builds the scene.
 @export var ocean: Ocean
@@ -43,6 +47,10 @@ extends MeshInstance3D
 	set(value):
 		haze = value
 		_push("haze", value)
+@export_range(0, 8) var bands := 4:
+	set(value):
+		bands = value
+		_push("bands", value)
 @export_range(0.0, 1.0) var band_strength := 0.35:
 	set(value):
 		band_strength = value
@@ -51,11 +59,40 @@ extends MeshInstance3D
 	set(value):
 		deep_fade = value
 		_push("deep_fade", value)
+@export_range(0.0, 1.0) var surface_glow := 0.2:
+	set(value):
+		surface_glow = value
+		_push("surface_glow", value)
+
+@export_group("Waterline")
+@export_range(0.0, 24.0) var waterline_pixels := 10.0:
+	set(value):
+		waterline_pixels = value
+		_push("waterline_pixels", value)
+@export var foam_colour := Color(0.95, 0.98, 1.0):
+	set(value):
+		foam_colour = value
+		_push("foam_colour", value)
+
+@export_group("Light shafts")
 @export_range(0.0, 1.0) var shaft_strength := 0.35:
 	set(value):
 		shaft_strength = value
 		_push("shaft_strength", value)
+@export_range(0.5, 20.0) var shaft_width := 6.0:
+	set(value):
+		shaft_width = value
+		_push("shaft_width", value)
+@export_range(1.0, 60.0) var shaft_range := 24.0:
+	set(value):
+		shaft_range = value
+		_push("shaft_range", value)
+@export_range(0.0, 2.0) var shaft_speed := 0.25:
+	set(value):
+		shaft_speed = value
+		_push("shaft_speed", value)
 
+@export_group("")
 ## How far above the surface the camera can be and still get the pass. The near plane spans a
 ## few centimetres of world, so this is the margin for the wave crest between two frames.
 @export var margin := 0.5
@@ -90,8 +127,12 @@ func setup(sea: Ocean) -> void:
 	for entry in [["water_colour", water_colour], ["glow_colour", glow_colour],
 			["level_colour", level_colour],
 			["floor_colour", floor_colour], ["abyss_colour", abyss_colour],
-			["fog_distance", fog_distance], ["haze", haze], ["band_strength", band_strength],
-			["deep_fade", deep_fade], ["shaft_strength", shaft_strength]]:
+			["fog_distance", fog_distance], ["haze", haze], ["bands", bands],
+			["band_strength", band_strength], ["deep_fade", deep_fade],
+			["surface_glow", surface_glow],
+			["waterline_pixels", waterline_pixels], ["foam_colour", foam_colour],
+			["shaft_strength", shaft_strength], ["shaft_width", shaft_width],
+			["shaft_range", shaft_range], ["shaft_speed", shaft_speed]]:
 		material.set_shader_parameter(entry[0], entry[1])
 	_mirror()
 

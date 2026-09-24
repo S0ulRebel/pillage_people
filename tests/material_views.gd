@@ -40,6 +40,12 @@ func _run() -> void:
 	var ocean := scene.get_node("Ocean")
 	var sun := scene.get_node("Sun") as DirectionalLight3D
 	var study := scene.get_node("CoastalStudy")
+	# Hold the sun where the scene put it: these captures are compared with each other and
+	# with earlier runs, and the day clock would move the light between them.
+	var day := scene.get_node_or_null("Day")
+	if day != null:
+		day.set_process(false)
+		day.set_physics_process(false)
 	scene.get_node("HUD").hide()
 	scene.get_node("TouchControls").hide()
 	terrain.material.set_shader_parameter("preview_time", 4.0)

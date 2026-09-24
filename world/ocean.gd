@@ -17,9 +17,6 @@ extends MeshInstance3D
 @export var near := 0.6
 @export var rings := 128
 @export var segments := 256
-## Sampled from the "Shallow (sand)" and "Deep ocean" swatches in the art reference.
-@export var shallow := Color(0.310, 0.621, 0.655)
-@export var deep := Color(0.059, 0.336, 0.477)
 ## The material, so the water colours can be tuned in the inspector.
 @export var material: ShaderMaterial
 
@@ -42,14 +39,6 @@ extends MeshInstance3D
 	set(value):
 		foam_colour = value
 		_push("foam_colour", value)
-@export_range(0.0, 1.0) var shallow_alpha := 0.58:
-	set(value):
-		shallow_alpha = value
-		_push("shallow_alpha", value)
-@export_range(0.0, 1.0) var deep_alpha := 0.94:
-	set(value):
-		deep_alpha = value
-		_push("deep_alpha", value)
 @export_range(1.0, 60.0) var depth_fade := 26.0:
 	set(value):
 		depth_fade = value
@@ -89,8 +78,9 @@ extends MeshInstance3D
 	set(value):
 		choppiness = value
 		_push("choppiness", value)
-## Direction TO the sun, set by main.gd from the scene's DirectionalLight so the water and
-## everything standing on the beach agree about where the light comes from.
+## Direction TO the sun. Seeded at setup from the scene's DirectionalLight, and from then on
+## set every frame by world/day.gd as the sun moves, so the water and everything standing on
+## the beach agree about where the light comes from.
 @export var sun_direction := Vector3(-0.53, 0.37, 0.76):
 	set(value):
 		sun_direction = value
@@ -161,8 +151,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 	var water := material
 	for entry in [["shallow_colour", shallow_colour], ["lagoon_colour", lagoon_colour],
 			["deep_colour", deep_colour],
-			["foam_colour", foam_colour], ["shallow_alpha", shallow_alpha],
-			["deep_alpha", deep_alpha], ["wave_height", wave_height],
+			["foam_colour", foam_colour], ["wave_height", wave_height],
 			["wave_1", wave_1], ["wave_2", wave_2], ["wave_3", wave_3], ["wave_4", wave_4],
 			["choppiness", choppiness],
 			["wave_speed", wave_speed], ["shoal_depth", shoal_depth],

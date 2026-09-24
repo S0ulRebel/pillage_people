@@ -39,6 +39,11 @@ func _run() -> void:
 	current_scene = scene
 	for i in 90:
 		await process_frame
+	# Hold the sun where the scene put it, so a run compares with the last.
+	var day := scene.get_node_or_null("Day")
+	if day != null:
+		day.set_process(false)
+		day.set_physics_process(false)
 	var terrain := scene.get_node("Terrain")
 	var sea: float = terrain.sea_level()
 	scene.get_node("Player").set_physics_process(false)

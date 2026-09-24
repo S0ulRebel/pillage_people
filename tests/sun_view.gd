@@ -19,6 +19,11 @@ func _run() -> void:
 	current_scene = scene
 	for i in 90:
 		await process_frame
+	# Hold the sun where the scene put it: the day clock would move it between shots.
+	var day := scene.get_node_or_null("Day")
+	if day != null:
+		day.set_process(false)
+		day.set_physics_process(false)
 	var rig := scene.get_node("CameraRig")
 	var sun := scene.get_node("Sun") as DirectionalLight3D
 	var to_sun := sun.global_transform.basis.z
