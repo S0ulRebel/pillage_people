@@ -16,7 +16,7 @@ const DEAD_ZONE := 0.12
 var move := Vector2.ZERO
 ## radians to orbit this frame, consumed by the camera rig
 var orbit_delta := 0.0
-## degrees to tilt this frame: drag up to look down on the player, down to look along the ground
+## degrees to tilt this frame: drag up to look up, down to look along the ground
 var pitch_delta := 0.0
 ## +1 zoom out / -1 zoom in, consumed by the camera rig
 var zoom_delta := 0.0
@@ -157,7 +157,10 @@ func _input(event: InputEvent) -> void:
 				_pinch_distance = span
 			elif event.index == _look_touch:
 				orbit_delta += (event.position.x - _look_last.x) * 0.005
-				pitch_delta += (event.position.y - _look_last.y) * 0.12
+				# (last - now), so dragging UP is POSITIVE. Screen Y grows downward, and the order of
+				# this subtraction is the whole sign - it used to be the other way and was the reason a
+				# drag up looked down on touch. `pitch` leaving here means DEGREES UP, nothing else.
+				pitch_delta += (_look_last.y - event.position.y) * 0.12
 				_look_last = event.position
 
 

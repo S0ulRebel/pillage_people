@@ -17,7 +17,10 @@ extends Node3D
 @export var max_distance := 40.0
 @export var pitch_degrees := -55.0   ## -90 is straight down, -15 is nearly level
 @export var min_pitch_degrees := -85.0
-@export var max_pitch_degrees := 8.0
+## Raised from 8. While dragging up meant looking DOWN, the up-stop was nearly unreachable and
+## 8 degrees was plenty; now that up means up, it is the stop you meet every time you look at
+## the horizon, and 8 degrees felt like the control had broken.
+@export var max_pitch_degrees := 28.0
 ## Was the R/F keyboard tilt, which the middle-button drag does better and which was holding
 ## on to the R key. Kept as a setting because a gamepad stick will want it back.
 @export var pitch_speed := 60.0
@@ -38,19 +41,20 @@ extends Node3D
 ## How wide the iris sits while glassing. Not shut, or there is nothing to look through.
 @export var glass_iris := 0.62
 @export var glass_seconds := 0.35
-## Tilt limits while glassing. The chase camera cannot go above -12 degrees, which is fine
-## looking down at the captain and useless for looking at a horizon - the whole point of the
-## glass is the things level with you and slightly above.
+## Tilt limits while glassing. The glass wants to see things level with you and slightly above,
+## so it reaches higher than the chase camera does.
 @export var glass_min_pitch := -70.0
 @export var glass_max_pitch := 25.0
-## Flips the mouse tilt while the glass is up, and it is on by default because the two modes
-## mean genuinely different things by the same movement.
+## REMOVED: glass_invert_pitch.
 ##
-## The chase camera ORBITS him: drag up and it swings up and over, so you end up looking down
-## at him. That is what orbiting a subject should do. The glass is first person - you are not
-## moving a camera around something, you are turning your head - and there drag up has to look
-## up. Same code, opposite convention, which is why it reads as reversed rather than as wrong.
-@export var glass_invert_pitch := true
+## It flipped the tilt while the glass was up, so that the chase camera orbited (drag up, swing
+## up and over, end up looking down) while the glass turned like a head (drag up, look up). Both
+## readings are defensible and the argument for them is why it lasted. What killed it is that
+## the two flags multiplied: fixing the chase camera by setting invert_mouse_pitch broke the
+## glass, so there was no combination that gave up-means-up in both. And touch consulted
+## neither, so the glass already behaved differently on an iPad than on a mouse.
+##
+## One rule now: see tilt().
 
 @export_group("Mouse look")
 ## Hold the middle button and move to swing the camera round and tilt it. The left button is
@@ -59,8 +63,8 @@ extends Node3D
 ## every left-drag arrived at the iPad controls as a finger dragging across the screen.
 @export var mouse_orbit_speed := 0.006   ## radians per pixel of horizontal movement
 @export var mouse_pitch_speed := 0.12    ## degrees per pixel of vertical movement
-## Drag up to look down on the player, drag down to look along the ground - the same way round
-## as the touch controls. Turn this on to swap it.
+## Drag up to look UP. This is the project convention - see tilt() - and this flag is the
+## player's preference switch, not a per-mode correction: it flips every mode together.
 @export var invert_mouse_pitch := false
 
 @onready var _arm: SpringArm3D = $SpringArm3D
@@ -139,6 +143,26 @@ func _apply_fov() -> void:
 
 ## Keeps the tilt inside a range where the camera neither looks up from under the ground nor
 ## straight down onto the top of the player's head.
+## THE CONVENTION: UP MEANS UP.
+##
+## `up_degrees` is positive when the player asked to look UP - whatever device produced it, and
+## whatever mode the camera is in. Every tilt goes through here, so no input path gets to decide
+## its own sign.
+##
+## This exists because the project had four answers to the same question. The mouse tilted one
+## way in the chase view and the other way through the glass, on purpose, flipped by two
+## exported booleans multiplied together. Touch never consulted either flag, so the same drag on
+## an iPad did the opposite of the mouse while glassing. The cannon's barrel disagreed with all
+## of them. Each was defensible alone; together they were unlearnable, because the player cannot
+## see which of four rules is in force.
+##
+## The cost of the rule is honest: orbiting a subject by dragging up and over is a real idiom
+## and we are giving it up. One rule the hand can learn beats four that are each locally right.
+func tilt(up_degrees: float) -> void:
+	pitch_degrees += up_degrees
+	_apply_pitch()
+
+
 func _apply_pitch() -> void:
 	var lowest := glass_min_pitch if _glassing else min_pitch_degrees
 	var highest := glass_max_pitch if _glassing else max_pitch_degrees
@@ -190,8 +214,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		# single thing most scoped views get wrong.
 		var steady := _look_scale()
 		rotation.y -= motion.x * mouse_orbit_speed * steady
-		pitch_degrees += motion.y * mouse_pitch_speed * steady * _pitch_sign()
-		_apply_pitch()
+		# Screen Y grows DOWNWARD, so an upward drag is a negative motion.y. That single
+		# negation is the whole conversion from "where the mouse went" to "which way the player
+		# wants to look", and it happens once, here.
+		var wants_up := -motion.y * mouse_pitch_speed * steady
+		if invert_mouse_pitch:
+			wants_up = -wants_up
+		tilt(wants_up)
 
 
 ## Capturing the pointer while the button is held means a long swing keeps going instead of
@@ -228,12 +257,7 @@ func _physics_process(delta: float) -> void:
 	global_position = followed
 
 
-## Which way the mouse tilts the view. See glass_invert_pitch.
-func _pitch_sign() -> float:
-	var sign_ := -1.0 if invert_mouse_pitch else 1.0
-	if _glassing and glass_invert_pitch:
-		sign_ = -sign_
-	return sign_
+
 
 
 ## How much to slow the look by, so turning feels the same whatever the glass is doing.
@@ -259,8 +283,9 @@ func _process(delta: float) -> void:
 		var gesture: Dictionary = touch_controls.take_camera_input()
 		rotation.y -= gesture["orbit"]
 		if absf(gesture["pitch"]) > 0.0:
-			pitch_degrees += gesture["pitch"]
-			_apply_pitch()
+			# Through tilt() like everything else. This path used to add the gesture raw, which
+			# is how touch ended up ignoring the glass entirely and disagreeing with the mouse.
+			tilt(gesture["pitch"] * _look_scale())
 		if absf(gesture["zoom"]) > 0.0:
 			_arm.spring_length = clampf(_arm.spring_length + gesture["zoom"],
 					min_distance, max_distance)

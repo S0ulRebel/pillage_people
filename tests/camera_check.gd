@@ -53,12 +53,22 @@ func _run() -> void:
 				"glassing" if glassing else "chase", moved[0], moved[1],
 				"up -> look up" if moved[0] > 0.0 else "up -> look down"])
 	rig._mouse_looking = false
-	check(readings[false][0] < 0.0,
-			"chase: dragging up should look DOWN at him, the way orbiting a subject does")
+	# UP MEANS UP, IN BOTH MODES. These three checks used to say the opposite, and the third one
+	# actively REQUIRED the two modes to disagree - "both modes tilt the same way" was the
+	# failure message. That was a defensible reading: a chase camera orbits a subject, so
+	# dragging up swings it up and over and you end up looking down at him.
+	#
+	# It is not what the project does now. Two modes that mean opposite things by the same
+	# gesture cannot be learned, because nothing on screen tells you which one is in force - and
+	# touch ignored the flags entirely, so the glass already disagreed with itself between an
+	# iPad and a mouse. One rule, everywhere: see CameraRig.tilt.
+	check(readings[false][0] > 0.0,
+			"chase: dragging up must look UP. Up means up - see camera_rig.gd tilt()")
 	check(readings[true][0] > 0.0,
-			"glassing: dragging up should look UP - this is first person, not an orbit")
-	check(signf(readings[false][0]) != signf(readings[true][0]),
-			"both modes tilt the same way; one of them is reversed for whoever is using it")
+			"glassing: dragging up must look UP")
+	check(signf(readings[false][0]) == signf(readings[true][0]),
+			"the two modes tilt opposite ways. They must agree - that disagreement is the whole"
+			+ " thing this convention exists to remove")
 
 	# --- what raising the glass actually does ---
 	rig.set_glassing(false)

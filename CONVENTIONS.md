@@ -211,3 +211,72 @@ The useful ones in this project all look like that — the blade leaves the fist
 because the knuckles run index-to-ring along `-X` on these rigs; the foam's anti-aliasing width
 may not be clamped because a pixel two hundred metres out spans metres of beach. Both were
 wrong once, and the comment is what stops them being wrong again.
+
+---
+
+## Part 5 — Directions
+
+One rule, and it is not a matter of taste.
+
+### Up means up
+
+**Dragging up makes the thing go up.** The camera, the spyglass, a cannon barrel, anything a
+player points. Down means down, forward means forward, backward means backward. There is no
+per-system exception and no mode where it reverses.
+
+This is written down because the project had four answers at once, each defensible on its own:
+
+- the chase camera orbited — drag up, swing up and over, end up looking *down* at him
+- the spyglass turned like a head — drag up, look *up* — flipped by a second exported flag
+  multiplied against the first
+- **touch consulted neither flag**, so the same drag on an iPad did the opposite of the mouse
+  while glassing
+- the cannon's barrel disagreed with all three
+
+Every one had a reason. Together they were unlearnable, because nothing on screen tells the
+player which of four rules is in force. The orbit idiom is a real one and we gave it up
+deliberately: one rule a hand can learn beats four that are each locally right.
+
+### Where the sign belongs
+
+**Screen Y grows downward.** That is the source of almost every inversion here, so convert once,
+at the edge, and never again. `ui/touch_controls.gd` subtracts `(last - now)` so that what it
+hands on already means *degrees up*; the mouse path negates `motion.y` once. After that point
+a positive number means up everywhere, and nothing downstream is allowed to flip it.
+
+**Funnel it.** `CameraRig.tilt(up_degrees)` is the only way the camera pitches. An input path
+that applies its own rotation is how touch ended up ignoring the spyglass entirely.
+
+**An `invert` setting is a player preference, not a correction.** It flips every mode together.
+Two invert flags multiplied against each other is how the project reached a state where no
+combination of them produced up-means-up in both modes.
+
+### Models point -Z
+
+Godot points a node's `-Z` forward, so **a model's front faces `-Z` in the file**. Fix it with
+`tools/reorient_model.py`, not with a compensating rotation in code — the same rule the rest of
+this document applies to scale and pivots.
+
+The cannon is the worked example. Its muzzle came out of Tripo facing `+Z`, and the code that
+elevates the barrel turns it about `+X`, which lifts whatever lies along `-Z`. So pulling up
+dropped the muzzle. Nothing in the arithmetic was wrong; the asset was backwards.
+
+**Measure which end is which — do not infer it from shape.** The muzzle was first identified as
+the *thinner* end, which is right for a fish's tail and wrong for a cannon: the breech carries a
+narrow cascabel knob and the muzzle a wide reinforcing swell. The reliable test was geometric —
+trunnions sit nearer the breech, so the muzzle is the end further from the pivot.
+
+That mistake also went into the test, which measured the `-Z` face and asserted it rose. On a
+backwards model that face is the breech, and the breech rising is exactly what a dipping muzzle
+does. **The check passed on the reported bug.** A test that names the wrong end is worse than no
+test at all.
+
+### The two yaw idioms
+
+The project has two, and they differ only by two minus signs: `atan2(v.x, v.z)` points a node's
+`+Z` at a target (`actors/captain/captain.gd`, `actors/grunt/grunt.gd`, `world/coastal_study.gd`,
+`props/ship/ship.gd`), while `main.gd`'s camera framing and `look_at` point `-Z`. Both are
+self-consistent today and nothing moonwalks, so this is recorded rather than fixed — but new
+code should use `-Z`, and a sign that silently depends on the old idiom should say so. The one
+that does: a dead grunt topples by rotating `-90` about `X`, which lands him on his back only
+because `+Z` is his face.

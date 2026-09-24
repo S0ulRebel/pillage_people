@@ -70,7 +70,24 @@ def main():
 
     clear()
     before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=str(source))
+    # By extension. The Tripo bridge hands Godot an FBX rather than a GLB, so a tool that only
+    # read glTF silently did nothing at all for anything that came in that way.
+    if source.suffix.lower() == ".fbx":
+        # axis_forward="Y", NOT the "-Z" default.
+        #
+        # Blender's front is -Y; glTF's front is -Z. The glTF exporter remaps the UP axis and
+        # leaves forward alone, so a model sitting at Blender's front lands on glTF +Z -
+        # backwards - and this tool silently reversed every FBX that passed through it. A
+        # correctly exported asset came out wrong and the asset got the blame.
+        #
+        # Importing with forward=Y puts the model's front on Blender +Y, which the exporter
+        # then maps to glTF -Z. In means out: what Godot reads from the .glb matches what it
+        # would have read from the .fbx directly.
+        bpy.ops.import_scene.fbx(filepath=str(source), axis_forward="Y", axis_up="Z")
+    elif source.suffix.lower() in (".glb", ".gltf"):
+        bpy.ops.import_scene.gltf(filepath=str(source))
+    else:
+        raise SystemExit(f"do not know how to read {source.suffix} - expected .glb, .gltf or .fbx")
     fresh = [o for o in set(bpy.data.objects) - before]
     if not fresh:
         raise SystemExit("nothing imported")
@@ -82,6 +99,7 @@ def main():
     # Only the roots. Rotating a child as well as its parent applies the turn twice, and an
     # armature's bones are children of the armature object.
     roots = [o for o in fresh if o.parent is None]
+    spin = mathutils.Euler(turn, "XYZ").to_matrix()
     for obj in roots:
         obj.rotation_mode = "XYZ"
         obj.rotation_euler = (
@@ -89,7 +107,15 @@ def main():
             obj.rotation_euler[1] + turn[1],
             obj.rotation_euler[2] + turn[2],
         )
-        print(f"  root: {obj.name} ({obj.type})")
+        # The LOCATION turns with it, about the world origin - so a model in several parts stays
+        # assembled. Rotating each part about its own origin instead pivots every piece where it
+        # stands, and any piece whose origin is not at its own centre swings out of place.
+        #
+        # A cannon is the case that proves it: the barrel's origin is on its trunnion, off to
+        # one side, so a 180 degree yaw about that point threw the barrel clear of the carriage
+        # while the carriage, whose origin is its centre, turned in place and looked fine.
+        obj.location = spin @ mathutils.Vector(obj.location)
+        print(f"  root: {obj.name} ({obj.type}) at {tuple(round(v, 3) for v in obj.location)}")
 
     # Applied, not left on the object. Leaving it is the same bug in a different place: the
     # rotation would be written onto the exported root node and the skin would not follow it.
@@ -106,6 +132,14 @@ def main():
                              " and un-ignore that .import so a clone still gets it")
         for obj in roots:
             obj.scale = (obj.scale[0] * scale, obj.scale[1] * scale, obj.scale[2] * scale)
+            # The LOCATION has to scale with the geometry. transform_apply(scale=True) bakes
+            # the scale into the mesh and resets it to 1, but it leaves the object's location
+            # alone - so a model in several parts, where a part sits at an offset from the
+            # origin, comes out with its pieces the right size and in the wrong places. A
+            # cannon barrel whose origin is on its trunnion is exactly that case: the barrel
+            # doubles and stays put, and it ends up halfway through the carriage.
+            obj.location = (obj.location[0] * scale, obj.location[1] * scale,
+                            obj.location[2] * scale)
         bpy.ops.object.select_all(action="DESELECT")
         for obj in fresh:
             obj.select_set(True)

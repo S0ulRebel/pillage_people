@@ -203,6 +203,9 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 ## under a comment claiming the sea could be judged without running the game. It could not, and
 ## anything that belongs in the water - a school of fish, a moored ship, a rock in the shallows
 ## - had to be placed against a bare heightmap and guessed at.
+var _preview_mesh: Mesh = null
+
+
 func _ready() -> void:
 	if not Engine.is_editor_hint():
 		return
@@ -213,6 +216,27 @@ func _ready() -> void:
 	if terrain == null or not terrain.has_method("sea_level"):
 		return
 	setup(terrain.sea_level(), terrain as Node3D)
+
+
+## Keep the generated preview OUT of the saved scene file.
+##
+## The editor preview above builds a radial grid - about 1 MB of ArrayMesh - and assigns it to
+## this node's `mesh`. Godot serialises whatever is on an exported property when the scene is
+## saved, so that mesh was being written into main.tscn as text-encoded binary, and the editor
+## warned that the scene had grown to 2.2 MiB. It is generated from `extent`, `rings` and
+## `segments` in a fraction of a second, so storing it is pure waste.
+##
+## PRE_SAVE / POST_SAVE is the documented hook for this: drop the mesh, let the save happen
+## without it, then put it straight back so the preview does not blink out.
+func _notification(what: int) -> void:
+	if not Engine.is_editor_hint():
+		return
+	if what == NOTIFICATION_EDITOR_PRE_SAVE:
+		_preview_mesh = mesh
+		mesh = null
+	elif what == NOTIFICATION_EDITOR_POST_SAVE:
+		mesh = _preview_mesh
+		_preview_mesh = null
 
 
 func _process(delta: float) -> void:

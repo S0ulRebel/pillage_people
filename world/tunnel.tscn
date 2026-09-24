@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://world/tunnel.gd" id="1_tlscc"]
+
+[sub_resource type="Curve3D" id="Curve3D_evjcq"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -7, 20, 0, 0, 0, 0, 0, 0, 0, -3, 40),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[node name="Tunnel" type="Path3D" unique_id=1478619970]
+curve = SubResource("Curve3D_evjcq")
+script = ExtResource("1_tlscc")

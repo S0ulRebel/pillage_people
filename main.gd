@@ -30,6 +30,10 @@ const AIM_SKY_RANGE := 120.0
 
 var _glass: Spyglass
 var _crosshair: Crosshair
+## Where the crosshair was when the mouse went down on a cannon. The bearing locks on
+## that press, so the crosshair locks with it - letting it follow the mouse up the screen
+## while the elevation is being dragged would draw a promise the gun is not making.
+var _cannon_mark := Vector2.ZERO
 var _coastal_study: Node3D
 
 ## Grunts, scattered around the island. They idle until the player comes near, walk over and
@@ -173,7 +177,7 @@ func _start_crosshair() -> void:
 	_crosshair.name = "Crosshair"
 	add_child(_crosshair)
 	_player.aiming_changed.connect(func(up: bool) -> void:
-		_crosshair.visible = up)
+		_crosshair.visible = up or _player.is_manning())
 
 
 ## The fog under the sea. Built after the ocean, because it reads the ocean's waves.
@@ -255,7 +259,14 @@ func aim_point() -> Vector3:
 	var from := camera.project_ray_origin(at)
 	var along := camera.project_ray_normal(at) * 400.0
 	var query := PhysicsRayQueryParameters3D.create(from, from + along)
-	query.exclude = [_player.get_rid()]
+	var skip: Array[RID] = [_player.get_rid()]
+	# ...and the gun he is stood at. Its collider is a metre in front of him and square in the
+	# ray's path, so without this the aim point snaps onto the carriage and the shot goes
+	# nowhere. aim_point() only ever excluded the player because nothing else was ever that close.
+	if _player.is_manning():
+		for body in _player.cannon().find_children("*", "StaticBody3D", true, false):
+			skip.append((body as StaticBody3D).get_rid())
+	query.exclude = skip
 	var found := get_world_3d().direct_space_state.intersect_ray(query)
 	if found.is_empty():
 		# Below the horizon and still nothing: off the edge of the world. Aim level and far.
@@ -312,18 +323,62 @@ func _sky_aim(camera: Camera3D, at: Vector2, horizon: float) -> Vector3:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _player == null or not _player.is_aiming():
+	if _player == null:
+		return
+	# A gun he is stood at takes the click before a gun he is holding does.
+	if _player.is_manning():
+		_cannon_input(event)
+		return
+	if not _player.is_aiming():
 		return
 	if event.is_action_pressed("attack"):
 		_player.shoot_at(aim_point())
+
+
+## Press locks the bearing, dragging sets the elevation, release fires.
+##
+## The press/drag/release split lives here rather than in the cannon because it is entirely
+## about the screen - pixels and a mouse - and the cannon knows only about angles. Same
+## division as shoot_at and aim_point: the scene answers screen questions, the thing being
+## driven answers world ones.
+func _cannon_input(event: InputEvent) -> void:
+	var gun: Node3D = _player.cannon()
+	if gun == null:
+		return
+	if event.is_action_pressed("attack"):
+		_cannon_mark = get_viewport().get_mouse_position()
+		gun.press(_cannon_mark.y)
+	elif event.is_action_released("attack"):
+		gun.release()
+	elif event is InputEventMouseMotion and gun.is_charging():
+		gun.drag((event as InputEventMouseMotion).position.y)
 
 
 func _process(_delta: float) -> void:
 	# He turns to face the cursor while a ranged weapon is out. Where the cursor points is a
 	# question about the camera and the screen, which he knows nothing about, so it is answered
 	# here and handed over - the same split as shoot_at.
-	if _player != null and _player.is_aiming():
+	if _player != null and _player.is_manning():
+		# The cursor keeps steering the bearing right up until the press locks it; the cannon
+		# itself decides whether to accept that, from lock_bearing_on_press.
+		var gun_here: Node3D = _player.cannon()
+		gun_here.aim_towards(aim_point())
+		if _crosshair != null:
+			# Shown while manning, and it doubles as the reload gauge - the same ring the
+			# pistol uses, so a cannon that is not ready reads the same way a pistol does.
+			_crosshair.visible = true
+			# Pinned while charging. The bearing stopped moving on the press, so the crosshair
+			# stops with it; the drag from here is elevation, which the mark does not show.
+			var mark: Vector2 = _cannon_mark if gun_here.is_charging() else get_viewport().get_mouse_position()
+			_crosshair.track(mark, gun_here.reload_fraction())
+		return
+	elif _player != null and _player.is_aiming():
 		_player.aim_at(aim_look())
+	# Stepping off the gun has to put the crosshair away again. It is raised by `aiming_changed`
+	# when a pistol comes out, and manning a cannon switches it on directly in the branch above -
+	# so nothing was ever switching it off, and it stayed on screen after leaving the gun.
+	if _crosshair != null and _crosshair.visible and _player != null 			and not _player.is_aiming() and not _player.is_manning():
+		_crosshair.visible = false
 	if _crosshair == null or not _crosshair.visible:
 		return
 	var gun: Gun = _player.pistol()
@@ -706,12 +761,25 @@ func _ready() -> void:
 			holes = [Vector3(ends[0].x, ends[0].z, tunnel.radius),
 					Vector3(ends[1].x, ends[1].z, tunnel.radius)]
 	_terrain.generate()
-	# Tunnel scenes and tunnel test arguments retain their original layout and spawn.
 	var tunnel_mode := false
 	for argument in OS.get_cmdline_user_args():
 		if argument in ["--tunnel", "--tunneltest", "--probepath", "--probe", "--holeview", "--holeshot", "--printcurve", "--second"]:
 			tunnel_mode = true
-	if authored.is_empty() and _terrain.tunnels.is_empty() and not tunnel_mode and "--noassets" not in OS.get_cmdline_user_args():
+	# A tunnel used to cancel the coastal layout outright, which is why a cave meant giving up
+	# the shoreline spawn, the moored ship and the rock-and-palm grouping - and why it looked
+	# like the study could not cope with holes in the terrain. It copes fine; it was never asked.
+	#
+	# The exclusion is only right for a GENERATED tunnel. plan_tunnel_ends() is planned around
+	# the spawn as it stands BEFORE the study runs, so letting the study move the spawn
+	# afterwards puts that tunnel somewhere it was not planned for - through the shoreline,
+	# which is what the note above _make_tunnel describes.
+	#
+	# An AUTHORED tunnel has no such tie. It is where it was drawn, and nothing reads the spawn
+	# to place it, so the beach can be laid out as normal around it.
+	# Annotated: _terrain.tunnels is reached through an untyped property, so := cannot infer
+	# a bool from it.
+	var generated_tunnel: bool = authored.is_empty() and not _terrain.tunnels.is_empty()
+	if not generated_tunnel and not tunnel_mode and "--noassets" not in OS.get_cmdline_user_args():
 		_coastal_study = CoastalStudy.new()
 		_coastal_study.name = "CoastalStudy"
 		add_child(_coastal_study)
@@ -722,7 +790,12 @@ func _ready() -> void:
 			_moor_ship()
 	# Start next to the tunnel mouth, looking at it: the tunnel used to be tens of metres away
 	# with nothing pointing at it, so it was easy to miss entirely.
-	if _terrain.tunnels.size() > 0:
+	#
+	# Only for a tunnel this code generated, or in the tunnel test modes. A tunnel someone drew
+	# in the scene is one they know the location of, and dragging the spawn to it would throw
+	# away the shoreline start the study just chose - which is the whole point of letting the
+	# study run alongside an authored tunnel.
+	if _terrain.tunnels.size() > 0 and (generated_tunnel or tunnel_mode):
 		var tunnel = _terrain.tunnels[0]
 		var mouth: Vector3 = tunnel.to_global(tunnel.curve.sample_baked(0.0))
 		var inward: Vector3 = tunnel.to_global(tunnel.curve.sample_baked(10.0)) - mouth

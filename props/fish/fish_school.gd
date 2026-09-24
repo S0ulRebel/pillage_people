@@ -109,6 +109,7 @@ var _sea := 0.0
 var _body_half := 0.175
 var _frame := 0
 var _rng := RandomNumberGenerator.new()
+var _preview_mm: MultiMesh = null
 
 ## Set by main.gd. Anything with a global_position that the fish should run from.
 var predators: Array[Node3D] = []
@@ -255,6 +256,20 @@ func _ready() -> void:
 		sea = terrain.sea_level()
 	if setup(global_position, sea, 1):
 		_publish()
+
+
+## Keep the still preview OUT of the saved scene file, for the same reason ocean.gd does -
+## Godot serialises whatever sits on an exported property, so each school was writing its
+## MultiMesh, 140 instance transforms and all, into main.tscn on every save.
+func _notification(what: int) -> void:
+	if not Engine.is_editor_hint():
+		return
+	if what == NOTIFICATION_EDITOR_PRE_SAVE:
+		_preview_mm = multimesh
+		multimesh = null
+	elif what == NOTIFICATION_EDITOR_POST_SAVE:
+		multimesh = _preview_mm
+		_preview_mm = null
 
 
 func _process(delta: float) -> void:

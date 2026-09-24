@@ -249,6 +249,8 @@ var _guard_time := 0.0
 var _stride := 0.0
 ## The hull he can climb. Set from main once it is moored; nothing, until then.
 var _ship: Node3D
+## The gun he is stood at, or null.
+var _cannon: Node3D = null
 ## At the wheel. E took him there; E lets go. Jumping off the deck is how he leaves the ship.
 var _helming := false
 var _was_wet := false
@@ -614,6 +616,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("weapon_2"):
 		equip(1)
 	elif event.is_action_pressed("attack"):
+		# Not while he is on a gun. The cannon takes the whole click - press, drag and release -
+		# and a cutlass swing on the same button both looks wrong and eats the event.
+		if is_manning():
+			return
 		# One button, one meaning: use what you are holding. attack() returns on its own if
 		# that is a gun, because pointing it is main.gd's job.
 		attack()
@@ -622,8 +628,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_released("jump"):
 		release_jump()
 	elif event.is_action_pressed("board"):
-		if not try_helm():
-			try_board()
+		# One key, three meanings, most specific first: let go of a gun he is already on, take
+		# the wheel, climb aboard. E is NOT free - it is bound to cam_right as well as board -
+		# so a cannon gets a branch here rather than a fourth binding.
+		if not try_cannon():
+			if not try_helm():
+				try_board()
 
 
 ## Connected to the touch jump button by main.gd (press and release), and to the keyboard by
@@ -642,11 +652,60 @@ func set_ship(ship: Node3D) -> void:
 	_ship = ship
 
 
-## True while E would climb, or take the wheel, rather than turn the camera.
+## True while E would climb, take the wheel or man a gun, rather than turn the camera.
+##
+## camera_rig.gd reads this to decide whether E orbits the view. Forget to include a new use of
+## E here and the camera spins every time you press it, which looks like a camera bug rather
+## than a missing case.
 func boarding() -> bool:
-	if _helming:
+	if _helming or _cannon != null:
+		return true
+	if _near_cannon() != null:
 		return true
 	return _ship != null and (_ship.can_board(self) or _ship.can_helm(self))
+
+
+## The gun he is manning, or null.
+func cannon() -> Node3D:
+	return _cannon
+
+
+func is_manning() -> bool:
+	# Asks the gun rather than trusting our own handle: it lets go by itself when he walks
+	# away, and two records of who is holding it would disagree the moment it did.
+	return _cannon != null and is_instance_valid(_cannon) and _cannon.rider() == self
+
+
+## The nearest cannon within its own reach, or null. The cannon decides how close is close
+## enough, from its own measured size.
+func _near_cannon() -> Node3D:
+	var best: Node3D = null
+	var closest := INF
+	for node in get_tree().get_nodes_in_group("cannons"):
+		var gun := node as Node3D
+		if gun == null or not gun.has_method("reach"):
+			continue
+		var span: float = global_position.distance_to(gun.global_position)
+		if span <= gun.reach() and span < closest:
+			closest = span
+			best = gun
+	return best
+
+
+## Takes hold of a gun, or lets go of one. Returns whether E was used, so the caller can fall
+## through to the ship when it was not.
+func try_cannon() -> bool:
+	if is_manning():
+		_cannon.leave()
+		_cannon = null
+		return true
+	var gun := _near_cannon()
+	if gun == null:
+		return false
+	if not gun.man(self):
+		return false
+	_cannon = gun
+	return true
 
 
 ## Takes the wheel if he is at it, or lets go if he already has it. Returns whether E was used.
@@ -743,6 +802,19 @@ func _physics_process(delta: float) -> void:
 		_pistol.tick(delta)
 	if _helming and _ship != null:
 		_steer(delta)
+		return
+	if is_manning():
+		# Rooted to the gun. He is doing one thing and walking is not it - the same shape as
+		# helming above. Gravity still applies, or he hangs in the air when the ground under
+		# the carriage is a slope.
+		velocity.x = 0.0
+		velocity.z = 0.0
+		if not is_on_floor():
+			velocity.y -= fall_gravity * delta
+		else:
+			velocity.y = 0.0
+		move_and_slide()
+		_update_animation()
 		return
 	# The captain's swing SURVIVES being hit. A grunt's does not, and that asymmetry is the
 	# point: a grunt out-reaches the captain and swings every 2.15 s, so cancelling on contact

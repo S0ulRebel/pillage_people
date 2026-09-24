@@ -115,5 +115,45 @@ func _run() -> void:
 			check(player.is_on_floor(), "Player did not settle on terrain")
 			check(player.global_position.distance_to(study.spawn) < 1.0, "Player drifted from study spawn")
 			print("player beside study: ", player.global_position, " on_floor=", player.is_on_floor())
+	await _check_authored_tunnel()
 	print("coastal smoke: ", "PASS" if failures == 0 else "FAIL", " failures=", failures)
 	quit(0 if failures == 0 else 1)
+
+
+## A hand-drawn tunnel must NOT cancel the beach.
+##
+## It used to. The study was skipped whenever Terrain.tunnels held anything, so placing a tunnel
+## cost the shoreline spawn, the moored ship and the rock-and-palm grouping - and from outside it
+## looked as though the study could not cope with holes cut in the terrain. It copes fine. It was
+## never called.
+##
+## Skipping IS right for a GENERATED tunnel, which plan_tunnel_ends() lays out around the spawn
+## BEFORE the study runs; let the study move the spawn afterwards and that tunnel is left punched
+## through the shoreline. An authored one is where it was drawn and reads nothing.
+func _check_authored_tunnel() -> void:
+	var scene := (load("res://main.tscn") as PackedScene).instantiate() as Node3D
+	var tun := Tunnel.new()
+	tun.name = "SmokeTunnel"
+	var curve := Curve3D.new()
+	curve.add_point(Vector3(0, 0, 0))
+	curve.add_point(Vector3(0, -6, 18))
+	curve.add_point(Vector3(0, -2, 34))
+	tun.curve = curve
+	tun.position = Vector3(120, 30, -80)
+	# Added before the scene enters the tree, so main._ready() finds it exactly as it would
+	# find one drawn in the editor.
+	scene.add_child(tun)
+	root.add_child(scene)
+	for i in 120:
+		await process_frame
+
+	var study := scene.get_node_or_null("CoastalStudy")
+	check(study != null,
+			"a tunnel in the scene cancelled the coastal study. An authored tunnel sits where it"
+			+ " was drawn and nothing places it from the spawn, so the beach should still be laid"
+			+ " out around it")
+	if study != null:
+		check(study.valid, "the study ran alongside a tunnel but found no shoreline")
+		print("with an authored tunnel: study anchor ", study.anchor.round(), ", ship ",
+				"moored" if scene.get_node_or_null("Ship") != null else "MISSING")
+	scene.queue_free()
