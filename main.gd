@@ -176,6 +176,14 @@ func _start_crosshair() -> void:
 		_crosshair.visible = up)
 
 
+## The fog under the sea. Built after the ocean, because it reads the ocean's waves.
+func _start_underwater() -> void:
+	var under := Underwater.new()
+	under.name = "Underwater"
+	add_child(under)
+	under.setup(_ocean as Ocean)
+
+
 ## Turns the mouse position into a point in the world.
 ##
 ## Where the gun POINTS, as opposed to where the ball goes. Screen space, not world space.
@@ -756,6 +764,7 @@ func _ready() -> void:
 		_ocean.sun_direction = to_sun
 		_tell_sky_about(to_sun)
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
+	_start_underwater()
 	_player.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)

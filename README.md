@@ -38,6 +38,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
 | `world/sky.*` | The daylight sky: a clear blue dome, the same pale horizon as the fog, and a few large clouds. |
+| `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
 | `world/tunnel.gd` | Draw a curve, get a tunnel bored through the terrain. Opt-in with `--tunnel`. |
 | `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
 | `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |

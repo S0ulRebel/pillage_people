@@ -51,7 +51,10 @@ func _run() -> void:
 	# is a plain sum and the shader, the mesh and surface_y all have to agree; if the
 	# waterline check below fails only WITH the displacement, the solve for it is what broke.
 	if "--nochop" in OS.get_cmdline_user_args():
-		ocean.material.set_shader_parameter("choppiness", 0.0)
+		# Through the setter, which pushes it to the shader as well: surface_y reads the
+		# property, and zeroing only the uniform leaves it solving with the full displacement
+		# while the mesh has none.
+		ocean.choppiness = 0.0
 	DirAccess.make_dir_recursive_absolute(SHOTS)
 
 	# Its own camera: the rig keeps writing to the rigged one every frame.
@@ -64,12 +67,15 @@ func _run() -> void:
 	# Walk out from the island's centre until there is open water, noting where the sand
 	# first goes under (the shallows) and where it is as deep as this sea gets - the bed
 	# slopes gently to about seven metres at the edge of the map, there is no deeper.
+	var wading := Vector3.ZERO
 	var shallows := Vector3.ZERO
 	var deep := Vector3.ZERO
 	var out := Vector3(0.0, 0.0, 1.0)
 	for step in range(1, 400):
 		var p: Vector3 = out * float(step)
 		var depth: float = sea - terrain.height_at(p.x, p.z)
+		if wading == Vector3.ZERO and depth >= 1.3:
+			wading = Vector3(p.x, sea, p.z)
 		if shallows == Vector3.ZERO and depth >= 2.5:
 			shallows = Vector3(p.x, sea, p.z)
 		if depth >= 5.5:
@@ -79,68 +85,16 @@ func _run() -> void:
 		push_error("no water found along +Z from the centre")
 		quit(1)
 		return
-	print("shallows at (%.0f, %.0f), deep at (%.0f, %.0f)" % [shallows.x, shallows.z, deep.x, deep.z])
+	print("wading at (%.0f, %.0f), shallows at (%.0f, %.0f), deep at (%.0f, %.0f)"
+			% [wading.x, wading.z, shallows.x, shallows.z, deep.x, deep.z])
 
 	# Half in, at the waterline, looking along the shore so both halves have something in them.
-	#
-	# The waterline is FOUND, not computed. ocean.surface_y leaves the sideways part of the
-	# Gerstner displacement out and is centimetres off because of it, which a barrel never
-	# notices and a near plane six centimetres tall cannot survive. Copying the corrected sum
-	# in here would be a fourth copy of the waves. So the camera is walked up and down on the
-	# shader's own split view until the crossing sits in the middle of the frame - and that
-	# view is what proves the split is in the picture at all. The picture alone cannot: the
-	# terrain paints the seabed teal itself, and the first version of this test passed with
-	# the pass drawing nothing.
 	var at := shallows + out * 6.0
-	var guess: float = ocean.surface_y(at.x, at.z)
-	var low := guess - 0.25
-	var high := guess + 0.25
-	under.material.set_shader_parameter("split_preview", true)
-	var split: Image
-	var crossing := -1
-	for attempt in 10:
-		var y := (low + high) * 0.5
-		_level(camera, Vector3(at.x, y, at.z))
-		split = await _shot("00_split_preview", camera)
-		crossing = _crossing_row(split)
-		if crossing >= 0:
-			break
-		# All water: the eye is too low. All air: too high.
-		if split.get_pixel(split.get_width() / 2, split.get_height() / 2).g > 0.5:
-			low = y
-		else:
-			high = y
-	under.material.set_shader_parameter("split_preview", false)
-	# Where the shader puts the surface at the eye: the crossing row, converted from pixels
-	# up the near plane to metres.
-	var half_plane: float = camera.near * tan(deg_to_rad(camera.fov * 0.5))
-	var split_eye := camera.global_position
-	var shader_surface: float = split_eye.y \
-			+ (0.5 - float(crossing) / float(split.get_height())) * 2.0 * half_plane
-	# And where the sea's MESH is, found the same way with the pass hidden: from above it the
-	# bottom of the frame shows the sea's top, from below it the bare seabed. The two are the
-	# same waves and agree to the millimetre - the history of getting them there is on
-	# surface_height in waves.gdshaderinc. surface_y is printed for the record; it leaves the
-	# sideways displacement out and was 102 mm above the mesh here.
-	var mesh_surface: float = await _mesh_surface(camera, under, at, guess, half_plane)
-	print("waterline: shader surface %.4f m, mesh %.4f m, surface_y %.4f m (shader-mesh %+.1f mm)"
-			% [shader_surface, mesh_surface, guess, (shader_surface - mesh_surface) * 1000.0])
-	if crossing < 0:
-		_failures += 1
-		push_error("never found the air-to-water crossing in the frame")
-	elif absf(shader_surface - mesh_surface) > 0.005:
-		_failures += 1
-		push_error("the waterline is %.0f mm off the sea's mesh" % [(shader_surface - mesh_surface) * 1000.0])
-	if crossing >= 0:
-		var band := 0
-		for y in range(crossing, mini(crossing + 40, split.get_height())):
-			var c := split.get_pixel(split.get_width() / 2, y)
-			if c.g > 0.5 and c.r > 0.5:
-				band += 1
-		print("waterline band: %d px" % band)
-		if band < 5:
-			_failures += 1
-			push_error("no waterline band under the crossing")
+	var split_eye: Vector3 = await _check_waterline(camera, under, ocean, at, "shallows")
+	# And again where he wades. The bed rises inside shoal_depth here, the waves flatten over
+	# it, and the mesh takes the depth under where each vertex STARTED - so a solve that reads
+	# the depth at the query point is wrong exactly here and nowhere else. See surface_height.
+	await _check_waterline(camera, under, ocean, wading + out * 0.5, "wading")
 	_level(camera, split_eye)
 	await _shot("00_half_in", camera)
 
@@ -184,6 +138,80 @@ func _run() -> void:
 	quit(0 if _failures == 0 else 1)
 
 
+## The waterline at `at`, three ways, which have to agree to the millimetre.
+##
+## It is FOUND, not computed from ocean.surface_y, because surface_y is one of the things under
+## test - it was centimetres off once, which a near plane six centimetres tall cannot survive.
+## So the camera is walked up and down on the shader's own split view until the crossing sits
+## in the middle of the frame - and that view is what proves the split is in the picture at
+## all. The picture alone cannot: the terrain paints the seabed teal itself, and the first
+## version of this test passed with the pass drawing nothing.
+##
+## Returns where the camera ended up, half in.
+func _check_waterline(camera: Camera3D, under: Underwater, ocean: Ocean, at: Vector3,
+		label: String) -> Vector3:
+	var guess: float = ocean.surface_y(at.x, at.z)
+	var low := guess - 0.25
+	var high := guess + 0.25
+	under.material.set_shader_parameter("split_preview", true)
+	var split: Image
+	var crossing := -1
+	for attempt in 10:
+		var y := (low + high) * 0.5
+		_level(camera, Vector3(at.x, y, at.z))
+		split = await _shot("00_%s_split_preview" % label, camera)
+		crossing = _crossing_row(split)
+		if crossing >= 0:
+			break
+		# All water: the eye is too low. All air: too high.
+		if split.get_pixel(split.get_width() / 2, split.get_height() / 2).g > 0.5:
+			low = y
+		else:
+			high = y
+	under.material.set_shader_parameter("split_preview", false)
+	# Where the shader puts the surface at the eye: the crossing row, converted from pixels
+	# up the near plane to metres.
+	var half_plane: float = camera.near * tan(deg_to_rad(camera.fov * 0.5))
+	var split_eye := camera.global_position
+	var shader_surface: float = split_eye.y 			+ (0.5 - float(crossing) / float(split.get_height())) * 2.0 * half_plane
+	# And where the sea's MESH is, found the same way with the pass hidden: from above it the
+	# bottom of the frame shows the sea's top, from below it the bare seabed. All three are the
+	# same waves - the history of getting them to agree is on surface_height in
+	# waves.gdshaderinc and surface_y in ocean.gd. surface_y is the one everything floats on;
+	# before it solved for the sideways displacement it was 102 mm above the mesh here.
+	var mesh_surface: float = await _mesh_surface(camera, under, at, guess, half_plane)
+	# Both of those are read off the near plane, which is camera.near ahead of the eye along
+	# +X. surface_y is asked at that same point, not at the eye: five centimetres along a wave
+	# slope of 0.2 is a centimetre, and the first version of this comparison reported exactly
+	# that as an error in surface_y.
+	var cpu_surface: float = ocean.surface_y(at.x + camera.near, at.z)
+	print("waterline (%s): shader %.4f m, mesh %.4f m, surface_y %.4f m (shader-mesh %+.1f mm, surface_y-mesh %+.1f mm)"
+			% [label, shader_surface, mesh_surface, cpu_surface,
+			(shader_surface - mesh_surface) * 1000.0, (cpu_surface - mesh_surface) * 1000.0])
+	if crossing < 0:
+		_failures += 1
+		push_error("%s: never found the air-to-water crossing in the frame" % label)
+	elif absf(shader_surface - mesh_surface) > 0.005:
+		_failures += 1
+		push_error("%s: the waterline is %.0f mm off the sea's mesh"
+				% [label, (shader_surface - mesh_surface) * 1000.0])
+	if absf(cpu_surface - mesh_surface) > 0.005:
+		_failures += 1
+		push_error("%s: surface_y is %.0f mm off the sea's mesh - things float on that"
+				% [label, (cpu_surface - mesh_surface) * 1000.0])
+	if crossing >= 0:
+		var band := 0
+		for y in range(crossing, mini(crossing + 40, split.get_height())):
+			var c := split.get_pixel(split.get_width() / 2, y)
+			if c.g > 0.5 and c.r > 0.5:
+				band += 1
+		print("waterline band (%s): %d px" % [label, band])
+		if band < 5:
+			_failures += 1
+			push_error("%s: no waterline band under the crossing" % label)
+	return split_eye
+
+
 ## Puts the camera at `eye`, looking level along +X.
 func _level(camera: Camera3D, eye: Vector3) -> void:
 	camera.global_position = eye
@@ -197,8 +225,14 @@ func _mesh_surface(camera: Camera3D, under: Underwater, at: Vector3, guess: floa
 		half_plane: float) -> float:
 	under.set_process(false)
 	under.visible = false
+	# The sea drawn as its flat opaque palette, so its top is one colour and the seabed is
+	# another however shallow the water: shaded, a metre of turquoise over sand and the sand
+	# itself are close enough to confuse the classification below.
+	var ocean := under.ocean
+	ocean.material.set_shader_parameter("palette_preview", true)
 	var above := await _bottom_pixel(camera, Vector3(at.x, guess + 0.3, at.z))
 	var below := await _bottom_pixel(camera, Vector3(at.x, guess - 0.3, at.z))
+	print("mesh probe: sea top reads %s, seabed reads %s" % [above, below])
 	var low := guess - 0.3
 	var high := guess + 0.3
 	for attempt in 10:
@@ -208,6 +242,7 @@ func _mesh_surface(camera: Camera3D, under: Underwater, at: Vector3, guess: floa
 			high = y
 		else:
 			low = y
+	ocean.material.set_shader_parameter("palette_preview", false)
 	under.set_process(true)
 	# The bottom of the frame is half a near plane below the eye, so the mesh is that much
 	# below the eye that just stopped seeing it.

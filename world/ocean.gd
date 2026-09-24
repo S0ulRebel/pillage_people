@@ -82,6 +82,13 @@ extends MeshInstance3D
 	set(value):
 		wave_4 = value
 		_push("wave_4", value)
+## How far the waves move the water sideways, as a share of the full Gerstner displacement.
+## Held here for the same reason as the waves: surface_y has to know it, and the shader's
+## own default is unreachable from the CPU.
+@export_range(0.0, 1.0) var choppiness := 0.85:
+	set(value):
+		choppiness = value
+		_push("choppiness", value)
 ## Direction TO the sun, set by main.gd from the scene's DirectionalLight so the water and
 ## everything standing on the beach agree about where the light comes from.
 @export var sun_direction := Vector3(-0.53, 0.37, 0.76):
@@ -157,6 +164,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["foam_colour", foam_colour], ["shallow_alpha", shallow_alpha],
 			["deep_alpha", deep_alpha], ["wave_height", wave_height],
 			["wave_1", wave_1], ["wave_2", wave_2], ["wave_3", wave_3], ["wave_4", wave_4],
+			["choppiness", choppiness],
 			["wave_speed", wave_speed], ["shoal_depth", shoal_depth],
 			["sun_direction", sun_direction],
 			["depth_fade", depth_fade], ["absorption", absorption],
@@ -228,38 +236,101 @@ func _process(delta: float) -> void:
 
 
 ## The height of the water surface at a world point - the same Gerstner sum the vertex shader
-## adds to the flat sea, evaluated on the CPU so that things can float on it.
+## adds to the flat sea, evaluated on the CPU so that things can float on it. The shader's copy
+## is surface_height in waves.gdshaderinc; the two have to agree, and this is the one that
+## cannot be included.
 ##
-## Two terms of the shader's version are deliberately left out.
+## One term of the shader's version is deliberately left out: the camera-distance fade. The
+## shader flattens waves far from the eye because the mesh out there cannot resolve them, and a
+## barrel that rose and fell as you walked towards it would be far worse than one that is
+## slightly wrong at a distance where nothing can tell.
 ##
-## The camera-distance fade is one: the shader flattens waves far from the eye because the mesh
-## out there cannot resolve them, and a barrel that rose and fell as you walked towards it would
-## be far worse than one that is slightly wrong at a distance where nothing can tell.
+## The horizontal part of the Gerstner displacement is NOT left out, any more. A Gerstner wave
+## moves water sideways as well as up - by up to 0.65 m with these waves - so the surface above
+## a point is the sample taken from somewhere else. This used to read the sample at the point
+## and call the error centimetres; measured against the drawn mesh by tests/underwater_view.gd,
+## it was 102 mm at one spot in the shallows, a barrel floating a hand's width above the water.
+## So the sample point is solved for: start at the point, ask where the water there came from,
+## ask again from there. Each step only shrinks the error by the slope of the sideways
+## displacement, about a half here, so eight steps; the shader does the same eight.
 ##
-## The horizontal part of the Gerstner displacement is the other. A Gerstner wave moves water
-## sideways as well as up, so the surface above a point is not exactly the sample taken at that
-## point. At this wave height the error is centimetres, and correcting it means solving for the
-## sample position rather than reading it.
+## The shoal is taken at the moving sample point every step, not once at the query point. A
+## vertex of the mesh flattens by the depth under where it STARTED, not under where the wave
+## carries it, and those are up to 0.65 m apart - nothing in open water, centimetres on a bed
+## rising inside shoal_depth, which is where he wades.
+##
+## This runs about twenty-five times a physics tick (every piece of cargo, five points on the
+## hull, the shark, the underwater pass's gate) and nine wave sums each, so the per-wave
+## constants are prepared once per call and the four waves are summed in one function with no
+## per-call allocation - see _prepare_waves.
 func surface_y(x: float, z: float) -> float:
 	if wave_height <= 0.0:
 		return _sea_level
-	# Waves flatten as the seabed rises. This one is real rather than a rendering concession,
-	# so it stays: without it cargo in the shallows bobs as hard as cargo in open water.
-	var shoal := 1.0
-	if _terrain != null:
-		shoal = smoothstep(0.0, maxf(shoal_depth, 0.001),
-				_sea_level - _terrain.height_at(x, z))
-	var offset := 0.0
-	for wave in [wave_1, wave_2, wave_3, wave_4]:
-		var direction := Vector2(wave.x, wave.y)
-		var reach := direction.length()
-		if reach < 0.0001 or wave.z <= 0.0:
+	_prepare_waves()
+	var total_steepness := maxf(wave_1.z, 0.0) + maxf(wave_2.z, 0.0) \
+			+ maxf(wave_3.z, 0.0) + maxf(wave_4.z, 0.0)
+	var q := choppiness / maxf(1.0, total_steepness * wave_height)
+	var at := Vector2(x, z)
+	var source := at
+	var offset := Vector3.ZERO
+	for i in 8:
+		offset = _displacement(source, _shoal_at(source) * wave_height, q)
+		source = at - Vector2(offset.x, offset.z)
+	offset = _displacement(source, _shoal_at(source) * wave_height, q)
+	return _sea_level + offset.y
+
+
+## Waves flatten as the seabed rises. This one is real rather than a rendering concession,
+## so it stays: without it cargo in the shallows bobs as hard as cargo in open water.
+func _shoal_at(p: Vector2) -> float:
+	if _terrain == null:
+		return 1.0
+	return smoothstep(0.0, maxf(shoal_depth, 0.001), _sea_level - _terrain.height_at(p.x, p.y))
+
+
+## Per-wave constants for _displacement: direction, wave number, steepness over wave number
+## (zero for a wave that is switched off) and the time term of the phase. Packed arrays sized
+## once, written in place, because this is called from a hot path and an Array built per call
+## would be an allocation per call (CONVENTIONS, Part 4).
+var _wave_dir := PackedVector2Array([Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
+var _wave_k := PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
+var _wave_amp := PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
+var _wave_time := PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
+
+
+func _prepare_waves() -> void:
+	_prepare_wave(0, wave_1)
+	_prepare_wave(1, wave_2)
+	_prepare_wave(2, wave_3)
+	_prepare_wave(3, wave_4)
+
+
+func _prepare_wave(i: int, wave: Vector4) -> void:
+	var direction := Vector2(wave.x, wave.y)
+	var reach := direction.length()
+	if reach < 0.0001 or wave.z <= 0.0:
+		_wave_amp[i] = 0.0
+		return
+	var k: float = TAU / maxf(wave.w, 0.01)
+	_wave_dir[i] = direction / reach
+	_wave_k[i] = k
+	_wave_amp[i] = wave.z / k
+	_wave_time[i] = sqrt(9.8 * k) * _clock * wave_speed
+
+
+## Where the four waves move the water that starts at `p`: x and z sideways, y up. The same
+## sum as gerstner() in waves.gdshaderinc, on the same clock.
+func _displacement(p: Vector2, scale: float, q: float) -> Vector3:
+	var moved := Vector3.ZERO
+	for i in 4:
+		var a: float = _wave_amp[i] * scale
+		if a == 0.0:
 			continue
-		direction /= reach
-		var k: float = TAU / maxf(wave.w, 0.01)
-		var phase: float = k * direction.dot(Vector2(x, z)) - sqrt(9.8 * k) * _clock * wave_speed
-		offset += (wave.z / k) * shoal * wave_height * sin(phase)
-	return _sea_level + offset
+		var d: Vector2 = _wave_dir[i]
+		var phase: float = _wave_k[i] * d.dot(p) - _wave_time[i]
+		var sideways: float = a * q * cos(phase)
+		moved += Vector3(sideways * d.x, a * sin(phase), sideways * d.y)
+	return moved
 
 
 func _setup_band_camera(water: ShaderMaterial, focus: Vector3) -> void:
