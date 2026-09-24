@@ -178,14 +178,32 @@ func value_at(world_x: float, world_z: float) -> float:
 func footprint() -> Rect2:
 	var basis := global_transform.basis
 	# Not normalised: a scaled node samples a scaled stamp, so the footprint grows with it.
-	var reach := edge_softness if shape != Shape.IMAGE else 0.0
-	var half_x := Vector2(basis.x.x, basis.x.z) * (length * 0.5 + reach)
-	var half_z := Vector2(basis.z.x, basis.z.z) * (width * 0.5 + reach)
+	var reach := _fade_reach()
+	var half_x := Vector2(basis.x.x, basis.x.z) * (length * 0.5 + reach.x)
+	var half_z := Vector2(basis.z.x, basis.z.z) * (width * 0.5 + reach.y)
 	var centre := Vector2(global_position.x, global_position.z)
 	var rect := Rect2(centre, Vector2.ZERO)
 	for corner in [half_x + half_z, half_x - half_z, -half_x + half_z, -half_x - half_z]:
 		rect = rect.expand(centre + corner)
 	return rect
+
+
+## How far past length x width the fade reaches, along the stamp's X and Z.
+##
+## Not simply edge_softness for the soft circle. value_at measures its fade in units of the
+## SHORTER radius, so along the longer axis it runs further: on a 30 x 24 m oval with 10 m of
+## softness, 12.5 m past the ends. The footprint used to stop at edge_softness there, and the
+## terrain visits no sample outside the footprint, so the last 10% of the dig was never
+## applied and the ends of an oval crater finished in a metre-high step - in the ground, the
+## collider and the seabed the water reads. terrain_stamp_check measures the ends now.
+func _fade_reach() -> Vector2:
+	match shape:
+		Shape.SOFT_RECT:
+			return Vector2(edge_softness, edge_softness)
+		Shape.SOFT_CIRCLE:
+			var shorter := maxf(minf(length, width) * 0.5, 0.001)
+			return Vector2(edge_softness * length * 0.5 / shorter, edge_softness * width * 0.5 / shorter)
+	return Vector2.ZERO
 
 
 func _sample(u: float, v: float) -> float:
@@ -250,12 +268,12 @@ func _draw_helpers() -> void:
 	(_outline.material_override as StandardMaterial3D).albedo_color = colour
 	(_sheet.material_override as StandardMaterial3D).albedo_color = Color(colour, 0.28)
 
-	var rim := _rim(0.0)
+	var rim := _rim(Vector2.ZERO)
 	var lines := ImmediateMesh.new()
 	# The soft shapes get a second outline where their blend into the ground runs out.
 	var loops: Array[PackedVector3Array] = [rim]
 	if shape != Shape.IMAGE:
-		loops.append(_rim(edge_softness))
+		loops.append(_rim(_fade_reach()))
 	for loop in loops:
 		lines.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
 		for point in loop:
@@ -300,12 +318,12 @@ func _helper(helper_name: StringName, on_top: bool) -> MeshInstance3D:
 	return instance
 
 
-## The edge of the footprint in the stamp's own space, pushed out by `margin` metres: the
-## rectangle, or the ellipse for Shape.SOFT_CIRCLE.
-func _rim(margin: float) -> PackedVector3Array:
+## The edge of the footprint in the stamp's own space, pushed out by `margin` metres along X
+## and Z: the rectangle, or the ellipse for Shape.SOFT_CIRCLE.
+func _rim(margin: Vector2) -> PackedVector3Array:
 	var points := PackedVector3Array()
-	var half_l := length * 0.5 + margin
-	var half_w := width * 0.5 + margin
+	var half_l := length * 0.5 + margin.x
+	var half_w := width * 0.5 + margin.y
 	if shape == Shape.SOFT_CIRCLE:
 		for i in 48:
 			var angle := TAU * i / 48.0

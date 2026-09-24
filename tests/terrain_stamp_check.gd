@@ -114,6 +114,7 @@ func _run() -> void:
 
 	await _check_levelling(plain)
 	await _check_small_pad(plain)
+	await _check_oval(plain)
 
 	print("terrain_stamp_check: %s" % ("PASS" if failures == 0 else "%d FAILED" % failures))
 	quit(1 if failures > 0 else 0)
@@ -199,3 +200,37 @@ func _check_small_pad(plain: Node3D) -> void:
 	print("6 x 5 m pad: ground was up to %.2f m off the plane, now %.3f m" % [slope, worst])
 	check(slope > 0.5, "the pad's patch was already level - the check proves nothing")
 	check(worst < 0.02, "6 x 5 m pad left the ground %.3f m off its plane" % worst)
+
+
+## A soft oval, unrotated, measured out along its long axis - past where its footprint used
+## to stop.
+##
+## value_at fades in units of the SHORTER radius, so along the long axis of a 30 x 24 m oval
+## the fade runs 12.5 m past the rim, not the 10 m of edge_softness. The footprint stopped at
+## 10, the terrain visits nothing outside the footprint, and so the last tenth of the dig was
+## never applied: the ends of the crater finished in a step a metre high. A rotated oval hid
+## it, because its world-aligned footprint is bigger than its fade; this one is not rotated.
+func _check_oval(plain: Node3D) -> void:
+	var oval := STAMP.instantiate() as TerrainStamp
+	oval.shape = TerrainStamp.Shape.SOFT_CIRCLE
+	oval.strength = -10.0
+	oval.length = 30.0
+	oval.width = 24.0
+	oval.edge_softness = 10.0
+	oval.position = Vector3(0.0, 0.0, 240.0)
+	var stamped := _terrain([oval])
+	await process_frame
+	# On height-map samples, like the centres above, so the interpolation is not in the answer.
+	var spacing := 620.0 / 1023.0
+	var worst := 0.0
+	var beyond := 0
+	for i in range(0, 30):
+		var x := roundf((oval.position.x + 24.0 + i * 0.3) / spacing) * spacing
+		var expected: float = oval.strength * oval.value_at(x, oval.position.z)
+		var got: float = stamped.height_at(x, oval.position.z) - plain.height_at(x, oval.position.z)
+		worst = maxf(worst, absf(got - expected))
+		if x > oval.position.x + 25.0 and absf(expected) > 0.05:
+			beyond += 1
+	print("oval: out along the long axis the ground is at worst %.3f m off the stamp, %d samples past the old footprint still dug" % [worst, beyond])
+	check(beyond > 0, "no sample past the old footprint is meant to move - the test proves nothing")
+	check(worst < 0.05, "the oval's long axis is %.3f m off what the stamp says" % worst)
