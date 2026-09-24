@@ -6,6 +6,8 @@ extends SceneTree
 
 const SHOTS := "user://sun"
 
+var _failures := 0
+
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -74,13 +76,62 @@ func _run() -> void:
 	for i in 30:
 		await process_frame
 	await _shot("03_glitter_path", rig)
+	# The horizon. The sea used to end in a broken row of sky-coloured dashes there: its mesh
+	# stops a hair below the true horizon and, drawn dark blue to the last pixel, the edge
+	# rasterised against the pale sky. Now it fades out over its last stretch and the sky
+	# shows through. Measured as the mechanism: with and without the sea, the difference
+	# between the two frames has to arrive over many rows coming down from the sky, never
+	# in one step - a step is an edge.
+	var with_sea := Image.load_from_file(ProjectSettings.globalize_path("%s/03_glitter_path.png" % SHOTS))
+	var ocean := scene.get_node("Ocean")
+	ocean.hide()
+	await _shot("03_no_sea", rig)
+	ocean.show()
+	var no_sea := Image.load_from_file(ProjectSettings.globalize_path("%s/03_no_sea.png" % SHOTS))
+	# And once the sea has arrived, it has to be there in every pixel. The dashes were HOLES:
+	# pixels in the middle of the sea that were the sky, unchanged from the frame with no
+	# sea at all - the map's edge, where the bed used to drop a thousand metres in a step
+	# and the shoreline softening thinned the water to nothing. A row that is mostly sea
+	# with pixels in it that are not is what this counts; there were hundreds.
+	var biggest_step := 0.0
+	var previous := 0.0
+	var ramp_rows := 0
+	var holes := 0
+	for y in range(with_sea.get_height() * 22 / 100, with_sea.get_height() * 60 / 100):
+		var total := 0.0
+		var count := 0
+		var untouched := 0
+		for x in range(0, with_sea.get_width(), 4):
+			var bare := no_sea.get_pixel(x, y)
+			var gap := absf(with_sea.get_pixel(x, y).get_luminance() - bare.get_luminance())
+			total += gap
+			count += 1
+			# Only where the bare frame is sky. The island's own hill and beach sit in the
+			# left of these rows and are the same with or without the sea, and are not holes.
+			if gap < 0.01 and bare.b > 0.8 and bare.r < 0.75:
+				untouched += 1
+		var difference := total / float(count)
+		biggest_step = maxf(biggest_step, difference - previous)
+		if difference > 0.01 and difference < 0.15:
+			ramp_rows += 1
+		if difference > 0.15:
+			holes += untouched
+		previous = difference
+	print("horizon: the sea arrives over %d rows, biggest step between rows %.3f (an edge stepped 0.1 or more); %d holes in it (the dashes were hundreds)" % [ramp_rows, biggest_step, holes])
+	if biggest_step > 0.06:
+		push_error("the sea still ends in an edge at the horizon (step %.3f)" % biggest_step)
+		_failures += 1
+	if holes > 40:
+		push_error("the sea has %d holes in it - the dashed line is back" % holes)
+		_failures += 1
 	# And the opposite bearing, which should have no glitter at all.
 	rig.rotation.y = bearing + PI
 	for i in 20:
 		await process_frame
 	await _shot("04_away_from_sun", rig)
 	print("sun views: ", ProjectSettings.globalize_path(SHOTS))
-	quit(0)
+	print("sun views: ", "PASS" if _failures == 0 else "FAIL")
+	quit(0 if _failures == 0 else 1)
 
 
 func _shot(tag: String, rig: Node) -> void:

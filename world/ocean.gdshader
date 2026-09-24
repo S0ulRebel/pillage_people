@@ -38,6 +38,11 @@ uniform float detail_far = 260.0;
 // Actual exponential mesh layout, supplied by ocean.gd.
 uniform float radial_growth = 1.0712;
 uniform float radial_segments = 256.0;
+// Where the sea stops being drawn, in metres - the mesh's extent or the camera's far plane,
+// whichever is nearer; supplied by ocean.gd. The water fades out before it gets there, from
+// horizon_fade_start of the way - see horizon_fade in fragment().
+uniform float horizon = 4000.0;
+uniform float horizon_fade_start : hint_range(0.1, 0.95) = 0.55;
 
 group_uniforms Transmission;
 uniform float refraction_strength : hint_range(0.0, 0.05) = 0.008;
@@ -461,6 +466,16 @@ void fragment() {
         ALBEDO = under;
         ALPHA = edge;
     }
+    // The sea meets the sky by becoming it. The water stops being drawn somewhere - at the
+    // mesh's extent, or sooner at the camera's far plane, which at a thousand metres was
+    // the one that counted - a hair below the true horizon, and with the scene fog off here
+    // it stayed dark blue right up to that edge while the sky's pale horizon began on the
+    // other side of it: the edge, drawn at a fraction of a pixel, rasterised as a broken row
+    // of sky-coloured dashes along the horizon in every shot from the beach. Fading the water
+    // out over its last stretch lets the sky show through in its own colour, at whatever
+    // hour, and leaves no edge to draw. tests/sun_view.gd measures the arrival.
+    float horizon_fade = smoothstep(horizon * horizon_fade_start, horizon * 0.97, surface_range);
+    ALPHA *= 1.0 - horizon_fade;
     if (palette_preview) {
         ALBEDO = water;
         ALPHA = 1.0;

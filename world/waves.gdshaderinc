@@ -35,9 +35,15 @@ float water_time() { return preview_time < 0.0 ? TIME : preview_time; }
 
 float bed_height(vec2 p) {
     vec2 uv = (p - terrain_center) / max(terrain_size, 0.001) + 0.5;
-    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
-        return sea_y - 1000.0;
-    }
+    // Metres past the map's edge, zero inside it. The sea goes on beyond the map, and its
+    // bed has to go on too - from the border's own depth, down to deep water over forty
+    // metres. It used to drop a thousand metres in one step at the border, and the ocean's
+    // shoreline softening, which is never sharper than the pixel drawing it (by
+    // fwidth(thickness)), saw that step as a thousand-metre pixel and thinned the sea to
+    // nothing along the map's edge: a dashed line along the horizon from every beach.
+    vec2 past = max(max(-uv, uv - 1.0), vec2(0.0)) * max(terrain_size, 0.001);
+    float outside = length(past);
+    uv = clamp(uv, vec2(0.0), vec2(1.0));
     // The height map is a grid of samples at the CORNERS of the world: terrain.gd reads it
     // as index u * (N - 1), and builds the ground from it that way. A texture keeps its
     // samples at texel centres, so read straight, this was skewed by (0.5 - u) texels: nothing
@@ -46,7 +52,8 @@ float bed_height(vec2 p) {
     // the mesh draws. Measured by tests/underwater_view.gd.
     vec2 texels = vec2(textureSize(terrain_height, 0));
     uv = (uv * (texels - 1.0) + 0.5) / texels;
-    return terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
+    float bed = terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
+    return mix(bed, sea_y - 60.0, smoothstep(0.0, 40.0, outside));
 }
 
 // Displace geometry with Gerstner waves. Shading is evaluated independently per pixel.

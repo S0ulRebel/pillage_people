@@ -175,6 +175,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 	# The vertex shader fades displacement when an exponential ring becomes too coarse for
 	# a wavelength. Passing the actual mesh layout keeps that filter correct after tuning.
 	water.set_shader_parameter("radial_growth", pow(extent / near, 1.0 / float(rings)))
+	water.set_shader_parameter("horizon", extent)
 	water.set_shader_parameter("radial_segments", float(segments))
 	if terrain != null:
 		water.set_shader_parameter("terrain_height", terrain.height_texture())
@@ -252,6 +253,9 @@ func _process(delta: float) -> void:
 		_camera = get_viewport().get_camera_3d()
 		if _camera == null:
 			return
+		# Where this camera stops drawing the sea. Its far plane, at a thousand metres, is
+		# nearer than the mesh's edge, and it is where the water has to have faded out by.
+		_push("horizon", minf(extent, _camera.far))
 	# Horizontal follow only. The wave field is evaluated in world space in the shader, so the
 	# sea itself stays put - only the grid of vertices slides along underneath it.
 	var eye := _camera.global_position
