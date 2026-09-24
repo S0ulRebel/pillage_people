@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "files": 22,
+  "checks": [
+    "GLB headers and buffer bounds",
+    "Triangle mode and attribute counts",
+    "Unit normals"
+  ],
+  "limits": "Static GLB validation; no external engine import test."
+}

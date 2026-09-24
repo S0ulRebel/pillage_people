@@ -1,5 +1,10 @@
+@tool
+class_name GrassField
 extends MultiMeshInstance3D
 ## Grass, scattered in patches over the island's green band.
+##
+## Also what a hand-placed GrassPatch (grass_patch.tscn) grows its clump with - one field,
+## one clump - which is why it runs in the editor: nothing here acts until it is called.
 ##
 ## A MultiMesh, not a node each. Hundreds of tufts as separate MeshInstance3Ds is hundreds of
 ## things for the engine to cull and draw one at a time; as a MultiMesh it is one draw call and

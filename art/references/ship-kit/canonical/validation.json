@@ -1,0 +1,3643 @@
+{
+  "passed": true,
+  "tolerance_m": 0.001,
+  "parts": 18,
+  "assemblies": 4,
+  "joins_tested": 104,
+  "floorfits_tested": 44,
+  "stair_connections_tested": 3,
+  "checks": 781,
+  "failure_count": 0,
+  "failures": [],
+  "results": [
+    {
+      "check": "Unique part IDs",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_BOW: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_BOW: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_BOW: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_BOW: outward closed solid volumes",
+      "passed": true,
+      "components": 7,
+      "minimum_volume_m3": 0.112095128904224
+    },
+    {
+      "check": "BOTTOM_BOW: socket UP is exported geometry",
+      "passed": true,
+      "max_error_m": 5.551115123125783e-17
+    },
+    {
+      "check": "BOTTOM_BOW: socket UP unit normal",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_BOW: socket UP coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_BOW: socket AFT is exported geometry",
+      "passed": true,
+      "max_error_m": 2.220446049250313e-16
+    },
+    {
+      "check": "BOTTOM_BOW: socket AFT unit normal",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_BOW: socket AFT coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_BOW: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_BOW: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_BOW: bow vertex mirror symmetry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_BOW: symmetric centreline prow",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_BOW: closed solid across bow nose",
+      "passed": true,
+      "test_points": [
+        [
+          0.01,
+          2.5,
+          0.12
+        ],
+        [
+          -0.01,
+          2.5,
+          0.12
+        ]
+      ]
+    },
+    {
+      "check": "MIDDLE_BOW: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_BOW: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_BOW: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_BOW: outward closed solid volumes",
+      "passed": true,
+      "components": 18,
+      "minimum_volume_m3": 0.22226427090432727
+    },
+    {
+      "check": "MIDDLE_BOW: socket DOWN is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: socket DOWN unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_BOW: socket DOWN coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: socket UP is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: socket UP unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_BOW: socket UP coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: socket AFT is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: socket AFT unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_BOW: socket AFT coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: bow vertex mirror symmetry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_BOW: symmetric centreline prow",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_BOW: closed solid across bow nose",
+      "passed": true,
+      "test_points": [
+        [
+          0.01,
+          1.3,
+          0.12
+        ],
+        [
+          -0.01,
+          1.3,
+          0.12
+        ]
+      ]
+    },
+    {
+      "check": "TOP_BOW: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_BOW: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_BOW: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_BOW: outward closed solid volumes",
+      "passed": true,
+      "components": 6,
+      "minimum_volume_m3": 0.22226427090432727
+    },
+    {
+      "check": "TOP_BOW: socket DOWN is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_BOW: socket DOWN unit normal",
+      "passed": true
+    },
+    {
+      "check": "TOP_BOW: socket DOWN coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_BOW: socket AFT is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_BOW: socket AFT unit normal",
+      "passed": true
+    },
+    {
+      "check": "TOP_BOW: socket AFT coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_BOW: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_BOW: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_BOW: bow vertex mirror symmetry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_BOW: symmetric centreline prow",
+      "passed": true
+    },
+    {
+      "check": "TOP_BOW: closed solid across bow nose",
+      "passed": true,
+      "test_points": [
+        [
+          0.01,
+          0.4,
+          0.12
+        ],
+        [
+          -0.01,
+          0.4,
+          0.12
+        ]
+      ]
+    },
+    {
+      "check": "FLOOR_BOW: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_BOW: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_BOW: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_BOW: outward closed solid volumes",
+      "passed": true,
+      "components": 1,
+      "minimum_volume_m3": 2.3483398758597502
+    },
+    {
+      "check": "FLOOR_BOW: flat 0.18 m floor without posts",
+      "passed": true,
+      "bounds_y": [
+        -0.18,
+        0.0
+      ]
+    },
+    {
+      "check": "FLOOR_BOW: declared floor_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "FLOOR_BOW: bow vertex mirror symmetry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "FLOOR_BOW: symmetric centreline prow",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_CENTRE: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_CENTRE: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_CENTRE: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_CENTRE: outward closed solid volumes",
+      "passed": true,
+      "components": 3,
+      "minimum_volume_m3": 0.4640000000000001
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket UP is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket UP unit normal",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket UP coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket FORE is exported geometry",
+      "passed": true,
+      "max_error_m": 2.220446049250313e-16
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket FORE unit normal",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket FORE coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket AFT is exported geometry",
+      "passed": true,
+      "max_error_m": 2.220446049250313e-16
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket AFT unit normal",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_CENTRE: socket AFT coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_CENTRE: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_CENTRE: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_CENTRE: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_CENTRE: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_CENTRE: outward closed solid volumes",
+      "passed": true,
+      "components": 2,
+      "minimum_volume_m3": 0.3200000000000003
+    },
+    {
+      "check": "TOP_CENTRE: socket DOWN is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: socket DOWN unit normal",
+      "passed": true
+    },
+    {
+      "check": "TOP_CENTRE: socket DOWN coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: socket FORE is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: socket FORE unit normal",
+      "passed": true
+    },
+    {
+      "check": "TOP_CENTRE: socket FORE coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: socket AFT is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: socket AFT unit normal",
+      "passed": true
+    },
+    {
+      "check": "TOP_CENTRE: socket AFT coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_CENTRE: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "FLOOR_CENTRE: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_CENTRE: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_CENTRE: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_CENTRE: outward closed solid volumes",
+      "passed": true,
+      "components": 1,
+      "minimum_volume_m3": 2.016
+    },
+    {
+      "check": "FLOOR_CENTRE: flat 0.18 m floor without posts",
+      "passed": true,
+      "bounds_y": [
+        -0.18,
+        0.0
+      ]
+    },
+    {
+      "check": "FLOOR_CENTRE: declared floor_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_STERN: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_STERN: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_STERN: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "BOTTOM_STERN: outward closed solid volumes",
+      "passed": true,
+      "components": 17,
+      "minimum_volume_m3": 0.06883827040165312
+    },
+    {
+      "check": "BOTTOM_STERN: socket UP is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_STERN: socket UP unit normal",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_STERN: socket UP coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_STERN: socket FORE is exported geometry",
+      "passed": true,
+      "max_error_m": 2.220446049250313e-16
+    },
+    {
+      "check": "BOTTOM_STERN: socket FORE unit normal",
+      "passed": true
+    },
+    {
+      "check": "BOTTOM_STERN: socket FORE coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_STERN: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "BOTTOM_STERN: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_STERN: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_STERN: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_STERN: outward closed solid volumes",
+      "passed": true,
+      "components": 48,
+      "minimum_volume_m3": 0.05960734636812494
+    },
+    {
+      "check": "MIDDLE_STERN: socket DOWN is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: socket DOWN unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_STERN: socket DOWN coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: socket UP is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: socket UP unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_STERN: socket UP coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: socket FORE is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: socket FORE unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_STERN: socket FORE coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_STERN: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_STERN: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_STERN: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_STERN: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "TOP_STERN: outward closed solid volumes",
+      "passed": true,
+      "components": 16,
+      "minimum_volume_m3": 0.05960734636812494
+    },
+    {
+      "check": "TOP_STERN: socket DOWN is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_STERN: socket DOWN unit normal",
+      "passed": true
+    },
+    {
+      "check": "TOP_STERN: socket DOWN coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_STERN: socket FORE is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_STERN: socket FORE unit normal",
+      "passed": true
+    },
+    {
+      "check": "TOP_STERN: socket FORE coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_STERN: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TOP_STERN: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "FLOOR_STERN: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_STERN: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_STERN: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "FLOOR_STERN: outward closed solid volumes",
+      "passed": true,
+      "components": 1,
+      "minimum_volume_m3": 1.4158875210086599
+    },
+    {
+      "check": "FLOOR_STERN: flat 0.18 m floor without posts",
+      "passed": true,
+      "bounds_y": [
+        -0.18,
+        0.0
+      ]
+    },
+    {
+      "check": "FLOOR_STERN: declared floor_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: outward closed solid volumes",
+      "passed": true,
+      "components": 8,
+      "minimum_volume_m3": 0.08000000000000007
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket DOWN is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket DOWN unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket DOWN coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket UP is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket UP unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket UP coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket FORE is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket FORE unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket FORE coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket AFT is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket AFT unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: socket AFT coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE_GUN: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_CENTRE: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_CENTRE: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "MIDDLE_CENTRE: outward closed solid volumes",
+      "passed": true,
+      "components": 6,
+      "minimum_volume_m3": 0.3200000000000003
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket DOWN is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket DOWN unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket DOWN coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket UP is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket UP unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket UP coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket FORE is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket FORE unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket FORE coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket AFT is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket AFT unit normal",
+      "passed": true
+    },
+    {
+      "check": "MIDDLE_CENTRE: socket AFT coplanar",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: declared inner_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "MIDDLE_CENTRE: declared outer_outline_xz is exported geometry",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "STAIR_PORT_START: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_PORT_START: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_PORT_START: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_PORT_START: outward closed solid volumes",
+      "passed": true,
+      "components": 2,
+      "minimum_volume_m3": 0.27
+    },
+    {
+      "check": "STAIR_PORT_END: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_PORT_END: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_PORT_END: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_PORT_END: outward closed solid volumes",
+      "passed": true,
+      "components": 3,
+      "minimum_volume_m3": 0.1485
+    },
+    {
+      "check": "STAIR_STARBOARD_START: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_STARBOARD_START: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_STARBOARD_START: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_STARBOARD_START: outward closed solid volumes",
+      "passed": true,
+      "components": 2,
+      "minimum_volume_m3": 0.27
+    },
+    {
+      "check": "STAIR_STARBOARD_END: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_STARBOARD_END: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_STARBOARD_END: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIR_STARBOARD_END: outward closed solid volumes",
+      "passed": true,
+      "components": 3,
+      "minimum_volume_m3": 0.1485
+    },
+    {
+      "check": "STAIRS_260: nondegenerate triangles",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIRS_260: two faces per indexed edge",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIRS_260: opposite shared-edge directions",
+      "passed": true,
+      "count": 0
+    },
+    {
+      "check": "STAIRS_260: outward closed solid volumes",
+      "passed": true,
+      "components": 15,
+      "minimum_volume_m3": 0.019999999999999962
+    },
+    {
+      "check": "SINGLE_DECK: all parts supplied locally",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 0 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 0 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 0 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 0 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 0 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 1 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 1 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 1 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 1 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 1 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 2 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 2 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 2 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 2 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 2 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 3 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 3 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 3 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 3 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 3 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 4 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 4 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 4 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 4 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 4 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 5 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 5 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 5 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 5 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 5 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 6 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 6 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 6 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 6 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 6 complete boundary match",
+      "passed": true,
+      "max_error_m": 5.551115123125783e-17
+    },
+    {
+      "check": "SINGLE_DECK: join 7 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 7 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 7 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 7 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 7 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 8 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 8 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 8 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 8 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 8 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 9 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 9 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 9 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: join 9 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "SINGLE_DECK: join 9 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: floor fits FLOOR_BOW into TOP_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: floor fits FLOOR_STERN into TOP_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "SINGLE_DECK: exported assembly equals declared placements",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: all parts supplied locally",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 0 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 0 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 0 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 0 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 0 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 1 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 1 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 1 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 1 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 1 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 2 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 2 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 2 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 2 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 2 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 3 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 3 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 3 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 3 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 3 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 4 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 4 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 4 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 4 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 4 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 5 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 5 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 5 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 5 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 5 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 6 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 6 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 6 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 6 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 6 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 7 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 7 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 7 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 7 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 7 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 8 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 8 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 8 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 8 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 8 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 9 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 9 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 9 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 9 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 9 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 10 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 10 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 10 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 10 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 10 complete boundary match",
+      "passed": true,
+      "max_error_m": 5.551115123125783e-17
+    },
+    {
+      "check": "DOUBLE_DECK: join 11 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 11 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 11 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 11 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 11 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 12 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 12 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 12 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 12 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 12 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 13 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 13 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 13 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 13 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 13 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 14 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 14 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 14 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 14 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 14 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 15 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 15 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 15 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 15 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 15 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 16 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 16 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 16 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 16 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 16 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 17 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 17 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 17 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 17 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 17 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 18 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 18 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 18 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 18 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 18 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 19 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 19 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 19 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 19 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 19 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 20 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 20 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 20 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 20 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 20 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 21 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 21 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 21 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 21 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 21 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 22 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 22 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 22 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 22 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 22 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 23 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 23 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 23 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 23 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 23 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 24 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 24 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 24 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 24 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 24 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 25 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 25 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 25 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 25 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 25 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 26 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 26 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 26 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: join 26 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: join 26 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_BOW into MIDDLE_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_STERN into MIDDLE_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_BOW into TOP_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: floor fits FLOOR_STERN into TOP_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK: stair reaches upper floor",
+      "passed": true,
+      "top_y": 5.2
+    },
+    {
+      "check": "DOUBLE_DECK: stair begins at lower floor",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: stair width fits shaft",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: stair meets shaft exit",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK: stair shaft has no upper floor covering",
+      "passed": true,
+      "blocked_samples": 0
+    },
+    {
+      "check": "DOUBLE_DECK: exported assembly equals declared placements",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: all parts supplied locally",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 0 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 0 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 0 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 0 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 0 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 1 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 1 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 1 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 1 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 1 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 2 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 2 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 2 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 2 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 2 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 3 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 3 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 3 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 3 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 3 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 4 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 4 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 4 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 4 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 4 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 5 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 5 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 5 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 5 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 5 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 6 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 6 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 6 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 6 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 6 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 7 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 7 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 7 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 7 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 7 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 8 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 8 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 8 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 8 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 8 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 9 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 9 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 9 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 9 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 9 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 10 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 10 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 10 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 10 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 10 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 11 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 11 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 11 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 11 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 11 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 12 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 12 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 12 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 12 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 12 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 13 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 13 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 13 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 13 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 13 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 14 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 14 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 14 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 14 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 14 complete boundary match",
+      "passed": true,
+      "max_error_m": 5.551115123125783e-17
+    },
+    {
+      "check": "TRIPLE_DECK: join 15 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 15 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 15 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 15 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 15 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 16 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 16 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 16 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 16 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 16 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 17 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 17 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 17 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 17 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 17 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 18 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 18 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 18 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 18 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 18 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 19 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 19 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 19 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 19 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 19 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 20 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 20 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 20 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 20 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 20 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 21 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 21 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 21 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 21 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 21 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 22 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 22 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 22 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 22 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 22 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 23 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 23 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 23 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 23 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 23 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 24 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 24 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 24 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 24 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 24 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 25 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 25 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 25 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 25 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 25 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 26 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 26 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 26 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 26 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 26 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 27 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 27 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 27 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 27 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 27 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 28 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 28 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 28 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 28 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 28 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 29 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 29 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 29 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 29 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 29 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 30 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 30 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 30 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 30 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 30 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 31 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 31 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 31 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 31 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 31 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 32 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 32 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 32 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 32 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 32 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 33 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 33 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 33 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 33 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 33 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 34 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 34 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 34 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 34 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 34 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 35 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 35 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 35 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 35 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 35 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 36 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 36 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 36 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 36 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 36 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 37 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 37 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 37 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 37 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 37 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 38 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 38 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 38 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 38 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 38 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 39 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 39 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 39 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 39 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 39 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 40 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 40 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 40 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 40 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 40 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 41 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 41 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 41 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 41 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 41 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 42 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 42 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 42 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 42 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 42 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 43 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 43 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 43 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 43 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 43 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: join 44 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 44 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 44 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 44 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 44 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 45 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 45 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 45 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 45 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 45 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 46 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 46 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 46 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 46 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 46 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 47 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 47 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 47 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 47 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 47 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 48 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 48 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 48 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 48 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 48 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 49 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 49 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 49 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 49 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 49 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 50 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 50 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 50 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 50 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 50 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 51 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 51 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 51 coincident origins",
+      "passed": true,
+      "error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: join 51 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: join 51 complete boundary match",
+      "passed": true,
+      "max_error_m": 8.881784197001252e-16
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_BOW into MIDDLE_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_STERN into MIDDLE_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_BOW into MIDDLE_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_STERN into MIDDLE_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_BOW into TOP_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: floor fits FLOOR_STERN into TOP_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "TRIPLE_DECK: stair reaches upper floor",
+      "passed": true,
+      "top_y": 5.2
+    },
+    {
+      "check": "TRIPLE_DECK: stair begins at lower floor",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: stair width fits shaft",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: stair meets shaft exit",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: stair shaft has no upper floor covering",
+      "passed": true,
+      "blocked_samples": 0
+    },
+    {
+      "check": "TRIPLE_DECK: stair reaches upper floor",
+      "passed": true,
+      "top_y": 7.800000000000001
+    },
+    {
+      "check": "TRIPLE_DECK: stair begins at lower floor",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: stair width fits shaft",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: stair meets shaft exit",
+      "passed": true
+    },
+    {
+      "check": "TRIPLE_DECK: stair shaft has no upper floor covering",
+      "passed": true,
+      "blocked_samples": 0
+    },
+    {
+      "check": "TRIPLE_DECK: exported assembly equals declared placements",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: all parts supplied locally",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 0 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 0 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 0 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 0 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 0 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 1 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 1 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 1 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 1 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 1 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 2 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 2 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 2 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 2 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 2 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 3 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 3 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 3 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 3 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 3 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 4 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 4 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 4 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 4 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 4 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 5 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 5 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 5 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 5 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 5 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 6 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 6 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 6 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 6 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 6 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 7 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 7 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 7 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 7 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 7 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 8 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 8 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 8 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 8 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 8 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 9 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 9 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 9 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 9 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 9 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 10 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 10 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 10 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 10 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 10 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 11 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 11 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 11 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 11 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 11 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 12 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 12 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 12 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 12 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 12 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 13 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 13 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 13 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 13 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 13 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 14 named sockets exist",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 14 interface IDs",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 14 coincident origins",
+      "passed": true,
+      "error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 14 opposing normals",
+      "passed": true
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: join 14 complete boundary match",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_BOW into MIDDLE_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_CENTRE into MIDDLE_CENTRE_GUN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_STERN into MIDDLE_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_BOW into TOP_BOW",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_CENTRE into TOP_CENTRE",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: floor fits FLOOR_STERN into TOP_STERN",
+      "passed": true,
+      "max_error_m": 0.0
+    },
+    {
+      "check": "DOUBLE_DECK_EXPLODED: exported assembly equals declared placements",
+      "passed": true
+    }
+  ],
+  "mesh_sha256": {
+    "BOTTOM_BOW": "c8a8de1b2c6a52a64a2ad4ff7fe054e2546dd0b78ca96e61f1ea1e40e487a5a0",
+    "MIDDLE_BOW": "e764c7fc4a03bb054967f9747864d052cc1f4247e93d02d842824c63f7d150a5",
+    "TOP_BOW": "31260aa025c8b481e77e73c56e672b28306af95a53392bc1a80f6295bf5eb730",
+    "FLOOR_BOW": "38e48b93c5437dba33e2ff7561fe99a67d2ba3095bad82b134c26ee6b0be907f",
+    "BOTTOM_CENTRE": "5fbb86a0b521d64ed00ddd158eab93aac646ede00b01d4adb0f74b0da202131c",
+    "TOP_CENTRE": "2029eb8539c0de26128b1b5881577708354818f19941e04b7fa485d71ddfe8b5",
+    "FLOOR_CENTRE": "382dec62f06697de2e11fd5e69f4890faefdad1930760081128bbd48034e12ea",
+    "BOTTOM_STERN": "906e919e85472a74f0bd3b2122b67c03cd400c8719d51d67e1e5b0f9ce7d638e",
+    "MIDDLE_STERN": "45211fae3ef698195f267c3a673171ef1b3cabd98d18fd4608bbce1b010548de",
+    "TOP_STERN": "5336d8c18f5d50fa6ac6a61627d857347c6e812b39488f15562e8d6c853d5032",
+    "FLOOR_STERN": "2619454452878b9061a1f42994be1936b3f89f145cf88524f8c53e1ae3d09036",
+    "MIDDLE_CENTRE_GUN": "9e345775747d76134014cc94a7176fac483c7136cee341b8b2b9a4de460383e9",
+    "MIDDLE_CENTRE": "517d599c1d46487b260da087bd44958aa829a824e59959f5ccf6f0cce8fd0eaf",
+    "STAIR_PORT_START": "4c49e23d9e6cd6f71769f19bf46a79d86992b352de262ebdcb1f266668c9b7cc",
+    "STAIR_PORT_END": "6b9bd1fda50fe1ced18fb24d12fd85fa99db2153e6e4b61dc0acfd43f169cfba",
+    "STAIR_STARBOARD_START": "2c77973f7137dd99396bfbbf0a5cddf847484dacf946fc55b5a123deb5d2f970",
+    "STAIR_STARBOARD_END": "4168b339d267aafdc7b417103a2f61834506acb0d3c450106b8d643564dbf63c",
+    "STAIRS_260": "6040c7ea7a9f27d4977f83de7207ac764ba79c72de69bf5a33bafcae5a77ef60"
+  },
+  "contract_sha256": "bf8da36ff19bc6243f42932520d0b7123d4552889d18ec0f9f755984fd7e5bf5",
+  "limitations": [
+    "Construction geometry validation; no styled model, game collision or buoyancy test.",
+    "Stair opening checks sample exported floor triangles; no humanoid traversal simulation.",
+    "Separate indexed solids are checked without welding touching timber panels."
+  ]
+}

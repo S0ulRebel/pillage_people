@@ -1,0 +1,11 @@
+newmtl wood
+Kd 0.47 0.24 0.085
+Ks 0 0 0
+
+newmtl deck
+Kd 0.67 0.39 0.14
+Ks 0 0 0
+
+newmtl iron
+Kd 0.08 0.09 0.1
+Ks 0 0 0

@@ -1,0 +1,25 @@
+{
+  "reference": "../../07-multi-deck-style-v1.png",
+  "purpose": "Material and construction styling only. OBJ meshes and contract.json override all pictured proportions.",
+  "materials": {
+    "wood": "Warm honey brown broad planks; darker recesses; restrained grain; broad cel-shaded highlights.",
+    "iron": "Dark desaturated forged iron straps with sparse large fasteners; restrained highlights.",
+    "edges": "Readable bevels away from locked interfaces. Keep mating edges planar."
+  },
+  "image_review": {
+    "accepted": "Color, surface treatment, flush wall tops, open wall ends, one gunport per side, flat decks.",
+    "do_not_copy": [
+      "Image wall aspect ratios and separation do not match the metric blockouts.",
+      "Image stair opening has a near-end crosspiece: omit it. The contracted first slot tile is open at both longitudinal ends.",
+      "The apparent deep hatch lining is not a floor-thickness specification. Floor thickness remains 0.18 m.",
+      "F_STAIR_PORT_PAIR is a concept label, not a new part. Assemble F_STAIR_PORT and F_STAIR_PORT_END.",
+      "Use exactly thirteen stair treads from A_STAIRS_260, not a count inferred from the picture."
+    ]
+  },
+  "modeling_constraints": [
+    "Preserve connection vertices within 0.001 m and protected 0.10 m interface zones.",
+    "Do not extend posts, trim or iron across stacking planes.",
+    "Keep stair slots, gunports and landing clearances open.",
+    "Apply style to the existing fifteen meshes rather than reconstructing dimensions from this sheet."
+  ]
+}

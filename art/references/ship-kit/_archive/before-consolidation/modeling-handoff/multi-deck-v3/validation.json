@@ -1,0 +1,9 @@
+{
+  "checks": [
+    "Exported lower stern / upper stern / rail footprints equal",
+    "Exported rounded deck perimeter equals inner stern wall",
+    "All three floor types flat and post-free",
+    "Lower stern fore socket matches HULL_U6"
+  ],
+  "limits": "Blockout interface checks only; final styled model and collision not tested."
+}

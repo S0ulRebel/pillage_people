@@ -1,0 +1,230 @@
+{
+  "contract": "../canonical/contract.json",
+  "coordinate_view": {
+    "up": "y",
+    "forward": "-z"
+  },
+  "renderer": "orthographic barycentric z-buffer, flat materials, two-sided faces",
+  "previews": [
+    {
+      "id": "BOTTOM_BOW",
+      "label": "BOTTOM BOW",
+      "image": "BOTTOM_BOW.png",
+      "mesh": "../canonical/meshes/BOTTOM_BOW.obj",
+      "view": "Centred bow view \u00b7 elevated orthographic",
+      "vertices": 134,
+      "faces": 240,
+      "triangles": 240
+    },
+    {
+      "id": "MIDDLE_BOW",
+      "label": "MIDDLE BOW",
+      "image": "MIDDLE_BOW.png",
+      "mesh": "../canonical/meshes/MIDDLE_BOW.obj",
+      "view": "Centred bow view \u00b7 elevated orthographic",
+      "vertices": 144,
+      "faces": 216,
+      "triangles": 216
+    },
+    {
+      "id": "TOP_BOW",
+      "label": "TOP BOW",
+      "image": "TOP_BOW.png",
+      "mesh": "../canonical/meshes/TOP_BOW.obj",
+      "view": "Centred bow view \u00b7 elevated orthographic",
+      "vertices": 48,
+      "faces": 72,
+      "triangles": 72
+    },
+    {
+      "id": "FLOOR_BOW",
+      "label": "FLOOR BOW",
+      "image": "FLOOR_BOW.png",
+      "mesh": "../canonical/meshes/FLOOR_BOW.obj",
+      "view": "Deck plan shape \u00b7 top-down orthographic",
+      "vertices": 14,
+      "faces": 24,
+      "triangles": 24
+    },
+    {
+      "id": "BOTTOM_CENTRE",
+      "label": "BOTTOM CENTRE",
+      "image": "BOTTOM_CENTRE.png",
+      "mesh": "../canonical/meshes/BOTTOM_CENTRE.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 48,
+      "faces": 84,
+      "triangles": 84
+    },
+    {
+      "id": "TOP_CENTRE",
+      "label": "TOP CENTRE",
+      "image": "TOP_CENTRE.png",
+      "mesh": "../canonical/meshes/TOP_CENTRE.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 16,
+      "faces": 24,
+      "triangles": 24
+    },
+    {
+      "id": "FLOOR_CENTRE",
+      "label": "FLOOR CENTRE",
+      "image": "FLOOR_CENTRE.png",
+      "mesh": "../canonical/meshes/FLOOR_CENTRE.obj",
+      "view": "Deck plan shape \u00b7 top-down orthographic",
+      "vertices": 8,
+      "faces": 12,
+      "triangles": 12
+    },
+    {
+      "id": "BOTTOM_STERN",
+      "label": "BOTTOM STERN",
+      "image": "BOTTOM_STERN.png",
+      "mesh": "../canonical/meshes/BOTTOM_STERN.obj",
+      "view": "Centred aft view \u00b7 elevated orthographic",
+      "vertices": 354,
+      "faces": 640,
+      "triangles": 640
+    },
+    {
+      "id": "MIDDLE_STERN",
+      "label": "MIDDLE STERN",
+      "image": "MIDDLE_STERN.png",
+      "mesh": "../canonical/meshes/MIDDLE_STERN.obj",
+      "view": "Centred aft view \u00b7 elevated orthographic",
+      "vertices": 384,
+      "faces": 576,
+      "triangles": 576
+    },
+    {
+      "id": "TOP_STERN",
+      "label": "TOP STERN",
+      "image": "TOP_STERN.png",
+      "mesh": "../canonical/meshes/TOP_STERN.obj",
+      "view": "Centred aft view \u00b7 elevated orthographic",
+      "vertices": 128,
+      "faces": 192,
+      "triangles": 192
+    },
+    {
+      "id": "FLOOR_STERN",
+      "label": "FLOOR STERN",
+      "image": "FLOOR_STERN.png",
+      "mesh": "../canonical/meshes/FLOOR_STERN.obj",
+      "view": "Deck plan shape \u00b7 top-down orthographic",
+      "vertices": 34,
+      "faces": 64,
+      "triangles": 64
+    },
+    {
+      "id": "MIDDLE_CENTRE_GUN",
+      "label": "MIDDLE CENTRE GUN",
+      "image": "MIDDLE_CENTRE_GUN.png",
+      "mesh": "../canonical/meshes/MIDDLE_CENTRE_GUN.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 64,
+      "faces": 96,
+      "triangles": 96
+    },
+    {
+      "id": "MIDDLE_CENTRE",
+      "label": "MIDDLE CENTRE",
+      "image": "MIDDLE_CENTRE.png",
+      "mesh": "../canonical/meshes/MIDDLE_CENTRE.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 48,
+      "faces": 72,
+      "triangles": 72
+    },
+    {
+      "id": "STAIR_PORT_START",
+      "label": "STAIR PORT START",
+      "image": "STAIR_PORT_START.png",
+      "mesh": "../canonical/meshes/STAIR_PORT_START.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 16,
+      "faces": 24,
+      "triangles": 24
+    },
+    {
+      "id": "STAIR_PORT_END",
+      "label": "STAIR PORT END",
+      "image": "STAIR_PORT_END.png",
+      "mesh": "../canonical/meshes/STAIR_PORT_END.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 24,
+      "faces": 36,
+      "triangles": 36
+    },
+    {
+      "id": "STAIR_STARBOARD_START",
+      "label": "STAIR STARBOARD START",
+      "image": "STAIR_STARBOARD_START.png",
+      "mesh": "../canonical/meshes/STAIR_STARBOARD_START.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 16,
+      "faces": 24,
+      "triangles": 24
+    },
+    {
+      "id": "STAIR_STARBOARD_END",
+      "label": "STAIR STARBOARD END",
+      "image": "STAIR_STARBOARD_END.png",
+      "mesh": "../canonical/meshes/STAIR_STARBOARD_END.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 24,
+      "faces": 36,
+      "triangles": 36
+    },
+    {
+      "id": "STAIRS_260",
+      "label": "STAIRS 260",
+      "image": "STAIRS_260.png",
+      "mesh": "../canonical/meshes/STAIRS_260.obj",
+      "view": "Three-quarter \u00b7 elevated orthographic",
+      "vertices": 120,
+      "faces": 180,
+      "triangles": 180
+    },
+    {
+      "id": "SINGLE_DECK",
+      "label": "Single Deck",
+      "image": "SINGLE_DECK.png",
+      "mesh": "../canonical/assemblies/SINGLE_DECK.obj",
+      "view": "Side / three-quarter \u00b7 orthographic",
+      "vertices": 856,
+      "faces": 1472,
+      "triangles": 1472
+    },
+    {
+      "id": "DOUBLE_DECK",
+      "label": "Double Deck",
+      "image": "DOUBLE_DECK.png",
+      "mesh": "../canonical/assemblies/DOUBLE_DECK.obj",
+      "view": "Side / three-quarter \u00b7 orthographic",
+      "vertices": 2008,
+      "faces": 3240,
+      "triangles": 3240
+    },
+    {
+      "id": "TRIPLE_DECK",
+      "label": "Triple Deck",
+      "image": "TRIPLE_DECK.png",
+      "mesh": "../canonical/assemblies/TRIPLE_DECK.obj",
+      "view": "Side / three-quarter \u00b7 orthographic",
+      "vertices": 3448,
+      "faces": 5440,
+      "triangles": 5440
+    },
+    {
+      "id": "DOUBLE_DECK_EXPLODED",
+      "label": "Double Deck Exploded",
+      "image": "DOUBLE_DECK_EXPLODED.png",
+      "mesh": "../canonical/assemblies/DOUBLE_DECK_EXPLODED.obj",
+      "view": "Exploded arrangement \u00b7 orthographic",
+      "vertices": 2008,
+      "faces": 3240,
+      "triangles": 3240
+    }
+  ]
+}

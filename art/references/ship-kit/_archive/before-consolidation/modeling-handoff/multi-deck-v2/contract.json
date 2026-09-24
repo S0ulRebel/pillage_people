@@ -1,0 +1,1047 @@
+{
+  "version": "2.0-additive",
+  "base_contract": "../contract.json",
+  "units": "metres",
+  "axes": {
+    "X": "starboard",
+    "Y": "up",
+    "Z": "aft"
+  },
+  "pitch": 2.6,
+  "floor_thickness": 0.18,
+  "clear_room_height": 2.42,
+  "floor_datums": [
+    2.6,
+    5.2,
+    7.8
+  ],
+  "rule": "The v1 lower hull is used ONCE. Replace all v1 D floors in multi-deck assemblies with F floors at Y=2.6. Add U walls at a floor datum, then F floor at datum+2.6. Highest floor receives R bulwarks, never another U by default.",
+  "interfaces": {
+    "UPPER_WALL_6": {
+      "side_strips_x": [
+        [
+          -3,
+          -2.8
+        ],
+        [
+          2.8,
+          3
+        ]
+      ],
+      "bay_length": 2,
+      "height": 2.6
+    },
+    "VERTICAL_STACK": {
+      "footprints_by_host": {
+        "H01_BOW": [
+          [
+            0,
+            0.05
+          ],
+          [
+            1,
+            0.35
+          ],
+          [
+            2,
+            0.7
+          ],
+          [
+            4,
+            1
+          ]
+        ],
+        "H02_MID": [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            1
+          ]
+        ],
+        "H03_STERN": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0.96
+          ],
+          [
+            2,
+            0.8
+          ]
+        ]
+      },
+      "outer_half_width": 3,
+      "inner_half_width": 2.8,
+      "skin_thickness_at_full_beam": 0.2
+    },
+    "FLOOR": {
+      "top": 0,
+      "bottom": -0.18
+    },
+    "STAIR": {
+      "clear_width": 1.1,
+      "shaft_length": 3.25,
+      "rise": 2.6
+    }
+  },
+  "sockets": "Upper wall: BOTTOM at [0,0,0], normal -Y; TOP at [0,2.6,0], normal +Y. Mate identical footprint IDs only. Longitudinal FORE at Z=0 and AFT at Z=length have side strips matching adjacent parts; up is +Y. Floor origins coincide with level datum. Rails BOTTOM shares corresponding footprint.",
+  "cabin_rule": "Cabins mount by their floor origin on the highest deck datum. Cabin roof rise stays 2.58 m: use v1 A01 stairs for cabin roofs, v2 A_STAIRS_260 only between full ship levels. Galleries need opening walls and bracket clearance; not instantiated in these examples.",
+  "lower_hold": "Below Y=2.6 is structural hold volume with curved bilge, not an extra flat walkable floor. Add a separately designed hold walkway and ladder if gameplay requires access.",
+  "allowed_examples": "Two or three walkable decks only in this blockout; no seaworthiness, mass, stability or buoyancy claim.",
+  "parts": [
+    {
+      "id": "U_BOW",
+      "role": "stackable upper hull wall",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        2.6,
+        4
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/U_BOW.obj",
+      "notes": "Footprint follows H01_BOW. Open top and bottom. At lengthwise interfaces, side-wall strips only; no transverse bulkhead. Bottom Y=0, top Y=2.6. Locks first/last 0.10 m of each mating surface."
+    },
+    {
+      "id": "F_BOW",
+      "role": "floor insert",
+      "bounds_min": [
+        -2.8,
+        -0.18,
+        0.08
+      ],
+      "bounds_max": [
+        2.8,
+        0,
+        4
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/F_BOW.obj",
+      "notes": "Top Y=0, underside Y=-0.18. Place at chosen floor datum, not wall base origin. Same XZ footprint as upper wall interior. Never duplicate an existing floor."
+    },
+    {
+      "id": "R_BOW",
+      "role": "topmost bulwark",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        0.6,
+        4
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/R_BOW.obj",
+      "notes": "Place only on highest exposed deck. Do not retain it under another U wall. No ceiling or floor included."
+    },
+    {
+      "id": "U_MID",
+      "role": "stackable upper hull wall",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        2.6,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/U_MID.obj",
+      "notes": "Footprint follows H02_MID. Open top and bottom. At lengthwise interfaces, side-wall strips only; no transverse bulkhead. Bottom Y=0, top Y=2.6. Locks first/last 0.10 m of each mating surface."
+    },
+    {
+      "id": "F_MID",
+      "role": "floor insert",
+      "bounds_min": [
+        -2.8,
+        -0.18,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        0,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/F_MID.obj",
+      "notes": "Top Y=0, underside Y=-0.18. Place at chosen floor datum, not wall base origin. Same XZ footprint as upper wall interior. Never duplicate an existing floor."
+    },
+    {
+      "id": "R_MID",
+      "role": "topmost bulwark",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        0.6,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/R_MID.obj",
+      "notes": "Place only on highest exposed deck. Do not retain it under another U wall. No ceiling or floor included."
+    },
+    {
+      "id": "U_STERN",
+      "role": "stackable upper hull wall",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        2.6,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/U_STERN.obj",
+      "notes": "Footprint follows H03_STERN. Open top and bottom. At lengthwise interfaces, side-wall strips only; no transverse bulkhead. Bottom Y=0, top Y=2.6. Locks first/last 0.10 m of each mating surface."
+    },
+    {
+      "id": "F_STERN",
+      "role": "floor insert",
+      "bounds_min": [
+        -2.8,
+        -0.18,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        0,
+        1.92
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/F_STERN.obj",
+      "notes": "Top Y=0, underside Y=-0.18. Place at chosen floor datum, not wall base origin. Same XZ footprint as upper wall interior. Never duplicate an existing floor."
+    },
+    {
+      "id": "R_STERN",
+      "role": "topmost bulwark",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        0.6,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/R_STERN.obj",
+      "notes": "Place only on highest exposed deck. Do not retain it under another U wall. No ceiling or floor included."
+    },
+    {
+      "id": "U_GUNPORT_MID",
+      "role": "upper gun-deck wall",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        2.6,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/U_GUNPORT_MID.obj",
+      "notes": "Replaces U_MID. Openings on both sides: Z=0.5..1.5, Y=0.8..1.6 ABOVE this level floor. Bottom and top wall strips are unchanged. Cannon barrel centre must be fitted to this opening; do not scale whole hull."
+    },
+    {
+      "id": "F_STAIR_PORT",
+      "role": "stair-opening floor",
+      "bounds_min": [
+        -2.8,
+        -0.18,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        0,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/F_STAIR_PORT.obj",
+      "notes": "Replaces F_MID. Through-slot X=-2.05..-0.95 over full 2 m length. Use this tile followed by its END variant for a 1.10x3.25 m shaft. No framing intrudes into clear opening."
+    },
+    {
+      "id": "F_STAIR_STARBOARD",
+      "role": "stair-opening floor",
+      "bounds_min": [
+        -2.8,
+        -0.18,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        0,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/F_STAIR_STARBOARD.obj",
+      "notes": "Mirrored port slot X=0.95..2.05. Follow with the matching END tile. Do not rotate port mesh silently or change its origin."
+    },
+    {
+      "id": "F_STAIR_PORT_END",
+      "role": "stair exit floor",
+      "bounds_min": [
+        -2.8,
+        -0.18,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        0,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/F_STAIR_PORT_END.obj",
+      "notes": "Use after the matching opening tile. Slot ends at local Z=1.25; the final 0.75 m is solid landing. Together the two tiles form a 1.10 x 3.25 m shaft, exactly matching the stair run."
+    },
+    {
+      "id": "F_STAIR_STARBOARD_END",
+      "role": "stair exit floor",
+      "bounds_min": [
+        -2.8,
+        -0.18,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        0,
+        2
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/F_STAIR_STARBOARD_END.obj",
+      "notes": "Use after the matching opening tile. Slot ends at local Z=1.25; the final 0.75 m is solid landing. Together the two tiles form a 1.10 x 3.25 m shaft, exactly matching the stair run."
+    },
+    {
+      "id": "A_STAIRS_260",
+      "role": "inter-floor stairs",
+      "bounds_min": [
+        -0.5,
+        0.12000000000000001,
+        0.0
+      ],
+      "bounds_max": [
+        0.5,
+        2.6,
+        3.25
+      ],
+      "origin": "Fore station centre at current finished floor height",
+      "mesh": "meshes/A_STAIRS_260.obj",
+      "notes": "13 rises of 0.20 m, 13 treads of 0.25 m; 3.25 m run, top Y=2.60. Width1.0. Upper slot is 1.10x3.25 m. Preserve headroom and add side stringers/handrails in modeling without closing shaft. Require 1 m approach/exit landing."
+    }
+  ],
+  "assemblies": [
+    {
+      "id": "2_DECK_SHIP",
+      "walkable_decks": 2,
+      "length": 14,
+      "beam": 6,
+      "placements": [
+        {
+          "part": "H01_BOW",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            4
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            6
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            8
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            10
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H03_STERN",
+          "position": [
+            0,
+            0,
+            12
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "F_BOW",
+          "position": [
+            0,
+            2.6,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_BOW",
+          "position": [
+            0,
+            2.6,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STERN",
+          "position": [
+            0,
+            2.6,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_STERN",
+          "position": [
+            0,
+            2.6,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_BOW",
+          "position": [
+            0,
+            5.2,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_BOW",
+          "position": [
+            0,
+            5.2,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STAIR_PORT",
+          "position": [
+            0,
+            5.2,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            5.2,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STAIR_PORT_END",
+          "position": [
+            0,
+            5.2,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            5.2,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            5.2,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            5.2,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            5.2,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            5.2,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STERN",
+          "position": [
+            0,
+            5.2,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_STERN",
+          "position": [
+            0,
+            5.2,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "A_STAIRS_260",
+          "position": [
+            -1.5,
+            2.6,
+            4
+          ],
+          "source": "v2"
+        }
+      ]
+    },
+    {
+      "id": "3_DECK_SHIP",
+      "walkable_decks": 3,
+      "length": 14,
+      "beam": 6,
+      "placements": [
+        {
+          "part": "H01_BOW",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            4
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            6
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            8
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            10
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "H03_STERN",
+          "position": [
+            0,
+            0,
+            12
+          ],
+          "source": "v1"
+        },
+        {
+          "part": "F_BOW",
+          "position": [
+            0,
+            2.6,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_BOW",
+          "position": [
+            0,
+            2.6,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            2.6,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_GUNPORT_MID",
+          "position": [
+            0,
+            2.6,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STERN",
+          "position": [
+            0,
+            2.6,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_STERN",
+          "position": [
+            0,
+            2.6,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_BOW",
+          "position": [
+            0,
+            5.2,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_BOW",
+          "position": [
+            0,
+            5.2,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STAIR_PORT",
+          "position": [
+            0,
+            5.2,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_MID",
+          "position": [
+            0,
+            5.2,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STAIR_PORT_END",
+          "position": [
+            0,
+            5.2,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_MID",
+          "position": [
+            0,
+            5.2,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            5.2,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_MID",
+          "position": [
+            0,
+            5.2,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            5.2,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_MID",
+          "position": [
+            0,
+            5.2,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STERN",
+          "position": [
+            0,
+            5.2,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "U_STERN",
+          "position": [
+            0,
+            5.2,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "A_STAIRS_260",
+          "position": [
+            -1.5,
+            2.6,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_BOW",
+          "position": [
+            0,
+            7.8,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_BOW",
+          "position": [
+            0,
+            7.8,
+            0
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            7.8,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            7.8,
+            4
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_MID",
+          "position": [
+            0,
+            7.8,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            7.8,
+            6
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STAIR_STARBOARD",
+          "position": [
+            0,
+            7.8,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            7.8,
+            8
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STAIR_STARBOARD_END",
+          "position": [
+            0,
+            7.8,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_MID",
+          "position": [
+            0,
+            7.8,
+            10
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "F_STERN",
+          "position": [
+            0,
+            7.8,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "R_STERN",
+          "position": [
+            0,
+            7.8,
+            12
+          ],
+          "source": "v2"
+        },
+        {
+          "part": "A_STAIRS_260",
+          "position": [
+            1.5,
+            5.2,
+            8
+          ],
+          "source": "v2"
+        }
+      ]
+    }
+  ]
+}

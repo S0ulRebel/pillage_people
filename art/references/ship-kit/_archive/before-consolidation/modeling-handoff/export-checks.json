@@ -1,0 +1,83 @@
+{
+  "exported_hull_sockets": [
+    {
+      "part": "H01_BOW",
+      "socket": "AFT",
+      "max_exported_vertex_error_m": 0.0
+    },
+    {
+      "part": "H02_MID",
+      "socket": "FORE",
+      "max_exported_vertex_error_m": 0.0
+    },
+    {
+      "part": "H02_MID",
+      "socket": "AFT",
+      "max_exported_vertex_error_m": 0.0
+    },
+    {
+      "part": "H03_STERN",
+      "socket": "FORE",
+      "max_exported_vertex_error_m": 0.0
+    }
+  ],
+  "gallery_socket_transforms": [
+    {
+      "host": [
+        -1,
+        2,
+        10
+      ],
+      "yaw_deg": 0,
+      "bay": [
+        -1,
+        2,
+        10.1
+      ],
+      "socket_gap_m": 0.0
+    },
+    {
+      "host": [
+        1,
+        2,
+        10
+      ],
+      "yaw_deg": 0,
+      "bay": [
+        1,
+        2,
+        10.1
+      ],
+      "socket_gap_m": 0.0
+    },
+    {
+      "host": [
+        -2,
+        2,
+        9
+      ],
+      "yaw_deg": -90,
+      "bay": [
+        -2.1,
+        2,
+        9
+      ],
+      "socket_gap_m": 0.0
+    },
+    {
+      "host": [
+        2,
+        2,
+        9
+      ],
+      "yaw_deg": 90,
+      "bay": [
+        2.1,
+        2,
+        9
+      ],
+      "socket_gap_m": 0.0
+    }
+  ],
+  "limits": "Socket equality is not collision validation. No styled final models or gameplay integration tested."
+}

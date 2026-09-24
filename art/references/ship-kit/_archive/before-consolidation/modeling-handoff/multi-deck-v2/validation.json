@@ -1,0 +1,41 @@
+{
+  "stair_connections": [
+    {
+      "assembly": "2_DECK_SHIP",
+      "stair_origin": [
+        -1.5,
+        2.6,
+        4
+      ],
+      "exit_height": 5.2,
+      "opening_tiles": 2,
+      "side_clearance": 0.05
+    },
+    {
+      "assembly": "3_DECK_SHIP",
+      "stair_origin": [
+        -1.5,
+        2.6,
+        4
+      ],
+      "exit_height": 5.2,
+      "opening_tiles": 2,
+      "side_clearance": 0.05
+    },
+    {
+      "assembly": "3_DECK_SHIP",
+      "stair_origin": [
+        1.5,
+        5.2,
+        8
+      ],
+      "exit_height": 7.8,
+      "opening_tiles": 2,
+      "side_clearance": 0.05
+    }
+  ],
+  "clear_height": 2.42,
+  "parts": 15,
+  "assemblies": 2,
+  "limits": "Blockout and declared opening checks only. No game collision, styled export, structural stability or buoyancy validation."
+}

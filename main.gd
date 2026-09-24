@@ -8,11 +8,12 @@ const CoastalStudy = preload("res://world/coastal_study.gd")
 const Grunts = preload("res://actors/grunt/grunts.gd")
 const Hud = preload("res://ui/hud.gd")
 const Rocks = preload("res://props/rock/rocks.gd")
-const FishSchoolScript = preload("res://props/fish/fish_school.gd")
+const FishSchoolScene = preload("res://props/fish/fish_school.tscn")
 const CargoField = preload("res://props/cargo/cargo_field.gd")
-const Grass = preload("res://props/grass/grass.gd")
+const GrassScene = preload("res://props/grass/grass.tscn")
 const Palms = preload("res://props/palm/palms.gd")
 const ShipScene = preload("res://props/ship/ship.tscn")
+const SharkScene = preload("res://props/shark/shark.tscn")
 const Music = preload("res://systems/music.gd")
 const Sfx = preload("res://systems/sfx.gd")
 const Ambience = preload("res://systems/ambience.gd")
@@ -456,7 +457,7 @@ func _wire_enemy(sfx: Node3D, grunt: Node3D) -> void:
 func _loose_shark(around: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args():
 		return
-	var shark := Shark.new()
+	var shark: Shark = SharkScene.instantiate()
 	shark.name = "Shark"
 	add_child(shark)
 	shark.ocean = _ocean
@@ -558,7 +559,7 @@ func _stock_fish(around: Vector3) -> void:
 		if water < WATER_FOR_FISH:
 			print("fish: school %d skipped, deepest water on that bearing is %.1f m" % [i, water])
 			continue
-		var school: MultiMeshInstance3D = FishSchoolScript.new()
+		var school: MultiMeshInstance3D = FishSchoolScene.instantiate()
 		school.name = "FishSchool%d" % i
 		school.count = fish_per_school
 		add_child(school)
@@ -688,7 +689,7 @@ func _plant_palms(around: Vector3) -> void:
 func _scatter_grass(around: Vector3) -> void:
 	if "--noassets" in OS.get_cmdline_user_args() or grass_patches <= 0:
 		return
-	var field: MultiMeshInstance3D = Grass.new()
+	var field: MultiMeshInstance3D = GrassScene.instantiate()
 	field.name = "Grass"
 	field.patches = grass_patches
 	add_child(field)

@@ -1,0 +1,14 @@
+{
+  "parts": 15,
+  "checks": [
+    "U_BOW exported top/bottom footprints match",
+    "U_GUNPORT_MID exported top/bottom footprints match",
+    "U_MID exported top/bottom footprints match",
+    "U_STERN exported top/bottom footprints match",
+    "PORT exported landing meets tread at Z=3.25",
+    "STARBOARD exported landing meets tread at Z=3.25",
+    "2_DECK_SHIP exported mesh valid and stair landing transforms match",
+    "3_DECK_SHIP exported mesh valid and stair landing transforms match"
+  ],
+  "limits": "Checks exported blockout topology, stack footprints and stair landing coordinates. Styled meshes, collision, supports and gameplay remain modeling tasks."
+}

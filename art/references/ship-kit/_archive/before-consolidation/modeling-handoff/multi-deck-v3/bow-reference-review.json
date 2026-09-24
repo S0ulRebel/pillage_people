@@ -1,0 +1,9 @@
+{
+  "reference": "../../09-symmetric-closed-bow-v1.png",
+  "supersedes": "U_BOW and F_BOW panels of 08-corrected-stern-and-decks-v1.png",
+  "checks": [
+    "U_BOW exported vertices are symmetric across X=0",
+    "F_BOW exported vertices are symmetric across X=0"
+  ],
+  "limits": "Concept is a shape/style reference. Existing metre-scale mesh has a narrow capped nose rather than a mathematical sharp point; no mesh dimensions changed in this illustration pass."
+}

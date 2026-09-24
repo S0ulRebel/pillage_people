@@ -1,0 +1,104 @@
+{
+  "hull_seam_checks": [
+    {
+      "assembly": "SHORT_HULL",
+      "joint": [
+        "H01_BOW",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "SHORT_HULL",
+      "joint": [
+        "H02_MID",
+        "H03_STERN"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "TRADER_HULL",
+      "joint": [
+        "H01_BOW",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "TRADER_HULL",
+      "joint": [
+        "H02_MID",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "TRADER_HULL",
+      "joint": [
+        "H02_MID",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "TRADER_HULL",
+      "joint": [
+        "H02_MID",
+        "H03_STERN"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "LONG_HULL",
+      "joint": [
+        "H01_BOW",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "LONG_HULL",
+      "joint": [
+        "H02_MID",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "LONG_HULL",
+      "joint": [
+        "H02_MID",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "LONG_HULL",
+      "joint": [
+        "H02_MID",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "LONG_HULL",
+      "joint": [
+        "H02_MID",
+        "H02_MID"
+      ],
+      "max_vertex_gap_m": 0.0
+    },
+    {
+      "assembly": "LONG_HULL",
+      "joint": [
+        "H02_MID",
+        "H03_STERN"
+      ],
+      "max_vertex_gap_m": 0.0
+    }
+  ],
+  "parts": 24,
+  "starter_meshes": 7,
+  "assemblies": 3,
+  "limits": "Only hull mating rings checked numerically. Cabin/accessory briefs are dimensional contracts, not generated or collision-tested meshes. No final model validation or render QA implied."
+}

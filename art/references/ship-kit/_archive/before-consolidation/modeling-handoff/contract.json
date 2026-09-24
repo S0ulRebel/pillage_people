@@ -1,0 +1,1138 @@
+{
+  "version": "1.0",
+  "units": "metres",
+  "axes": {
+    "X": "starboard",
+    "Y": "up",
+    "Z": "aft"
+  },
+  "handedness": "right-handed",
+  "blender_conversion": "(X,Y,Z) contract -> (X,-Z,Y) Blender, apply transforms before GLB export; imported GLB returns Y-up",
+  "tolerances": {
+    "socket_position_m": 0.001,
+    "normal_dot_max": -0.999,
+    "locked_band_m": 0.1
+  },
+  "source_priority": [
+    "contract.json interface coordinates",
+    "starter OBJ geometry",
+    "orthographic SVG outlines",
+    "approved PNGs for style only"
+  ],
+  "interfaces": {
+    "HULL_U6": {
+      "outer_xy": [
+        [
+          -3,
+          2.6
+        ],
+        [
+          -3,
+          2
+        ],
+        [
+          -2.8,
+          1
+        ],
+        [
+          -2,
+          0.3
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          2,
+          0.3
+        ],
+        [
+          2.8,
+          1
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          2.6
+        ]
+      ],
+      "inner_xy": [
+        [
+          -2.8,
+          2.6
+        ],
+        [
+          -2.8,
+          2
+        ],
+        [
+          -2.6,
+          1.12
+        ],
+        [
+          -1.92,
+          0.5
+        ],
+        [
+          0,
+          0.2
+        ],
+        [
+          1.92,
+          0.5
+        ],
+        [
+          2.6,
+          1.12
+        ],
+        [
+          2.8,
+          2
+        ],
+        [
+          2.8,
+          2.6
+        ]
+      ],
+      "deck_y": 2,
+      "bulwark_y": 2.6
+    },
+    "DECK_56": {
+      "width": 5.6,
+      "top_y": 2,
+      "thickness": 0.18
+    },
+    "WALL_EDGE": {
+      "height": 2.4,
+      "thickness": 0.2
+    },
+    "GALLERY_18": {
+      "clear_width": 1.8,
+      "clear_height": 2.2,
+      "floor_offset": 0
+    },
+    "MAST_036": {
+      "radius": 0.18
+    }
+  },
+  "mating_rule": "Matching interface ID, coincident socket positions, opposite outward normals, same up vector, unit scale. Never mate parts merely because their bounding boxes touch.",
+  "exclusions": [
+    "No arbitrary-width hulls",
+    "No gunport variant until a separate gun-deck elevation is defined; prior art places ports below main deck",
+    "No verified rigging or sail system in v1",
+    "No validated bow/stern rudder or bowsprit fixtures yet"
+  ],
+  "parts": [
+    {
+      "id": "H01_BOW",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        2.6,
+        4
+      ],
+      "origin": "Fore station on keel baseline; bow nose for H01",
+      "sockets": [
+        {
+          "name": "AFT",
+          "interface": "HULL_U6",
+          "position": [
+            0,
+            0,
+            4
+          ],
+          "outward_normal": [
+            0,
+            0,
+            1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Preserve supplied OBJ vertices within 0.10 m of each HULL_U6 connection. Open U-shaped ends, never a wall across the interior. End caps close shell thickness ONLY. Bow nose / stern transom may close their non-connection ends.",
+      "starter_mesh": "meshes/H01_BOW.obj"
+    },
+    {
+      "id": "H02_MID",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        2.6,
+        2
+      ],
+      "origin": "Fore station on keel baseline; bow nose for H01",
+      "sockets": [
+        {
+          "name": "FORE",
+          "interface": "HULL_U6",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "AFT",
+          "interface": "HULL_U6",
+          "position": [
+            0,
+            0,
+            2
+          ],
+          "outward_normal": [
+            0,
+            0,
+            1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Preserve supplied OBJ vertices within 0.10 m of each HULL_U6 connection. Open U-shaped ends, never a wall across the interior. End caps close shell thickness ONLY. Bow nose / stern transom may close their non-connection ends.",
+      "starter_mesh": "meshes/H02_MID.obj"
+    },
+    {
+      "id": "H03_STERN",
+      "bounds_min": [
+        -3,
+        0,
+        0
+      ],
+      "bounds_max": [
+        3,
+        2.6,
+        2
+      ],
+      "origin": "Fore station on keel baseline; bow nose for H01",
+      "sockets": [
+        {
+          "name": "FORE",
+          "interface": "HULL_U6",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Preserve supplied OBJ vertices within 0.10 m of each HULL_U6 connection. Open U-shaped ends, never a wall across the interior. End caps close shell thickness ONLY. Bow nose / stern transom may close their non-connection ends.",
+      "starter_mesh": "meshes/H03_STERN.obj"
+    },
+    {
+      "id": "D01_DECK",
+      "bounds_min": [
+        -2.8,
+        1.82,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        2,
+        2
+      ],
+      "origin": "Same origin as host H02",
+      "sockets": [
+        {
+          "name": "FORE",
+          "interface": "DECK_56",
+          "position": [
+            0,
+            2,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "AFT",
+          "interface": "DECK_56",
+          "position": [
+            0,
+            2,
+            2
+          ],
+          "outward_normal": [
+            0,
+            0,
+            1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Deck top Y=2.0. Fits H02 only. Follow starter beveled underside to avoid intersecting curved hull. No railings on connection edges.",
+      "starter_mesh": "meshes/D01_DECK.obj"
+    },
+    {
+      "id": "D02_HATCH_DECK",
+      "bounds_min": [
+        -2.8,
+        1.82,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        2,
+        2
+      ],
+      "origin": "Same origin as host H02",
+      "sockets": [
+        {
+          "name": "FORE",
+          "interface": "DECK_56",
+          "position": [
+            0,
+            2,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "AFT",
+          "interface": "DECK_56",
+          "position": [
+            0,
+            2,
+            2
+          ],
+          "outward_normal": [
+            0,
+            0,
+            1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Same deck as D01, replace rather than overlay. Clear opening X=-0.6..0.6, Z=0.4..1.6 through full thickness. Do not fill opening.",
+      "starter_mesh": "meshes/D02_HATCH_DECK.obj"
+    },
+    {
+      "id": "D03_BOW_DECK",
+      "bounds_min": [
+        -2.8,
+        1.82,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        2,
+        4
+      ],
+      "origin": "Same origin as host hull",
+      "sockets": [],
+      "modeling_instructions": "Use shaped starter deck on H01_BOW only, never stretch rectangular D01. Deck top Y=2.0; exact end meets adjacent deck.",
+      "starter_mesh": "meshes/D03_BOW_DECK.obj",
+      "host": "H01_BOW"
+    },
+    {
+      "id": "D04_STERN_DECK",
+      "bounds_min": [
+        -2.8,
+        1.82,
+        0
+      ],
+      "bounds_max": [
+        2.8,
+        2,
+        2
+      ],
+      "origin": "Same origin as host hull",
+      "sockets": [],
+      "modeling_instructions": "Use shaped starter deck on H03_STERN only, never stretch rectangular D01. Deck top Y=2.0; exact end meets adjacent deck.",
+      "starter_mesh": "meshes/D04_STERN_DECK.obj",
+      "host": "H03_STERN"
+    },
+    {
+      "id": "C01_CABIN_WALL",
+      "bounds_min": [
+        -1,
+        0,
+        -0.1
+      ],
+      "bounds_max": [
+        1,
+        2.4,
+        0.1
+      ],
+      "origin": "Bottom centre of 2 m wall",
+      "sockets": [
+        {
+          "name": "LEFT",
+          "interface": "WALL_EDGE",
+          "position": [
+            -1,
+            0,
+            0
+          ],
+          "outward_normal": [
+            -1,
+            0,
+            0
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "RIGHT",
+          "interface": "WALL_EDGE",
+          "position": [
+            1,
+            0,
+            0
+          ],
+          "outward_normal": [
+            1,
+            0,
+            0
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Wall runs along X; exterior +Z. Final 0.10 m at each end is reserved for junction posts: wall geometry spans X=-0.9..0.9. Y=0 sits on deck. Opaque solid variant."
+    },
+    {
+      "id": "C02_GALLERY_OPENING",
+      "bounds_min": [
+        -1,
+        0,
+        -0.1
+      ],
+      "bounds_max": [
+        1,
+        2.4,
+        0.1
+      ],
+      "origin": "Same as C01",
+      "sockets": [
+        {
+          "name": "GALLERY",
+          "interface": "GALLERY_18",
+          "position": [
+            0,
+            0,
+            0.1
+          ],
+          "outward_normal": [
+            0,
+            0,
+            1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Replaces C01. Open rectangle X=-0.9..0.9, Y=0..2.2 through wall. Frame only above opening and in junction-post strips. No window, back wall, floor lip or door in passage."
+    },
+    {
+      "id": "C03_DOOR_WALL",
+      "bounds_min": [
+        -1,
+        0,
+        -0.1
+      ],
+      "bounds_max": [
+        1,
+        2.4,
+        0.1
+      ],
+      "origin": "Same as C01",
+      "sockets": [],
+      "modeling_instructions": "Replaces C01. Doorway clear X=-0.45..0.45,Y=0..2.0. Door mesh separate, pivot at left jamb. Closed door may occlude doorway; open rotation must clear stairs."
+    },
+    {
+      "id": "C04_JUNCTION_POST",
+      "bounds_min": [
+        -0.1,
+        0,
+        -0.1
+      ],
+      "bounds_max": [
+        0.1,
+        2.4,
+        0.1
+      ],
+      "origin": "Bottom centre",
+      "sockets": [],
+      "modeling_instructions": "One post at every 2 m wall endpoint; shared endpoints use one post only. Compatible with straight and right-angle walls. Walls butt against post; no duplicate corner end caps."
+    },
+    {
+      "id": "C05_ROOF_TILE",
+      "bounds_min": [
+        -1,
+        2.4,
+        0
+      ],
+      "bounds_max": [
+        1,
+        2.58,
+        2
+      ],
+      "origin": "Cabin floor datum, tile fore centre",
+      "sockets": [],
+      "modeling_instructions": "2x2 m tile, four make 4x4 m cabin roof. Walkable top Y=2.58. No railing across adjacent tile edges. Exterior fascia a separate decoration, never resize tile."
+    },
+    {
+      "id": "G01_REAR_BAY",
+      "bounds_min": [
+        -1,
+        -0.3,
+        0
+      ],
+      "bounds_max": [
+        1,
+        2.4,
+        0.8
+      ],
+      "origin": "Floor centre at inboard mating plane",
+      "sockets": [
+        {
+          "name": "INBOARD",
+          "interface": "GALLERY_18",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Window bay projects along local +Z. Open attachment rectangle X=-0.9..0.9,Y=0..2.2. Floor TOP Y=0; roof aligns to cabin Y=2.4. Windowed exterior at +Z. Mount only into C02; no solid wall behind. Side variants may add mirrored trim strictly inside bounds. Local topology is shared; placement rotation selects ship side."
+    },
+    {
+      "id": "G02_PORT_BAY",
+      "bounds_min": [
+        -1,
+        -0.3,
+        0
+      ],
+      "bounds_max": [
+        1,
+        2.4,
+        0.8
+      ],
+      "origin": "Floor centre at inboard mating plane",
+      "sockets": [
+        {
+          "name": "INBOARD",
+          "interface": "GALLERY_18",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Window bay projects along local +Z. Open attachment rectangle X=-0.9..0.9,Y=0..2.2. Floor TOP Y=0; roof aligns to cabin Y=2.4. Windowed exterior at +Z. Mount only into C02; no solid wall behind. Side variants may add mirrored trim strictly inside bounds. Local topology is shared; placement rotation selects ship side."
+    },
+    {
+      "id": "G03_STARBOARD_BAY",
+      "bounds_min": [
+        -1,
+        -0.3,
+        0
+      ],
+      "bounds_max": [
+        1,
+        2.4,
+        0.8
+      ],
+      "origin": "Floor centre at inboard mating plane",
+      "sockets": [
+        {
+          "name": "INBOARD",
+          "interface": "GALLERY_18",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "Window bay projects along local +Z. Open attachment rectangle X=-0.9..0.9,Y=0..2.2. Floor TOP Y=0; roof aligns to cabin Y=2.4. Windowed exterior at +Z. Mount only into C02; no solid wall behind. Side variants may add mirrored trim strictly inside bounds. Local topology is shared; placement rotation selects ship side."
+    },
+    {
+      "id": "A01_STAIRS",
+      "bounds_min": [
+        -0.5,
+        0,
+        0
+      ],
+      "bounds_max": [
+        0.5,
+        2.58,
+        3.3
+      ],
+      "origin": "Bottom landing edge centre",
+      "sockets": [
+        {
+          "name": "LOW",
+          "interface": "WALK_10",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "outward_normal": [
+            0,
+            0,
+            -1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "HIGH",
+          "interface": "WALK_10",
+          "position": [
+            0,
+            2.58,
+            3.3
+          ],
+          "outward_normal": [
+            0,
+            0,
+            1
+          ],
+          "roll_reference": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "modeling_instructions": "12 equal rises of 0.215 m over 3.3 m run; 0.275 m tread. Reaches C05 roof. Reserve 1x1 m clear landings at both ends and 2 m headroom. Not for arbitrary deck heights."
+    },
+    {
+      "id": "A02_LADDER",
+      "bounds_min": [
+        -0.35,
+        0,
+        -0.15
+      ],
+      "bounds_max": [
+        0.35,
+        2.58,
+        0.15
+      ],
+      "origin": "Bottom centre",
+      "sockets": [],
+      "modeling_instructions": "Fixed roof-height ladder, 0.7 m wide. Top Y=2.58. Needs separate clear 0.8x0.8 m roof hatch and side access; do not run through a solid roof tile. Place against exterior wall, away from projecting galleries."
+    },
+    {
+      "id": "M01_LOWER_MAST",
+      "bounds_min": [
+        -0.25,
+        0,
+        -0.25
+      ],
+      "bounds_max": [
+        0.25,
+        5.5,
+        0.25
+      ],
+      "origin": "Deck centre",
+      "sockets": [
+        {
+          "name": "TOP",
+          "interface": "MAST_036",
+          "position": [
+            0,
+            5.5,
+            0
+          ],
+          "outward_normal": [
+            0,
+            1,
+            0
+          ],
+          "roll_reference": [
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "modeling_instructions": "Solid round wooden spar: radius 0.25 at deck tapering to 0.18 at Y=5.5. Last 0.15 m stays exact circular radius 0.18. Mount on deck replacing hatch tile if necessary; collision is not decorative rope."
+    },
+    {
+      "id": "M02_TOPMAST",
+      "bounds_min": [
+        -0.18,
+        0,
+        -0.18
+      ],
+      "bounds_max": [
+        0.18,
+        3,
+        0.18
+      ],
+      "origin": "Bottom centre",
+      "sockets": [
+        {
+          "name": "BOTTOM",
+          "interface": "MAST_036",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "outward_normal": [
+            0,
+            -1,
+            0
+          ],
+          "roll_reference": [
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "modeling_instructions": "Solid spar radius 0.18 at foot tapering to 0.08 at top. First 0.15 m preserves radius 0.18. Mate directly to M01 TOP at Y=5.5; cosmetic collar may cover joint."
+    },
+    {
+      "id": "M03_LOOKOUT",
+      "bounds_min": [
+        -1.1,
+        -0.18,
+        -1.1
+      ],
+      "bounds_max": [
+        1.1,
+        1.1,
+        1.1
+      ],
+      "origin": "Floor top centre",
+      "sockets": [],
+      "modeling_instructions": "Floor thickness .18, central circular through-hole radius .185; mounts around M01 mast neck at local Y=5.5. Separate access opening X=.3..1.0,Z=-.4.. .4 through floor. No geometry in mast hole. Rails height1.1, offset hatch clear. This is a wrap attachment, not an end-to-end mast socket."
+    },
+    {
+      "id": "F01_HELM",
+      "bounds_min": [
+        -0.55,
+        0,
+        -0.45
+      ],
+      "bounds_max": [
+        0.55,
+        1.5,
+        0.45
+      ],
+      "origin": "Deck contact centre",
+      "sockets": [],
+      "modeling_instructions": "Decorative deck attachment; reserve X +/-0.8 and Z +/-1.1 for player access. No claim of physical steering linkage in v1."
+    },
+    {
+      "id": "F02_CAPSTAN",
+      "bounds_min": [
+        -1.4,
+        0,
+        -1.4
+      ],
+      "bounds_max": [
+        1.4,
+        1.1,
+        1.4
+      ],
+      "origin": "Deck contact centre",
+      "sockets": [],
+      "modeling_instructions": "Bounds include extended bars. Reserve radius1.7 for operation. Keep outside stairs and mast clearances; do not shrink solely to fit a crowded deck."
+    },
+    {
+      "id": "F03_BOWSPRIT",
+      "bounds_min": [
+        -0.15,
+        -0.15,
+        0
+      ],
+      "bounds_max": [
+        0.15,
+        0.15,
+        3
+      ],
+      "origin": "Base centre, spar extends local +Z",
+      "sockets": [],
+      "modeling_instructions": "Solid spar. Requires named bow mounting fixture; no HULL_U6 socket. V1 geometry envelope only; not included in validated hull assemblies."
+    },
+    {
+      "id": "F04_RUDDER",
+      "bounds_min": [
+        -0.12,
+        -1.5,
+        0
+      ],
+      "bounds_max": [
+        0.12,
+        0.5,
+        1
+      ],
+      "origin": "Hinge axis origin",
+      "sockets": [],
+      "modeling_instructions": "Rudder rotates about local Y; hangs aft. Requires matching stern hinge fixture; no HULL_U6 socket. V1 geometry envelope only; not included in validated hull assemblies."
+    }
+  ],
+  "assemblies": [
+    {
+      "id": "SHORT_HULL",
+      "length": 8,
+      "placements": [
+        {
+          "part": "H01_BOW",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "part": "D03_BOW_DECK",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            4
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            4
+          ]
+        },
+        {
+          "part": "H03_STERN",
+          "position": [
+            0,
+            0,
+            6
+          ]
+        },
+        {
+          "part": "D04_STERN_DECK",
+          "position": [
+            0,
+            0,
+            6
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TRADER_HULL",
+      "length": 12,
+      "placements": [
+        {
+          "part": "H01_BOW",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "part": "D03_BOW_DECK",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            4
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            4
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            6
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            6
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            8
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            8
+          ]
+        },
+        {
+          "part": "H03_STERN",
+          "position": [
+            0,
+            0,
+            10
+          ]
+        },
+        {
+          "part": "D04_STERN_DECK",
+          "position": [
+            0,
+            0,
+            10
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LONG_HULL",
+      "length": 16,
+      "placements": [
+        {
+          "part": "H01_BOW",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "part": "D03_BOW_DECK",
+          "position": [
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            4
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            4
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            6
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            6
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            8
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            8
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            10
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            10
+          ]
+        },
+        {
+          "part": "H02_MID",
+          "position": [
+            0,
+            0,
+            12
+          ]
+        },
+        {
+          "part": "D01_DECK",
+          "position": [
+            0,
+            0,
+            12
+          ]
+        },
+        {
+          "part": "H03_STERN",
+          "position": [
+            0,
+            0,
+            14
+          ]
+        },
+        {
+          "part": "D04_STERN_DECK",
+          "position": [
+            0,
+            0,
+            14
+          ]
+        }
+      ]
+    }
+  ]
+}
