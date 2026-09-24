@@ -12,7 +12,9 @@ D:\Godot\Godot_v4.7.2-stable_win64.exe --path D:\code\pillage_people
 See [CONVENTIONS.md](CONVENTIONS.md) for where files go and how behaviour is split up. Read
 that before adding anything.
 
-**Keyboard:** WASD move (relative to the camera) · Space jump · **1** cutlass, **2** flintlock
+**Keyboard:** WASD move (relative to the camera) · Space jump · **C** dives, and once under he
+stays under: C sinks, Space rises, and Space held until he breaks the surface puts him back on it
+· **1** cutlass, **2** flintlock
 · left click uses whichever is in his hand · **hold right click** to guard · **Z** spyglass,
 wheel zooms while it is up · middle-drag turn and tilt the camera · mouse wheel zoom · Q/E
 turn · E beside the ship climbs onto the deck · E at the helm drives (W/S way, A/D turn, E lets go).
@@ -21,8 +23,9 @@ R and F used to tilt the camera. The middle-button drag does that better, and R 
 player looks for a sidearm.
 
 **Touch (iPad):** left half = virtual stick (appears where your thumb lands) · right half drag
-= turn and tilt · two-finger pinch = zoom · bottom-right button = jump. These appear only on a
-real touchscreen; on desktop add `--touch` to see them.
+= turn and tilt · two-finger pinch = zoom · bottom-right button = jump · a second button, left
+of it, appears while swimming: hold it to dive and sink, hold jump to rise. These appear only on
+a real touchscreen; on desktop add `--touch` to see them.
 
 ## What is in it
 

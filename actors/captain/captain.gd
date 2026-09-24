@@ -6,8 +6,7 @@ extends CharacterBody3D
 
 ## Normal movement. The walk clip plays below run_above, so this sits under it.
 @export var speed := 4.8
-## Held-Shift movement. Shift is also the dive key, but the two never apply at once - dive
-## only means anything while swimming, and this only applies on land.
+## Held-Shift movement, on land only.
 @export var sprint_speed := 9.0
 @export var acceleration := 12.0
 @export var turn_speed := 12.0
@@ -180,7 +179,15 @@ extends CharacterBody3D
 ## Wading turns into swimming once the water is this deep - about chest height.
 @export var swim_depth := 1.3
 @export var swim_speed := 5.5
-## How hard the water pushes you back to the surface when you stop diving.
+## How far below swim_depth he floats while swimming on the surface. Not zero: is_swimming is
+## "deeper than swim_depth", and a body floating exactly there reads as not swimming on the
+## odd tick, which on touch hid the dive button under a thumb that was pressing it.
+@export var surface_rest := 0.1
+## How far below where he floats a dive counts as surfaced. Zero would need the key held
+## right up to where the surface takes him anyway; much more and a shallow dive never counts.
+@export var surface_reach := 0.15
+## How hard the water holds him at the surface while he is swimming on it - and brings him
+## back to it after a plunge. Not while diving: see _swim.
 @export var buoyancy := 7.0
 ## Water resists: momentum from running does not carry far once you are in it.
 @export var water_drag := 3.0
@@ -210,6 +217,10 @@ var _buffered := 0.0
 var _holding_jump := false
 ## Set by the touch dive button; the keyboard uses the "dive" action directly.
 var _holding_dive := false
+## True from the moment he goes under on purpose until he breaks the surface again. While it
+## is set the water holds him wherever he is: C takes him down, Space brings him up, letting
+## go of both leaves him at that depth. It ends only by rising through swimming depth.
+var _diving := false
 ## True between die() and revive(). Checked before anything else each frame.
 var _dead := false
 ## Seconds left in the current swing; zero when not attacking.
@@ -398,6 +409,8 @@ func die() -> void:
 	_dead = true
 	_buffered = 0.0
 	_holding_jump = false
+	_holding_dive = false
+	_diving = false
 	died.emit()
 
 
@@ -777,6 +790,16 @@ func is_swimming() -> bool:
 	return submersion() > swim_depth
 
 
+## Under the surface on purpose, and staying there until he swims back up to it.
+func is_diving() -> bool:
+	return _diving
+
+
+## How far under the water he floats while swimming on it.
+func surface_depth() -> float:
+	return swim_depth + surface_rest
+
+
 func _physics_process(delta: float) -> void:
 	if _dead:
 		# Gravity still applies and momentum still bleeds off, so a captain killed in mid-air
@@ -826,10 +849,13 @@ func _physics_process(delta: float) -> void:
 	# --- jump feel: coyote time, buffered presses, short hops, heavier fall ---
 	# The press and the release are caught in _unhandled_input; what is left here is the
 	# countdown they start.
-	_buffered = maxf(0.0, _buffered - delta)
-	_coyote = coyote_time if is_on_floor() else maxf(0.0, _coyote - delta)
-
 	var swimming := is_swimming()
+	_buffered = maxf(0.0, _buffered - delta)
+	# No coyote time from the seabed. Holding depth puts him on the floor whenever the water
+	# is shallower than the dive, and a jump pressed there fired a full land jump on the tick
+	# he rose through swimming depth - a leap out of the sea.
+	_coyote = coyote_time if is_on_floor() and not swimming else maxf(0.0, _coyote - delta)
+
 	# Only on the crossing, not every frame spent wet.
 	var wet := submersion() > 0.25
 	if wet != _was_wet:
@@ -840,6 +866,9 @@ func _physics_process(delta: float) -> void:
 	if swimming:
 		_swim(delta)
 		return
+	# Out of the water - walked out, climbed aboard, or thrown clear - and a dive that was
+	# never surfaced from would otherwise still be one the next time he went in.
+	_diving = false
 
 	if _buffered > 0.0 and _coyote > 0.0:
 		velocity.y = _jump_velocity()
@@ -902,25 +931,44 @@ func _steer(delta: float) -> void:
 	_update_animation()
 
 
-## Swimming: no jump arc and no gravity, just buoyancy, drag and free vertical control.
+## Swimming: no jump arc and no gravity, just drag and vertical control, in two states.
 ##
-## Holding jump swims up, holding dive swims down, and letting go floats back to the surface.
-## Without that float the player sinks quietly to the seabed whenever they stop steering.
+## On the surface, the water holds him there: a plunge floats back up, jump lifts him, and
+## the dive key takes him under. Under, he is diving, and the water holds him wherever he is -
+## the dive key sinks him, jump raises him, neither leaves him at that depth - until he rises
+## through swimming depth, which puts him back on the surface. Letting go used to float him
+## up, which meant holding a key down for the whole of every dive.
 func _swim(delta: float) -> void:
 	var direction := _move_direction()
 	var target := direction * swim_speed
 	velocity.x = move_toward(velocity.x, target.x, water_drag * delta * swim_speed)
 	velocity.z = move_toward(velocity.z, target.z, water_drag * delta * swim_speed)
 
+	# Both together cancel. Letting up win looped him: up through the surface, out of the
+	# swim state, back in, and under again from the still-held dive key, for as long as both
+	# were held.
+	var wants_up := _holding_jump or Input.is_action_pressed("jump")
+	var wants_down := _holding_dive or Input.is_action_pressed("dive")
+	var up := wants_up and not wants_down
+	var down := wants_down and not wants_up
+	if down:
+		_diving = true
 	var vertical := 0.0
-	if _holding_jump or Input.is_action_pressed("jump"):
+	if _diving:
+		if up:
+			vertical = swim_speed
+		elif down:
+			vertical = -swim_speed
+		# Surfaced: back to where he floats, and the surface takes over holding him. Not while
+		# the dive key is down, or a dive begun at the surface would end on the tick it began.
+		if not down and submersion() <= surface_depth() + surface_reach:
+			_diving = false
+	elif up:
 		vertical = swim_speed
-	elif _holding_dive or Input.is_action_pressed("dive"):
-		vertical = -swim_speed
 	else:
 		# Float up, but stop at the surface rather than launching out of the water.
-		var above_swimming_depth: float = submersion() - swim_depth
-		vertical = clampf(above_swimming_depth * buoyancy, -swim_speed, swim_speed)
+		var above_surface: float = submersion() - surface_depth()
+		vertical = clampf(above_surface * buoyancy, -swim_speed, swim_speed)
 	velocity.y = move_toward(velocity.y, vertical, water_drag * delta * swim_speed * 2.0)
 	move_and_slide()
 

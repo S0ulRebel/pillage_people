@@ -283,39 +283,113 @@ func _swim_test() -> void:
 	var sea: float = _terrain.sea_level()
 	await get_tree().process_frame
 
-	# Drop into open water well off the beach, where the seabed is clear below.
+	var failures := 0
+	# Drop into open water well off the beach, where the seabed is clear below, and let the
+	# surface take him: a plunge is not a dive.
 	var deep := Vector3(0.0, sea - 3.0, _terrain.world_size * 0.42)
 	_player.global_position = deep
 	_player.velocity = Vector3.ZERO
-	for i in 6:
+	for i in 90:
 		await get_tree().physics_frame
-	print("in water: swimming=%s dive button visible=%s" % [_player.is_swimming(), touch.get_node("DiveButton").visible])
+	var surface: float = _player.surface_depth()
+	print("in water: swimming=%s diving=%s dive button visible=%s, %.2f m under (floats at %.2f)"
+			% [_player.is_swimming(), _player.is_diving(), touch.get_node("DiveButton").visible,
+			_player.submersion(), surface])
+	if _player.is_diving() or absf(_player.submersion() - surface) > 0.2:
+		failures += 1
+		push_error("a plunge should float him back to the surface, not leave him %.2f m under"
+				% _player.submersion())
 
+	# Dive: down while the key is held - the real key, so the binding is part of what is
+	# tested; the touch button's path is exercised further down.
 	var before: float = _player.global_position.y
-	_player.set_diving(true)
+	Input.action_press("dive")
 	for i in 30:
 		await get_tree().physics_frame
 	var after_dive: float = _player.global_position.y
-	print("dive:    %.2f -> %.2f m (%.2f)" % [before, after_dive, after_dive - before])
+	print("dive:    %.2f -> %.2f m (%.2f), diving=%s" % [before, after_dive, after_dive - before, _player.is_diving()])
+	if not _player.is_diving() or after_dive > before - 1.0:
+		failures += 1
+		push_error("holding dive should take him down and leave him diving")
 
-	_player.set_diving(false)
+	# ...and held there once it is let go. This is the rule: no floating back up. Measured
+	# after the water has taken his momentum, which is a dozen frames of drift - and with
+	# water under him, or the seabed would be doing the holding and the check would prove
+	# nothing.
+	Input.action_release("dive")
+	for i in 15:
+		await get_tree().physics_frame
+	var rest: float = _player.global_position.y
+	for i in 60:
+		await get_tree().physics_frame
+	var held: float = _player.global_position.y
+	var clearance: float = held - _terrain.height_at(_player.global_position.x, _player.global_position.z)
+	print("let go:  drifted to %.2f m, then held within %.3f m for a second with %.2f m of water under him, diving=%s"
+			% [rest, absf(held - rest), clearance, _player.is_diving()])
+	if not _player.is_diving() or absf(held - rest) > 0.05:
+		failures += 1
+		push_error("letting go of dive should hold his depth; he moved %.2f m" % (held - rest))
+	if clearance < 0.3:
+		failures += 1
+		push_error("he is resting on the seabed (%.2f m clear), so the hold proves nothing" % clearance)
+
+	# Up while jump is held, held again when it is let go short of the surface.
 	_player.request_jump()
-	for i in 30:
+	for i in 10:
 		await get_tree().physics_frame
-	var after_rise: float = _player.global_position.y
-	print("swim up: %.2f -> %.2f m (%.2f)" % [after_dive, after_rise, after_rise - after_dive])
-
 	_player.release_jump()
-	for i in 90:
+	for i in 15:
 		await get_tree().physics_frame
-	print("float:   settled at %.2f m, sea level %.2f m" % [_player.global_position.y, sea])
+	var part_way: float = _player.global_position.y
+	for i in 60:
+		await get_tree().physics_frame
+	var held_again: float = _player.global_position.y
+	print("swim up: %.2f -> %.2f m, let go and held within %.3f m, diving=%s"
+			% [held, part_way, absf(held_again - part_way), _player.is_diving()])
+	if part_way <= held + 0.3 or not _player.is_diving() or absf(held_again - part_way) > 0.05:
+		failures += 1
+		push_error("jump should raise him, and letting go short of the surface should hold him there, still diving")
+
+	# The touch button sinks him the same way.
+	_player.set_diving(true)
+	for i in 10:
+		await get_tree().physics_frame
+	_player.set_diving(false)
+	for i in 15:
+		await get_tree().physics_frame
+	var touched: float = _player.global_position.y
+	print("button:  %.2f -> %.2f m (%.2f), diving=%s" % [held_again, touched, touched - held_again, _player.is_diving()])
+	if touched >= held_again - 0.3 or not _player.is_diving():
+		failures += 1
+		push_error("the touch dive button should sink him like the key does")
+
+	# Jump held long enough reaches the surface, and that is what ends the dive.
+	_player.request_jump()
+	var frames := 0
+	while _player.is_diving() and frames < 300:
+		await get_tree().physics_frame
+		frames += 1
+	_player.release_jump()
+	for i in 60:
+		await get_tree().physics_frame
+	print("surface: dive over after %d frames, settled %.2f m under, swimming=%s diving=%s"
+			% [frames, _player.submersion(), _player.is_swimming(), _player.is_diving()])
+	if _player.is_diving() or not _player.is_swimming() \
+			or absf(_player.submersion() - surface) > 0.2:
+		failures += 1
+		push_error("holding jump to the surface should end the dive and leave him swimming on it")
 
 	# Back on land the button has to go away, and dive must not stay latched on.
 	_player.global_position = _terrain.find_spawn() + Vector3.UP * 2.0
 	for i in 6:
 		await get_tree().physics_frame
-	print("on land: swimming=%s dive button visible=%s" % [_player.is_swimming(), touch.get_node("DiveButton").visible])
-	get_tree().quit()
+	print("on land: swimming=%s diving=%s dive button visible=%s"
+			% [_player.is_swimming(), _player.is_diving(), touch.get_node("DiveButton").visible])
+	if _player.is_diving() or touch.get_node("DiveButton").visible:
+		failures += 1
+		push_error("on land the dive button should be gone and the dive over")
+	print("swim test: ", "PASS" if failures == 0 else "FAIL")
+	get_tree().quit(0 if failures == 0 else 1)
 
 
 
