@@ -3,20 +3,17 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 
 // Mobile-compatible transparent water. Depth colour uses the shared heightmap;
 // contact uses reverse-Z scene depth. Surface detail is evaluated per pixel.
+// The surface itself - the wave sum, the seabed under it and the clock - is shared with the
+// underwater shader, which has to find the same waterline from below.
+#include "res://world/waves.gdshaderinc"
+
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest, repeat_disable;
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear, repeat_disable;
-uniform sampler2D terrain_height : filter_linear, repeat_disable;
 uniform sampler2D band_mask : filter_linear, repeat_disable;
 uniform vec2 band_mask_center = vec2(0.0);
 uniform float band_mask_size = 144.0;
 uniform vec2 band_mask_texel = vec2(0.001953125);
 uniform bool band_mask_ready = false;
-uniform float terrain_size = 620.0;
-uniform float terrain_scale = 180.0;
-uniform vec2 terrain_center = vec2(0.0);
-uniform float terrain_base_y = 0.0;
-uniform float sea_y = 18.0;
-uniform float preview_time = -1.0; // Fixed time for repeatable material captures.
 
 group_uniforms Colour;
 uniform vec3 shallow_colour : source_color = vec3(0.08, 0.64, 0.68);
@@ -36,15 +33,6 @@ uniform float scattering_strength : hint_range(0.0, 1.5) = 0.68;
 uniform bool palette_preview = false;
 
 group_uniforms Waves;
-uniform vec4 wave_1 = vec4(1.0, 0.25, 0.72, 21.0);
-uniform vec4 wave_2 = vec4(-0.5, 0.9, 0.55, 12.5);
-uniform vec4 wave_3 = vec4(0.75, -0.7, 0.42, 7.0);
-uniform vec4 wave_4 = vec4(-0.85, -0.3, 0.30, 3.6);
-uniform float wave_height : hint_range(0.0, 3.0) = 0.32;
-uniform float wave_speed : hint_range(0.0, 3.0) = 1.0;
-uniform float shoal_depth : hint_range(0.5, 40.0) = 2.5;
-// Limits horizontal compression independently of vertical wave height.
-uniform float choppiness : hint_range(0.0, 1.0) = 0.85;
 uniform float detail_near = 70.0;
 uniform float detail_far = 260.0;
 // Actual exponential mesh layout, supplied by ocean.gd.
@@ -103,7 +91,6 @@ varying vec3 world_position;
 varying float wave_activity;
 varying float surface_range;
 
-float water_time() { return preview_time < 0.0 ? TIME : preview_time; }
 float hash(vec2 p) {
     // Polynomial hash avoids precision-sensitive sin()*large-number noise on Mobile.
     vec3 q = fract(vec3(p.xyx) * 0.1031);
@@ -125,14 +112,6 @@ vec2 wave_slope(vec4 wave, vec2 p, float scale) {
     float phase = k * dot(d, p) - sqrt(9.8 * k) * water_time() * wave_speed;
     float visible = 1.0 - smoothstep(0.5, 2.0, fwidth(phase));
     return d * max(wave.z, 0.0) * scale * cos(phase) * visible;
-}
-
-float bed_height(vec2 p) {
-    vec2 uv = (p - terrain_center) / max(terrain_size, 0.001) + 0.5;
-    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
-        return sea_y - 1000.0;
-    }
-    return terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
 }
 
 // x = distance envelope for broad waves; y = tighter envelope for shorter waves.
@@ -175,29 +154,15 @@ float geometry_envelope(vec2 p, vec3 eye, float wavelength) {
     return shoal * sampled * wave_height;
 }
 
-// Displace geometry with Gerstner waves. Shading is evaluated independently per pixel.
-void gerstner(vec4 wave, vec2 p, float scale, float horizontal_ratio,
-        inout vec3 offset, inout float reach) {
-    float dir_length = length(wave.xy);
-    vec2 d = wave.xy / max(dir_length, 0.0001);
-    float steepness = max(wave.z, 0.0) * step(0.0001, dir_length);
-    float k = TAU / max(wave.w, 0.01);
-    float phase = k * dot(d, p) - sqrt(9.8 * k) * water_time() * wave_speed;
-    float a = steepness / k * scale;
-    offset += a * vec3(horizontal_ratio * d.x * cos(phase), sin(phase), horizontal_ratio * d.y * cos(phase));
-    reach += a;
-}
-
 void vertex() {
     vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     // The undeformed ocean is explicitly the sea_y plane.
     world.y = sea_y;
     vec2 p = world.xz;
     vec3 eye = CAMERA_POSITION_WORLD;
-    float total_steepness = max(wave_1.z, 0.0) + max(wave_2.z, 0.0) + max(wave_3.z, 0.0) + max(wave_4.z, 0.0);
     // Prevent open-water folding at high height settings. Terrain gradients can
     // still cause local compression; keep the height map smooth at the coast.
-    float q = choppiness / max(1.0, total_steepness * wave_height);
+    float q = horizontal_ratio();
     vec3 offset = vec3(0.0);
     float reach = 0.0;
     gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w), q, offset, reach);
