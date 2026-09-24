@@ -294,6 +294,8 @@ signal damaged(amount: int, remaining: int)
 signal stepped
 ## Crossing into water, either way. True going in.
 signal splashed(entering: bool)
+## A dive starting or ending. True going under. The camera follows it, through main.gd.
+signal dived(under: bool)
 
 
 func is_attacking() -> bool:
@@ -410,7 +412,7 @@ func die() -> void:
 	_buffered = 0.0
 	_holding_jump = false
 	_holding_dive = false
-	_diving = false
+	_set_diving(false)
 	died.emit()
 
 
@@ -795,6 +797,15 @@ func is_diving() -> bool:
 	return _diving
 
 
+## The one place the dive state changes, so whoever listens - the camera, through main.gd -
+## hears about it exactly when it does.
+func _set_diving(under: bool) -> void:
+	if under == _diving:
+		return
+	_diving = under
+	dived.emit(under)
+
+
 ## How far under the water he floats while swimming on it.
 func surface_depth() -> float:
 	return swim_depth + surface_rest
@@ -868,7 +879,7 @@ func _physics_process(delta: float) -> void:
 		return
 	# Out of the water - walked out, climbed aboard, or thrown clear - and a dive that was
 	# never surfaced from would otherwise still be one the next time he went in.
-	_diving = false
+	_set_diving(false)
 
 	if _buffered > 0.0 and _coyote > 0.0:
 		velocity.y = _jump_velocity()
@@ -952,7 +963,7 @@ func _swim(delta: float) -> void:
 	var up := wants_up and not wants_down
 	var down := wants_down and not wants_up
 	if down:
-		_diving = true
+		_set_diving(true)
 	var vertical := 0.0
 	if _diving:
 		if up:
@@ -962,7 +973,7 @@ func _swim(delta: float) -> void:
 		# Surfaced: back to where he floats, and the surface takes over holding him. Not while
 		# the dive key is down, or a dive begun at the surface would end on the tick it began.
 		if not down and submersion() <= surface_depth() + surface_reach:
-			_diving = false
+			_set_diving(false)
 	elif up:
 		vertical = swim_speed
 	else:

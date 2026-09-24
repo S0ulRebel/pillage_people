@@ -379,6 +379,114 @@ func _swim_test() -> void:
 		failures += 1
 		push_error("holding jump to the surface should end the dive and leave him swimming on it")
 
+	# The camera: under the water with him while he dives, back up once he surfaces - and
+	# not at all with the follow switched off.
+	var rig := _main.get_node("CameraRig")
+	var camera: Camera3D = rig.get_node("SpringArm3D/Camera3D")
+	var camera_after_surfacing: float = camera.global_position.y
+	# Eased, not cut: the biggest move the camera makes in one physics frame, going under and
+	# coming back up. Cut, it jumped ten metres along the arm.
+	var jump := 0.0
+	var last: Vector3 = camera.global_position
+	var arm: SpringArm3D = rig.get_node("SpringArm3D")
+	var chase_length: float = arm.spring_length
+	Input.action_press("dive")
+	for i in 45:
+		await get_tree().physics_frame
+		# A wobble of the mouse mid-ease. It used to cut the camera to the end of the ease.
+		if i % 5 == 2:
+			rig.tilt(0.5)
+		jump = maxf(jump, camera.global_position.distance_to(last))
+		last = camera.global_position
+	var camera_diving: float = camera.global_position.y
+	# No spyglass under water.
+	var glass_refused: bool = not rig.set_glassing(true)
+	Input.action_release("dive")
+	_player.request_jump()
+	frames = 0
+	while _player.is_diving() and frames < 300:
+		await get_tree().physics_frame
+		frames += 1
+	_player.release_jump()
+	for i in 60:
+		await get_tree().physics_frame
+		if i % 5 == 2:
+			rig.tilt(-0.5)
+		jump = maxf(jump, camera.global_position.distance_to(last))
+		last = camera.global_position
+	var camera_back: float = camera.global_position.y
+	print("camera:  %.1f m over the sea after surfacing, %.1f m under it while diving, %.1f m over it once back up; biggest move in a frame %.2f m; glass refused under water=%s"
+			% [camera_after_surfacing - sea, sea - camera_diving, camera_back - sea, jump, glass_refused])
+	if camera_after_surfacing < sea or camera_diving > sea - 0.5 or camera_back < sea:
+		failures += 1
+		push_error("the camera should be under the water only while he is diving")
+	# Cut, the camera moved ten metres in a frame; eased at six per second from seventeen
+	# metres up it moves under three. Half a cut is the line.
+	if jump > 5.0:
+		failures += 1
+		push_error("the camera cut %.2f m in one frame - the dive should be eased" % jump)
+	if not glass_refused:
+		failures += 1
+		push_error("the spyglass should refuse while diving")
+	# The toggle: off before a dive, the camera never goes under; off during one, it comes up.
+	rig.follow_dives = false
+	Input.action_press("dive")
+	for i in 45:
+		await get_tree().physics_frame
+	var camera_unfollowed: float = camera.global_position.y
+	rig.follow_dives = true
+	Input.action_release("dive")
+	_player.request_jump()
+	frames = 0
+	while _player.is_diving() and frames < 300:
+		await get_tree().physics_frame
+		frames += 1
+	_player.release_jump()
+	for i in 30:
+		await get_tree().physics_frame
+	Input.action_press("dive")
+	for i in 45:
+		await get_tree().physics_frame
+	var camera_followed: float = camera.global_position.y
+	rig.follow_dives = false
+	for i in 60:
+		await get_tree().physics_frame
+	var camera_recalled: float = camera.global_position.y
+	rig.follow_dives = true
+	Input.action_release("dive")
+	print("camera:  follow off, %.1f m over the sea while diving; on, %.1f m under; switched off mid-dive, %.1f m over"
+			% [camera_unfollowed - sea, sea - camera_followed, camera_recalled - sea])
+	if camera_unfollowed < sea or camera_followed > sea - 0.5 or camera_recalled < sea:
+		failures += 1
+		push_error("follow_dives should keep the camera up when off, and bring it up when switched off mid-dive")
+	# Bobbing: surface, and dive again before the camera has finished coming back up, three
+	# times. The chase distance has to come back whole; it used to ratchet down a tap at a time.
+	_player.request_jump()
+	frames = 0
+	while _player.is_diving() and frames < 300:
+		await get_tree().physics_frame
+		frames += 1
+	_player.release_jump()
+	for bob in 3:
+		for i in 12:
+			await get_tree().physics_frame
+		Input.action_press("dive")
+		for i in 20:
+			await get_tree().physics_frame
+		Input.action_release("dive")
+		_player.request_jump()
+		frames = 0
+		while _player.is_diving() and frames < 300:
+			await get_tree().physics_frame
+			frames += 1
+		_player.release_jump()
+	for i in 90:
+		await get_tree().physics_frame
+	print("camera:  chase distance %.1f m after three quick dives, was %.1f m" % [arm.spring_length, chase_length])
+	if absf(arm.spring_length - chase_length) > 0.1:
+		failures += 1
+		push_error("quick dives ratcheted the chase distance from %.1f to %.1f m" % [chase_length, arm.spring_length])
+
 	# Back on land the button has to go away, and dive must not stay latched on.
 	_player.global_position = _terrain.find_spawn() + Vector3.UP * 2.0
 	for i in 6:

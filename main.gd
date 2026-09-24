@@ -839,8 +839,12 @@ func _ready() -> void:
 	_ocean.setup(_terrain.sea_level(), _terrain, spawn)
 	_start_underwater()
 	_player.water_level = _terrain.sea_level()
+	_camera_rig.water_level = _terrain.sea_level()
 	_player.camera_rig = _camera_rig
 	_camera_rig.set_target(_player)
+	# The camera goes under with him. Wired here rather than in either of them: the captain
+	# does not know anything follows his dives, and the rig does not know what a dive is.
+	_player.dived.connect(_camera_rig.set_diving)
 	var touch: CanvasLayer = $TouchControls
 	_player.touch_controls = touch
 	_camera_rig.touch_controls = touch

@@ -119,6 +119,21 @@ func _run() -> void:
 		camera.global_position = Vector3(at.x - stamp.length * 0.25, lerpf(sea, floor_here, 0.66), at.z)
 		camera.look_at(Vector3(at.x + stamp.length * 0.5, lerpf(sea, floor_here, 0.8), at.z), Vector3.UP)
 		await _shot("%s_inside" % stamp.name.to_lower(), camera)
+		# And as the player sees it: him dropped in at the surface, diving for a second and a
+		# half, through the chase camera that follows him under.
+		var player := scene.get_node("Player") as CharacterBody3D
+		var rig_camera := scene.get_node("CameraRig/SpringArm3D/Camera3D") as Camera3D
+		player.set_physics_process(true)
+		player.global_position = Vector3(at.x, sea - 1.0, at.z)
+		player.velocity = Vector3.ZERO
+		rig_camera.current = true
+		Input.action_press("dive")
+		for i in 90:
+			await physics_frame
+		await _shot("%s_diving" % stamp.name.to_lower(), rig_camera)
+		Input.action_release("dive")
+		camera.current = true
+		player.set_physics_process(false)
 
 	print("dive holes: ", "PASS" if _failures == 0 else "FAIL")
 	quit(0 if _failures == 0 else 1)

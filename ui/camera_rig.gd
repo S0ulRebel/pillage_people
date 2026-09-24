@@ -56,6 +56,21 @@ extends Node3D
 ##
 ## One rule now: see tilt().
 
+@export_group("Diving")
+## Whether the camera goes under with him when he dives. Off, it stays the chase camera it
+## always was: eighteen metres up, looking down at the water he disappeared into. Switched
+## off mid-dive it comes back up at once; switched on mid-dive it waits for the next dive.
+@export var follow_dives := true
+## How far under the surface the camera keeps itself while he is diving.
+@export var dive_camera_depth := 1.0
+## How far behind him it sits under water. Much nearer than the chase distance: the fog is
+## half strength at eight metres, and at eight metres he was a smudge in the middle of it.
+@export var dive_distance := 6.0
+## How quickly the view eases into a dive and back out of it, per second.
+@export var dive_ease := 6.0
+## Sea level, set by main.gd from the terrain so the rig and the captain cannot disagree.
+@export var water_level := 0.0
+
 @export_group("Mouse look")
 ## Hold the middle button and move to swing the camera round and tilt it. The left button is
 ## deliberately left alone - it belongs to whatever the player is doing in the world. It used
@@ -83,6 +98,19 @@ var touch_controls: CanvasLayer
 var _mouse_looking := false
 var _helm_view := false
 var _length_before_helm := 18.0
+var _diving := false
+var _length_before_dive := 18.0
+## Where the arm is easing to at either end of a dive, and whether it still is. It stops once
+## it is there, so the wheel has the arm back while he is under.
+var _dive_length_target := 18.0
+var _settling_length := false
+## The length the ease wrote last tick. The arm reading anything else means someone else -
+## the wheel, the glass, a gun, the helm - has taken it, and the ease lets go.
+var _eased_length := -1.0
+## True from a dive's start until the tilt has eased down to the clamp. After that a rising
+## clamp is taken at once, not eased - see _physics_process.
+var _entering_dive := false
+
 
 
 func _ready() -> void:
@@ -97,6 +125,12 @@ func _ready() -> void:
 ## happened without tracking the state itself.
 func set_glassing(looking: bool) -> bool:
 	if _glassing == looking or _target == null:
+		return false
+	# No spyglass under water. The glass and the dive each park the arm's length and put it
+	# back, and stacked in either order they put back each other's - a dive begun with the
+	# glass up surfaced with the camera on the pivot. A dive lowers the glass; the glass
+	# refuses while diving.
+	if looking and _diving:
 		return false
 	_glassing = looking
 	if looking:
@@ -159,6 +193,12 @@ func _apply_fov() -> void:
 ## The cost of the rule is honest: orbiting a subject by dragging up and over is a real idiom
 ## and we are giving it up. One rule the hand can learn beats four that are each locally right.
 func tilt(up_degrees: float) -> void:
+	# Under water, while the clamp is holding the camera up against the surface, a tilt that
+	# would leave the pitch still under the clamp changes nothing on screen - and would pile
+	# up in pitch_degrees to be paid the moment he surfaced, the view snapping to wherever it
+	# had silently got to.
+	if _diving and _effective_pitch() > pitch_degrees + up_degrees + 0.01:
+		return
 	pitch_degrees += up_degrees
 	_apply_pitch()
 
@@ -167,7 +207,56 @@ func _apply_pitch() -> void:
 	var lowest := glass_min_pitch if _glassing else min_pitch_degrees
 	var highest := glass_max_pitch if _glassing else max_pitch_degrees
 	pitch_degrees = clampf(pitch_degrees, lowest, highest)
-	_arm.rotation_degrees.x = pitch_degrees
+	# While a dive's way in or out is being eased, the tilt is the ease's to apply: written
+	# straight here, one wobble of the mouse mid-ease cut the camera eight metres to where the
+	# ease was heading. Any other time a tilt lands at once.
+	if not (_settling_length or _entering_dive):
+		_arm.rotation_degrees.x = _effective_pitch()
+
+
+## Goes under with him when his dive starts, and comes back up when it ends. Connected by
+## main.gd to the captain's dived signal. Ending is always honoured, so switching
+## follow_dives off mid-dive brings the camera back up rather than leaving it clamped.
+func set_diving(under: bool) -> void:
+	if under == _diving or _arm == null or (under and not follow_dives):
+		return
+	if under and _glassing:
+		set_glassing(false)
+	_diving = under
+	_entering_dive = under
+	if under:
+		# The length to come back to is read only when no transition is in flight. A re-dive
+		# during the exit ease used to record the half-restored length, and bobbing at the
+		# surface ratcheted the chase distance down to the dive distance a tap at a time.
+		if not _settling_length:
+			_length_before_dive = _arm.spring_length
+		_dive_length_target = minf(_length_before_dive, dive_distance)
+	else:
+		_dive_length_target = _length_before_dive
+	_settling_length = true
+	_eased_length = _arm.spring_length
+
+
+func is_diving() -> bool:
+	return _diving
+
+
+## The tilt the arm actually gets: the player's own, except while diving, when it is held no
+## higher than keeps the camera under the water. A dive starts with him a metre and a half
+## under, and the chase camera eighteen metres up looking down sees a lot of sea and none of
+## him; so the camera stays just beneath the surface, level with him or looking a little up
+## from below, and takes the player's own tilt back as he goes deeper and there is room for it.
+func _effective_pitch() -> float:
+	if not _diving or _glassing:
+		return pitch_degrees
+	# The camera sits arm_origin_y - length * sin(pitch) above the pivot. Keep that under -
+	# with the length the arm actually reached, not the one it was asked for: against the
+	# crater wall the arm is short, and a short arm at a pitch worked out for a long one puts
+	# the camera back above the water.
+	var length: float = minf(_arm.spring_length, _arm.get_hit_length())
+	var room: float = water_level - dive_camera_depth - (global_position.y + _arm.position.y)
+	var lowest_sine: float = clampf(-room / maxf(length, 0.01), -1.0, 1.0)
+	return clampf(maxf(pitch_degrees, rad_to_deg(asin(lowest_sine))), min_pitch_degrees, 60.0)
 
 
 func set_target(target: Node3D) -> void:
@@ -255,7 +344,35 @@ func _physics_process(delta: float) -> void:
 		followed = _target.global_position
 		followed.y += eye_height
 	global_position = followed
-
+	# Switched off mid-dive: come back up now, not when he surfaces.
+	if _diving and not follow_dives:
+		set_diving(false)
+	# The way into a dive and back out of it is eased, never cut - the arm's length as well as
+	# its tilt; cut, the camera jumped ten metres along the arm at each end. Other modes park
+	# the arm themselves, so the length is left alone while one of them has it.
+	var ease := 1.0 - exp(-dive_ease * delta)
+	if _settling_length:
+		if not is_equal_approx(_arm.spring_length, _eased_length):
+			# Someone else has the arm - the wheel, the glass, a gun, the helm. Theirs.
+			_settling_length = false
+		else:
+			_arm.spring_length = lerpf(_arm.spring_length, _dive_length_target, ease)
+			if absf(_arm.spring_length - _dive_length_target) < 0.05:
+				_arm.spring_length = _dive_length_target
+				_settling_length = false
+			_eased_length = _arm.spring_length
+	# The dive tilt follows his depth. Eased on the way in and out; but once he is under, a
+	# clamp that RISES - a lower camera - is taken at once. Eased, it trailed a fast ascent by
+	# seven degrees and lifted the camera into the waves. A tilt from the player still lands at
+	# once, through _apply_pitch.
+	var wanted := _effective_pitch()
+	var current := _arm.rotation_degrees.x
+	if _entering_dive and absf(wanted - current) < 0.5:
+		_entering_dive = false
+	if _diving and not _entering_dive and wanted > current:
+		_arm.rotation_degrees.x = wanted
+	elif not is_equal_approx(wanted, current):
+		_arm.rotation_degrees.x = lerpf(current, wanted, ease)
 
 
 
