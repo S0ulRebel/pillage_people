@@ -230,7 +230,7 @@ void fragment() {
         shaft += spot * light_left;
     }
     // The average over the steps is at most 1; below 0.16 of it nothing shows, above 0.42
-    // it is full. Then two levels, the way the sea steps its glitter.
+    // it is full. Then two levels, the way the fog's bands step.
     shaft = smoothstep(0.16, 0.42, shaft / 16.0);
     shaft = floor(shaft * 2.0 + 0.5) / 2.0;
     // Toward the light: strongest looking up or sunward, gone below the horizontal, fainter

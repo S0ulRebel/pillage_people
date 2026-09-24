@@ -50,7 +50,7 @@ func _run() -> void:
 	# And so does the wind, which leans the waves toward itself every frame: a surface that
 	# turns between placing the camera and reading the picture back is the same problem as
 	# one that moves.
-	# The day clock too: it turns the sun, and the glitter and every shadow with it.
+	# The day clock too: it turns the sun, and the streak and every shadow with it.
 	var day := scene.get_node_or_null("Day")
 	if day != null:
 		day.set_process(false)

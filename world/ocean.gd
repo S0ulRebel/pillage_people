@@ -139,6 +139,8 @@ var _terrain: Node3D
 ## the right rate at the wrong moment, sitting in the trough while the crest goes past it. One
 ## number, set here and read by both, cannot drift.
 var _clock := 0.0
+## The fog colour last handed to the shader as its haze, so it is pushed when it changes.
+var _haze_colour := Color(-1.0, -1.0, -1.0)
 ## The wave directions as authored. Wind leans them toward itself and back; without a
 ## stored copy the lean would compound every frame until every wave faced the same way.
 var _wave_bases: Array[Vector4] = []
@@ -272,9 +274,16 @@ func _process(delta: float) -> void:
 		_camera = get_viewport().get_camera_3d()
 		if _camera == null:
 			return
-		# Where this camera stops drawing the sea. Its far plane, at a thousand metres, is
-		# nearer than the mesh's edge, and it is where the water has to have faded out by.
+		# How far this camera sees. Its far plane, at a thousand metres, is nearer than the
+		# mesh's edge; the shader sends the rings beyond nine tenths of this to the horizon.
 		_push("horizon", minf(extent, _camera.far))
+	# The far sea hazes to the scene fog's colour, which world/day.gd turns with the clock, so
+	# sea and sky meet in one colour whenever the fog and the sky's horizon agree (at full
+	# daylight they do; see the Haze group in ocean.gdshader for the hours they do not).
+	var environment := get_world_3d().environment
+	if environment != null and environment.fog_light_color != _haze_colour:
+		_haze_colour = environment.fog_light_color
+		_push("haze_colour", _haze_colour)
 	# Horizontal follow only. The wave field is evaluated in world space in the shader, so the
 	# sea itself stays put - only the grid of vertices slides along underneath it.
 	var eye := _camera.global_position

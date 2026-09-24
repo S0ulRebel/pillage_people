@@ -6,7 +6,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 // A transparent surface over the already-drawn scene. It reads the seabed from the terrain's
 // height map (so its colour follows the real depth), the scene's depth buffer (so it knows
 // where things stand in it), and the scene's colour (so the shallows refract what is under
-// them). Everything is evaluated per pixel: the waves' slopes, the foam, the glitter. Runs on
+// them). Everything is evaluated per pixel: the waves' slopes, the foam, the streak. Runs on
 // the Mobile renderer.
 //
 // The surface ITSELF - the four Gerstner waves, the seabed lookup, the clock - lives in
@@ -20,6 +20,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 // frame by world/day.gd, which turns the sun.
 //
 // fragment() builds the picture in stages, each under its own heading:
+//   0. where on the sea plane this pixel really is (the horizon band is found by ray)
 //   1. where this pixel is: bed, water depth, the scene behind it, the shoreline edge
 //   2. colour by depth: shallow, lagoon, deep, in soft bands
 //   3. wave normals: one for shading, one for the sun
@@ -29,10 +30,10 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 //   7. light and eye
 //   8. transmission: refraction, absorption, scatter
 //   9. sky reflection
-//  10. sun glitter
+//  10. the sun's streak
 //  11. composite
 //  12. the underside, when the eye is under the sea
-//  13. the horizon fade, and the palette preview
+//  13. the haze toward the horizon, and the palette preview
 
 #include "res://world/waves.gdshaderinc"
 
@@ -77,8 +78,8 @@ uniform float refraction_depth : hint_range(0.1, 8.0) = 1.8;
 group_uniforms Distance;
 // Metres from the eye at which per-pixel wave detail starts to fade, and is gone. The two
 // broad waves go by three quarters of detail_far, the two short ones by detail_far. Past
-// that the sea is flat and only the sun glitter keeps a memory of the waves (glitter_reach).
-// Material-only.
+// that the sea is flat but for the sun's flecks, which fade on their own as the waves
+// shrink below a pixel. Material-only.
 uniform float detail_near = 70.0;
 uniform float detail_far = 260.0;
 // The mesh's actual radial layout, pushed by ocean.gd: how much each ring grows on the last,
@@ -86,11 +87,35 @@ uniform float detail_far = 260.0;
 // mesh out there is too coarse to carry.
 uniform float radial_growth = 1.0712;
 uniform float radial_segments = 256.0;
-// Where the sea stops being drawn, in metres - the mesh's extent or the camera's far plane,
-// whichever is nearer; pushed by ocean.gd. The water fades out before it gets there, from
-// horizon_fade_start of the way - see stage 13.
+// How far the camera sees, in metres - the mesh's extent or the camera's far plane,
+// whichever is nearer; pushed by ocean.gd. The rings beyond nine tenths of it are not drawn
+// where they are: the vertex stage sends them out to the horizon (see there), so the sea
+// never ends at the far plane however high the camera is.
 uniform float horizon = 4000.0;
-uniform float horizon_fade_start : hint_range(0.1, 0.95) = 0.55;
+
+// ---- Haze --------------------------------------------------------------------------------
+group_uniforms Haze;
+// The far sea goes to the colour of the sky at the horizon, the way every reference sheet
+// draws it: saturated blue near, paler and paler out, and one soft line where it meets the
+// sky. The colour is the scene fog's, which ocean.gd pushes whenever it changes - and it is
+// AUTHORED in world/day.gd, which writes the environment's fog colour every frame from its
+// two day and night constants; the default here and main.tscn's are overwritten. At full
+// daylight it is the sky's own horizon colour, so sea and sky meet in one colour. Through
+// dusk and at night they part: day.gd fogs toward (0.06, 0.10, 0.18) in sRGB, the sky mixes
+// toward its night_horizon (0.06, 0.12, 0.22) in linear - two constants and two spaces
+// that day.gd and sky.gdshader would have to share to meet at every hour.
+uniform vec3 haze_colour : source_color = vec3(0.70, 0.86, 0.92);
+// Metres to 63% haze. Half way there at 0.7 of this; the horizon itself is all haze. Fitted
+// to the reference sheets' Archipelago, Cliffs and Beach panels, whose sea keeps nine tenths
+// of its saturation a fifth of the way down from the horizon and seven tenths at the
+// horizon line itself; 2000 m paled the far sea over the whole upper half. Material-only.
+uniform float haze_distance : hint_range(100.0, 20000.0) = 5000.0;
+// Degrees below the horizon over which the sea also blends to the haze whatever its
+// distance. From a low eye the far sea is compressed into the last two or three rows of the
+// picture, and there the distance haze alone drew the horizon as a hard pale line; the art
+// draws it soft. Only for water further than a few hundred metres, so crests level with a
+// low eye keep their colour. Material-only.
+uniform float horizon_softness : hint_range(0.0, 3.0) = 0.4;
 
 // ---- Shoreline --------------------------------------------------------------------------
 group_uniforms Shoreline;
@@ -148,37 +173,40 @@ uniform vec3 sun_direction = vec3(-0.53, 0.37, 0.76);
 // Material-only.
 uniform float wave_shading : hint_range(0.0, 1.0) = 0.18;
 // A broad restrained reflection of the sky at grazing angles, by fresnel. The colour is the
-// sky's own pale blue; there is no daylight uniform here, so at night the sea keeps its day
-// colours. Material-only. (source_color means the value is sRGB, as a colour picker gives
+// sky's own pale blue; there is no daylight uniform here, so at night the NEAR sea keeps its
+// day colours - only the haze (stage 13) and the streak (stage 10) follow the clock.
+// Material-only. (source_color means the value is sRGB, as a colour picker gives
 // it; this default is the sRGB of the linear (0.36, 0.61, 0.70) the shader used to hardcode.)
 uniform vec3 sky_reflection_colour : source_color = vec3(0.634, 0.804, 0.854);
 uniform float sky_reflection_strength : hint_range(0.0, 1.0) = 0.30;
 
-// ---- Sun glitter ------------------------------------------------------------------------
-group_uniforms Glitter;
-// The bright path the sun lays across the water toward the eye. Stepped rather than a smooth
-// highlight: this sea bands its depth colours and the sky steps its halo, and a photographic
-// specular here would be the one thing in frame obeying different rules. All material-only.
-uniform vec3 glitter_colour : source_color = vec3(1.0, 0.97, 0.86);
-uniform float glitter_strength : hint_range(0.0, 1.0) = 0.5;
-// The specular exponent near the eye: high, so the road breaks into flecks off wave faces.
-uniform float glitter_sharpness : hint_range(4.0, 400.0) = 90.0;
-// Lit levels the flecks are stepped to (plus off).
-uniform int glitter_steps : hint_range(1, 4) = 2;
-// How much wave slope the glitter keeps after the distance fade has flattened the shading
-// normal, 0 to 1 of the full slope.
-//
-// Zero is the old behaviour, and the old behaviour was a bug you could see from the
-// clifftop: the glitter path stopped dead in open water and the sea beyond it was a flat
-// blue sheet. The distance fade exists to stop geometry and per-pixel detail aliasing, and
-// past detail_far it takes the normals to exactly (0,1,0) - so a specular sharp enough to
-// fleck off wave faces finds nothing at all to fleck off. Costing nothing to fix, because
-// wave_slope is linear in its amplitude: the slopes are evaluated once and scaled twice.
-uniform float glitter_reach : hint_range(0.0, 1.0) = 0.35;
-// The specular exponent the glitter falls back to once the facets are smaller than a pixel.
-// Broad, because that is what a sun road is at distance - you stop resolving individual wave
-// faces and see one streak running to the horizon.
-uniform float glitter_spread : hint_range(2.0, 60.0) = 10.0;
+// ---- The sun's streak -------------------------------------------------------------------
+group_uniforms Streak;
+// One streak of light on the water, straight out from the eye along the sun's bearing, and
+// no more: the references have no sun road at all - their sparkle is short white crest
+// strokes spread evenly over the sea - and the stepped specular this replaced turned into
+// fans of stripes from any height. The streak is a soft cone of bearings, a faint sheen over
+// its whole length and white flecks off the wave flanks that face the sun inside it, and it
+// goes out with the sun. All material-only.
+uniform vec3 streak_colour : source_color = vec3(1.0, 0.97, 0.86);
+// The sheen: how far toward streak_colour the water inside the streak goes. Faint, or the
+// cone reads as a spotlight lying on the water; near the eye the flecks are the streak, and
+// from a height, where they have faded, this is all of it.
+uniform float streak_strength : hint_range(0.0, 1.0) = 0.05;
+// Half-width of the cone, in degrees of bearing either side of the sun's, for water seen
+// streak_taper degrees or more below the horizon; nearer the horizon than that it narrows
+// to nothing, so the streak tapers toward the sun the way a path of light does instead of
+// standing on the water as a column of constant width.
+uniform float streak_width : hint_range(0.5, 20.0) = 3.0;
+uniform float streak_taper : hint_range(1.0, 45.0) = 10.0;
+// The flecks: how far toward streak_colour a mirroring flank of the two SHORT waves inside
+// the streak goes, and how steeply it has to lean (its slope along the sun's bearing) to
+// count. The swell's flanks are left out: seen from a height they are long, and inside a
+// narrow streak they came out as the rungs of a ladder. The short waves' flanks are broken
+// up by noise for the same reason - a Gerstner wave is a straight line - so they come out
+// as dashes, densest along the sun's line and thinning to the cone's edge.
+uniform float streak_flecks : hint_range(0.0, 1.0) = 0.6;
+uniform float streak_fleck_slope : hint_range(0.0, 0.3) = 0.06;
 
 // ---- Underside --------------------------------------------------------------------------
 group_uniforms Underside;
@@ -189,8 +217,8 @@ group_uniforms Underside;
 // and p90. All material-only.
 uniform vec3 underside_colour : source_color = vec3(0.02, 0.44, 0.65);
 uniform vec3 window_colour : source_color = vec3(0.09, 0.76, 0.95);
-// Brighter than the art's streaks read, because the fog pass will dim it again: the art's p90
-// is what is left after the water's own haze.
+// Brighter than the art's streaks read, because the underwater pass's fog will dim it again:
+// the art's p90 is what is left after the water's own murk.
 uniform vec3 underside_shine_colour : source_color = vec3(0.55, 0.96, 1.0);
 // How soft the window's rim is, in cosine of the angle from vertical.
 uniform float window_softness : hint_range(0.01, 0.4) = 0.08;
@@ -216,6 +244,9 @@ varying float surface_range;
 // was within a wave's height of the water. The one place a single answer is wrong is the
 // near plane's few centimetres, when the eye is AT the waterline; stage 12 handles that.
 varying float eye_depth;
+// 1 on a vertex the vertex stage sent to the horizon, 0 on every other: any fragment where
+// this is not exactly zero lies in the horizon band, and stage 0 finds its point by ray.
+varying float horizon_weight;
 
 // ---- Helpers ----------------------------------------------------------------------------
 // Value noise for the foam and the bands. A polynomial hash rather than sin() of a large
@@ -245,14 +276,13 @@ vec2 wave_slope(vec4 wave, vec2 p) {
     return d * max(wave.z, 0.0) * cos(phase) * visible;
 }
 
-// How much of the waves this pixel keeps, four ways:
+// How much of the waves this pixel keeps, three ways:
 //   x = shoal x distance fade for the two BROAD waves (gone by three quarters of detail_far)
 //   y = shoal x distance fade for the two SHORT waves (gone by detail_far)
 //   z = the shoal term alone: waves flatten as the seabed rises to shoal_depth
-//   w = the distance term alone (the short waves' one)
-// The sun glitter needs z and w apart: it keeps a floor under the distance fade so the far
-// sea still has a slope to glint off, while still flattening with the seabed.
-vec4 envelopes(vec2 p, vec3 eye) {
+// The sun's flecks take z alone: they are guarded against distance by wave_slope's own
+// `visible`, which drops each wave as its facets shrink below a pixel, and nothing else.
+vec3 envelopes(vec2 p, vec3 eye) {
     float depth = sea_y - bed_height(p);
     float shoal = smoothstep(0.0, max(shoal_depth, 0.001), depth);
     float range = length(vec3(p.x, sea_y, p.y) - eye);
@@ -260,17 +290,23 @@ vec4 envelopes(vec2 p, vec3 eye) {
         max(detail_far * 0.75, detail_near + 1.0), range);
     float detail = 1.0 - smoothstep(detail_near,
         max(detail_far, detail_near + 1.0), range);
-    return vec4(shoal * broad, shoal * detail, shoal, detail);
+    return vec3(shoal * broad, shoal * detail, shoal);
 }
 
 // View-space depth of the opaque scene at a screen position, from the depth buffer.
 // Negative going into the screen, like every view-space z. Reverse-Z on the Vulkan renderers;
-// the Compatibility renderer keeps GL's -1..1.
+// the Compatibility renderer keeps GL's -1..1. Where nothing was drawn - the depth buffer
+// still holds its cleared far value - the answer is "nothing behind this pixel", further
+// than any point of the sea, rather than the far plane: the horizon band (vertex stage)
+// lies beyond the far plane, a thousand million metres out at the horizon itself, and
+// would otherwise read as being behind the sky and go transparent.
 float scene_view_z(vec2 uv, mat4 inv_projection) {
     float raw_depth = texture(depth_texture, uv).r;
     #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+    if (raw_depth >= 1.0) { return -1.0e12; }
     vec3 ndc = vec3(uv, raw_depth) * 2.0 - 1.0;
     #else
+    if (raw_depth <= 0.0) { return -1.0e12; }
     vec3 ndc = vec3(uv * 2.0 - 1.0, raw_depth);
     #endif
     vec4 scene_view = inv_projection * vec4(ndc, 1.0);
@@ -292,39 +328,108 @@ float geometry_envelope(vec2 p, vec3 eye, float wavelength) {
     return shoal * sampled * wave_height;
 }
 
-// ---- Vertex: displace the grid with the waves -------------------------------------------
+// ---- Vertex: displace the grid with the waves, and send the far rings to the horizon ----
 void vertex() {
     vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
     // The undeformed ocean is the sea_y plane, whatever the node's own height is.
     world.y = sea_y;
     vec2 p = world.xz;
     vec3 eye = CAMERA_POSITION_WORLD;
-    // The sideways share of the displacement, limited so open water never folds over itself
-    // at high wave heights (waves.gdshaderinc).
-    float q = horizontal_ratio();
-    vec3 offset = vec3(0.0);
-    float reach = 0.0;
-    gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w), q, offset, reach);
-    gerstner(wave_2, p, geometry_envelope(p, eye, wave_2.w), q, offset, reach);
-    gerstner(wave_3, p, geometry_envelope(p, eye, wave_3.w), q, offset, reach);
-    gerstner(wave_4, p, geometry_envelope(p, eye, wave_4.w), q, offset, reach);
-    world += offset;
+    // The horizon band. A mesh ends somewhere, and from any height the sky showed under its
+    // edge: at the far plane, a thousand metres out, that was three degrees of the sky's
+    // underside between the sea and the true horizon from the cannon's hill. So the rings
+    // beyond nine tenths of the camera's reach are not drawn where they are. Each of their
+    // vertices is sent a thousand million metres out along its own bearing, which puts it on
+    // the horizon to the pixel from any height - a flat plane's horizon is at eye level - and the
+    // one band of triangles from the last kept ring out to them is the sea from there to the
+    // horizon, hazed to the sky (stage 13). Those vertices lie beyond the far plane, so their
+    // depth is pinned just inside it; nothing real is drawn out there to be occluded, and the
+    // sea writes no depth. What is interpolated across the band is not trusted, though - see
+    // the top of fragment(): it finds the band's points again from each pixel's own ray.
+    float radius = length(VERTEX.xz);
+    bool horizon_band = radius > horizon * 0.9;
+    horizon_weight = horizon_band ? 1.0 : 0.0;
+    if (horizon_band) {
+        vec3 bearing = vec3(VERTEX.x, 0.0, VERTEX.z) / max(radius, 0.001);
+        world = vec3(eye.x, sea_y, eye.z) + bearing * 1.0e9;
+        wave_activity = 0.0;
+    } else {
+        // The sideways share of the displacement, limited so open water never folds over
+        // itself at high wave heights (waves.gdshaderinc).
+        float q = horizontal_ratio();
+        vec3 offset = vec3(0.0);
+        float reach = 0.0;
+        gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w), q, offset, reach);
+        gerstner(wave_2, p, geometry_envelope(p, eye, wave_2.w), q, offset, reach);
+        gerstner(wave_3, p, geometry_envelope(p, eye, wave_3.w), q, offset, reach);
+        gerstner(wave_4, p, geometry_envelope(p, eye, wave_4.w), q, offset, reach);
+        world += offset;
+        wave_activity = smoothstep(0.02, 0.18, reach);
+    }
     world_position = world;
     VERTEX = (inverse(MODEL_MATRIX) * vec4(world, 1.0)).xyz;
-    wave_activity = smoothstep(0.02, 0.18, reach);
+    // Written by hand because the horizon band pins its depth below, and a shader that
+    // writes POSITION anywhere has to write it everywhere. This is the engine's own formula.
+    POSITION = PROJECTION_MATRIX * (VIEW_MATRIX * vec4(world, 1.0));
+    if (horizon_band) {
+        // Just inside the far plane: reverse-Z on the Vulkan renderers, where the far plane
+        // is zero; GL's one on Compatibility.
+        #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+        POSITION.z = POSITION.w * 0.999999;
+        #else
+        POSITION.z = POSITION.w * 0.000001;
+        #endif
+    }
     surface_range = length(world - eye);
     eye_depth = surface_height(eye.xz) - eye.y;
 }
 
 void fragment() {
+    // ---- 0. Where on the plane this pixel really is ---------------------------------------
+    // The mesh's own answer, except across the horizon band. The band's far vertices are a
+    // thousand million metres out, and the perspective weights the rasteriser interpolates
+    // with are the reciprocals of that: at the band's top row they cancelled to a NEGATIVE
+    // distance, which made a negative haze, which drew one darker row along the whole
+    // horizon (measured: tagging the haze red made that row bluer, not redder). The band is
+    // the flat sea_y plane, so its points are found again exactly: this pixel's ray from the
+    // eye, cut with the plane. A band fragment is known by horizon_weight, which is zero on
+    // every vertex the mesh kept and so exactly zero on every fragment between them - and
+    // as a second net, by an interpolated range that is not a sane one. (It was first
+    // decided by the ray alone, "anything whose ray hits the plane that far out", and from
+    // under the water the ray down to the seabed misses the plane entirely: every near
+    // fragment was sent to the horizon and the wading waterline read 15 cm low.)
+    vec3 world_point = world_position;
+    float range_here = surface_range;
+    bool in_band = horizon_weight != 0.0 || !(surface_range >= 0.0 && surface_range < horizon);
+    if (in_band) {
+        vec3 eye = CAMERA_POSITION_WORLD;
+        vec3 ray = normalize(unproject(SCREEN_UV, near_depth(), INV_PROJECTION_MATRIX, INV_VIEW_MATRIX) - eye);
+        float drop = sea_y - eye.y;
+        if (ray.y * drop > 0.0) {
+            float t = min(drop / ray.y, 1.0e9);
+            world_point = eye + ray * t;
+            range_here = t;
+        } else {
+            // A ray that does not reach the plane - the eye exactly at sea level, or a pixel
+            // whose centre is a hair above the horizon while one of its samples is sea -
+            // stands for the horizon ON the plane: a thousand million metres out along its
+            // bearing, at sea level. Not a point up the ray: that gave the sea's top row a
+            // neighbour with a million metres of "water" under it, and the fwidth of the
+            // thickness across that pair thinned the row to nothing.
+            vec2 heading = ray.xz / max(length(ray.xz), 1.0e-6);
+            world_point = vec3(eye.x + heading.x * 1.0e9, sea_y, eye.z + heading.y * 1.0e9);
+            range_here = 1.0e9;
+        }
+    }
+
     // ---- 1. Where this pixel is ---------------------------------------------------------
     // Two depths, and the rule for them: `thickness` is the water under the DISPLACED
     // surface, wave included, and is what the shoreline and the foam contours use, because
     // they follow the water's real edge; `water_depth` is the still-water depth, sea level
     // to bed, and is what the colour ramp and every depth gate use, because a wave passing
     // over must not change what kind of water this is.
-    float bed = bed_height(world_position.xz);
-    float thickness = world_position.y - bed;
+    float bed = bed_height(world_point.xz);
+    float thickness = world_point.y - bed;
     // How much the water thins across one pixel, and so how wide every shoreline transition
     // below has to be to land softly rather than as a hard step.
     //
@@ -338,7 +443,7 @@ void fragment() {
     // the length of the eye's path through the water. Zero where something pierces the
     // surface exactly here.
     float scene_z = scene_view_z(SCREEN_UV, INV_PROJECTION_MATRIX);
-    float surface_z = (VIEW_MATRIX * vec4(world_position, 1.0)).z;
+    float surface_z = (VIEW_MATRIX * vec4(world_point, 1.0)).z;
     float to_solid = max(surface_z - scene_z, 0.0);
     // The two alpha edges. `contact` fades the water in against a thing standing in it;
     // `edge` fades it in at the beach - never sharper than the pixel drawing it, or the
@@ -371,34 +476,33 @@ void fragment() {
     // ---- 3. Wave normals ----------------------------------------------------------------
     // The slopes are evaluated once at full steepness and scaled twice, which is exact
     // because wave_slope is linear in its amplitude: once faded by distance for shading,
-    // once with a floor under that fade for the sun.
+    // once shoaled only, for the sun.
     float clock = water_time();
-    vec4 env = envelopes(world_position.xz, CAMERA_POSITION_WORLD);
-    vec2 broad_slope = wave_slope(wave_1, world_position.xz)
-        + wave_slope(wave_2, world_position.xz);
-    vec2 fine_slope = wave_slope(wave_3, world_position.xz)
-        + wave_slope(wave_4, world_position.xz);
+    vec3 env = envelopes(world_point.xz, CAMERA_POSITION_WORLD);
+    vec2 broad_slope = wave_slope(wave_1, world_point.xz)
+        + wave_slope(wave_2, world_point.xz);
+    vec2 fine_slope = wave_slope(wave_3, world_point.xz)
+        + wave_slope(wave_4, world_point.xz);
     // `n`: the shading normal, fully faded by distance. Refraction and fresnel read this;
     // letting it ripple at distance is what the fade protects them from.
     vec2 slope = (broad_slope * env.x + fine_slope * env.y) * wave_height;
     vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
-    // `lit_n`: the normal the SUN sees. Same waves, shoaled, but with glitter_reach as a
-    // floor under the distance fade so the sea keeps a usable slope out to the horizon.
-    float lit_reach = max(env.w, glitter_reach);
-    vec2 lit_slope = (broad_slope + fine_slope) * env.z * lit_reach * wave_height;
-    vec3 lit_n = normalize(vec3(-lit_slope.x, 1.0, -lit_slope.y));
+    // `lit_slope`: the slope the SUN sees - the two short waves, shoaled but not faded with
+    // distance; the streak fades its flecks by pixel size itself (stage 10). It is the
+    // gradient of the height: it points uphill.
+    vec2 lit_slope = fine_slope * env.z * wave_height;
 
     // ---- 4. Shore foam ------------------------------------------------------------------
     // One deformed breaker with organic trailing strands. These are band-passed noise
     // contours, not cells, so the foam cannot be confused with seabed caustics.
     vec2 slow_flow = vec2(clock * foam_speed * 0.045,
         -clock * foam_speed * 0.030);
-    float foam_broad = noise(world_position.xz * 0.20 + slow_flow);
-    foam_broad = foam_broad * 0.68 + noise(world_position.xz * 0.43
+    float foam_broad = noise(world_point.xz * 0.20 + slow_flow);
+    foam_broad = foam_broad * 0.68 + noise(world_point.xz * 0.43
         - slow_flow * 0.72 + vec2(11.7, -4.2)) * 0.32;
-    float foam_detail = noise(world_position.xz * 0.82
+    float foam_detail = noise(world_point.xz * 0.82
         + vec2(-clock * 0.034, clock * 0.026));
-    foam_detail = foam_detail * 0.70 + noise(world_position.xz * 1.67
+    foam_detail = foam_detail * 0.70 + noise(world_point.xz * 1.67
         + vec2(clock * 0.021, -clock * 0.039) + vec2(3.1, 8.6)) * 0.30;
     // The upper clamp here used to be 0.035, and that was the white outline.
     //
@@ -432,18 +536,18 @@ void fragment() {
 
     // Short secondary wash lines follow the same depth contours as the coast. Independent
     // warping and hard breakup keep them as torn fragments instead of global sine ribbons.
-    float wash_shape_1 = noise(world_position.xz * 0.31
+    float wash_shape_1 = noise(world_point.xz * 0.31
         + vec2(-clock * 0.019, clock * 0.027) + vec2(9.4, 2.7));
-    float wash_mask_1 = noise(world_position.xz * 0.69
+    float wash_mask_1 = noise(world_point.xz * 0.69
         + vec2(clock * 0.031, clock * 0.014) + vec2(-3.2, 7.6));
     float wash_distance_1 = distorted_depth - 0.13 - (wash_shape_1 - 0.5) * 0.085;
     float wash_1 = 1.0 - smoothstep(0.012, 0.026 + foam_aa,
         abs(wash_distance_1));
     wash_1 *= smoothstep(0.53, 0.69, wash_mask_1);
 
-    float wash_shape_2 = noise(world_position.xz * 0.24
+    float wash_shape_2 = noise(world_point.xz * 0.24
         + vec2(clock * 0.014, -clock * 0.022) + vec2(4.8, -8.1));
-    float wash_mask_2 = noise(world_position.xz * 0.57
+    float wash_mask_2 = noise(world_point.xz * 0.57
         + vec2(-clock * 0.023, clock * 0.018) + vec2(13.1, 5.3));
     float wash_distance_2 = distorted_depth - 0.27 - (wash_shape_2 - 0.5) * 0.12;
     float wash_2 = 1.0 - smoothstep(0.010, 0.023 + foam_aa,
@@ -463,10 +567,10 @@ void fragment() {
     // must never create outlines: that would rim dry objects merely seen against the ocean.
     // The band is where the mask is empty at this point but set within radius_metres of it -
     // eight taps round a circle - so it hugs each silhouette from the outside.
-    vec2 band_uv = (world_position.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
+    vec2 band_uv = (world_point.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
     float capture_edge = smoothstep(0.0, 0.035, min(min(band_uv.x, band_uv.y),
         min(1.0 - band_uv.x, 1.0 - band_uv.y)));
-    float moving_noise = noise(world_position.xz * 0.82
+    float moving_noise = noise(world_point.xz * 0.82
         + vec2(clock * object_band_speed * 0.19, -clock * object_band_speed * 0.14));
     float object_band = 0.0;
     if (band_mask_ready && capture_edge > 0.0) {
@@ -494,7 +598,7 @@ void fragment() {
     // bend its phase before thresholding, so they come out as short curved strokes instead of
     // dashed straight lines that reveal the sine wave underneath. Only in water deeper than
     // a few metres, only where the mesh is actually carrying a swell, and only near.
-    vec2 crest_p = world_position.xz;
+    vec2 crest_p = world_point.xz;
     vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
     vec2 d2 = wave_2.xy / max(length(wave_2.xy), 0.0001);
     vec2 d3 = wave_3.xy / max(length(wave_3.xy), 0.0001);
@@ -511,17 +615,18 @@ void fragment() {
     crest_breakup = crest_breakup * 0.65 + noise(crest_p * 0.47 + vec2(7.3, -2.8)) * 0.35;
     crest *= smoothstep(0.58, 0.76, crest_breakup);
     crest *= crest_strength * smoothstep(1.5, 4.0, water_depth) * wave_activity;
-    crest *= 1.0 - smoothstep(55.0, 150.0, surface_range);
+    crest *= 1.0 - smoothstep(55.0, 150.0, range_here);
     // Everything white on the water, foam and crests together.
     float white = clamp(max(crest, surf), 0.0, 1.0);
 
     // ---- 7. Light and eye ---------------------------------------------------------------
-    // `light_dir` runs from the water TO the sun, `view_dir` from the water to the eye. Both
-    // leave the surface, which is what the half-vector in stage 10 needs. The fresnel is
-    // taken off the shading normal, faded with distance like everything the eye sees.
+    // `light_dir` runs from the water TO the sun - its xz is the bearing the streak (stage 10)
+    // is keyed to, its y the sun's height; `view_dir` from the water to the eye, for the
+    // fresnel here and the underside's window (stage 12). The fresnel is taken off the
+    // shading normal, faded with distance like everything the eye sees.
     vec3 light_dir = sun_direction / max(length(sun_direction), 0.0001);
     float lambert = max(dot(n, light_dir), 0.0);
-    vec3 view_dir = normalize(CAMERA_POSITION_WORLD - world_position);
+    vec3 view_dir = normalize(CAMERA_POSITION_WORLD - world_point);
     float fresnel = pow(1.0 - max(dot(n, view_dir), 0.0), 5.0);
 
     // ---- 8. Transmission ----------------------------------------------------------------
@@ -559,27 +664,55 @@ void fragment() {
     // ---- 9. Sky reflection --------------------------------------------------------------
     shaded_water = mix(shaded_water, sky_reflection_colour, fresnel * sky_reflection_strength);
 
-    // ---- 10. Sun glitter ----------------------------------------------------------------
-    // Blinn-Phong off lit_n: the half-vector between sun and eye against the wave normal, so
-    // the road lies on the water between the eye and the sun's bearing, then quantised so it
-    // breaks into flecks along the wave faces pointing at the sun instead of one smooth
-    // sheen.
-    vec3 half_dir = normalize(light_dir + view_dir);
-    // Sharp near, broad far. wave_slope drops any wave whose phase turns faster than a pixel,
-    // so far enough out the facets go anyway however high glitter_reach is - and the honest
-    // thing to draw there is one smooth streak rather than a field of aliasing specks.
-    float sharpness = mix(glitter_spread, glitter_sharpness, env.w);
-    float spec = pow(max(dot(lit_n, half_dir), 0.0), sharpness);
-    // Stepped to glitter_steps lit levels plus off. The 0.4 sets where a level begins: a
-    // fleck lights at 60% of the way to it, so the flecks are a little fatter than the raw
-    // lobe.
-    float glitter = floor(clamp(spec, 0.0, 1.0) * float(glitter_steps) + 0.4)
-        / float(glitter_steps);
+    // ---- 10. The sun's streak -----------------------------------------------------------
+    // A cone of bearings from the eye, centred on the sun's. `aside` is the sine of the
+    // angle between this point's bearing and the sun's (the 2D cross product - exact near
+    // zero, where a cosine has run out of digits), and the bell across the cone is one minus
+    // a smoothstep of it against sin(width): full on the sun's line, nothing at the width,
+    // nothing behind the eye. The width tapers with the angle of depression - how far below
+    // the horizon this point is seen - to nothing at the horizon, so on the screen the
+    // streak is a wedge pointing at the sun from any height, the way a path of light on
+    // water is drawn, instead of a column of constant width standing on the sea. (The sun's
+    // height does not enter: a real glitter path sits around the point that mirrors the sun,
+    // at the sun's elevation below the horizon, and at a 68 degree noon that is at your
+    // feet; this one runs to the horizon at any hour by choice, as one streak of light.)
+    vec2 to_here = world_point.xz - CAMERA_POSITION_WORLD.xz;
+    float flat_range = max(length(to_here), 0.001);
+    vec2 here_bearing = to_here / flat_range;
+    vec2 sun_bearing = normalize(light_dir.xz + vec2(0.0001, 0.0));
+    float along = dot(here_bearing, sun_bearing);
+    float aside = abs(here_bearing.x * sun_bearing.y - here_bearing.y * sun_bearing.x);
+    float depression = degrees(atan(CAMERA_POSITION_WORLD.y - world_point.y, flat_range));
+    float width = radians(streak_width) * clamp(depression / max(streak_taper, 0.1), 0.0, 1.0);
+    float across = clamp(aside / max(sin(width), 1.0e-6), 0.0, 1.0);
+    float streak = (1.0 - across * across * (3.0 - 2.0 * across)) * step(0.0, along);
     // Gone with the sun, over the same window of elevation the day clock fades the sky and
-    // the light through (world/day.gd): a road at full strength under a sky already gone
+    // the light through (world/day.gd): a streak at full strength under a sky already gone
     // to night is the one thing that gives the sea away.
-    glitter *= smoothstep(-0.05, 0.18, light_dir.y);
-    shaded_water = mix(shaded_water, glitter_colour, glitter * glitter_strength);
+    streak *= smoothstep(-0.05, 0.18, light_dir.y);
+    // The flecks: the flank that mirrors the sun into the eye. Its normal is the half-way
+    // direction between the sun and the eye, and along the bearing that leans toward the
+    // sun only where the sun is LOWER than the line of sight (cos(elevation) greater than
+    // cos(depression): nearer the eye than the point that mirrors the sun exactly) and
+    // toward the eye beyond it - which, from anywhere but a wave trough, is most of the
+    // streak. The gradient points uphill, so a flank leaning toward the sun has its gradient
+    // pointing away from it. On or off at streak_fleck_slope, one pixel of slope either
+    // side so the edge stays clean; the pixel width is clamped because it is read after the
+    // discard, and beside a discarded pixel it is anything at all.
+    float lean = sign(sqrt(max(1.0 - light_dir.y * light_dir.y, 0.0)) - cos(radians(depression)));
+    float facing = -dot(lit_slope, sun_bearing) * lean;
+    float fleck_aa = clamp(fwidth(facing), 0.003, 0.03);
+    float flecks = smoothstep(streak_fleck_slope - fleck_aa, streak_fleck_slope + fleck_aa, facing);
+    // Torn into dashes by a noise mask about two metres across, drifting slowly, and thinned
+    // toward the cone's edge by the bell (times streak). Gone once a pixel spans more than
+    // about a metre of sea: the mask cannot be resolved there and shimmered, and the bare
+    // flanks behind it were the ladder.
+    float fleck_breakup = noise(world_point.xz * 0.5 + vec2(clock * 0.03, -clock * 0.02));
+    float metres_per_pixel = length(vec2(fwidth(world_point.x), fwidth(world_point.z)));
+    flecks *= smoothstep(0.42, 0.62, fleck_breakup) * streak
+        * (1.0 - smoothstep(0.6, 1.2, metres_per_pixel));
+    float sun_light = streak * streak_strength + flecks * streak_flecks;
+    shaded_water = mix(shaded_water, streak_colour, clamp(sun_light, 0.0, 1.0));
 
     // ---- 11. Composite ------------------------------------------------------------------
     // The band rides on the shaded water; the foam and crests go on top in foam_colour. The
@@ -606,7 +739,7 @@ void fragment() {
         under_side = surface_height(near_point.xz) > near_point.y ? 1.0 : 0.0;
     }
     if (under_side > 0.5) {
-        // Everything above - refraction, foam, bands, glitter - is the top of the sea, and
+        // Everything above - refraction, foam, bands, streak - is the top of the sea, and
         // from under it none of it is there (it was all computed anyway; the cost of one
         // branch for both sides). What is there is the sky coming through, inside the
         // window. The normal n points up whichever side is drawn, and view_dir runs from
@@ -616,7 +749,7 @@ void fragment() {
         float from_vertical = max(dot(-view_dir, n), 0.0);
         float window = smoothstep(0.661 - window_softness, 0.661 + window_softness, from_vertical);
         // Streaks: light through the surface, bright along the flanks of the short waves and
-        // dim between, stepped to two levels like the glitter. Nothing here reads the sun.
+        // dim between, stepped to two levels like the fog's bands. Nothing here reads the sun.
         // The short waves, not the swell: the swell's slope keeps one sign across the dozen
         // metres a look up takes in, so anything keyed to it - a facet facing the sun, say -
         // lit a whole frame or none. The 3.6 m and 7 m waves alternate every metre or two,
@@ -636,17 +769,23 @@ void fragment() {
         ALPHA = edge;
     }
 
-    // ---- 13. The horizon, and the preview -----------------------------------------------
-    // The sea meets the sky by becoming it. The water stops being drawn somewhere - at the
-    // mesh's extent, or sooner at the camera's far plane, which at a thousand metres was
-    // the one that counted - a hair below the true horizon, and with the scene fog off here
-    // it stayed dark blue right up to that edge while the sky's pale horizon began on the
-    // other side of it: the edge, drawn at a fraction of a pixel, rasterised as a broken row
-    // of sky-coloured dashes along the horizon in every shot from the beach. Fading the water
-    // out over its last stretch lets the sky show through in its own colour, at whatever
-    // hour, and leaves no edge to draw. tests/sun_view.gd measures the arrival.
-    float horizon_fade = smoothstep(horizon * horizon_fade_start, horizon * 0.97, surface_range);
-    ALPHA *= 1.0 - horizon_fade;
+    // ---- 13. The haze, and the preview --------------------------------------------------
+    // The sea meets the sky by becoming it: with distance, everything drawn above - water,
+    // foam, streak, underside - goes to the scene fog's colour, and the horizon band (vertex
+    // stage) arrives there fully hazed, so the line where sea and sky meet is one colour on
+    // both sides from any height - at every hour at which the fog and the sky's horizon are
+    // the same colour, which today is full daylight (see the Haze group). The scene fog is
+    // off in this shader (render_mode) because it would fog the transparent water twice,
+    // once here and once on the seabed behind it; this is the sea's own, with the fog's
+    // colour. tests/sun_view.gd measures the arrival.
+    float haze = 1.0 - exp(-range_here / max(haze_distance, 1.0));
+    // And the soft line at the horizon itself, by angle (`depression` is stage 10's; its
+    // sign is dropped so the surface seen from below, which lies above the eye, gets the
+    // same treatment at a grazing look), for water beyond a few hundred metres only.
+    float horizon_blend = (1.0 - smoothstep(0.0, max(horizon_softness, 0.001), abs(depression)))
+        * smoothstep(150.0, 300.0, range_here);
+    haze = max(haze, horizon_blend);
+    ALBEDO = mix(ALBEDO, haze_colour, haze);
     if (palette_preview) {
         ALBEDO = water;
         ALPHA = 1.0;
