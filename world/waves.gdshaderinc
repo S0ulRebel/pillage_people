@@ -122,3 +122,28 @@ float surface_height(vec2 p) {
     gerstner_all(source, shoal_at(source) * wave_height, q, offset, reach);
     return sea_y + offset.y;
 }
+
+// The screen, for asking where the surface is against it. Both shaders need a pixel's own
+// point on the near plane: the underwater pass to split the frame along the waterline, the
+// sea to know which side of itself a pixel sees when the eye is at the waterline.
+// The raw depth-buffer value of the near plane. Reverse-Z on the Vulkan renderers, so near is
+// one there; the Compatibility renderer keeps GL's zero.
+float near_depth() {
+    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+    return 0.0;
+    #else
+    return 1.0;
+    #endif
+}
+
+// A world point from a screen position and a raw depth-buffer value.
+vec3 unproject(vec2 uv, float raw_depth, mat4 inv_projection, mat4 inv_view) {
+    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+    vec3 ndc = vec3(uv, raw_depth) * 2.0 - 1.0;
+    #else
+    vec3 ndc = vec3(uv * 2.0 - 1.0, raw_depth);
+    #endif
+    vec4 view = inv_projection * vec4(ndc, 1.0);
+    view.xyz /= view.w;
+    return (inv_view * vec4(view.xyz, 1.0)).xyz;
+}

@@ -47,6 +47,13 @@ func _run() -> void:
 	# shot, and a swell moving at half a metre a second carries the waterline clean off a near
 	# plane six centimetres tall in the frames between placing it and reading the picture back.
 	ocean.wave_speed = 0.0
+	# And so does the wind, which leans the waves toward itself every frame: a surface that
+	# turns between placing the camera and reading the picture back is the same problem as
+	# one that moves.
+	var wind := scene.get_node_or_null("Wind")
+	if wind != null:
+		wind.set_process(false)
+		wind.set_physics_process(false)
 	# --nochop takes the sideways Gerstner displacement out of the waves. With it the surface
 	# is a plain sum and the shader, the mesh and surface_y all have to agree; if the
 	# waterline check below fails only WITH the displacement, the solve for it is what broke.
@@ -121,10 +128,28 @@ func _run() -> void:
 		_failures += 1
 		push_error("the underwater pass is not changing the picture")
 
-	# Looking up at the surface from three metres down.
+	# Looking up at the surface from three metres down. The reference draws the surface from
+	# below as a bright ceiling with streaks of light through it and darker gaps between:
+	# luminance 0.40 at the tenth percentile to 0.72 at the ninetieth. A flat glow - which is
+	# what this shot was before the sea drew its underside - has almost none.
 	camera.global_position = Vector3(deep.x, sea - 3.0, deep.z)
 	camera.look_at(camera.global_position + out * 3.0 + Vector3.UP * 4.0, Vector3.UP)
-	await _shot("04_up", camera)
+	var up := await _shot("04_up", camera)
+	var lum := _luminance_spread(up)
+	print("up: luminance p10 %.2f p50 %.2f p90 %.2f (reference 0.40 / 0.59 / 0.72)" % [lum.x, lum.y, lum.z])
+	if lum.z - lum.x < 0.15:
+		_failures += 1
+		push_error("looking up is a flat glow (p90 - p10 = %.2f) - the surface should show its window and streaks" % (lum.z - lum.x))
+	# And the spread has to be the SEA's. The sky through fog has a gradient of its own, so
+	# the same view without the ocean must differ from it over most of the frame.
+	ocean.hide()
+	var no_sea := await _shot("04_up_no_sea", camera)
+	ocean.show()
+	var sea_pixels := _difference(up, no_sea)
+	print("up: %d samples differ with the sea hidden" % sea_pixels)
+	if sea_pixels < 100000:
+		_failures += 1
+		push_error("looking up, the sea itself changes only %d samples - the ceiling is not being drawn" % sea_pixels)
 
 	# And above it, where the pass has to be off.
 	camera.global_position = Vector3(deep.x, sea + 3.0, deep.z)
@@ -321,6 +346,18 @@ func _thirds(image: Image) -> Array[Color]:
 		var mid := reds.size() / 2
 		result.append(Color(reds[mid], greens[mid], blues[mid]))
 	return result
+
+
+## Luminance at the tenth, fiftieth and ninetieth percentile over the whole frame.
+func _luminance_spread(image: Image) -> Vector3:
+	var values := PackedFloat32Array()
+	for y in range(0, image.get_height(), 4):
+		for x in range(0, image.get_width(), 4):
+			var c := image.get_pixel(x, y)
+			values.append((c.r + c.g + c.b) / 3.0)
+	values.sort()
+	var n := values.size()
+	return Vector3(values[n / 10], values[n / 2], values[n * 9 / 10])
 
 
 func _difference(a: Image, b: Image) -> int:

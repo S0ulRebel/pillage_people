@@ -50,8 +50,10 @@ uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.35;
 // Metres of camera depth over which the glow goes and the palette turns to abyss_colour.
 uniform float deep_fade : hint_range(1.0, 40.0) = 12.0;
-// How much of the glow an upward look gets however close the surface is.
-uniform float surface_glow : hint_range(0.0, 1.0) = 0.55;
+// How much of the glow an upward look gets however close the surface is. Was 0.55 while the
+// sea drew its underside in its top-side colours; now the sea draws Snell's window and its
+// streaks itself, and this only has to keep the far ceiling glowing, not paint the near one.
+uniform float surface_glow : hint_range(0.0, 1.0) = 0.2;
 group_uniforms Waterline;
 // The bright line where the surface meets the lens, in pixels. The near plane is centimetres
 // from the eye, so a width in metres would be the whole screen or nothing.
@@ -71,28 +73,6 @@ group_uniforms;
 // cannot, because a seabed the terrain already paints teal looks fogged when nothing is
 // being drawn over it at all.
 uniform bool split_preview = false;
-
-// The raw depth-buffer value of the near plane. Reverse-Z on the Vulkan renderers, so near is
-// one there; the Compatibility renderer keeps GL's zero.
-float near_depth() {
-    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-    return 0.0;
-    #else
-    return 1.0;
-    #endif
-}
-
-// A world point from a screen position and a raw depth-buffer value.
-vec3 unproject(vec2 uv, float raw_depth, mat4 inv_projection, mat4 inv_view) {
-    #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
-    vec3 ndc = vec3(uv, raw_depth) * 2.0 - 1.0;
-    #else
-    vec3 ndc = vec3(uv * 2.0 - 1.0, raw_depth);
-    #endif
-    vec4 view = inv_projection * vec4(ndc, 1.0);
-    view.xyz /= view.w;
-    return (inv_view * vec4(view.xyz, 1.0)).xyz;
-}
 
 void vertex() {
     // The quad IS the screen. Its transform is ignored and its corners are pinned to the
@@ -154,7 +134,14 @@ void fragment() {
         }
         f = mix(f, quantized, band_strength);
     }
-    float alpha = mix(haze, 1.0, f);
+    // The haze is for what is in the water with him - sand, rock, the wall of a crater - which
+    // the reference tints half teal however close. It is not for the surface overhead: that
+    // is the brightest thing in the water and the sea draws its own window and streaks on it,
+    // and half a teal wash over four metres of water flattened them to nothing. So a ray that
+    // LEAVES the water gets no floor, only the fog its distance earns; a ray that ends on
+    // something submerged keeps it, however steeply it looks up at a wall.
+    float near_tint = haze * (1.0 - step(wet_range + 0.01, range));
+    float alpha = mix(near_tint, 1.0, f);
 
     // Light shafts. A shaft is the column the sun's light takes down from one spot on the
     // surface, so every point in the water is dragged back up the sun's direction to where

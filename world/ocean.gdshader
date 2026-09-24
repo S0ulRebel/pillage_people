@@ -85,11 +85,35 @@ uniform float glitter_reach : hint_range(0.0, 1.0) = 0.35;
 // that is what a sun road is at distance - you stop resolving individual wave faces and see
 // one streak running to the horizon.
 uniform float glitter_spread : hint_range(2.0, 60.0) = 10.0;
+group_uniforms Underside;
+// The surface seen from below, once the camera dives. Snell's window: looking up within
+// forty-nine degrees of the vertical the sky comes through, bright; past that the surface
+// mirrors the dark water under it. Colours measured off the "Underwater (deep)" panel of
+// art/references/water-rock-wood-plant-studies.jpg, the strip where the surface is: p10, p50
+// and p90.
+uniform vec3 underside_colour : source_color = vec3(0.02, 0.44, 0.65);
+uniform vec3 window_colour : source_color = vec3(0.09, 0.76, 0.95);
+// Brighter than the art's streaks read, because the fog pass will dim it again: the art's p90
+// is what is left after the water's own haze.
+uniform vec3 underside_shine_colour : source_color = vec3(0.55, 0.96, 1.0);
+// How soft the window's rim is, in cosine of the angle from vertical.
+uniform float window_softness : hint_range(0.01, 0.4) = 0.08;
+// The streaks: facets tilted toward the sun, stepped to two levels like the glitter.
+uniform float underside_shine : hint_range(0.0, 1.0) = 1.0;
+uniform float underside_shine_width : hint_range(0.02, 0.6) = 0.1;
 group_uniforms;
 
 varying vec3 world_position;
 varying float wave_activity;
 varying float surface_range;
+// Metres of water over the eye at its own x/z, negative in air. The same for every vertex,
+// so it reaches the fragment unchanged. Decided here, from the shared wave sum, rather than
+// per fragment from heights: whichever side of the surface the eye is on is the side every
+// ray from it meets first, and a per-fragment "is this point higher than the eye" painted
+// crest faces seen from a trough - the top of the sea - with the underside, whenever the eye
+// was within a wave's height of the water. The one place a single answer is wrong is the
+// near plane's few centimetres, when the eye is AT the waterline; the fragment handles that.
+varying float eye_depth;
 
 float hash(vec2 p) {
     // Polynomial hash avoids precision-sensitive sin()*large-number noise on Mobile.
@@ -174,6 +198,7 @@ void vertex() {
     VERTEX = (inverse(MODEL_MATRIX) * vec4(world, 1.0)).xyz;
     wave_activity = smoothstep(0.02, 0.18, reach);
     surface_range = length(world - eye);
+    eye_depth = surface_height(eye.xz) - eye.y;
 }
 
 void fragment() {
@@ -396,6 +421,46 @@ void fragment() {
 	// The shader already contains the transmitted scene colour, so it composites opaquely
 	// except at the shoreline. Foam and contact bands remain visible at the depth boundary.
 	ALPHA = edge * max(contact, max(white, band_opacity * 0.82));
+    // Seen from below. Not FRONT_FACING, which depends on which way the radial grid is
+    // wound; not the facet's normal, which at a grazing look from the beach tilts away from
+    // the eye on the far side of every wave; not this point's height against the eye's, which
+    // is wrong for every crest above an eye that is in air. The eye's own medium - see
+    // eye_depth - except at the waterline, where the near plane straddles the surface and
+    // half the frame is in air: there each pixel asks for its own point on the near plane
+    // against the wave under it, the same question the underwater pass asks to place its
+    // waterline, so the two agree to the pixel.
+    float under_side = eye_depth > 0.0 ? 1.0 : 0.0;
+    if (abs(eye_depth) < 0.2) {
+        vec3 near_point = unproject(SCREEN_UV, near_depth(), INV_PROJECTION_MATRIX, INV_VIEW_MATRIX);
+        under_side = surface_height(near_point.xz) > near_point.y ? 1.0 : 0.0;
+    }
+    if (under_side > 0.5) {
+        // The underside. Everything above - refraction, foam, bands, glitter - is the top of
+        // the sea, and from under it none of it is there: the sky is what comes through, and
+        // only inside the window. The normal n points up whichever side is drawn, and
+        // view_dir runs from the surface down to the eye, so -view_dir . n is the cosine of
+        // how far from straight up this pixel is being looked at.
+        float from_vertical = max(dot(-view_dir, n), 0.0);
+        float window = smoothstep(0.661 - window_softness, 0.661 + window_softness, from_vertical);
+        // Streaks: light through the surface, bright along the flanks of the short waves and
+        // dim between, stepped to two levels like the glitter. The short waves, not the
+        // swell: the swell's slope keeps one sign across the dozen metres a look up takes in,
+        // so anything keyed to it - a facet facing the sun, say - lit a whole frame or none.
+        // The 3.6 m and 7 m waves alternate every metre or two, which is the ripple the
+        // reference draws. fine_slope keeps its waves out to the horizon through env.
+        float ripple = length(fine_slope) * env.z * wave_height;
+        // Threshold fitted to the ripple as it comes out: at most 0.23 by construction
+        // (0.42 + 0.30 steepness, times wave_height), median 0.14 on a frame. Half of it
+        // shines at least a little; the flanks shine fully.
+        float shine = smoothstep(0.03, 0.03 + underside_shine_width, ripple);
+        shine = floor(shine * 2.0 + 0.5) / 2.0;
+        vec3 under = mix(underside_colour, window_colour, window);
+        // Streaks cross the mirror as well as the window - the reference streaks the whole
+        // ceiling - only a little fainter where the sky is not behind them.
+        under = mix(under, underside_shine_colour, shine * underside_shine * mix(0.7, 1.0, window));
+        ALBEDO = under;
+        ALPHA = edge;
+    }
     if (palette_preview) {
         ALBEDO = water;
         ALPHA = 1.0;
