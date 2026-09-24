@@ -113,10 +113,20 @@ func _push_colour(name: StringName, value: Variant) -> void:
 var tunnels: Array = []
 
 var _heights: PackedFloat32Array
+## The island as loaded, before any TerrainStamp children were added on top. Kept so a stamp
+## that moves or goes away can be undone without reading the file again.
+var _base_heights: PackedFloat32Array
 var _size := 0
+var _mesh_instance: MeshInstance3D
+var _rebuild_pending := false
 var _rim_triangles := PackedVector3Array()
 var _dropped := 0
 var _clipped := 0   ## boundary geometry, for the precise rim collider
+
+
+func _init() -> void:
+	# TerrainStamp checks for this group to warn when it has been placed outside the terrain.
+	add_to_group(&"terrain")
 
 
 func _ready() -> void:
@@ -124,6 +134,15 @@ func _ready() -> void:
 	if source == "":
 		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
 		return
+	_base_heights = _heights.duplicate()
+	# Children are ready before their parent, so every stamp has read its file by now - and
+	# this runs before main.gd places anything on the ground, so props land on stamped ground.
+	_apply_stamps()
+	child_entered_tree.connect(_on_child_entered)
+	child_exiting_tree.connect(_on_child_exiting)
+	for child in get_children():
+		if child is TerrainStamp:
+			child.changed.connect(_queue_rebuild)
 	if Engine.is_editor_hint():
 		# Preview the landscape in the editor - without it you would be drawing tunnel curves
 		# against an empty viewport. Mesh only: collision is a runtime concern.
@@ -134,6 +153,78 @@ func _ready() -> void:
 func generate() -> void:
 	_build_mesh()
 	_build_collision()
+
+
+## The stamps to apply: all of them in the game, and in the editor only the ones ticked for
+## preview - an unticked one is still being placed.
+func _stamps() -> Array[TerrainStamp]:
+	var found: Array[TerrainStamp] = []
+	for child in get_children():
+		if child is TerrainStamp and (child.preview or not Engine.is_editor_hint()):
+			found.append(child)
+	return found
+
+
+## The island plus every stamp, in child order - so a canyon listed after a mountain cuts into
+## it. Only the samples inside each stamp's footprint are visited.
+func _apply_stamps() -> void:
+	_heights = _base_heights.duplicate()
+	var spacing := world_size / float(_size - 1)
+	var half := world_size * 0.5
+	for stamp in _stamps():
+		var rect := stamp.footprint()
+		var x0 := clampi(floori((rect.position.x + half) / spacing), 0, _size - 1)
+		var x1 := clampi(ceili((rect.end.x + half) / spacing), 0, _size - 1)
+		var z0 := clampi(floori((rect.position.y + half) / spacing), 0, _size - 1)
+		var z1 := clampi(ceili((rect.end.y + half) / spacing), 0, _size - 1)
+		# The map holds heights as a fraction of height_scale; the stamp works in world metres,
+		# so a levelling plane can be read straight off its position.
+		var base := global_position.y
+		for gz in range(z0, z1 + 1):
+			var wz := gz * spacing - half
+			for gx in range(x0, x1 + 1):
+				var i := gz * _size + gx
+				var height := _heights[i] * height_scale + base
+				var reshaped := stamp.reshape(height, gx * spacing - half, wz)
+				# Written only when it changed: the round trip through metres is not exact, and
+				# ground a stamp leaves alone should stay bit-for-bit the island.
+				if reshaped != height:
+					_heights[i] = (reshaped - base) / height_scale
+
+
+## A stamp only emits `changed` when its preview is ticked or unticked, so arriving and leaving
+## only rebuild for one that is already ticked.
+func _on_child_entered(child: Node) -> void:
+	if child is TerrainStamp:
+		child.changed.connect(_queue_rebuild)
+		if child.preview:
+			_queue_rebuild()
+
+
+func _on_child_exiting(child: Node) -> void:
+	if child is TerrainStamp:
+		child.changed.disconnect(_queue_rebuild)
+		if child.preview:
+			_queue_rebuild()
+
+
+## Editor only: re-stamps and rebuilds the preview a moment after a stamp is ticked or
+## unticked. In the game the ground is built once, and a stamp moved at runtime would leave the
+## collider behind.
+func _queue_rebuild() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree() or _base_heights.is_empty():
+		return
+	if _rebuild_pending:
+		return
+	# A full rebuild takes a moment, so ticking several stamps in a row waits for this one
+	# instead of queuing a rebuild each.
+	_rebuild_pending = true
+	await get_tree().create_timer(0.3).timeout
+	_rebuild_pending = false
+	if not is_inside_tree():
+		return
+	_apply_stamps()
+	_build_mesh()
 
 
 ## Negative where the ground is inside a tunnel, positive outside, zero on the opening's edge:
@@ -308,7 +399,11 @@ func _build_mesh() -> void:
 					st.add_vertex(p)
 				if inside > 0:                # keep rim geometry for the precise collider
 					_rim_triangles.append_array(tri)
+	# Rebuilt in the editor whenever a stamp changes, so the last mesh has to go first.
+	if _mesh_instance != null:
+		_mesh_instance.queue_free()
 	var mesh_instance := MeshInstance3D.new()
+	_mesh_instance = mesh_instance
 	mesh_instance.mesh = st.commit()
 	# Cel shading is where the stylised look comes from; the vertex colours only supply which
 	# biome each point is in. See terrain.gdshader.
