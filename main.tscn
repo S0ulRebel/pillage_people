@@ -13,6 +13,7 @@
 [ext_resource type="Texture2D" uid="uid://dey3gnwi67gt2" path="res://art/models/fish_blue_blue+fish+3d+model_basecolor.jpg" id="10_cegan"]
 [ext_resource type="Script" uid="uid://b01d3irkaowh3" path="res://props/waterfall/waterfall.gd" id="10_waterfall"]
 [ext_resource type="Material" path="res://world/sky_material.tres" id="11_sky"]
+[ext_resource type="PackedScene" path="res://world/terrain_stamp/terrain_stamp.tscn" id="18_074og"]
 [ext_resource type="PackedScene" uid="uid://drmo55pskacng" path="res://art/models/rocks/rock_arch.glb" id="90_arch"]
 [ext_resource type="Script" uid="uid://d01ysgn2hxx6n" path="res://props/fish/fish_school.gd" id="91_fish"]
 [ext_resource type="PackedScene" uid="uid://btmjjhgk6x2j4" path="res://props/ship/ship.tscn" id="92_ship"]
@@ -183,6 +184,15 @@ raw_path = "res://terrain/island.r16"
 world_size = 620.0
 height_scale = 180.0
 material = ExtResource("8_tmat")
+
+[node name="DiveCrater" parent="Terrain" instance=ExtResource("18_074og")]
+transform = Transform3D(0.96, 0, -0.28, 0, 1, 0, 0.28, 0, 0.96, 225, 13.2, -140)
+preview = true
+shape = 2
+strength = -10.0
+length = 30.0
+width = 24.0
+edge_softness = 10.0
 
 [node name="Ocean" type="MeshInstance3D" parent="." unique_id=1592415177]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.17102814, 18, 0.24934387)
