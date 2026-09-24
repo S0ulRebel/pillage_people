@@ -10,6 +10,11 @@ extends CharacterBody3D
 @export var sprint_speed := 9.0
 @export var acceleration := 12.0
 @export var turn_speed := 12.0
+## The tallest ledge he walks up without jumping. A CharacterBody3D only climbs slopes, so any
+## vertical edge was a wall to him: the rock arch's stone floor sits 0.28 m above the ground in
+## front of it and stopped him dead at its lip. Kerbs, stones, stair steps and deck edges are
+## the same problem. Above this it is still a wall, and has to be jumped.
+@export_range(0.0, 0.6, 0.01, "suffix:m") var step_height := 0.35
 ## Turns the model on the spot, in degrees, without touching which way the body steers.
 ## Movement rotates the body so its +Z faces the way you are going; a model authored facing
 ## the other way walks backwards. Set this to 180 if the captain moonwalks.
@@ -915,6 +920,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, target.x, acceleration * delta * sprint_speed)
 		velocity.z = move_toward(velocity.z, target.z, acceleration * delta * sprint_speed)
+	_step_up(delta)
 	move_and_slide()
 
 	_face(delta, direction)
@@ -932,6 +938,47 @@ func _physics_process(delta: float) -> void:
 		_walk_time = 0.0
 		_animate_walk(true)
 	_update_animation()
+
+
+## Lifts him onto a ledge no taller than step_height that he is walking into.
+##
+## Four checks, all with his own collider, in the order a foot would find them: something
+## too steep to walk up is in the way; there is headroom above him; raised by a step, the way
+## ahead is clear; and there is walkable ground under that raised spot to land on. Only then
+## is he lifted, by exactly the height of the ledge, and move_and_slide carries him on. Any
+## check failing leaves him to meet the obstacle as before - a wall is still a wall.
+func _step_up(delta: float) -> void:
+	if step_height <= 0.0 or not is_on_floor() or velocity.y > 0.0:
+		return
+	var travel := Vector3(velocity.x, 0.0, velocity.z) * delta
+	if travel.length_squared() < 0.000001:
+		return
+	# A little further than one tick's travel, so the ledge is met on arrival rather than after
+	# a frame spent pressed against it.
+	var reach := travel.normalized() * maxf(travel.length(), 0.15)
+	var from := global_transform
+	var blocked := KinematicCollision3D.new()
+	if not test_move(from, reach, blocked):
+		return
+	if blocked.get_normal().angle_to(Vector3.UP) <= floor_max_angle:
+		return   # a slope - move_and_slide walks up those itself
+	var lift := Vector3.UP * step_height
+	if test_move(from, lift):
+		return   # no headroom
+	var raised := from.translated(lift)
+	if test_move(raised, reach):
+		return   # still blocked a step higher: a wall, not a ledge
+	var landing := PhysicsTestMotionResult3D.new()
+	var probe := PhysicsTestMotionParameters3D.new()
+	probe.from = raised.translated(reach)
+	probe.motion = -lift
+	if not PhysicsServer3D.body_test_motion(get_rid(), probe, landing):
+		return   # nothing under the far side - a gap, not a ledge
+	if landing.get_collision_normal().angle_to(Vector3.UP) > floor_max_angle:
+		return
+	var rise := step_height - landing.get_travel().length()
+	if rise > 0.01:
+		global_position.y += rise
 
 
 ## At the wheel the stick is the ship, not his feet. Ahead is the bow, A and D yaw it.
