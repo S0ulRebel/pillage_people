@@ -38,6 +38,14 @@ float bed_height(vec2 p) {
     if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
         return sea_y - 1000.0;
     }
+    // The height map is a grid of samples at the CORNERS of the world: terrain.gd reads it
+    // as index u * (N - 1), and builds the ground from it that way. A texture keeps its
+    // samples at texel centres, so read straight, this was skewed by (0.5 - u) texels: nothing
+    // at the middle of the map, a third of a metre at its edge, and on a bed rising inside
+    // shoal_depth a few millimetres between the surface the CPU floats things on and the one
+    // the mesh draws. Measured by tests/underwater_view.gd.
+    vec2 texels = vec2(textureSize(terrain_height, 0));
+    uv = (uv * (texels - 1.0) + 0.5) / texels;
     return terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
 }
 
@@ -90,19 +98,27 @@ void gerstner_all(vec2 p, float scale, float q, inout vec3 offset, inout float r
 // Eight steps bring it under the millimetre the mesh itself is good to. Measured, all of it,
 // by tests/underwater_view.gd; with no sideways displacement the two agree to 1.6 mm, which
 // is what says the rest of the sum is right.
+//
+// The shoal is taken at the SOURCE, every step, not once at p. A vertex of the mesh flattens
+// by the depth under where it started, not under where the wave carries it, and the two are
+// up to 0.65 m apart. Deep water does not care; on a bed rising inside shoal_depth - where
+// he wades, and where the camera is half in most often - reading the depth at p is worth
+// centimetres. One seabed sample per step buys exactness there.
+float shoal_at(vec2 p) {
+    return smoothstep(0.0, max(shoal_depth, 0.001), sea_y - bed_height(p));
+}
+
 float surface_height(vec2 p) {
-    float shoal = smoothstep(0.0, max(shoal_depth, 0.001), sea_y - bed_height(p));
-    float scale = shoal * wave_height;
     float q = horizontal_ratio();
     vec2 source = p;
     vec3 offset = vec3(0.0);
     float reach = 0.0;
     for (int i = 0; i < 8; i++) {
         offset = vec3(0.0);
-        gerstner_all(source, scale, q, offset, reach);
+        gerstner_all(source, shoal_at(source) * wave_height, q, offset, reach);
         source = p - offset.xz;
     }
     offset = vec3(0.0);
-    gerstner_all(source, scale, q, offset, reach);
+    gerstner_all(source, shoal_at(source) * wave_height, q, offset, reach);
     return sea_y + offset.y;
 }
