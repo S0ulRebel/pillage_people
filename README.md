@@ -42,7 +42,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
 | `world/sky.*` | The daylight sky: a clear blue dome, the same pale horizon as the fog, and a few large clouds. |
 | `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
-| `world/tunnel.gd` | Draw a curve, get a tunnel bored through the terrain. Opt-in with `--tunnel`. |
+| `world/tunnel.gd` | Tunnels and caves, placed under Terrain: draw a curve, pick a section (round, arch, shaft). Dead ends are capped, corners mitred, crossings opened. See Tunnels below. |
 | `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. **Add** puts a mountain, mesa, volcano or canyon on top (strength in m, negative digs); **Flatten**, **Cut down** and **Fill up** level the ground to the stamp's own height, shown in the editor as a see-through sheet. Shapes: a stamp image, or a soft rectangle or circle. Stamp images come from the "Terrain - Stamp" ComfyUI workflow in `D:\code\gan`, stored as `.r16`. |
 | `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
 | `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |
@@ -266,28 +266,35 @@ Useful settings on the Terrain node:
 
 ## Tunnels
 
-A tunnel is a node you place in the scene: `Tunnel` extends `Path3D`, so you draw a curve and
-set a radius. Everything else follows. Opt in with `--tunnel`; the island slice is about
-terrain and water, and a generated tunnel punches a hole through the shoreline that reads as a
-bug.
+A tunnel is a node you place **under the Terrain node**: `Tunnel` extends `Path3D`, so you draw
+a curve and pick a cross-section. Two points make a straight cave, points with handles a winding
+one, points without handles a passage with sharp corners. Like a terrain stamp, it only shows in
+the editor once **Preview** is ticked, and editing it unticks it; the game builds every tunnel.
+`--tunnel` still generates one when the scene has none.
 
-- The tube is extruded along the curve and **clipped to the ground**: every triangle is cut
-  against `terrain height - y`, so the tube ends exactly on the surface and the mouth is that
-  intersection curve, whatever the slope. Whole-ring trimming left a flat end hanging out of
-  one side of a hill and buried in the other.
-- The terrain is cut **against the tube itself**, not against a separate hole shape, so an
-  opening is always exactly the tube's cross-section where it breaks the surface. (The first
-  version cut circular holes and tried to match craters to them; every mismatch was either a
-  gap to fall through or a dome to walk over.)
-- The cut stops short of the tube's ends and a little inside its wall (`cut_margin`), so ground
-  and tube overlap instead of meeting exactly on one surface.
+- **Sections:** `Round` (a bore), `Arch` (flat floor, straight walls, rounded roof - the cave),
+  `Shaft` (flat floor and roof), each `width` x `height`. The curve runs through the middle of
+  the section, so the floor is half the height below it.
+- The tube is **clipped to the ground**: every triangle is cut against `terrain height - y`, so
+  the tube ends exactly on the surface and the mouth is that intersection curve, whatever the
+  slope. An end of the curve that stays underground gets a **rounded cap** - a dead end.
+- The terrain is cut **against the tube itself**, triangle by triangle along the exact contour
+  rather than in grid squares, so an opening is always the tube's own section where it breaks
+  the surface. The cut stops a little inside the wall (`cut_margin`), so ground and tube overlap
+  instead of meeting exactly on one surface.
+- **Every entrance is made walkable**: where the floor comes out of the ground, a level apron
+  as wide as the tunnel is laid at floor height, and around it the ground is banked up or cut
+  down at no more than 28 degrees until it meets the hillside. Just inside, the lip of ground
+  left on the floor is trimmed. So a tunnel placed a little high or low still has a way in.
+- **Sharp corners are mitred**: the section at the corner faces halfway round and is stretched
+  across the bend, so the walls stay parallel through it instead of pinching shut on the inside.
+- **Tunnels that cross open into each other**: each one's walls are trimmed where they run
+  inside another.
 - Collision: the height field gets `NaN` wherever the opening is, the cut rim quads add a
-  trimesh, and the tube's own trimesh has `backface_collision = true` — without it you fall
+  trimesh, and the tube's own trimesh has `backface_collision = true` - without it you fall
   straight through a tube walked on from the inside.
 
-Keep the middle of the curve 10–20 m below the surface and the ends within about 25 degrees of
-the ground for a walkable ramp. The captain's `floor_max_angle` is raised to 55 degrees because
-faceted tube walls throw normals past Godot's 45 degree default and stop you dead halfway out.
+`tests/tunnel_check.gd` measures a dead-end cave, a 90 degree corner and a crossing with rays.
 
 ## Is it really physics?
 

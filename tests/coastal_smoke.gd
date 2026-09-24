@@ -19,7 +19,7 @@ func _run() -> void:
 		tunnel.curve = Curve3D.new()
 		for p in [Vector3(135, 23, -90), Vector3(125, 10, -90), Vector3(105, 10, -90), Vector3(95, 25, -90)]:
 			tunnel.curve.add_point(p)
-		scene.add_child(tunnel)
+		scene.get_node("Terrain").add_child(tunnel)
 	root.add_child(scene)
 	current_scene = scene
 	await process_frame
@@ -31,7 +31,7 @@ func _run() -> void:
 		check(study == null, "Study must be absent in noassets/authored runs")
 		if authored:
 			check(terrain.tunnels.size() == 1, "Authored tunnel must be registered")
-			check(not scene.get_node("AuthoredFixture").find_children("*", "CollisionShape3D", true, false).is_empty(), "Authored tunnel collision missing")
+			check(not scene.get_node("Terrain/AuthoredFixture").find_children("*", "CollisionShape3D", true, false).is_empty(), "Authored tunnel collision missing")
 		else:
 			seed(20260920)
 			check(player.global_position.distance_to(terrain.find_spawn() + Vector3.UP * 2.0) < 0.2, "Original spawn changed")
@@ -140,9 +140,9 @@ func _check_authored_tunnel() -> void:
 	curve.add_point(Vector3(0, -2, 34))
 	tun.curve = curve
 	tun.position = Vector3(120, 30, -80)
-	# Added before the scene enters the tree, so main._ready() finds it exactly as it would
-	# find one drawn in the editor.
-	scene.add_child(tun)
+	# Added under Terrain before the scene enters the tree, exactly where one drawn in the
+	# editor sits.
+	scene.get_node("Terrain").add_child(tun)
 	root.add_child(scene)
 	for i in 120:
 		await process_frame

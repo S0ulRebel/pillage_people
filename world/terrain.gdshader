@@ -14,6 +14,13 @@ uniform vec3 sun_direction = vec3(-0.5, 0.7, -0.5);
 uniform float ambient : hint_range(0.0, 1.0) = 0.16;
 // Full-light threshold; level ground under the default sun retains its palette.
 uniform float lit_threshold : hint_range(0.1, 1.0) = 0.70;
+// The ground carries its own fill light (the EMISSION below), because the shader turns the
+// scene's ambient off. Left at full strength it glowed all night while everything around it
+// went dark, so it follows the day: world/day.gd sets `daylight`, 1 by day and 0 at night, and
+// at night the fill fades to a dim moonlit blue instead.
+uniform float daylight : hint_range(0.0, 1.0) = 1.0;
+uniform vec3 night_fill_tint : source_color = vec3(0.55, 0.62, 1.0);
+uniform float night_fill : hint_range(0.0, 1.0) = 0.10;
 uniform bool palette_preview = false;
 
 group_uniforms Ground;
@@ -164,6 +171,13 @@ void vertex() {
     world_normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
     world_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
+// The light the ground gives itself where the sun does not reach: the day's tinted shadow
+// floor by day, a dim moonlit blue at night.
+vec3 ground_fill() {
+    vec3 day_fill = mix(vec3(1.0), shadow_tint, shadow_tint_strength) * shadow_floor;
+    return mix(night_fill_tint * night_fill, day_fill, daylight);
+}
+
 void fragment() {
     float clock = preview_time < 0.0 ? TIME : preview_time;
     vec3 n = normalize(world_normal);
@@ -266,8 +280,7 @@ void fragment() {
     NORMAL = normalize(mat3(VIEW_MATRIX) * n);
     ROUGHNESS = 1.0;
     SPECULAR = 0.0;
-    vec3 fill = mix(vec3(1.0), shadow_tint, shadow_tint_strength) * shadow_floor;
-    EMISSION = colour * fill;
+    EMISSION = colour * ground_fill();
     if (palette_preview) { ALBEDO = ground; EMISSION = ground; }
 }
 
@@ -276,7 +289,7 @@ void light() {
     if (!palette_preview) {
         float level = clamp(max(dot(NORMAL, LIGHT), 0.0) / max(lit_threshold, 0.001), 0.0, 1.0);
         float toon = toon_ramp(mix(level, 1.0, ambient));
-        vec3 fill = mix(vec3(1.0), shadow_tint, shadow_tint_strength) * shadow_floor;
+        vec3 fill = ground_fill();
         DIFFUSE_LIGHT += (vec3(1.0) - fill) * toon * ATTENUATION * LIGHT_COLOR / PI;
         if (LIGHT_IS_DIRECTIONAL) {
             DIFFUSE_LIGHT += caustic_light / max(ALBEDO, vec3(0.02)) * ATTENUATION * LIGHT_COLOR / PI;

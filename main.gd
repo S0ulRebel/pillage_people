@@ -738,18 +738,19 @@ func _ready() -> void:
 	seed(chosen_seed)
 	# start the player on the ground near the middle, plus a little clearance
 	var spawn: Vector3 = _terrain.find_spawn()
-	# Tunnels placed in the scene win; the generated one is only a fallback so the demo is
-	# never empty. Add a Tunnel node, draw its curve, and it is picked up here.
+	# Tunnels placed under Terrain win; the generated one is only a fallback so the demo is
+	# never empty. The terrain builds its own Tunnel children in generate().
 	var authored: Array = []
-	if "--noscene" not in OS.get_cmdline_user_args():   # --noscene: generate one instead
-		for child in get_children():
-			if child is Tunnel:
-				authored.append(child)
+	for child in _terrain.get_children():
+		if child is Tunnel:
+			authored.append(child)
+	if "--noscene" in OS.get_cmdline_user_args():   # --noscene: generate one instead
+		for tunnel in authored:
+			_terrain.remove_child(tunnel)
+			tunnel.queue_free()
+		authored = []
 	var holes: Array[Vector3] = []
 	if not authored.is_empty():
-		for tunnel in authored:
-			tunnel.build(_terrain)
-		_terrain.tunnels = authored
 		print("using %d tunnel(s) from the scene" % authored.size())
 	elif "--tunnel" in OS.get_cmdline_user_args():
 		# Only on request now: the island slice is about terrain and water, and a generated
@@ -757,9 +758,8 @@ func _ready() -> void:
 		var ends: Array[Vector3] = _terrain.plan_tunnel_ends(spawn)
 		if ends.size() == 2:
 			var tunnel := _make_tunnel(ends[0], ends[1])
-			_terrain.tunnels = [tunnel]
-			holes = [Vector3(ends[0].x, ends[0].z, tunnel.radius),
-					Vector3(ends[1].x, ends[1].z, tunnel.radius)]
+			holes = [Vector3(ends[0].x, ends[0].z, tunnel.width * 0.5),
+					Vector3(ends[1].x, ends[1].z, tunnel.width * 0.5)]
 	_terrain.generate()
 	var tunnel_mode := false
 	for argument in OS.get_cmdline_user_args():
@@ -870,12 +870,16 @@ func _ready() -> void:
 
 ## Builds a Tunnel node whose curve runs from above ground at `a`, down at `entry_slope`,
 ## along at depth, and back up to `b`. Everything else (tube, collision, the hole in the
-## terrain) follows from the curve and the radius.
+## terrain) follows from the curve and the radius. Kept a round bore, the shape it has always
+## had, so the --tunnel walk-throughs in tests/modes.gd still measure the tunnel they were
+## written against.
 func _make_tunnel(a: Vector3, b: Vector3, tunnel_radius := 3.0, depth := 9.0,
 		entry_slope_degrees := 25.0) -> Tunnel:
 	var tunnel := Tunnel.new()
 	tunnel.name = "Tunnel"
-	tunnel.radius = tunnel_radius
+	tunnel.section = Tunnel.Section.ROUND
+	tunnel.width = tunnel_radius * 2.0
+	tunnel.height = tunnel_radius * 2.0
 	var towards := Vector3(b.x - a.x, 0.0, b.z - a.z).normalized()
 	var run: float = depth / tan(deg_to_rad(entry_slope_degrees))
 	var floor_y: float = minf(a.y, b.y) - depth
@@ -897,6 +901,5 @@ func _make_tunnel(a: Vector3, b: Vector3, tunnel_radius := 3.0, depth := 9.0,
 			handle = (points[i + 1] - points[i - 1]).normalized() * 7.0
 		curve.add_point(points[i], -handle, handle)
 	tunnel.curve = curve
-	add_child(tunnel)
-	tunnel.build(_terrain)
+	_terrain.add_child(tunnel)
 	return tunnel

@@ -107,10 +107,16 @@ func _push_colour(name: StringName, value: Variant) -> void:
 @export var mesh_resolution := 512
 @export var collision_resolution := 513  ## samples per side for the collision shape (match mesh_resolution + 1)
 
-## Tunnels that cut through this terrain. Set before generate(); each one is asked where its
-## tube is, and the terrain is cut to exactly that shape - so an opening always matches its
-## tunnel, whatever the slope, with nothing to line up by hand.
-var tunnels: Array = []
+## The Tunnel children being built: all of them in the game, the ticked ones in the editor.
+## Each is asked where its tube is and the terrain is cut to exactly that shape - so an opening
+## always matches its tunnel, whatever the slope, with nothing to line up by hand.
+var tunnels: Array:
+	get:
+		return _tunnels
+var _tunnels: Array = []
+## Each built tunnel's reach, flattened to the ground plane: hole_field rejects a point outside
+## all of them before it reads a height.
+var _tunnel_rects: Array[Rect2] = []
 
 var _heights: PackedFloat32Array
 ## The island as loaded, before any TerrainStamp children were added on top. Kept so a stamp
@@ -125,7 +131,7 @@ var _clipped := 0   ## boundary geometry, for the precise rim collider
 
 
 func _init() -> void:
-	# TerrainStamp checks for this group to warn when it has been placed outside the terrain.
+	# TerrainStamp and Tunnel check for this group to warn when placed outside the terrain.
 	add_to_group(&"terrain")
 
 
@@ -141,18 +147,51 @@ func _ready() -> void:
 	child_entered_tree.connect(_on_child_entered)
 	child_exiting_tree.connect(_on_child_exiting)
 	for child in get_children():
-		if child is TerrainStamp:
+		if _previewable(child):
 			child.changed.connect(_queue_rebuild)
 	if Engine.is_editor_hint():
 		# Preview the landscape in the editor - without it you would be drawing tunnel curves
 		# against an empty viewport. Mesh only: collision is a runtime concern.
+		_build_tunnels()
 		_build_mesh()
 
 
-## Builds the mesh and colliders. Call after setting `holes`.
+## Builds the tunnels, then the mesh and colliders cut for them.
 func generate() -> void:
+	_build_tunnels()
 	_build_mesh()
 	_build_collision()
+
+
+## Children that follow the preview rule: the stamps and the tunnels.
+func _previewable(child: Node) -> bool:
+	return child is TerrainStamp or child is Tunnel
+
+
+## Every tunnel is prepared before any is built: building trims each tube against the others,
+## which needs them all to know where they run.
+func _build_tunnels() -> void:
+	for child in get_children():
+		if child is Tunnel:
+			child.clear()
+	_tunnels = []
+	for child in get_children():
+		if child is Tunnel and (child.preview or not Engine.is_editor_hint()):
+			_tunnels.append(child)
+	for tunnel in _tunnels:
+		tunnel.prepare(self)
+	# Level the ground in front of every mouth to its floor, then find the tunnels again against
+	# that ground: the tube is clipped to it, so it has to be the ground the player walks on.
+	if _level_mouths():
+		for tunnel in _tunnels:
+			tunnel.prepare(self)
+	for tunnel in _tunnels:
+		tunnel.build(_tunnels)
+	_tunnels = _tunnels.filter(func(tunnel) -> bool: return not tunnel.is_empty())
+	_tunnel_rects = []
+	for tunnel in _tunnels:
+		var box: AABB = tunnel.bounds()
+		_tunnel_rects.append(Rect2(box.position.x, box.position.z, box.size.x, box.size.z))
 
 
 ## The stamps to apply: all of them in the game, and in the editor only the ones ticked for
@@ -192,31 +231,54 @@ func _apply_stamps() -> void:
 					_heights[i] = (reshaped - base) / height_scale
 
 
-## A stamp only emits `changed` when its preview is ticked or unticked, so arriving and leaving
-## only rebuild for one that is already ticked.
+func _level_mouths() -> bool:
+	var spacing := world_size / float(_size - 1)
+	var half := world_size * 0.5
+	var base := global_position.y
+	var changed_any := false
+	for tunnel in _tunnels:
+		for rect: Rect2 in tunnel.mouth_footprints():
+			var x0 := clampi(floori((rect.position.x + half) / spacing), 0, _size - 1)
+			var x1 := clampi(ceili((rect.end.x + half) / spacing), 0, _size - 1)
+			var z0 := clampi(floori((rect.position.y + half) / spacing), 0, _size - 1)
+			var z1 := clampi(ceili((rect.end.y + half) / spacing), 0, _size - 1)
+			for gz in range(z0, z1 + 1):
+				for gx in range(x0, x1 + 1):
+					var i := gz * _size + gx
+					var height := _heights[i] * height_scale + base
+					var levelled: float = tunnel.level_mouths(height, gx * spacing - half, gz * spacing - half)
+					if levelled != height:
+						_heights[i] = (levelled - base) / height_scale
+						changed_any = true
+	return changed_any
+
+
+## Stamps and tunnels only emit `changed` when their preview is ticked or unticked, so arriving
+## and leaving only rebuild for one that is already ticked.
 func _on_child_entered(child: Node) -> void:
-	if child is TerrainStamp:
+	if _previewable(child):
 		child.changed.connect(_queue_rebuild)
 		if child.preview:
 			_queue_rebuild()
 
 
 func _on_child_exiting(child: Node) -> void:
-	if child is TerrainStamp:
+	if _previewable(child):
 		child.changed.disconnect(_queue_rebuild)
 		if child.preview:
 			_queue_rebuild()
 
 
-## Editor only: re-stamps and rebuilds the preview a moment after a stamp is ticked or
-## unticked. In the game the ground is built once, and a stamp moved at runtime would leave the
+## Editor only: re-stamps, rebuilds the tunnels and rebuilds the preview a moment after a
+## stamp or tunnel is ticked or unticked. Tunnels are rebuilt on a stamp change too: a tube is
+## trimmed to the ground, and a stamp may have moved the ground. In the game the ground is built once, and a stamp moved at runtime would leave the
 ## collider behind.
 func _queue_rebuild() -> void:
 	if not Engine.is_editor_hint() or not is_inside_tree() or _base_heights.is_empty():
 		return
 	if _rebuild_pending:
 		return
-	# A full rebuild takes a moment, so ticking several stamps in a row waits for this one
+	# A full rebuild takes a moment, so ticking several in a row waits for this one
 	# instead of queuing a rebuild each.
 	_rebuild_pending = true
 	await get_tree().create_timer(0.3).timeout
@@ -224,19 +286,29 @@ func _queue_rebuild() -> void:
 	if not is_inside_tree():
 		return
 	_apply_stamps()
+	_build_tunnels()
 	_build_mesh()
 
 
 ## Negative where the ground is inside a tunnel, positive outside, zero on the opening's edge:
 ## the contour the terrain mesh is cut along.
+##
+## Each tunnel is only asked inside its own bounds. Asking every tunnel about every point of
+## the island - a million vertices against every segment - was most of the cost of a tunnel.
 func hole_field(world_x: float, world_z: float) -> float:
-	if tunnels.is_empty():
+	var near := false
+	for rect in _tunnel_rects:
+		if rect.has_point(Vector2(world_x, world_z)):
+			near = true
+			break
+	if not near:
 		return 1e9
 	var point := Vector3(world_x, sample_height(world_x / world_size + 0.5,
 			world_z / world_size + 0.5), world_z)
 	var best := 1e9
-	for tunnel in tunnels:
-		best = minf(best, tunnel.distance_outside(point))
+	for tunnel in _tunnels:
+		if tunnel.bounds().has_point(point):
+			best = minf(best, tunnel.distance_outside(point))
 	return best
 
 
