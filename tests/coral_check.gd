@@ -44,9 +44,14 @@ func _run() -> void:
 	# Their size has to live in the .glb. `*.import` is gitignored, so a scale set on import is
 	# a scale a fresh clone never receives - the same trap that gave the captain 53% height. A
 	# coral that arrives one unit tall has had its bake lost.
-	var CoralProp := load("res://props/coral/coral.gd")
-	for kind in CoralProp.MODELS:
-		var path: String = CoralProp.MODELS[kind]
+	var families := [load("res://props/coral/coral.gd"), load("res://props/seaweed/seaweed.gd")]
+	var paths: Array[String] = []
+	for family in families:
+		for kind in family.MODELS:
+			paths.append(family.MODELS[kind])
+	check(paths.size() >= 6, "only %d models between the families - the reef has nothing to"
+			% paths.size() + " vary and everything below measures one shape")
+	for path in paths:
 		check(ResourceLoader.exists(path), "no coral model at %s" % path)
 		if not ResourceLoader.exists(path):
 			continue
@@ -114,8 +119,29 @@ func _run() -> void:
 			var there: Vector3 = (other as Node3D).global_position
 			nearest = minf(nearest, Vector2(there.x - at.x, there.z - at.z).length())
 
-	print("reef: %d corals, water %.1f to %.1f m, worst perch %.3f m off the bed, nearest pair %.2f m"
+	print("reef: %d growths, water %.1f to %.1f m, worst perch %.3f m off the bed, nearest pair %.2f m"
 			% [corals.size(), shallowest, deepest, worst_perch, nearest])
+	# Which family planted each one, by the name the reef gave it.
+	#
+	# The reef picks from two families and asks the one it picked to dress what it planted. If
+	# that dispatch collapsed to a single family - one wrong index, one preload dropped - the
+	# reef would still be full, still be on the bed, and would still pass every measurement
+	# above while quietly being one thing.
+	#
+	# This read the MATERIAL first, on the grounds that seaweed turns back-face culling off and
+	# coral does not. That measured the asset, not the code: coral_fingers and coral_branch
+	# arrive from Tripo doubleSided and coral_plate and coral_tubes do not, so breaking the
+	# dispatch to plant nothing but coral_fingers reported 26 seaweed and passed. The name is
+	# written from the same pick the model comes from, so it cannot disagree with it.
+	var counted := {}
+	for coral in corals:
+		var family: String = String(coral.name).trim_suffix(
+				String(coral.name).lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
+		counted[family] = int(counted.get(family, 0)) + 1
+	print("reef: %s" % str(counted))
+	check(counted.size() >= 2,
+			"everything in the reef came from one family (%s) - the pick is not reaching both"
+			% str(counted))
 
 	check(breached == 0,
 			"%d coral(s) break the surface. A coral is the one prop here that carries no layer"

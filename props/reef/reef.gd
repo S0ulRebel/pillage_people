@@ -1,5 +1,5 @@
 extends Node3D
-## Grows a reef of corals on the seabed.
+## Grows a reef on the seabed: corals and the weed between them.
 ##
 ## The first thing in this world that is scattered UNDER water. Every other scatterer excludes
 ## the sea explicitly - rocks want 0.6 m of clearance above it, palms a band 0.8 to 6 m up,
@@ -10,10 +10,19 @@ extends Node3D
 ## passes its middle, the same way it hands every other scatterer the player's spawn - so
 ## moving the crater in the editor moves the reef with it, and a second crater gets its own.
 ##
-## What a coral is made of - the model, the flat shading, the render layer it stays OFF - lives
-## in coral.gd beside this, which is also what you drag into a scene to place one by hand.
+## What a coral or a weed is made of - the model, the flat shading, the render layer it stays
+## OFF - lives in its own script, which is also what you drag into a scene to place one by
+## hand. This file only decides WHERE, and asks the family to dress what it planted.
+##
+## It was corals.gd until the weed arrived. A file called corals that plants seaweed is a file
+## nobody can grep for.
 
-const CoralProp = preload("res://props/coral/coral.gd")
+## The families it draws from. Each is a prop script with a MODELS dictionary and a static
+## dress(); adding a third is one line here and nothing else.
+const FAMILIES := [
+	preload("res://props/coral/coral.gd"),
+	preload("res://props/seaweed/seaweed.gd"),
+]
 
 @export var count := 26
 ## How far from the middle of the reef they spread. The dive crater is 25 m of full-depth floor
@@ -46,15 +55,15 @@ var _planted: Array[Vector3] = []
 ## Plants the reef and returns how many went down. `around` is the middle of the water it
 ## should fill; `terrain` answers for the seabed and the waterline.
 func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
-	var loaded := {}
-	for kind in CoralProp.MODELS:
-		var path: String = CoralProp.MODELS[kind]
-		if ResourceLoader.exists(path):
-			loaded[kind] = load(path) as PackedScene
+	var loaded: Array[Dictionary] = []
+	for family in FAMILIES:
+		for kind in family.MODELS:
+			var path: String = family.MODELS[kind]
+			if ResourceLoader.exists(path):
+				loaded.append({"scene": load(path) as PackedScene, "family": family})
 	if loaded.is_empty():
-		push_warning("corals.gd: no coral models found under art/models/props.")
+		push_warning("reef.gd: no coral or weed models found under art/models/props.")
 		return 0
-	var kinds: Array = loaded.keys()
 	var sea: float = terrain.sea_level()
 	var grown := 0
 	for i in count:
@@ -76,8 +85,8 @@ func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
 					break
 			if too_near:
 				continue
-			var kind = kinds[rng.randi() % kinds.size()]
-			var coral := (loaded[kind] as PackedScene).instantiate() as Node3D
+			var pick: Dictionary = loaded[rng.randi() % loaded.size()]
+			var coral := (pick["scene"] as PackedScene).instantiate() as Node3D
 			var size := rng.randf_range(size_jitter.x, size_jitter.y)
 			# Measured from the model rather than assumed, and BEFORE it is planted: whether
 			# this one fits under the water is the question, and a coral that does not fit must
@@ -87,7 +96,13 @@ func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
 			if ground + tall + surface_clearance > sea:
 				coral.free()
 				continue
-			coral.name = "Coral%d" % grown
+			# Named for the family that planted it. Not decoration: it is the only honest
+			# record of which branch the pick took. A check tried to read that off the
+			# material instead - seaweed forces two-sided shading and coral does not - and it
+			# was measuring the asset rather than the code, because two of the four corals
+			# come out of Tripo doubleSided already and two do not.
+			coral.name = "%s%d" % [(pick["family"] as Script).resource_path.get_file()
+					.get_basename().capitalize(), grown]
 			add_child(coral)
 			coral.global_position = Vector3(at.x, ground, at.z)
 			# Ground puts the model's BOTTOM on the bed rather than its node origin. For these
@@ -96,7 +111,7 @@ func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
 			Ground.sit(coral, terrain, sink)
 			coral.rotation.y = rng.randf() * TAU
 			coral.scale *= size
-			CoralProp.dress(coral)
+			pick["family"].dress(coral)
 			_planted.append(coral.global_position)
 			grown += 1
 			break

@@ -12,7 +12,7 @@ const FishSchoolScene = preload("res://props/fish/fish_school.tscn")
 const CargoField = preload("res://props/cargo/cargo_field.gd")
 const GrassScene = preload("res://props/grass/grass.tscn")
 const Palms = preload("res://props/palm/palms.gd")
-const Corals = preload("res://props/coral/corals.gd")
+const Reef = preload("res://props/reef/reef.gd")
 const ShipScene = preload("res://props/ship/ship.tscn")
 const SharkScene = preload("res://props/shark/shark.tscn")
 const Music = preload("res://systems/music.gd")
@@ -465,7 +465,7 @@ func _grow_reef() -> void:
 	if craters.is_empty():
 		print("reef: no dive crater in the scene, so nothing to grow in")
 		return
-	var reef: Node3D = Corals.new()
+	var reef: Node3D = Reef.new()
 	reef.name = "Reef"
 	reef.count = coral_count
 	add_child(reef)
