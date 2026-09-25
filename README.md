@@ -340,10 +340,15 @@ over flat ground, which is what every other test walks on, reports success.
 ```
 Godot.exe --headless --path . --script res://tests/coastal_smoke.gd
 Godot.exe --headless --path . --script res://tests/ambience_check.gd
+Godot.exe --headless --path . --script res://tests/coral_check.gd
 Godot.exe --headless --path . -- --deathtest
 ```
 
-`coastal_smoke` checks the island builds and the captain stands on it. `ambience_check` walks
+`coral_check` measures the reef on the crater floor: that the corals carry their size in the
+`.glb` rather than a gitignored `.import`, that every one sits on the seabed, and that none
+breaks the surface — which is what makes it correct for a coral to be the one prop here that
+stays off the ocean's layer 20. `coastal_smoke` checks the island builds and the captain
+stands on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below
 3.5 m is 12 m from water on average, ground above 34 m is 74 m). `--deathtest` kills him and

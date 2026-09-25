@@ -12,6 +12,7 @@ const FishSchoolScene = preload("res://props/fish/fish_school.tscn")
 const CargoField = preload("res://props/cargo/cargo_field.gd")
 const GrassScene = preload("res://props/grass/grass.tscn")
 const Palms = preload("res://props/palm/palms.gd")
+const Corals = preload("res://props/coral/corals.gd")
 const ShipScene = preload("res://props/ship/ship.tscn")
 const SharkScene = preload("res://props/shark/shark.tscn")
 const Music = preload("res://systems/music.gd")
@@ -70,6 +71,9 @@ const WATER_FOR_FISH := 3.2
 ## schools beat one large one either way, for the reason in _stock_fish.
 @export var fish_schools := 3
 @export var fish_per_school := 120
+## Corals, grown on the floor of whatever dive crater the scene has. Per crater, not in total -
+## see _grow_reef, which finds them rather than being told where they are.
+@export var coral_count := 26
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
 @export var restart_delay := 3.4
@@ -435,6 +439,43 @@ func _start_sfx() -> void:
 	# loop over an empty scene and silently connect nothing - a grunt could be cut down without
 	# a sound and every part of it looked correct. Each one is wired as it is created instead,
 	# which also covers any spawned later.
+
+
+## Grows a reef on the floor of every dive crater.
+##
+## Takes no spawn point, unlike every other scatterer here, because the reef does not belong
+## near the player - it belongs in the hole he dives into. That hole is authored in main.tscn,
+## so writing its coordinates here would put the same number in two places and make the second
+## one wrong the first time the crater moved.
+##
+## A crater is found the way tests/dive_hole_view.gd defines one: a stamp under Terrain that
+## ADDs a negative height, below the waterline. Sharing the definition is the point - a second
+## crater dug tomorrow gets a reef without anyone remembering to come back here.
+func _grow_reef() -> void:
+	if "--noassets" in OS.get_cmdline_user_args() or coral_count <= 0:
+		return
+	var craters: Array[Vector3] = []
+	for child in _terrain.get_children():
+		var stamp := child as TerrainStamp
+		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.strength >= 0.0:
+			continue
+		var at := stamp.global_position
+		if _terrain.height_at(at.x, at.z) < _terrain.sea_level():
+			craters.append(at)
+	if craters.is_empty():
+		print("reef: no dive crater in the scene, so nothing to grow in")
+		return
+	var reef: Node3D = Corals.new()
+	reef.name = "Reef"
+	reef.count = coral_count
+	add_child(reef)
+	# Its own generator, like every other field: adding a coral should not move every grunt.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("corals") + randi()
+	var grown := 0
+	for centre in craters:
+		grown += reef.scatter(_terrain, centre, rng)
+	print("reef: %d corals of %d in %d crater(s)" % [grown, coral_count * craters.size(), craters.size()])
 
 
 ## One grunt's noises. Split out because the lambdas need to capture this grunt, not the last
@@ -850,6 +891,7 @@ func _ready() -> void:
 	_scatter_grass(spawn)
 	_plant_palms(spawn)
 	_place_barrels(spawn)
+	_grow_reef()
 	_loose_shark(spawn)
 	_stock_fish(spawn)
 	_spawn_enemies(spawn)
