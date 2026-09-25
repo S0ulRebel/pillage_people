@@ -459,11 +459,17 @@ void fragment() {
     // surface exactly here.
     float scene_z = scene_view_z(SCREEN_UV, INV_PROJECTION_MATRIX);
     float surface_z = (VIEW_MATRIX * vec4(world_point, 1.0)).z;
-    float to_solid = max(surface_z - scene_z, 0.0);
-    // The two alpha edges. `contact` fades the water in against a thing standing in it;
+    float ahead = surface_z - scene_z;
+    float to_solid = max(ahead, 0.0);
+    // The two alpha edges. `contact` fades the water in against a thing standing in it -
+    // a thing just BELOW the surface, that is; a thing in FRONT of the surface covers the
+    // water by the depth test and the water stays whole beside it. It used to fade against
+    // those too, and with MSAA the pixel on a palm's edge takes the palm's depth: the water
+    // went transparent across that whole pixel and whatever was behind it showed as a
+    // one-pixel fringe round every silhouette over the sea - the sky, at night, luminous.
     // `edge` fades it in at the beach - never sharper than the pixel drawing it, or the
     // waterline itself steps at distance.
-    float contact = smoothstep(0.0, max(contact_fade, 0.001), to_solid);
+    float contact = ahead < 0.0 ? 1.0 : smoothstep(0.0, max(contact_fade, 0.001), ahead);
     float edge = smoothstep(0.0, max(shore_softness, max(pixel_span, 0.001)), thickness);
 
     // ---- 2. Colour by depth -------------------------------------------------------------

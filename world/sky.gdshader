@@ -332,7 +332,10 @@ void sky() {
 	// Golden hour, laid over whatever the hour's mix is: violet-blue over the whole dome,
 	// coral over the lower third of it all round (the sheet's coral band is as strong
 	// twenty-eight degrees from the sun as beside it), and orange at the sun's own height.
-	float coral = golden * (1.0 - smoothstep(5.0, 32.0, elevation));
+	// The coral runs from the sun's height up to violet by about twenty-five degrees above
+	// it, the sheet's stops; measured by elevation alone it filled the whole sky a beach
+	// camera can see with one flat pink.
+	float coral = golden * (1.0 - smoothstep(2.0, 24.0, elevation - max(sun_elevation, 0.0)));
 	float orange = golden * (1.0 - smoothstep(2.0, 12.0, abs(elevation - sun_elevation)))
 		* (0.5 + 0.5 * max(dot(normalize(dir.xz + vec2(0.0001)), sun_flat), 0.0));
 	col = mix(col, sunset_sky_colour, golden * 0.75);
