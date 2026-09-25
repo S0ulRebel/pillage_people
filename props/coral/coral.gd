@@ -19,12 +19,13 @@ extends Node3D
 
 ## Which coral. The enum is the thing scenes and tests refer to; the paths are an implementation
 ## detail that a repaint or a re-export may change.
-enum Kind {FINGERS, PLATE, BRANCH}
+enum Kind {FINGERS, PLATE, BRANCH, TUBES}
 
 const MODELS := {
 	Kind.FINGERS: "res://art/models/props/coral_fingers.glb",
 	Kind.PLATE: "res://art/models/props/coral_plate.glb",
 	Kind.BRANCH: "res://art/models/props/coral_branch.glb",
+	Kind.TUBES: "res://art/models/props/coral_tubes.glb",
 }
 
 @export var kind: Kind = Kind.FINGERS:
