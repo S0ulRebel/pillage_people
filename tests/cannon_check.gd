@@ -41,6 +41,11 @@ func _run() -> void:
 
 	var terrain := scene.get_node("Terrain")
 	var spawn: Vector3 = terrain.find_spawn()
+	# The guns the SCENE built, taken before this file starts adding its own. Everything after
+	# this line is a fixture, and a fixture enters the tree long after main has finished wiring
+	# what it found - so asking whether one of them makes a noise asks about this test rather
+	# than about the game.
+	var placed: Array[Node] = scene.get_tree().get_nodes_in_group("cannons")
 
 	var gun := Cannon.new()
 	gun.name = "TestCannon"
@@ -65,6 +70,7 @@ func _run() -> void:
 	await _check_barrel(scene, terrain, spawn)
 	await _check_manning(scene)
 	_check_two_kinds(scene)
+	_check_heard(scene, placed)
 	_finish()
 
 
@@ -440,6 +446,36 @@ func _check_manning(scene: Node3D) -> void:
 ## being applied, the ship quietly gets an artillery piece that can turn all the way round and
 ## lob shells over its own rigging - which would not error, would not fail any other check, and
 ## would remove the reason the two exist separately.
+## Whether a shot makes a noise. Two separate ways to be silent, so both are asked about.
+##
+## The wiring: the guns are put in the group as they enter the tree, and the ship's arrive
+## AFTER main has built its sound system - so a pass over the group at the wrong moment finds
+## the hilltop cannon, connects that, and leaves the whole broadside mute. Nothing errors, and
+## nothing else in this file would notice.
+##
+## The clip: the wiring can be perfect and the folder empty. sfx.gd ignores a name it does not
+## have, deliberately, so that hooks can be written before the audio exists - which means a
+## missing file is silent in exactly the same way a missing connection is.
+func _check_heard(scene: Node3D, placed: Array[Node]) -> void:
+	var sfx := scene.get_node_or_null("Sfx")
+	check(sfx != null, "there is no Sfx node, so nothing in the scene makes any sound")
+	if sfx == null:
+		return
+	check(sfx.has("cannon"),
+			"no cannon clip in art/audio/sfx - the shot is wired to a sound that is not there")
+	var mute: Array[String] = []
+	for node in placed:
+		if node.fired.get_connections().is_empty():
+			mute.append(str(node.name))
+	check(placed.size() > 1,
+			"only %d gun was in the scene to check - the ship's broadside never arrived, and"
+			% placed.size() + " this check would pass on an island with one cannon on it")
+	print("guns heard: %d of %d placed guns wired to the shot, clip present=%s"
+			% [placed.size() - mute.size(), placed.size(), sfx.has("cannon")])
+	check(mute.is_empty(),
+			"%s fire in silence - nothing listens for their shot" % ", ".join(mute))
+
+
 func _check_two_kinds(scene: Node3D) -> void:
 	var ship_guns: Array = []
 	var open_guns: Array = []

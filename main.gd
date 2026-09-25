@@ -488,6 +488,7 @@ func _loose_shark(around: Vector3) -> void:
 ## rather than from the captain - the rig is a scene concern and the captain knows nothing
 ## about it, the same split as shoot_at and aim_point.
 func _watch_cannons() -> void:
+	var sfx := get_node_or_null("Sfx")
 	for node in get_tree().get_nodes_in_group("cannons"):
 		var gun := node as Node3D
 		if gun == null or not gun.has_signal("manned_changed"):
@@ -495,6 +496,18 @@ func _watch_cannons() -> void:
 		if gun.manned_changed.is_connected(_on_manned):
 			continue
 		gun.manned_changed.connect(_on_manned.bind(gun))
+		# The shot, wired on this same pass rather than in _start_sfx. That runs four lines
+		# earlier, which is before the ship has hung its guns - see the note at the call - so a
+		# pass over the group there would find the hilltop cannon and nothing else, and the
+		# broadside would fire in silence. Same reason the grunts are wired where they are.
+		#
+		# The gun still knows nothing about sound: it reports where the shot left, and this
+		# decides what that sounds like.
+		if sfx != null:
+			gun.fired.connect(func(from: Vector3, _velocity: Vector3) -> void:
+				# Louder than the flintlock, which was already the loudest thing here. You are
+				# standing directly behind it when it goes off.
+				sfx.play("cannon", from, 6.0))
 
 
 func _on_manned(manned: bool, gun: Node3D) -> void:
