@@ -187,41 +187,18 @@ func _build_body(box: AABB) -> void:
 	# scene; this one is rebuilt from the mesh every time and has no business being in the file.
 
 
+## Both halves of this used to live here and are now Ground's - see world/ground.gd. The
+## arithmetic is unchanged, including the part that matters most: `box.position.y` is the
+## BOTTOM of the mesh relative to this node and is not zero, because the imported model's node
+## sits away from its own geometry. Subtracting it is what puts the wheels on the ground rather
+## than the node origin.
 func _drop_to_ground(box: AABB) -> void:
-	var terrain := _find_terrain()
+	var terrain := Ground.find(self)
 	if terrain == null:
 		return
-	var at := global_position
-	var ground: float = terrain.height_at(at.x, at.z)
-	# box.position.y is the BOTTOM of the mesh relative to this node, and it is not zero - the
-	# imported model's node sits away from its own geometry. Subtracting it is what puts the
-	# wheels on the ground rather than the node origin.
-	global_position = Vector3(at.x, ground - box.position.y, at.z)
-
-	if not follow_slope:
-		return
-	var up: Vector3 = terrain.call("_surface_normal", at.x, at.z) if \
-			terrain.has_method("_surface_normal") else Vector3.UP
-	if up.length() < 0.01:
-		return
-	up = Vector3.UP.slerp(up.normalized(), slope_weight)
-	# Keep the way it is pointing, change only which way is up.
-	var facing := -global_transform.basis.z
-	var side := up.cross(facing)
-	if side.length() < 0.001:
-		return
-	side = side.normalized()
-	global_transform.basis = Basis(side, up, side.cross(up)).orthonormalized()
-
-
-func _find_terrain() -> Node:
-	var node := get_parent()
-	while node != null:
-		var found := node.get_node_or_null("Terrain")
-		if found != null and found.has_method("height_at"):
-			return found
-		node = node.get_parent()
-	return null
+	Ground.sit(self, terrain, 0.0, box)
+	if follow_slope:
+		Ground.lean(self, terrain, slope_weight)
 
 
 # --- Manning and aiming -------------------------------------------------------------------

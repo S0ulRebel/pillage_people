@@ -89,7 +89,11 @@ func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
 				continue
 			coral.name = "Coral%d" % grown
 			add_child(coral)
-			coral.global_position = Vector3(at.x, ground - sink, at.z)
+			coral.global_position = Vector3(at.x, ground, at.z)
+			# Ground puts the model's BOTTOM on the bed rather than its node origin. For these
+			# three that is the same thing to within 5 mm, but it is the same call the hand
+			# placed ones make, so a scattered coral and a dragged one cannot drift apart.
+			Ground.sit(coral, terrain, sink)
 			coral.rotation.y = rng.randf() * TAU
 			coral.scale *= size
 			CoralProp.dress(coral)

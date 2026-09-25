@@ -33,10 +33,47 @@ const MODELS := {
 		kind = value
 		if is_inside_tree():
 			_build()
+## Drops onto the seabed under it, and stays there while you drag it about in the editor.
+##
+## Without this a coral dragged into the scene stays at whatever height the mouse let go of -
+## floating over the bed or buried in it - and the only fix is nudging Y by eye against a
+## surface you cannot see from above. Turn it off to hang one deliberately.
+@export var sit_on_ground := true:
+	set(value):
+		sit_on_ground = value
+		_settle()
+## How far into the bed it sinks, so one on a slope does not stand on the edge of its base.
+@export var sink := 0.06:
+	set(value):
+		sink = value
+		_settle()
+
+## True while _settle is writing our own position, so the transform notification that causes
+## does not call _settle again for ever.
+var _settling := false
 
 
 func _ready() -> void:
 	_build()
+	_settle()
+	# Only in the editor. In game the reef places its corals and nothing moves them afterwards,
+	# so a notification per coral per frame would be work for nothing.
+	if Engine.is_editor_hint():
+		set_notify_transform(true)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSFORM_CHANGED and not _settling:
+		_settle()
+
+
+## Puts it on the bed under wherever it now is.
+func _settle() -> void:
+	if not is_inside_tree() or not sit_on_ground or _settling:
+		return
+	_settling = true
+	Ground.sit(self, null, sink)
+	_settling = false
 
 
 ## Loads the model and dresses it. Rebuilt rather than patched, so changing `kind` in the
@@ -96,17 +133,7 @@ static func dress(model: Node) -> void:
 ## node. Tripo origins are arbitrary - see the note in cannon.gd - so nothing here trusts the
 ## imported transform.
 func bounds() -> AABB:
-	var box := AABB()
-	var first := true
-	for node in find_children("*", "MeshInstance3D", true, false):
-		var mesh_node := node as MeshInstance3D
-		if mesh_node.mesh == null:
-			continue
-		var here := (global_transform.affine_inverse() * mesh_node.global_transform) \
-				* mesh_node.mesh.get_aabb()
-		box = here if first else box.merge(here)
-		first = false
-	return box
+	return Ground.mesh_box(self)
 
 
 ## How tall it stands, in metres. What corals.gd checks the water against.
