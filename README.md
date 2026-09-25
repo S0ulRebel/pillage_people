@@ -43,7 +43,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `world/sky.*` | The daylight sky: a clear blue dome, the same pale horizon as the fog, and a few large clouds. |
 | `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
 | `world/tunnel.gd` | Tunnels and caves, placed under Terrain: draw a curve, pick a section (round, arch, shaft). Dead ends are capped, corners mitred, crossings opened. See Tunnels below. |
-| `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. **Add** puts a mountain, mesa, volcano or canyon on top (strength in m, negative digs); **Flatten**, **Cut down** and **Fill up** level the ground to the stamp's own height, shown in the editor as a see-through sheet. Shapes: a stamp image, or a soft rectangle or circle. Stamp images come from the "Terrain - Stamp" ComfyUI workflow in `D:\code\gan`, stored as `.r16`. |
+| `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. **Add** puts a mountain, mesa, volcano or canyon on top (strength in m, negative digs); **Flatten**, **Cut down** and **Fill up** level the ground to the stamp's own height, shown in the editor as a see-through sheet. Shapes: a stamp image, or a soft rectangle or circle; the ground mesh is cut along a soft shape's outline and along the foot of its bank, so an edge as sharp as 0.25 m is a real edge at any angle, with a straight lip, a straight shadow and a collider that matches (Terrain's `cut_edges` turns this off). Stamp images come from the "Terrain - Stamp" ComfyUI workflow in `D:\code\gan`, stored as `.r16`. |
 | `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
 | `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |
 | `art/` | Data only — imported models, generated audio, reference images. Nothing here is loaded as code. |
@@ -263,13 +263,15 @@ Useful settings on the Terrain node:
 | `height_scale` | 60 | metres from lowest to highest |
 | `mesh_resolution` | 512 | quads per side (visual detail) |
 | `collision_resolution` | 513 | collision samples per side (match `mesh_resolution` + 1) |
+| `cut_edges` | on | cut the ground mesh along soft stamps' outlines and bank feet, so a sharp pad edge is a real edge. Off, sharp edges are drawn from the height field alone and come out saw-toothed; edges wider than about 2.5 m look the same either way. No cost per frame. |
+| `chunk_quads` | 32 | quads per chunk side. The ground is built in chunks so an edit only rebuilds the chunks it touches: the whole island is about 3 s, one chunk about 10 ms, so a ticked stamp or tunnel follows the gizmo. Chunks are culled one by one too. |
 
 ## Tunnels
 
 A tunnel is a node you place **under the Terrain node**: `Tunnel` extends `Path3D`, so you draw
 a curve and pick a cross-section. Two points make a straight cave, points with handles a winding
 one, points without handles a passage with sharp corners. Like a terrain stamp, it only shows in
-the editor once **Preview** is ticked, and editing it unticks it; the game builds every tunnel.
+the editor once **Preview** is ticked, and from then on it is live; the game builds every tunnel.
 `--tunnel` still generates one when the scene has none.
 
 - **Sections:** `Round` (a bore), `Arch` (flat floor, straight walls, rounded roof - the cave),
@@ -282,10 +284,9 @@ the editor once **Preview** is ticked, and editing it unticks it; the game build
   rather than in grid squares, so an opening is always the tube's own section where it breaks
   the surface. The cut stops a little inside the wall (`cut_margin`), so ground and tube overlap
   instead of meeting exactly on one surface.
-- **Every entrance is made walkable**: where the floor comes out of the ground, a level apron
-  as wide as the tunnel is laid at floor height, and around it the ground is banked up or cut
-  down at no more than 28 degrees until it meets the hillside. Just inside, the lip of ground
-  left on the floor is trimmed. So a tunnel placed a little high or low still has a way in.
+- **The ground at a mouth is left as it is.** Where the floor comes out of a hillside is where
+  the entrance is; to make it walkable, shape the ground there with terrain stamps (Flatten,
+  Cut down, Fill up); a ticked tunnel follows as it is moved, like a ticked stamp.
 - **Sharp corners are mitred**: the section at the corner faces halfway round and is stretched
   across the bend, so the walls stay parallel through it instead of pinching shut on the inside.
 - **Tunnels that cross open into each other**: each one's walls are trimmed where they run
@@ -308,7 +309,7 @@ collision; the default engine does the same but spams "Vector3 cannot be normali
 want Jolt.
 
 Keep `collision_resolution` at `mesh_resolution + 1`, or you stand on a surface coarser than
-the one you see. Measured against this 1024 height map over 400 m:
+the one you see. Measured against the height map (then 1024 samples a side, now 1025 so that mesh vertices sit on samples) over 400 m:
 
 | `collision_resolution` | spacing | mean error | worst |
 |---|---|---|---|
@@ -341,14 +342,18 @@ over flat ground, which is what every other test walks on, reports success.
 Godot.exe --headless --path . --script res://tests/coastal_smoke.gd
 Godot.exe --headless --path . --script res://tests/ambience_check.gd
 Godot.exe --headless --path . --script res://tests/coral_check.gd
+Godot.exe --headless --path . --script res://tests/placement_check.gd
 Godot.exe --headless --path . -- --deathtest
 ```
 
+`placement_check` covers `world/ground.gd` and `ScatterPatch` — that a model's BOTTOM lands on
+the ground rather than its node origin, and that one patch can grow a reef on the crater floor
+and a rock field up the beach with nothing between them but a signed water band.
 `coral_check` measures the reef on the crater floor: that the corals carry their size in the
 `.glb` rather than a gitignored `.import`, that every one sits on the seabed, and that none
 breaks the surface — which is what makes it correct for a coral to be the one prop here that
-stays off the ocean's layer 20. `coastal_smoke` checks the island builds and the captain
-stands on it. `ambience_check` walks
+stays off the ocean's layer 20. `coastal_smoke` checks the island builds and the captain stands
+on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below
 3.5 m is 12 m from water on average, ground above 34 m is 74 m). `--deathtest` kills him and

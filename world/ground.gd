@@ -112,6 +112,19 @@ static func lean(node: Node3D, terrain: Node = null, weight := 1.0) -> bool:
 	return true
 
 
+## How steep the ground is here, 0 for flat and 1 for 45 degrees.
+##
+## The same measure palms and grass already reject on - the larger of the two central
+## differences over a metre either way, halved - written once so a patch and a scatterer cannot
+## disagree about what counts as too steep. palms refuse above 0.5, grass above 0.55.
+static func slope(terrain: Node, x: float, z: float) -> float:
+	if terrain == null or not terrain.has_method("height_at"):
+		return 0.0
+	var dx: float = terrain.height_at(x + 1.0, z) - terrain.height_at(x - 1.0, z)
+	var dz: float = terrain.height_at(x, z + 1.0) - terrain.height_at(x, z - 1.0)
+	return maxf(absf(dx), absf(dz)) * 0.5
+
+
 ## Metres of water over the ground at this point. Negative above the waterline, so one signed
 ## number covers both sides of it.
 ##

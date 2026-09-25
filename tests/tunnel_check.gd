@@ -10,18 +10,11 @@ extends SceneTree
 ##                     and the walls stand at the mitre's width, not pinch shut on the inside.
 ##   a crossing        two tunnels in an X. Each must be clear along its whole length: the
 ##                     other's walls, which would otherwise wall the junction off, are trimmed.
-##   a high entrance   a cave whose curve starts well above the ground at the foot of a slope,
-##                     as the first one placed by hand in the game did. Its floor starts 2.5 m
-##                     above the ground in front, and the captain faced a bank of grass he could
-##                     not climb. Walking in along the middle, the ground underfoot has to rise
-##                     and fall smoothly from outside the mouth to the tunnel's floor.
 
 const TERRAIN := preload("res://world/terrain.gd")
 
 var failures := 0
 var _space: PhysicsDirectSpaceState3D
-## The island with nothing built into it, to tell ground a tunnel changed from ground it left.
-var _plain: Node3D
 
 
 func _initialize() -> void:
@@ -41,12 +34,6 @@ func _run() -> void:
 	terrain.world_size = 620.0
 	terrain.height_scale = 180.0
 	root.add_child(terrain)
-	_plain = StaticBody3D.new()
-	_plain.set_script(TERRAIN)
-	_plain.raw_path = terrain.raw_path
-	_plain.world_size = terrain.world_size
-	_plain.height_scale = terrain.height_scale
-	root.add_child(_plain)
 	await process_frame
 
 	var slope := _find_hillside(terrain, [])
@@ -62,17 +49,6 @@ func _run() -> void:
 	var cave := _tunnel("Cave", Tunnel.Section.ARCH, 6.0, 5.0,
 			[foot + Vector3.UP * 0.5, foot + uphill * 32.0 + Vector3.UP * -0.5])
 
-	# The high entrance, on another hillside: the curve starts 4.5 m up, so with a 4 m section
-	# the floor begins 2.5 m above the ground, and descends into the slope.
-	var second := _find_hillside(terrain, [foot])
-	check(not second.is_empty(), "no second hillside for the high entrance")
-	var high_cave: Tunnel = null
-	if not second.is_empty():
-		var at: Vector3 = second[0]
-		var up_slope: Vector3 = second[1]
-		high_cave = _tunnel("HighCave", Tunnel.Section.ARCH, 4.8, 4.0,
-				[at + Vector3.UP * 4.5, at + up_slope * 30.0 + Vector3.UP * 0.5])
-
 	# The corridor and the crossing are buried well away from the cave, under high ground.
 	var deep := _find_high_ground(terrain, foot)
 	var depth := 16.0
@@ -84,9 +60,8 @@ func _run() -> void:
 			[cross_at + Vector3(-12, 0, 0), cross_at + Vector3(12, 0, 0)])
 	var along_z := _tunnel("AlongZ", Tunnel.Section.ARCH, 5.0, 4.5,
 			[cross_at + Vector3(0, 0, -12), cross_at + Vector3(0, 0, 12)])
-	for tunnel in [cave, corridor, along_x, along_z, high_cave]:
-		if tunnel != null:
-			terrain.add_child(tunnel)
+	for tunnel in [cave, corridor, along_x, along_z]:
+		terrain.add_child(tunnel)
 
 	var started := Time.get_ticks_msec()
 	terrain.generate()
@@ -94,14 +69,9 @@ func _run() -> void:
 	for i in 3:
 		await physics_frame
 	_space = terrain.get_world_3d().direct_space_state
-	var expected_tunnels := 5 if high_cave != null else 4
-	check(terrain.tunnels.size() == expected_tunnels,
-			"%d of %d tunnels were built" % [terrain.tunnels.size(), expected_tunnels])
+	check(terrain.tunnels.size() == 4, "%d of 4 tunnels were built" % terrain.tunnels.size())
 
 	_check_cave(terrain, cave, foot, uphill)
-	_check_entrance(cave)
-	if high_cave != null:
-		_check_entrance(high_cave)
 	_check_corner(corner_at)
 	_check_crossing(cross_at)
 	_finish()
@@ -198,62 +168,6 @@ func _check_crossing(centre: Vector3) -> void:
 	var floor := _ray(centre, centre + Vector3.DOWN * 5.0)
 	check(_is_tunnel(floor) and absf(floor.position.y - (centre.y - 2.25)) < 0.1,
 			"no floor in the middle of the crossing")
-
-
-## Walks the middle of a tunnel from 6 m outside its first point to 14 m along the curve,
-## a ray straight down every half metre. Wherever the tunnel changed the ground, or it is the
-## tunnel's own floor, it must never be steeper than 35 degrees between samples - the ramps are
-## built to 28, and the captain stops at 55 - or than the hillside already was there, where the
-## ramp's far end has to meet it. Inside it must be the floor, half the section below the
-## curve. This island has 43 degree hillsides of its own, and the first run of this check blamed
-## one on the entrance.
-func _check_entrance(tunnel: Tunnel) -> void:
-	var curve := tunnel.curve
-	var start := tunnel.to_global(curve.sample_baked(0.0))
-	var ahead := tunnel.to_global(curve.sample_baked(2.0)) - start
-	ahead.y = 0.0
-	ahead = ahead.normalized()
-	var half_height := tunnel.height * 0.5
-	var heights: Array[float] = []
-	var natural: Array[float] = []
-	var ours: Array[bool] = []   # changed by the tunnel, or the tunnel's own floor
-	var worst_slope := 0.0
-	var worst_floor := 0.0
-	var steps := 0
-	var missed := 0
-	for i in 41:
-		var d := -6.0 + i * 0.5
-		var centre: Vector3
-		if d < 0.0:
-			centre = start + ahead * d
-		else:
-			centre = tunnel.to_global(curve.sample_baked(d))
-		var hit := _ray(centre, centre + Vector3.DOWN * (half_height + 6.0))
-		if hit.is_empty():
-			missed += 1
-			continue
-		var y: float = hit.position.y
-		var changed := _is_tunnel(hit) or absf(y - _plain.height_at(centre.x, centre.z)) > 0.05
-		var was: float = _plain.height_at(centre.x, centre.z)
-		if not heights.is_empty() and (changed or ours[-1]):
-			var slope := rad_to_deg(atan(absf(y - heights[-1]) / 0.5))
-			var before := rad_to_deg(atan(absf(was - natural[-1]) / 0.5))
-			# only what the tunnel added: steeper than 35 AND steeper than the hillside was
-			if slope > 35.0 and slope > before + 1.0:
-				worst_slope = maxf(worst_slope, slope)
-			else:
-				worst_slope = maxf(worst_slope, minf(slope, 35.0) if slope <= 35.0 else 0.0)
-		heights.append(y)
-		natural.append(was)
-		ours.append(changed)
-		steps += 1
-		if d > 8.0:   # well inside: on the floor
-			worst_floor = maxf(worst_floor, absf(y - (centre.y - half_height)))
-	print("%s entrance: %d samples, steepest %.1f deg, inside the floor is off by %.2f m, ground from %.2f to %.2f"
-			% [tunnel.name, steps, worst_slope, worst_floor, heights.min(), heights.max()])
-	check(missed == 0, "%s entrance: %d samples found no ground at all" % [tunnel.name, missed])
-	check(worst_slope < 35.0, "%s entrance is %.1f degrees steep in places" % [tunnel.name, worst_slope])
-	check(worst_floor < 0.15, "%s: inside, the ground is %.2f m off the floor" % [tunnel.name, worst_floor])
 
 
 # --- helpers --------------------------------------------------------------------------------

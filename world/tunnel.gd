@@ -11,8 +11,8 @@ extends Path3D
 ## nothing. Tunnels that cross open into each other: each one's walls are trimmed where they
 ## run inside another.
 ##
-## Like a TerrainStamp, it only shows in the editor once Preview is ticked, and editing it
-## unticks it. The game builds every tunnel either way.
+## Like a TerrainStamp, it only shows in the editor once Preview is ticked; from then on it
+## is live, rebuilt as its curve or settings change. The game builds every tunnel either way.
 
 signal changed
 
@@ -73,23 +73,6 @@ enum Section {
 const JUNCTION_OVERLAP := 0.05
 ## Rings in a dead end's rounded cap.
 const CAP_RINGS := 4
-## The level ground laid in front of a mouth, as wide as the tunnel and at least this long.
-const MOUTH_APRON := 4.0
-## Around the apron the ground is banked up or cut down at no more than this slope until it
-## meets the hillside - an embankment or a cutting, as a road builder would. The first version
-## blended back to the hillside over a set distance instead, and a blend adds the hillside's own
-## slope to the ramp's: a 29 degree hillside came out 43 degrees at the foot of a platform.
-const MOUTH_RAMP_DEGREES := 28.0
-## How far out the banks may run. A mouth left high above a valley would otherwise bank all the
-## way down to it.
-const MOUTH_RAMP_REACH := 30.0
-## Just inside a mouth, ground up to this far above the floor is taken down to it. The terrain
-## is only cut where it is cut_margin inside the tube, so without this a wedge of hillside that
-## tall was left standing on the floor at every entrance.
-const MOUTH_LIP := 1.0
-## The levelled ground sits this far under the floor, so it is the tube's floor that is clipped
-## away there rather than the two fighting over the same surface.
-const MOUTH_SINK := 0.02
 ## A bend sharper than this many degrees at one point of the curve gets a mitred section.
 const CORNER_DEGREES := 8.0
 
@@ -113,15 +96,20 @@ var _edge_offsets := PackedFloat32Array()
 var _stretches: Array[Stretch] = []
 var _others: Array = []
 var _bounds := AABB()
-## One per surfacing end of a stretch, at the entrance - where the floor comes out of the
-## ground: the centre there, the level outward direction, the floor height and grade, and how
-## far in the roof stays open to the sky.
-var _mouths: Array[Dictionary] = []
+## The transform the last edit was reported for. Godot sends a transform-changed notification
+## the frame after a node enters the tree, transform and all unchanged; reported as an edit it
+## had the terrain rebuild every ticked tunnel a moment after the scene opened.
+var _last_transform := Transform3D.IDENTITY
 var _guide: MeshInstance3D
 
 
 func _init() -> void:
 	curve_changed.connect(_on_curve_changed)
+	# Moving or turning the node moves the tube with it - it is a child - but the terrain only
+	# learns of a change through `changed`. Without this, dragging a built tunnel carried the
+	# tube off and left the hole where it had been: a slab of ground inside the tube's outline
+	# and a hole cut beside it, open to the sky.
+	set_notify_transform(true)
 
 
 func _ready() -> void:
@@ -136,6 +124,11 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PARENTED or what == NOTIFICATION_UNPARENTED:
 		update_configuration_warnings()
+	if what == NOTIFICATION_ENTER_TREE:
+		_last_transform = global_transform
+	if what == NOTIFICATION_TRANSFORM_CHANGED and not global_transform.is_equal_approx(_last_transform):
+		_last_transform = global_transform
+		_edited()
 
 
 func _get_configuration_warnings() -> PackedStringArray:
@@ -178,7 +171,6 @@ func prepare(terrain: Node3D) -> void:
 			first = false
 	if _stretches.is_empty():
 		push_warning("Tunnel %s never goes underground - nothing to build" % name)
-	_mouths = _find_mouths()
 
 
 ## Second pass: the tube, its collider and its lights. `others` are the other tunnels, already
@@ -219,6 +211,23 @@ func build(others: Array) -> void:
 	_draw_guide()
 
 
+## The ground the tunnel could reach if all of its curve were underground: the curve's extent
+## plus the section's reach. The terrain checks this, not bounds(), to decide whether ground
+## that moved could change what is built here - bounds() only covers what was underground
+## last time, and a curve that ran above a valley floor is buried by a mountain stamped over it.
+func curve_footprint() -> Rect2:
+	if curve == null or curve.point_count == 0:
+		return Rect2()
+	var rect := Rect2()
+	var first := true
+	for point in curve.get_baked_points():
+		var world := to_global(point)
+		var flat := Vector2(world.x, world.z)
+		rect = Rect2(flat, Vector2.ZERO) if first else rect.expand(flat)
+		first = false
+	return rect.grow(1.5 * Vector2(width, height).length() + cut_margin + overshoot)
+
+
 ## Removes whatever build() made.
 func clear() -> void:
 	for child in get_children():
@@ -226,123 +235,6 @@ func clear() -> void:
 		if child.name != &"TunnelGuide":
 			remove_child(child)
 			child.queue_free()
-
-
-## The ground in front of every mouth, levelled to the floor.
-##
-## Without it the floor only exists where the tube is underground, so the entrance was
-## wherever the hillside happened to meet it: a curve starting a few metres up a slope put the
-## floor 0.8 m above the ground in front, and the captain faced a bank of grass he could not
-## climb. The terrain calls this for every sample in mouth_footprints(), then prepares the
-## tunnels again against the levelled ground.
-func level_mouths(height: float, world_x: float, world_z: float) -> float:
-	for mouth in _mouths:
-		var centre: Vector3 = mouth.centre
-		var offset := Vector3(world_x - centre.x, 0.0, world_z - centre.z)
-		var s := offset.dot(mouth.outward as Vector3)   # + outside the tunnel, - inside
-		var x := absf(offset.dot(mouth.right as Vector3))
-		var half := width * 0.5
-		if s >= 0.0:
-			# Outside: level at the floor over the apron, and within MOUTH_RAMP_DEGREES of it
-			# beyond - so ground is raised where it falls away too steeply and cut where it rises
-			# too steeply, and left alone where it already sits inside that slope.
-			var beyond := Vector2(maxf(s - maxf(MOUTH_APRON, width), 0.0), maxf(x - half, 0.0)).length()
-			if beyond > MOUTH_RAMP_REACH:
-				continue
-			var floor: float = mouth.floor - MOUTH_SINK
-			var rise := beyond * tan(deg_to_rad(MOUTH_RAMP_DEGREES))
-			height = clampf(height, floor - rise, floor + rise)
-		elif -s <= mouth.inside:
-			# Inside, where the roof is still open to the sky: the floor follows the tunnel's
-			# grade, and only between the walls - the walls are tube clipped against this same
-			# ground, and lowering it under them would take them away. Below the floor the ground
-			# is raised and the lip just above it taken down; anything higher is hillside the
-			# tube cuts through on its own.
-			var target: float = mouth.floor + mouth.grade * -s - MOUTH_SINK
-			var weight := 1.0 - smoothstep(half - 0.6, half - 0.2, x)
-			if weight > 0.0 and height <= target + MOUTH_LIP:
-				height = lerpf(height, target, weight)
-	return height
-
-
-## World rectangles covering every mouth's levelled ground.
-func mouth_footprints() -> Array[Rect2]:
-	var rects: Array[Rect2] = []
-	for mouth in _mouths:
-		var reach := maxf(MOUTH_APRON, width) + MOUTH_RAMP_REACH
-		var side := width * 0.5 + MOUTH_RAMP_REACH
-		var rect := Rect2(Vector2(mouth.centre.x, mouth.centre.z), Vector2.ZERO)
-		for s: float in [-mouth.inside, reach]:
-			for x: float in [-side, side]:
-				var corner: Vector3 = mouth.centre + mouth.outward * s + mouth.right * x
-				rect = rect.expand(Vector2(corner.x, corner.z))
-		rects.append(rect)
-	return rects
-
-
-func _find_mouths() -> Array[Dictionary]:
-	var mouths: Array[Dictionary] = []
-	for stretch in _stretches:
-		var centres := stretch.centres
-		var count := centres.size()
-		# a surfacing end has its overshoot point above ground, then the first centre below
-		if not stretch.cap_start and count >= 3:
-			mouths.append(_mouth(centres, 1, -1))
-		if not stretch.cap_end and count >= 3:
-			mouths.append(_mouth(centres, count - 2, 1))
-	return mouths
-
-
-## The entrance at one end of a stretch. `first` is the first centre under the ground;
-## `out_step` is the index step that leads out of the tunnel: -1 at the start, +1 at the end.
-##
-## The entrance is where the FLOOR comes out of the ground, not where the curve does. Where the
-## curve meets the surface the ground is always half the section above the floor, so levelling
-## from there dug a trench into every hillside; a curve that starts high comes out of a slope
-## floor-first, metres before the curve itself does.
-func _mouth(centres: PackedVector3Array, first: int, out_step: int) -> Dictionary:
-	var half_height := height * 0.5
-	# walk out from the first buried centre until the floor is at or above the ground
-	var entrance := centres[first]
-	var outward := Vector3.ZERO
-	var found := false
-	var i := first
-	while not found and i + out_step >= 0 and i + out_step < centres.size():
-		var a := centres[i]
-		var b := centres[i + out_step]
-		outward = b - a
-		var steps := maxi(1, ceili(a.distance_to(b) / 0.25))
-		for k in range(1, steps + 1):
-			var p := a.lerp(b, float(k) / steps)
-			entrance = p
-			if _terrain.height_at(p.x, p.z) <= p.y - half_height:
-				found = true
-				break
-		i += out_step
-	outward.y = 0.0
-	outward = outward.normalized()
-	var floor := entrance.y - half_height
-	# the grade going in, per level metre
-	var deeper := centres[first - out_step] if first - out_step >= 0 and first - out_step < centres.size() else centres[first]
-	var run := Vector2(deeper.x - entrance.x, deeper.z - entrance.z).length()
-	var grade := (deeper.y - entrance.y) / run if run > 0.001 else 0.0
-	# how far in the ground stays under the roof - past that it is the ceiling, left alone
-	var inside := 0.0
-	var step := 0.25
-	while inside < width * 4.0:
-		var p := entrance - outward * (inside + step)
-		var roof := entrance.y + grade * (inside + step) + half_height
-		if _terrain.height_at(p.x, p.z) > roof:
-			break
-		inside += step
-	return {
-		"centre": entrance,
-		"outward": outward,
-		"right": Vector3.UP.cross(outward).normalized(),
-		"floor": floor,
-		"grade": grade,
-		"inside": inside,
-	}
 
 
 func is_empty() -> bool:
@@ -672,14 +564,14 @@ func _on_curve_changed() -> void:
 	_edited()
 
 
-## Any edit: the guide follows at once, and a ticked tunnel is unticked, which takes it out of
-## the terrain until it is ticked again. Ignored until ready, as for TerrainStamp: loading the
-## scene assigns every property.
+## Any edit: an unticked tunnel redraws its guide; a ticked one tells the terrain, which
+## rebuilds the tube and the ground around where it was and where it is. Ignored until ready,
+## as for TerrainStamp: loading the scene assigns every property.
 func _edited() -> void:
-	if not Engine.is_editor_hint() or not is_node_ready():
+	if not is_node_ready():
 		return
-	if preview:
-		preview = false
+	if not Engine.is_editor_hint() or preview:
+		changed.emit()
 	else:
 		_draw_guide()
 

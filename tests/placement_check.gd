@@ -147,8 +147,118 @@ func _run() -> void:
 	check(landed > 0, "no cannon stands on the island, so this proves nothing about the drop")
 	check(floating.is_empty(), "a cannon is not on the ground: %s" % ", ".join(floating))
 
+	await _check_patch(scene, terrain, spawn, crater)
+
 	print("placement check: %s failures=%d" % ["PASS" if failures == 0 else "FAIL", failures])
 	quit(1 if failures > 0 else 0)
+
+
+## ScatterPatch, asked to do two jobs that are opposites.
+##
+## This is the whole claim of the node: that a reef on a crater floor and a rock field on a
+## hillside are the same code with a different band. If one patch can do both without a line of
+## its own, the abstraction is real; if it needs a special case, it is corals with extra steps.
+## So both are measured here, against the same node, in the same run.
+func _check_patch(scene: Node3D, terrain: Node, spawn: Vector3, crater: Vector3) -> void:
+	var sea: float = terrain.sea_level()
+
+	# --- under water: a reef on the crater floor ---
+	var reef := ScatterPatch.new()
+	scene.add_child(reef)
+	reef.global_position = crater
+	reef.scenes = [load("res://props/coral/coral.tscn")]
+	reef.count = 20
+	# WIDE ENOUGH TO REACH OUT OF ITS OWN BAND. At 18 m every sample was already on the crater
+	# floor, so the band had nothing to refuse and the check passed with the filter disabled.
+	# The crater is 25 m of full-depth floor and the ground ramps back up over the next ten, so
+	# 45 m puts most of the circle in water too shallow to plant in.
+	reef.radius = 45.0
+	reef.spacing = 2.5
+	reef.water_band = Vector2(4.0, 1000.0)
+	reef.stay_submerged = true
+	reef.surface_clearance = 1.5
+	reef.sink = 0.06
+	await process_frame
+
+	var wet := reef.placements()
+	check(wet.size() >= 12, "the reef patch placed only %d of 20 - too few to measure" % wet.size())
+	var shallowest := 1e9
+	var closest := 1e9
+	var proud := 0
+	for spot in wet:
+		var at: Vector3 = spot["at"]
+		shallowest = minf(shallowest, Ground.depth(terrain, at.x, at.z))
+		if at.y + ScatterPatch._height_of(reef.scenes[0]) * spot["basis"].get_scale().y 				+ reef.surface_clearance > sea:
+			proud += 1
+		for other in wet:
+			if other == spot:
+				continue
+			var there: Vector3 = other["at"]
+			closest = minf(closest, Vector2(there.x - at.x, there.z - at.z).length())
+	print("patch under water: %d placed, shallowest %.1f m, nearest pair %.2f m"
+			% [wet.size(), shallowest, closest])
+	check(shallowest >= reef.water_band.x,
+			"the reef patch placed in %.1f m of water against a %.1f m band" % [shallowest, reef.water_band.x])
+	check(proud == 0, "%d of the reef patch's placements would stick out of the sea" % proud)
+	check(closest >= reef.spacing - 0.01,
+			"the reef patch put two %.2f m apart against a %.2f m spacing" % [closest, reef.spacing])
+	check(reef.get_child_count() == wet.size(),
+			"the patch planted %d children for %d placements - the emitter and the decision"
+			% [reef.get_child_count(), wet.size()] + " disagree")
+
+	# --- above water: rocks up the beach, same node, band reversed ---
+	var field := ScatterPatch.new()
+	scene.add_child(field)
+	field.global_position = spawn
+	field.scenes = [load("res://props/rock/rock.tscn")]
+	field.count = 12
+	# Same reason: wide enough from the spawn to reach well past the shoreline into the sea,
+	# so refusing the water is work rather than a coincidence of where the circle fell.
+	field.radius = 95.0
+	field.inner_radius = 8.0
+	field.spacing = 3.0
+	field.water_band = Vector2(-1000.0, -0.6)
+	field.max_slope = 0.5
+	await process_frame
+
+	var dry := field.placements()
+	check(dry.size() >= 6, "the rock patch placed only %d of 12" % dry.size())
+	var lowest := 1e9
+	var steepest := 0.0
+	var inside := 0
+	var outside := 0
+	for spot in dry:
+		var at: Vector3 = spot["at"]
+		lowest = minf(lowest, -Ground.depth(terrain, at.x, at.z))
+		steepest = maxf(steepest, Ground.slope(terrain, at.x, at.z))
+		var away: float = Vector2(at.x - spawn.x, at.z - spawn.z).length()
+		if away < field.inner_radius - 0.01:
+			inside += 1
+		if away > field.radius + 0.01:
+			outside += 1
+	print("patch above water: %d placed, lowest %.1f m over the sea, steepest slope %.2f"
+			% [dry.size(), lowest, steepest])
+	check(lowest >= 0.6,
+			"the rock patch placed %.2f m above the sea against a 0.6 m band - the same node"
+			% lowest + " that just refused to leave the water will not stay out of it")
+	check(steepest <= field.max_slope + 0.001,
+			"the rock patch used ground at slope %.2f against a %.2f limit" % [steepest, field.max_slope])
+	check(inside == 0, "%d rocks landed inside the %.0f m hole in the middle" % [inside, field.inner_radius])
+	check(outside == 0, "%d rocks landed outside the %.0f m radius" % [outside, field.radius])
+
+	# --- the same seed gives the same patch ---
+	var again := field.placements()
+	var same := again.size() == dry.size()
+	if same:
+		for i in dry.size():
+			if (dry[i]["at"] as Vector3).distance_to(again[i]["at"]) > 0.001:
+				same = false
+				break
+	check(same, "two calls with the same seed gave different answers - the patch is not"
+			+ " reproducible, so a scene cannot be trusted to come back the way it was left")
+
+	reef.free()
+	field.free()
 
 
 ## The middle of the dive crater, found the way main.gd finds it.

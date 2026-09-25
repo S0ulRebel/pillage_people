@@ -10,7 +10,9 @@ extends Node3D
 ##
 ## The shape says how much, 0 to 1: black leaves the ground alone, white gets the full effect,
 ## grey part of it. That is what makes a flattened pad blend into the hillside instead of
-## ending in a step.
+## ending in a step. A soft rectangle or oval is also cut into the ground mesh along its
+## outline and along the foot of its bank (cut_lines), so its edge is drawn where it is and
+## not where the nearest mesh vertices happen to fall.
 
 signal changed
 
@@ -26,10 +28,11 @@ enum Shape {
 	SOFT_CIRCLE,  ## an ellipse filling length x width at full effect, fading out around it
 }
 
-## Editor only: whether the terrain in the editor shows this stamp. Off while you place it -
-## only the outline and sheet move, and nothing rebuilds - then tick it to see the result. It
-## stays in until ticked off, and editing a ticked stamp unticks it, so the terrain never shows
-## a stamp where it used to be. The game applies every stamp either way.
+## Editor only: whether the terrain in the editor shows this stamp. Off while you rough it in -
+## only the outline and sheet move, and nothing rebuilds - then tick it to see the result. Once
+## ticked it stays live: move it or change a setting and the ground follows, since the terrain
+## only rebuilds the chunks the stamp touches. Untick a big one if dragging it feels slow. The
+## game applies every stamp either way.
 @export var preview := false:
 	set(value):
 		if preview == value:
@@ -75,9 +78,14 @@ enum Shape {
 ## For the soft shapes: how far OUTSIDE length x width the effect takes to fade to nothing.
 ## Outside, not inside: faded inwards, a 6 x 5 m pad under a cannon with the default 12 m of
 ## softness reached 11% at its very centre and flattened nothing.
-@export_range(0.5, 100.0, 0.5, "suffix:m") var edge_softness := 12.0:
+## The fade is a straight bank from the outline down to the ground, this wide. As sharp as you
+## like: the terrain cuts its mesh along the outline and along the foot of the bank
+## (Terrain._build_chunk), so a 0.25 m edge is drawn as a real edge rather than wherever the
+## nearest mesh vertices land. Straight rather than an S-curve so that the bank the mesh draws
+## between those two lines IS the fade, and height_at(), the collider and the picture agree.
+@export_range(0.25, 100.0, 0.25, "suffix:m") var edge_softness := 12.0:
 	set(value):
-		edge_softness = value
+		edge_softness = maxf(value, 0.25)
 		_changed()
 
 const _COLOURS := {
@@ -97,6 +105,10 @@ var _sheet: MeshInstance3D
 ## World to stamp space, kept rather than inverted per sample: the terrain asks tens of
 ## thousands of times per stamp.
 var _to_local := Transform3D.IDENTITY
+## The transform the last edit was reported for. Godot sends a transform-changed notification
+## the frame after a node enters the tree, transform and all unchanged; reported as an edit it
+## had the terrain redo every ticked stamp's ground a moment after the scene opened.
+var _last_transform := Transform3D.IDENTITY
 
 
 func _init() -> void:
@@ -120,7 +132,10 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_ENTER_TREE or what == NOTIFICATION_TRANSFORM_CHANGED:
 		_to_local = global_transform.affine_inverse()
-	if what == NOTIFICATION_TRANSFORM_CHANGED:
+	if what == NOTIFICATION_ENTER_TREE:
+		_last_transform = global_transform
+	if what == NOTIFICATION_TRANSFORM_CHANGED and not global_transform.is_equal_approx(_last_transform):
+		_last_transform = global_transform
 		_changed()
 	if what == NOTIFICATION_PARENTED or what == NOTIFICATION_UNPARENTED:
 		update_configuration_warnings()
@@ -156,22 +171,171 @@ func reshape(height: float, world_x: float, world_z: float) -> float:
 
 ## How much of the effect lands on a world point, 0 outside the footprint.
 func value_at(world_x: float, world_z: float) -> float:
+	if shape != Shape.IMAGE:
+		return 1.0 - clampf(edge_distance(world_x, world_z) / edge_softness, 0.0, 1.0)
+	var local := _to_local * Vector3(world_x, global_position.y, world_z)
+	var half_l := length * 0.5
+	var half_w := width * 0.5
+	if absf(local.x) >= half_l or absf(local.z) >= half_w:
+		return 0.0
+	return _sample(local.x / length + 0.5, local.z / width + 0.5)
+
+
+## Whether the shape has an outline the terrain can cut its mesh along. An image has none.
+func has_outline() -> bool:
+	return shape != Shape.IMAGE
+
+
+## The kinds of line in cut_lines(), as bits the terrain marks its cells with.
+const CUT_CREST := 1
+const CUT_FOOT := 2
+const CUT_RIDGE := 4
+
+
+## The lines the terrain cuts its mesh along for this stamp, in the order to cut them, each a
+## Dictionary:
+## - `bit`: which kind of line. CUT_CREST is the outline, where the flat top meets the bank;
+##   CUT_FOOT the foot of the bank, where it meets the ground; CUT_RIDGE a rectangle's corner
+##   mitres, where the bank's two facets meet on the corner's diagonal - a triangle laid
+##   across that would sag.
+## - `field`: a signed function of world x, z, at or below 0 on the near side of the line and
+##   above it beyond. The crest and the foot are each ONE line that turns the corners, not four
+##   straight sides: a straight side cut wherever it crossed a cell ran on past the corner, and
+##   the chunk across a border there, which the pad never reaches, had not cut it.
+## - `straight`: whether it is made of straight pieces (a rectangle) or curved (an oval).
+## - `probe`: for the straight edge a-b, the fractions along it to look at for the line dipping
+##   in and out between two ends both outside it: a rectangle's corner poking into an edge is
+##   deepest where the edge crosses the corner's diagonal; an oval is looked at along the
+##   edge's length.
+## - `corner`: for two points on the line, the corner between them (world x, z) when they lie
+##   on two sides of a rectangle that meet, else null. The cut joins a cell's two crossings with
+##   a straight edge, and round a corner that edge would chop the corner off.
+## An image has no lines. A pad narrower than a mesh cell (1.2 m) is not catered for: its two
+## sides can pass through a cell without either touching a corner.
+func cut_lines() -> Array[Dictionary]:
+	var lines: Array[Dictionary] = []
+	if shape == Shape.IMAGE:
+		return lines
+	var foot := edge_softness
+	var straight := shape == Shape.SOFT_RECT
+	var probe: Callable = _rect_probe if straight else func(_a: Vector3, _b: Vector3) -> PackedFloat32Array:
+		return PackedFloat32Array([0.25, 0.5, 0.75])
+	var nothing := func(_p: Vector3, _q: Vector3) -> Variant: return null
+	lines.append({"bit": CUT_CREST, "field": edge_distance, "straight": straight, "probe": probe,
+			"corner": (func(p: Vector3, q: Vector3) -> Variant: return _rect_corner(p, q, 0.0)) if straight else nothing})
+	lines.append({"bit": CUT_FOOT, "field": func(x: float, z: float) -> float: return edge_distance(x, z) - foot,
+			"straight": straight, "probe": probe,
+			"corner": (func(p: Vector3, q: Vector3) -> Variant: return _rect_corner(p, q, foot)) if straight else nothing})
+	if straight:
+		var half_l := length * 0.5
+		var half_w := width * 0.5
+		var y := global_position.y
+		lines.append({"bit": CUT_RIDGE, "field": func(x: float, z: float) -> float:
+				var local := _to_local * Vector3(x, y, z)
+				return (absf(local.x) - half_l) - (absf(local.z) - half_w),
+			"straight": true, "probe": func(_a: Vector3, _b: Vector3) -> PackedFloat32Array: return PackedFloat32Array(),
+			"corner": nothing})
+	return lines
+
+
+## The same lines' fields, in the same order, at many points at once - the terrain asks for
+## the corners of a whole chunk.
+func cut_line_values(points: PackedVector2Array) -> Array[PackedFloat32Array]:
+	var values: Array[PackedFloat32Array] = []
+	if shape == Shape.IMAGE:
+		return values
+	var crest := PackedFloat32Array()
+	var foot := PackedFloat32Array()
+	crest.resize(points.size())
+	foot.resize(points.size())
+	for k in points.size():
+		var d := edge_distance(points[k].x, points[k].y)
+		crest[k] = d
+		foot[k] = d - edge_softness
+	values.append(crest)
+	values.append(foot)
+	if shape == Shape.SOFT_RECT:
+		var ridge := PackedFloat32Array()
+		ridge.resize(points.size())
+		var half_l := length * 0.5
+		var half_w := width * 0.5
+		var y := global_position.y
+		for k in points.size():
+			var local := _to_local * Vector3(points[k].x, y, points[k].y)
+			ridge[k] = (absf(local.x) - half_l) - (absf(local.z) - half_w)
+		values.append(ridge)
+	return values
+
+
+## Which side of the rectangle a point is nearest to, as the direction out through it.
+func _rect_side(p: Vector3) -> Vector2i:
+	var local := _to_local * Vector3(p.x, global_position.y, p.z)
+	var half_l := length * 0.5
+	var half_w := width * 0.5
+	var sides := [[local.x - half_l, Vector2i(1, 0)], [-local.x - half_l, Vector2i(-1, 0)],
+			[local.z - half_w, Vector2i(0, 1)], [-local.z - half_w, Vector2i(0, -1)]]
+	var best: Array = sides[0]
+	for side in sides:
+		if side[0] > best[0]:
+			best = side
+	return best[1]
+
+
+## The corner of the outline `iso` out from the rectangle's sides that lies between two points
+## on that outline, when they are on two sides that meet; null when they are on the same side
+## (the edge between them runs along it) or on opposite sides.
+func _rect_corner(p: Vector3, q: Vector3, iso: float) -> Variant:
+	var signs := _rect_side(p) + _rect_side(q)
+	if signs.x == 0 or signs.y == 0:
+		return null
+	var world := global_transform * Vector3(signs.x * (length * 0.5 + iso), 0.0, signs.y * (width * 0.5 + iso))
+	return Vector2(world.x, world.z)
+
+
+## Where the straight edge a-b crosses a corner's diagonal, as fractions along it: the deepest
+## point of a corner poking into the edge, where the edge passes from one side's reach into
+## the other's.
+func _rect_probe(a: Vector3, b: Vector3) -> PackedFloat32Array:
+	var params := PackedFloat32Array()
+	var y := global_position.y
+	var la := _to_local * Vector3(a.x, y, a.z)
+	var lb := _to_local * Vector3(b.x, y, b.z)
+	var half_l := length * 0.5
+	var half_w := width * 0.5
+	for signs: Vector2 in [Vector2(1, 1), Vector2(1, -1), Vector2(-1, 1), Vector2(-1, -1)]:
+		var ga: float = (signs.x * la.x - half_l) - (signs.y * la.z - half_w)
+		var gb: float = (signs.x * lb.x - half_l) - (signs.y * lb.z - half_w)
+		if (ga < 0.0) != (gb < 0.0):
+			params.append(ga / (ga - gb))
+	return params
+
+
+## Metres from the shape's outline: negative inside, 0 on it, positive outside. The fade runs
+## from 0 to edge_softness of it. The terrain cuts its mesh where this is 0 (the crest of a
+## pad) and where it is edge_softness (the foot of the fade), so both are real mesh edges.
+func edge_distance(world_x: float, world_z: float) -> float:
 	var local := _to_local * Vector3(world_x, global_position.y, world_z)
 	var half_l := length * 0.5
 	var half_w := width * 0.5
 	match shape:
 		Shape.SOFT_RECT:
-			# metres outside the rectangle, 0 inside it
-			var outside := Vector2(maxf(absf(local.x) - half_l, 0.0), maxf(absf(local.z) - half_w, 0.0))
-			return 1.0 - smoothstep(0.0, edge_softness, outside.length())
+			# How far past the nearest side, so the fade's foot is a larger rectangle and the
+			# bank turns each corner as a mitre - straight lines the mesh can be cut along
+			# exactly. Rounding the corners instead put a 0.5 m arc across 1.2 m cells, which the
+			# cut could not follow, and the corners came out 0.7 m off.
+			return maxf(absf(local.x) - half_l, absf(local.z) - half_w)
 		Shape.SOFT_CIRCLE:
-			var r := Vector2(local.x / half_l, local.z / half_w).length()
-			# (r - 1) of the shorter radius is metres out past the rim - exact on a circle,
-			# close enough on an ellipse
-			return 1.0 - smoothstep(0.0, edge_softness, maxf(r - 1.0, 0.0) * minf(half_l, half_w))
-	if absf(local.x) >= half_l or absf(local.z) >= half_w:
-		return 0.0
-	return _sample(local.x / length + 0.5, local.z / width + 0.5)
+			# The distance to the ellipse, to first order: (r - 1) over the gradient of r. Exact
+			# on a circle, within a few percent on an oval, and measured straight out from the
+			# rim rather than along the scaled radius, which ran the fade further along the long
+			# axis and put the bank's slope wrong there.
+			var scaled := Vector2(local.x / half_l, local.z / half_w)
+			var r := scaled.length()
+			if r < 0.000001:
+				return -minf(half_l, half_w)
+			var gradient := Vector2(local.x / (half_l * half_l), local.z / (half_w * half_w)).length() / r
+			return (r - 1.0) / maxf(gradient, 0.000001)
+	return INF
 
 
 ## The world-space rectangle the stamp can touch, for the terrain to limit its loop to.
@@ -188,21 +352,16 @@ func footprint() -> Rect2:
 	return rect
 
 
-## How far past length x width the fade reaches, along the stamp's X and Z.
-##
-## Not simply edge_softness for the soft circle. value_at measures its fade in units of the
-## SHORTER radius, so along the longer axis it runs further: on a 30 x 24 m oval with 10 m of
-## softness, 12.5 m past the ends. The footprint used to stop at edge_softness there, and the
-## terrain visits no sample outside the footprint, so the last 10% of the dig was never
-## applied and the ends of an oval crater finished in a metre-high step - in the ground, the
-## collider and the seabed the water reads. terrain_stamp_check measures the ends now.
+## How far past length x width the fade reaches, along the stamp's X and Z. The terrain visits
+## no sample outside the footprint, so this has to cover the whole fade: it once stopped short
+## along an oval's long axis and the last tenth of a dig was never applied, ending the crater
+## in a metre-high step. The oval's distance is a first-order estimate, so it gets a margin.
 func _fade_reach() -> Vector2:
 	match shape:
 		Shape.SOFT_RECT:
 			return Vector2(edge_softness, edge_softness)
 		Shape.SOFT_CIRCLE:
-			var shorter := maxf(minf(length, width) * 0.5, 0.001)
-			return Vector2(edge_softness * length * 0.5 / shorter, edge_softness * width * 0.5 / shorter)
+			return Vector2(edge_softness * 1.1 + 0.5, edge_softness * 1.1 + 0.5)
 	return Vector2.ZERO
 
 
@@ -240,16 +399,17 @@ func _load() -> void:
 	_size = size
 
 
-## Any edit: the outline follows at once, and a ticked stamp is unticked - which is what
-## rebuilds the terrain, taking the stamp out until it is ticked again. Ignored until the node
-## is ready: loading the scene assigns every property and transform, and without that guard
-## each saved, ticked stamp unticked itself on open.
+## Any edit: the outline follows at once, and a ticked stamp tells the terrain, which redoes
+## the ground it covered and the ground it covers now. Ignored until the node is ready:
+## loading the scene assigns every property and transform, and each saved stamp would
+## otherwise report an edit on open.
 func _changed() -> void:
-	if not Engine.is_editor_hint() or not is_node_ready():
+	if not is_node_ready():
 		return
-	_draw_helpers()
-	if preview:
-		preview = false
+	if Engine.is_editor_hint():
+		_draw_helpers()
+	if preview or not Engine.is_editor_hint():
+		changed.emit()
 
 
 func _draw_helpers_if_ready() -> void:

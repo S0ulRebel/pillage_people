@@ -59,7 +59,7 @@ func _run() -> void:
 
 	# Measured on a sample of the height map, not at the stamp's exact centre: between samples
 	# the terrain interpolates, and on a craggy peak that alone moved the answer 0.3 m.
-	var spacing := 620.0 / 1023.0
+	var spacing: float = 620.0 / float(plain._size - 1)
 	for stamp: TerrainStamp in [mountain, canyon]:
 		var at := stamp.global_position
 		at.x = roundf((at.x + 310.0) / spacing) * spacing - 310.0
@@ -202,14 +202,16 @@ func _check_small_pad(plain: Node3D) -> void:
 	check(worst < 0.02, "6 x 5 m pad left the ground %.3f m off its plane" % worst)
 
 
-## A soft oval, unrotated, measured out along its long axis - past where its footprint used
-## to stop.
+## A soft oval, unrotated, measured straight out from its rim at several angles, on past the
+## end of the fade.
 ##
-## value_at fades in units of the SHORTER radius, so along the long axis of a 30 x 24 m oval
-## the fade runs 12.5 m past the rim, not the 10 m of edge_softness. The footprint stopped at
-## 10, the terrain visits nothing outside the footprint, and so the last tenth of the dig was
-## never applied: the ends of the crater finished in a step a metre high. A rotated oval hid
-## it, because its world-aligned footprint is bigger than its fade; this one is not rotated.
+## The terrain visits nothing outside the footprint, so the footprint has to cover the whole
+## fade. It once stopped short along the long axis (the fade was then measured in units of the
+## shorter radius, and ran further there than edge_softness) and the last tenth of the dig was
+## never applied: the ends of the crater finished in a step a metre high. The fade is measured
+## straight out from the rim now, only to first order on an oval, and the footprint carries a
+## margin for that. Outside the footprint height_at() reads the baked samples, so a sample the
+## footprint missed shows up here as undug ground.
 func _check_oval(plain: Node3D) -> void:
 	var oval := STAMP.instantiate() as TerrainStamp
 	oval.shape = TerrainStamp.Shape.SOFT_CIRCLE
@@ -221,16 +223,22 @@ func _check_oval(plain: Node3D) -> void:
 	var stamped := _terrain([oval])
 	await process_frame
 	# On height-map samples, like the centres above, so the interpolation is not in the answer.
-	var spacing := 620.0 / 1023.0
+	var spacing: float = 620.0 / float(plain._size - 1)
 	var worst := 0.0
-	var beyond := 0
-	for i in range(0, 30):
-		var x := roundf((oval.position.x + 24.0 + i * 0.3) / spacing) * spacing
-		var expected: float = oval.strength * oval.value_at(x, oval.position.z)
-		var got: float = stamped.height_at(x, oval.position.z) - plain.height_at(x, oval.position.z)
-		worst = maxf(worst, absf(got - expected))
-		if x > oval.position.x + 25.0 and absf(expected) > 0.05:
-			beyond += 1
-	print("oval: out along the long axis the ground is at worst %.3f m off the stamp, %d samples past the old footprint still dug" % [worst, beyond])
-	check(beyond > 0, "no sample past the old footprint is meant to move - the test proves nothing")
-	check(worst < 0.05, "the oval's long axis is %.3f m off what the stamp says" % worst)
+	var tail := 0
+	for degrees in [0.0, 30.0, 45.0, 60.0, 90.0, 135.0, 225.0]:
+		var angle := deg_to_rad(degrees)
+		var rim := Vector2(cos(angle) * 15.0, sin(angle) * 12.0)
+		var normal := Vector2(cos(angle) / 15.0, sin(angle) / 12.0).normalized()
+		for i in 44:
+			var out := rim + normal * (i * 0.3)         # from the rim to 3 m past the fade
+			var x := roundf((oval.position.x + out.x) / spacing) * spacing
+			var z := roundf((oval.position.z + out.y) / spacing) * spacing
+			var expected: float = oval.strength * oval.value_at(x, z)
+			var got: float = stamped.height_at(x, z) - plain.height_at(x, z)
+			worst = maxf(worst, absf(got - expected))
+			if oval.edge_distance(x, z) > 9.0 and absf(expected) > 0.05:
+				tail += 1
+	print("oval: out from the rim the ground is at worst %.3f m off the stamp; %d samples in the last metre of the fade are meant to move" % [worst, tail])
+	check(tail >= 7, "only %d samples in the last metre of the fade are meant to move - the check proves little" % tail)
+	check(worst < 0.05, "out from the oval's rim the ground is %.3f m off what the stamp says" % worst)
