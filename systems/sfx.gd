@@ -55,6 +55,11 @@ func _load_clips() -> void:
 	if dir == null:
 		push_warning("sfx.gd: no folder at %s, so nothing will play." % folder)
 		return
+	# Loaded once each. Run from source, the folder holds BOTH clang_1.wav and
+	# clang_1.wav.import, and the two trim to the same resource - so every clip went into the
+	# library twice. It picked evenly either way, so nothing sounded wrong; it just held two
+	# copies of every sound in memory and made the take count a lie to anyone who read it.
+	var loaded := {}
 	for file in dir.get_files():
 		# Godot appends .import to what it ships; the real resource is the base name.
 		var name_ := file.trim_suffix(".import")
@@ -62,8 +67,9 @@ func _load_clips() -> void:
 			if not name_.ends_with(extension):
 				continue
 			var path := "%s/%s" % [folder, name_]
-			if not ResourceLoader.exists(path):
+			if loaded.has(path) or not ResourceLoader.exists(path):
 				continue
+			loaded[path] = true
 			var key := name_.trim_suffix(extension)
 			# A name can have numbered variants - clang_1, clang_2 - and they are collected
 			# under one key so a repeated sound is not identically repeated.
