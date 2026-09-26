@@ -130,12 +130,14 @@ uniform vec3 cloud_white : source_color = vec3(0.98, 0.94, 0.91);
 uniform vec3 cloud_light : source_color = vec3(0.94, 0.91, 0.91);
 uniform vec3 cloud_mid : source_color = vec3(0.74, 0.81, 0.95);
 uniform vec3 cloud_shadow : source_color = vec3(0.69, 0.77, 0.91);
-// Degrees of azimuth the clouds drift per second. Shader TIME wraps at 3600 s (the
-// project's rollover), so this times 3600 has to be a whole number of turns or every cloud
-// jumps on the hour: 0.1 is 360 degrees an hour exactly.
+// Degrees of azimuth the clouds drift per second.
 uniform float cloud_speed : hint_range(0.0, 2.0) = 0.1;
-// Negative uses live drift. Fixed for captures.
-uniform float preview_time = -1.0;
+// The clouds' clock, in seconds: world/day.gd pushes its own running time here every frame,
+// and a test pins it to hold the clouds still. Not TIME: a sky shader that reads TIME makes
+// Godot re-render and re-filter the sky's lighting cubemap every single frame (REALTIME
+// mode), which measured 27 ms a frame; without it the Sky's automatic mode picks
+// INCREMENTAL, and this sky then costs what a flat colour does.
+uniform float preview_time = 0.0;
 
 // ---- Sun --------------------------------------------------------------------------------
 group_uniforms Sun;
@@ -393,7 +395,7 @@ void sky() {
 	// ---- 6. The clouds ------------------------------------------------------------------
 	// Nine masses: six big ones low round the whole sky, three small ones higher. They sit
 	// where the chase camera looks (bases six to fourteen degrees up), and drift together.
-	float now = preview_time >= 0.0 ? preview_time : TIME;
+	float now = preview_time;
 	float drift = now * cloud_speed;
 	float sun_azimuth = degrees(atan(to_sun.x, to_sun.z));
 	float cover = 0.0;

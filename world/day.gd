@@ -19,6 +19,9 @@ const NIGHT_AMBIENT_ENERGY := 0.5
 
 var _phase := 0.0
 var _azimuth := 0.0
+## Seconds since the day started, handed to the sky as its clouds' clock (see preview_time
+## in world/sky.gdshader: the sky must not read TIME, or its lighting re-renders every frame).
+var _clock := 0.0
 var _sun: DirectionalLight3D
 var _ocean: Ocean
 var _terrain_material: ShaderMaterial
@@ -44,6 +47,7 @@ func _process(delta: float) -> void:
 	if _sun == null:
 		return
 	_phase += TAU * delta / DAY_LENGTH
+	_clock += delta
 	_place(delta)
 
 
@@ -79,3 +83,4 @@ func _place(_delta: float) -> void:
 		var material := sky.sky_material as ShaderMaterial
 		material.set_shader_parameter("sun_direction", to_sun)
 		material.set_shader_parameter("daylight", daylight)
+		material.set_shader_parameter("preview_time", _clock)
