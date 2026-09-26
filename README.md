@@ -44,6 +44,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
 | `world/tunnel.gd` | Tunnels and caves, placed under Terrain: draw a curve, pick a section (round, arch, shaft). Dead ends are capped, corners mitred, crossings opened. See Tunnels below. |
 | `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. **Add** puts a mountain, mesa, volcano or canyon on top (strength in m, negative digs); **Flatten**, **Cut down** and **Fill up** level the ground to the stamp's own height, shown in the editor as a see-through sheet. Shapes: a stamp image, or a soft rectangle or circle; the ground mesh is cut along a soft shape's outline and along the foot of its bank, so an edge as sharp as 0.25 m is a real edge at any angle, with a straight lip, a straight shadow and a collider that matches (Terrain's `cut_edges` turns this off). Stamp images come from the "Terrain - Stamp" ComfyUI workflow in `D:\code\gan`, stored as `.r16`. |
+| `addons/biome_painter/` | Editor plugin: a brush that hand-overrides the automatic ground biome (grass, sand, rock, jungle) straight in the 3D viewport. See Painting the biome below. |
 | `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
 | `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |
 | `art/` | Data only — imported models, generated audio, reference images. Nothing here is loaded as code. |
@@ -265,6 +266,42 @@ Useful settings on the Terrain node:
 | `collision_resolution` | 513 | collision samples per side (match `mesh_resolution` + 1) |
 | `cut_edges` | on | cut the ground mesh along soft stamps' outlines and bank feet, so a sharp pad edge is a real edge. Off, sharp edges are drawn from the height field alone and come out saw-toothed; edges wider than about 2.5 m look the same either way. No cost per frame. |
 | `chunk_quads` | 32 | quads per chunk side. The ground is built in chunks so an edit only rebuilds the chunks it touches: the whole island is about 3 s, one chunk about 10 ms, so a ticked stamp or tunnel follows the gizmo. Chunks are culled one by one too. |
+| `biome_path` | `terrain/island_biome.png` | the hand-painted overrides on the automatic biome. See Painting the biome below. |
+
+## Painting the biome
+
+The ground's colour - grass, sand, rock, jungle - is decided entirely in `terrain.gdshader`
+from height, slope and noise. `world/terrain_stamp/` can force a whole shaped area to a chosen
+*height*; it has no opinion on colour. For "I don't want rock there" or "a patch of sand in
+the grass" - a choice about colour alone, in a spot too small or too odd-shaped to be worth a
+placed node - there is a brush instead: the **Biome Painter** dock (View > Toggle add-on if it
+is not open), enabled in `project.godot` like any other editor plugin.
+
+Select the Terrain node, tick **Paint**, and drag across the ground:
+
+- Each channel ticked (**Vegetation**, **Rock**, **Jungle**) is pulled toward its slider under
+  the brush; an unticked channel is left exactly as the automatic rules already draw it.
+  Vegetation's slider runs sand to plants, Rock's runs ground to rock, Jungle's runs grass to
+  jungle - each -1 to +1, with 0 meaning "automatic, unpainted".
+- **Radius** and **Flow** are the brush's size and how fast a held stroke builds up - low flow
+  and repeated passes give a soft, partial push; a slider at an extreme with flow at 1 forces
+  the ground fully to that side in one dab.
+- A stroke saves to `terrain/island_biome.png` **the moment the mouse is released** - live, no
+  extra step, but also **outside Godot's own undo history**: Ctrl+Z will not take a stroke
+  back. The file is checked into version control precisely so a bad stroke can be reverted
+  there instead.
+
+Mechanically: `biome_map` is a texture the shader samples at the same UV the ground mesh
+already carries, added as a signed push on top of the automatic vegetation, rock and jungle
+amounts (`terrain.gdshader`) - not a replacement for the automatic colour, so a painted patch
+still carries the same noise texture and soft transitions as everywhere else; only which side
+of the line it lands on is forced. Painting changes a texture only: no mesh rebuild, no
+collider change, nothing to wait for. `tests/biome_map_check.gd` covers the file round-trip;
+`tests/biome_paint_view.gd` (a real, non-headless render - `--headless` has no rendering
+server behind a live texture update, so it cannot see one) proves painting moves a rendered
+pixel and moves it the right way; `tests/biome_painter_live_check.sh` drives the actual editor
+plugin - selection, mouse press, drag, release, save - inside a headless editor, the same way
+`editor_live_check.sh` covers stamps and tunnels.
 
 ## Tunnels
 

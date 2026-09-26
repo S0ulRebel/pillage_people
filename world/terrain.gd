@@ -10,6 +10,17 @@ extends StaticBody3D
 ## and the PNG is only a fallback.
 @export_file("*.r16") var raw_path := "res://terrain/heightmap.r16"
 @export_file("*.png") var heightmap_path := "res://terrain/heightmap.png"
+
+## Hand-painted overrides on top of the automatic biome (grass/sand/rock from height and
+## slope): where a rock, or a patch of sand in the grass, is a choice rather than what the
+## height map and the slope would draw on their own. Painted with addons/biome_painter, which
+## reads and writes this file directly - no scene edit, no rebuild, just a live shader texture
+## it hands the terrain to show while you paint (set_biome_image) and saves once a stroke ends.
+## Blank grey (0.5 in every channel) means nothing is painted; missing entirely is the same
+## thing, with nothing on disk yet. Read the same raw way as the height map, for the same
+## reason: Godot's texture importer may recompress a painted PNG, which for the height map
+## would flatten it, and here would round a barely-painted edge back to fully neutral.
+@export_file("*.png") var biome_path := "res://terrain/island_biome.png"
 ## The settings below reshape the whole ground, so in the editor changing one rebuilds all of
 ## it - the partial rebuild an edit gets would leave the untouched chunks on the old setting.
 @export var world_size := 400.0:   ## metres across
@@ -117,6 +128,9 @@ extends StaticBody3D
 func _push_colour(name: StringName, value: Variant) -> void:
 	if material != null:
 		material.set_shader_parameter(name, value)
+
+
+@export_group("")   # closes "Caustics" - everything below is a build setting, not a colour
 ## Quads per side. The height map has 1025 samples per side - one mesh vertex on every second
 ## sample, which is why it is 1025 and not 1024 - so anything below 512 throws
 ## detail away: at 256 each quad swallowed sixteen height samples and the island came out
@@ -165,6 +179,12 @@ var _heights: PackedFloat32Array
 ## that moves or goes away can be undone without reading the file again.
 var _base_heights: PackedFloat32Array
 var _size := 0
+## The hand-painted overrides, always a real image even when biome_path has nothing on disk
+## yet, so the shader uniform is never left unset. The paint tool holds this same Image (via
+## biome_image()) and mutates it directly; set_biome_image() is how it hands back a repainted
+## one for a live preview without saving.
+var _biome_image: Image
+var _biome_texture: ImageTexture
 ## The ground: one MeshInstance3D per chunk under a "Ground" node, row by row, and the cut rim
 ## triangles each chunk contributed, kept apart so a rebuilt chunk replaces only its own.
 var _ground: Node3D
@@ -218,6 +238,7 @@ func _ready() -> void:
 	if source == "":
 		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
 		return
+	_biome_image = _load_biome_image()
 	_base_heights = _heights.duplicate()
 	_built_quads = maxi(chunk_quads, 1)
 	_built_resolution = mesh_resolution
@@ -688,6 +709,58 @@ func _load_png() -> bool:
 		for x in _size:
 			_heights[y * _size + x] = image.get_pixel(x, y).r
 	return true
+
+
+## The default size of a freshly started biome map: fine enough for a small patch of sand in
+## the grass to read as a patch and not a blur, without making the painted file large.
+const BIOME_MAP_SIZE := 1024
+
+## Reads biome_path raw, the same way as the height map and for the same reason - Godot's
+## import step may recompress it - or hands back a blank one, all pixels (0.5, 0.5, 0.5, 1):
+## every channel reads as "nothing painted here" (see the biome_map uniform doc in the shader).
+## Never fails: an island with nothing painted is meant to look exactly as it always has.
+func _load_biome_image() -> Image:
+	if biome_path != "" and FileAccess.file_exists(biome_path):
+		var image := Image.load_from_file(ProjectSettings.globalize_path(biome_path))
+		if image != null:
+			if image.get_format() != Image.FORMAT_RGBA8:
+				image.convert(Image.FORMAT_RGBA8)
+			return image
+	var blank := Image.create(BIOME_MAP_SIZE, BIOME_MAP_SIZE, false, Image.FORMAT_RGBA8)
+	blank.fill(Color(0.5, 0.5, 0.5, 1.0))
+	return blank
+
+
+## The image the paint tool should read and mutate directly - the same one the shader is
+## currently showing. Never null: _ready() always fills it in, even before this node has
+## finished entering the tree, so a plugin acting the instant it selects a Terrain still gets a
+## real image to paint rather than having to know about load order.
+func biome_image() -> Image:
+	if _biome_image == null:
+		_biome_image = _load_biome_image()
+	return _biome_image
+
+
+## Shows a repainted image immediately: one texture upload, no mesh rebuild, no chunk touched -
+## painting changes what a pixel is coloured, never where the ground or a collider is. Call
+## this after every brush dab for a live preview; save the file separately once a stroke ends
+## (Image.save_png), since a save is a disk write and a dab is not.
+func set_biome_image(image: Image) -> void:
+	_biome_image = image
+	if material == null:
+		return
+	if _biome_texture != null and Vector2i(_biome_texture.get_size()) == image.get_size():
+		_biome_texture.update(image)
+	else:
+		_biome_texture = ImageTexture.create_from_image(image)
+	material.set_shader_parameter("biome_map", _biome_texture)
+
+
+## Re-reads biome_path from disk and shows it: for picking up a save made by a previous editor
+## session, or a file someone edited outside Godot. A live paint stroke does not need this -
+## set_biome_image() already shows what is being painted without touching disk.
+func reload_biome_map() -> void:
+	set_biome_image(_load_biome_image())
 
 
 ## Bilinear sample of the height map in 0..1 texture space.
@@ -1370,6 +1443,9 @@ func _setup_material() -> void:
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		material.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
+	# Every rebuild reapplies whatever is currently painted (a fresh material after a
+	# script reload has forgotten the texture, same as it has forgotten every colour above).
+	set_biome_image(biome_image())
 
 
 ## Terrain point in world space, height sampled from the map.
