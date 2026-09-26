@@ -40,7 +40,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
 | `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
-| `world/sky.*` | The daylight sky: a clear blue dome, the same pale horizon as the fog, and a few large clouds. |
+| `world/sky.*` | The sky, day, golden hour and night: the dome's gradients, sun, moon and stars, and the clouds - see Clouds and weather below. `world/cloud_shadow.gdshaderinc` lays the clouds' shadows on the ground and the sea. |
 | `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
 | `world/tunnel.gd` | Tunnels and caves, placed under Terrain: draw a curve, pick a section (round, arch, shaft). Dead ends are capped, corners mitred, crossings opened. See Tunnels below. |
 | `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. **Add** puts a mountain, mesa, volcano or canyon on top (strength in m, negative digs); **Flatten**, **Cut down** and **Fill up** level the ground to the stamp's own height, shown in the editor as a see-through sheet. Shapes: a stamp image, or a soft rectangle or circle; the ground mesh is cut along a soft shape's outline and along the foot of its bank, so an edge as sharp as 0.25 m is a real edge at any angle, with a straight lip, a straight shadow and a collider that matches (Terrain's `cut_edges` turns this off). Stamp images come from the "Terrain - Stamp" ComfyUI workflow in `D:\code\gan`, stored as `.r16`. |
@@ -347,7 +347,30 @@ the editor once **Preview** is ticked, and from then on it is live; the game bui
 
 `tests/tunnel_check.gd` measures a dead-end cave, a 90 degree corner and a crossing with rays.
 
-## Waterfall
+## Clouds and weather
+
+The clouds are painted in the sky shader, no textures, in the four shades measured off
+`art/references/sky-and-clouds-v1.png`, back to front:
+
+- **The deck** - a flat layer overhead seen in perspective: thin cirrus streaks (`wisps` on
+  the sky material) and a few small puffs, which join into an overcast sheet as the cover rises.
+- **The bank** - heaped domes all round the horizon, tall in stretches and gone in others.
+- **The masses** - seventeen cumulus in three rings: big towers standing on the horizon,
+  middling ones behind and above them, small ones high up. Each is heaps of round lobes lit on
+  their own sun side (the cauliflower), on a flat base with thin streaks along it. They grow in
+  one by one as the cover rises.
+
+**The weather is two numbers**, `cloud_cover` (0 clear, about 0.55 the sheet's trade-wind
+cumulus, 1 overcast) and `cloud_storm` (0 fair, 1 the sheet's squall slate). They are global
+shader parameters - Project Settings > Shader Globals - because the ground and the sea read them
+too: `world/cloud_shadow.gdshaderinc` lays hard-edged cloud shadows across both, about a quarter
+of the island at 0.55, projected along the sun and drifting with `Wind`. Only the terrain and the
+sea take them; rocks, palms and the ship do not.
+
+`tests/sky_view.gd` holds the colours to the sheets, the cloud to piling up toward the horizon
+as the sheet's does (more low than high, and a fifth or more of the sky between 12 and 26
+degrees), and the shadows to between a tenth and half of the island.
+
 
 `Waterfall` (`props/waterfall/`) extends `Path3D` like a tunnel: draw a curve from the lip down
 the rock, set `width` and `spread`, and it rebuilds as you drag. **End the curve on the water's

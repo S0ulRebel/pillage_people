@@ -37,6 +37,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 //  13. the haze toward the horizon, and the palette preview
 
 #include "res://world/waves.gdshaderinc"
+#include "res://world/cloud_shadow.gdshaderinc"
 
 // ---- Engine inputs ----------------------------------------------------------------------
 // The opaque pass's depth and colour, as drawn before the water. They are what the water
@@ -652,6 +653,10 @@ void fragment() {
     // How much light the sky gives the water right now: all of it by day, a dim moonlit blue
     // at night (the Night group). Multiplied into everything the sky lights from here on.
     vec3 sky_light = mix(night_tint * night_level, vec3(1.0), clamp(daylight, 0.0, 1.0));
+    // Under a cloud's shadow the water's own sunlit colour dims, and the sun's streak with
+    // it; the seabed seen through the shallows is already shadowed by the ground's shader.
+    // Only part of the way: the water is lit by the whole sky as well as the sun.
+    float sun_through = cloud_sun(world_point, light_dir);
 
     // ---- 8. Transmission ----------------------------------------------------------------
     // Refract the already-rendered opaque scene. Fade distortion at contacts so foreground
@@ -683,7 +688,8 @@ void fragment() {
         1.0 + (lambert - max(light_dir.y, 0.0)) * wave_shading);
     vec3 scatter_amount = max(vec3(1.0) - transmittance, vec3(0.045));
     vec3 shaded_water = scene_colour * transmittance
-        + water_scatter * scatter_amount * scattering_strength * sky_light;
+        + water_scatter * scatter_amount * scattering_strength * sky_light
+        * mix(1.0, sun_through, 0.6);
 
     // ---- 9. Sky reflection --------------------------------------------------------------
     shaded_water = mix(shaded_water, sky_reflection_colour * sky_light, fresnel * sky_reflection_strength);
@@ -735,7 +741,7 @@ void fragment() {
     float metres_per_pixel = length(vec2(fwidth(world_point.x), fwidth(world_point.z)));
     flecks *= smoothstep(0.42, 0.62, fleck_breakup) * streak
         * (1.0 - smoothstep(0.6, 1.2, metres_per_pixel));
-    float sun_light = streak * streak_strength + flecks * streak_flecks;
+    float sun_light = (streak * streak_strength + flecks * streak_flecks) * sun_through * sun_through;
     shaded_water = mix(shaded_water, streak_colour, clamp(sun_light, 0.0, 1.0));
 
     // ---- 11. Composite ------------------------------------------------------------------

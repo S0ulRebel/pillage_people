@@ -86,9 +86,13 @@ uniform float rim_power : hint_range(0.5, 8.0) = 3.0;
 uniform float rim_strength : hint_range(0.0, 1.0) = 0.06;
 group_uniforms;
 
+#include "res://world/cloud_shadow.gdshaderinc"
+
 varying vec3 world_normal;
 varying vec3 world_position;
 varying vec3 caustic_light;
+// How much of the sun gets through the clouds here, for light(): see cloud_shadow.gdshaderinc.
+varying float sun_through;
 // The same (x/world_size+0.5, z/world_size+0.5) UV the ground mesh already carries for its own
 // texture space (Terrain._build_chunk), reused here so biome_map lines up with the ground
 // without a second world_size uniform to keep in step with the one terrain.gd already has.
@@ -270,7 +274,10 @@ void fragment() {
     vec3 cliff = rock_base * mix(0.78, 1.15, rock_plane) * mix(0.88, 1.10, rock_detail);
     ground = mix(ground, cliff, rock);
 
-    float ndotl = max(dot(n, light_dir), 0.0);
+    // Under a cloud's shadow the sun is dimmed for everything it lights here - the sheen,
+    // the caustics, the rim - as well as for the ground itself in light().
+    sun_through = cloud_sun(world_position, light_dir);
+    float ndotl = max(dot(n, light_dir), 0.0) * sun_through;
     // Restrained broad patches instead of uniform biome fills or fine texture noise.
     float patch_band = smoothstep(0.44, 0.50, patches) + smoothstep(0.61, 0.67, patches);
     ground *= 0.965 + 0.028 * patch_band;
@@ -339,7 +346,8 @@ void light() {
         float level = clamp(max(dot(NORMAL, LIGHT), 0.0) / max(lit_threshold, 0.001), 0.0, 1.0);
         float toon = toon_ramp(mix(level, 1.0, ambient));
         vec3 fill = ground_fill();
-        DIFFUSE_LIGHT += (vec3(1.0) - fill) * toon * ATTENUATION * LIGHT_COLOR / PI;
+        float clouds = LIGHT_IS_DIRECTIONAL ? sun_through : 1.0;
+        DIFFUSE_LIGHT += (vec3(1.0) - fill) * toon * ATTENUATION * clouds * LIGHT_COLOR / PI;
         if (LIGHT_IS_DIRECTIONAL) {
             DIFFUSE_LIGHT += caustic_light / max(ALBEDO, vec3(0.02)) * ATTENUATION * LIGHT_COLOR / PI;
         }

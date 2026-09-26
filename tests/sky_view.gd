@@ -32,6 +32,17 @@ const NIGHT_MID := Color(0.05, 0.25, 0.56)
 const NIGHT_CLOUD_FACE := Color(0.70, 0.71, 0.85)
 const NIGHT_CLOUD_PLANE := Color(0.49, 0.50, 0.61)
 const MOON := Color(0.99, 0.96, 0.80)
+## How much of the sky is cloud, by height: TRADE-WIND CUMULUS is 27% in its top third, 34% in
+## the middle and 40% in the bottom, measured with _cloud_cover's own sieve. The views here
+## are lower than the sheet's panel (it runs to about 55 degrees, these to 40), so the bottom
+## band is held to at least the sheet's bottom third, and each band to at least the one above
+## it: the cloud piles up toward the horizon, not away from it.
+const COVER_LOW_MIN := 0.28
+const COVER_LOW_MAX := 0.65
+const COVER_MID_MIN := 0.20
+## Cloud shadows at the same cover: some of the island in shadow, not all of it and not none.
+const SHADOWED_MIN := 0.08
+const SHADOWED_MAX := 0.5
 
 var _failures := 0
 
@@ -104,6 +115,9 @@ func _run() -> void:
 	var disc := _warm_median(low)
 	_check_band("sun disc", disc, SUN, 0.06, " (no warm disc in frame counts as a miss)")
 
+	await _check_cover(camera, eye, bearing)
+	await _check_shadows(camera, terrain)
+
 	# ---- Night --------------------------------------------------------------------------
 	# What world/day.gd sets with the sun 30 degrees under: its daylight 0 everywhere it
 	# publishes it, and the sun's direction, which puts the moon 30 degrees up opposite. The
@@ -155,6 +169,86 @@ func _run() -> void:
 	print("sky views: ", ProjectSettings.globalize_path(SHOTS))
 	print("sky views: ", "PASS" if _failures == 0 else "FAIL")
 	quit(0 if _failures == 0 else 1)
+
+
+## Cloud cover by height, round the whole sky: four bearings at the chase camera's pitch,
+## averaged. At pitch 12 in this 60 degree frame, the rows from 0.645 up to 0.5 are 2.5 to 12
+## degrees up (clear of the pale horizon line, which the sieve would take for cloud), 0.5 to
+## 0.284 are 12 to 26, and 0.284 to 0.04 are 26 to 40.
+func _check_cover(camera: Camera3D, eye: Vector3, bearing: float) -> void:
+	var low := 0.0
+	var mid := 0.0
+	var high := 0.0
+	for turn in 4:
+		var image := await _shot("04_cover_%d" % turn, camera, eye, bearing + float(turn) * PI * 0.5, 12.0)
+		low += _cloud_cover(image, 0.5, 0.645) / 4.0
+		mid += _cloud_cover(image, 0.284, 0.5) / 4.0
+		high += _cloud_cover(image, 0.04, 0.284) / 4.0
+	print("cloud cover round the sky: %.0f%% at 2-12 degrees, %.0f%% at 12-26, %.0f%% at 26-40 (sheet: 40%%, 34%%, 27%% bottom to top)"
+			% [low * 100.0, mid * 100.0, high * 100.0])
+	if low < COVER_LOW_MIN or low > COVER_LOW_MAX:
+		_failures += 1
+		push_error("the cloud low round the horizon is off the sheet")
+	if mid < COVER_MID_MIN:
+		_failures += 1
+		push_error("the sky between 12 and 26 degrees is nearly empty")
+	if mid > low or high > mid + 0.03:
+		_failures += 1
+		push_error("the cloud does not pile up toward the horizon")
+
+
+## Cloud shadows, from above the island: the same frame with the cover taken away and put
+## back, and the share of the frame that the clouds darken by a tenth or more. The sea and
+## the ground both count - the shadows are meant to run across both.
+func _check_shadows(camera: Camera3D, terrain: Node) -> void:
+	var cover: float = ProjectSettings.get_setting("shader_globals/cloud_cover", {}).get("value", 0.55)
+	var eye := Vector3(0.0, terrain.sea_level() + 240.0, 120.0)
+	camera.global_position = eye
+	camera.look_at(Vector3(0.0, terrain.sea_level(), -40.0), Vector3.UP)
+	RenderingServer.global_shader_parameter_set("cloud_cover", 0.0)
+	var clear := await _frame()
+	RenderingServer.global_shader_parameter_set("cloud_cover", cover)
+	var shaded := await _frame()
+	shaded.save_png("%s/05_cloud_shadows.png" % SHOTS)
+	var darker := 0
+	var counted := 0
+	for y in range(0, clear.get_height(), 4):
+		for x in range(0, clear.get_width(), 4):
+			var was := clear.get_pixel(x, y).get_luminance()
+			if was < 0.05:
+				continue
+			counted += 1
+			if shaded.get_pixel(x, y).get_luminance() < was * 0.9:
+				darker += 1
+	var share := float(darker) / float(maxi(counted, 1))
+	print("cloud shadows at cover %.2f: %.0f%% of the island and sea darkened" % [cover, share * 100.0])
+	if share < SHADOWED_MIN or share > SHADOWED_MAX:
+		_failures += 1
+		push_error("the cloud shadows cover %.0f%% of the frame" % (share * 100.0))
+
+
+func _frame() -> Image:
+	for i in 8:
+		await process_frame
+	await RenderingServer.frame_post_draw
+	return root.get_texture().get_image()
+
+
+## The share of the sky in a band of rows that is cloud. Cloud is pale (saturation under
+## 0.33) and bright (value over 0.55); sky is saturated and blue. Anything else - the
+## mountain, which since the terrain stamps fills half of two of these views, a palm - is
+## neither and does not count either way.
+func _cloud_cover(image: Image, from: float, to: float) -> float:
+	var cloud := 0
+	var sky := 0
+	for y in range(int(image.get_height() * from), int(image.get_height() * to), 3):
+		for x in range(0, image.get_width(), 3):
+			var c := image.get_pixel(x, y)
+			if c.s < 0.33 and c.v > 0.55:
+				cloud += 1
+			elif c.s >= 0.33 and c.v > 0.5 and c.h > 0.5 and c.h < 0.7:
+				sky += 1
+	return float(cloud) / float(maxi(cloud + sky, 1))
 
 
 func _shot(tag: String, camera: Camera3D, eye: Vector3, yaw: float, pitch_degrees: float) -> Image:
