@@ -28,7 +28,7 @@ sky = SubResource("Sky_2")
 fog_enabled = true
 fog_light_color = Color(0.7, 0.86, 0.92, 1)
 fog_density = 0.00012
-fog_sky_affect = 0.15
+fog_sky_affect = 0.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_074og"]
 render_priority = 0
@@ -171,6 +171,7 @@ transform = Transform3D(0.81915206, 0.21486552, -0.5318108, 0, 0.92718387, 0.374
 shadow_enabled = true
 directional_shadow_blend_splits = true
 directional_shadow_max_distance = 160.0
+directional_shadow_pancake_size = 0.0
 
 [node name="RockArch" parent="." unique_id=882351900 instance=ExtResource("90_arch")]
 transform = Transform3D(0.49329036, 0, -0.8698649, 0, 1, 0, 0.8698649, 0, 0.49329036, 59.200207, 27.347553, -15.312895)

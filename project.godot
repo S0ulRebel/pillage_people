@@ -120,7 +120,7 @@ attack={
 [rendering]
 
 renderer/rendering_method="mobile"
-anti_aliasing/quality/msaa_3d=3
+anti_aliasing/quality/msaa_3d=1
 
 [tripo_bridge]
 
