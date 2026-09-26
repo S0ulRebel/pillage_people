@@ -334,6 +334,31 @@ the editor once **Preview** is ticked, and from then on it is live; the game bui
 
 `tests/tunnel_check.gd` measures a dead-end cave, a 90 degree corner and a crossing with rays.
 
+## Waterfall
+
+`Waterfall` (`props/waterfall/`) extends `Path3D` like a tunnel: draw a curve from the lip down
+the rock, set `width` and `spread`, and it rebuilds as you drag. **End the curve on the water's
+surface** - its last point is where the splash, the mist and the foam ring go.
+
+It is built in the layers stylised games use (Zelda, RiME, A Short Hike), all toon-shaded to
+match the ground and the sea, and all without textures:
+
+- **Body** - the sheet, bowed out into a shallow half-pipe (`bulge`) so it has volume side on,
+  with long vertical streaks scrolling down it in three flat bands and a white, speeding up as
+  they fall. Ragged hard edges, a white lip, and a bottom that turns white in steps.
+- **Veil** - a wider sheet just in front drawing only the brightest streaks, faster. The two
+  sliding past each other is what makes it read as falling water.
+- **Splash**, **lip spray** and **mist** - `GPUParticles3D` puffs (`splash.gdshader`): lumpy
+  hard-edged blobs lit as balls, eaten away as they die; the mist is the same puff, big, soft
+  and see-through.
+- **Foam** - a plane on the pool with a white churn along the landing line and broken rings
+  spreading out (`pool_foam.gdshader`), drawn after the sea.
+
+All three shaders light the water in two tones and ignore cast shadows: the plain toon diffuse
+turned every white into a strong blue wherever the sun was behind the fall or the mountain's
+shadow was on it. It still goes dark at night. `tests/waterfall_view.gd` photographs it from
+five places, and measures the column and the landing against the art sheets.
+
 ## Is it really physics?
 
 Yes. The terrain is a `StaticBody3D` with a `HeightMapShape3D`; the captain is a
@@ -400,6 +425,9 @@ checks the island comes back.
 both characters through their states and reads back which clip is playing, because a character
 frozen in its rest pose fights exactly as well as one that animates. `guard_check` and
 `balance_check` cover the fight.
+
+`tests/waterfall_view.gd` (not headless) photographs the waterfall and holds its column to the
+blue the art sheets draw, its landing to white, and its night to dark.
 
 `tests/captain_view.gd` renders him from four angles, and `tests/outline_probe.gd` renders the
 same view with one suspect disabled at a time. Both exist because the bugs they found — a
