@@ -213,9 +213,19 @@ void fragment() {
     // are smoothed from the height map, and on a wall narrower than the mesh's 1.2 m vertex
     // spacing - a flattened pad's edge - they read flat on some of the wall's triangles and
     // steep on others, which painted the wall in alternating green and grey wedges. So below,
-    // a triangle that is itself steeper than a cliff is rock whatever its vertices say.
+    // a triangle that is itself a WALL is rock whatever its vertices say.
+    //
+    // Only a wall, and not merely steeper than a cliff. This measure is exact per triangle
+    // only where a triangle covers several pixels: near the camera. Further out a 2x2 pixel
+    // block spans several triangles and their tilts average into a gentle slope. And the
+    // island's ordinary hillside facets reach a face slope of 0.85-0.90 (measured over every
+    // triangle above the sea), so when this counted from 0.39 up it painted the facets near
+    // the camera grey and left the same slope green further out: a rock-coloured patch that
+    // followed the player across every hill, in triangle-shaped pieces. From 0.90 (84 degrees)
+    // up nothing but a real wall qualifies.
     vec3 face = cross(dFdx(world_position), dFdy(world_position));
     float face_slope = 1.0 - clamp(abs(face.y) / max(length(face), 0.0001), 0.0, 1.0);
+    float wall = smoothstep(0.90, 0.97, face_slope);
 
     // Waterline transitions use real height, never noisy vegetation height.
     float submerged = 1.0 - smoothstep(-0.45, 0.0, height);
@@ -249,9 +259,9 @@ void fragment() {
     ground = mix(ground, vegetation_colour * grass_value, vegetation);
 
     // No altitude override. Hilltops remain vegetated if they are flat.
-    float rock_slope = max(slope, face_slope) + (macro - 0.5) * rock_edge_break;
+    float rock_slope = slope + (macro - 0.5) * rock_edge_break;
     float rock = smoothstep(rock_begins, max(rock_full, rock_begins + 0.001), rock_slope);
-    rock = max(rock, smoothstep(rock_full, min(rock_full + 0.2, 1.0), face_slope));
+    rock = max(rock, wall);
     float rock_plane = dot(n.xz, normalize(vec2(0.68, -0.73))) * 0.5 + 0.5;
     rock_plane = floor(clamp(rock_plane + (macro - 0.5) * 0.25, 0.0, 0.999) * 3.0) / 2.0;
     float rock_detail = fbm(world_position.xz * 0.045 + vec2(height * 0.035, -height * 0.025));
