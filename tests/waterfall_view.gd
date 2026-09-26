@@ -45,6 +45,12 @@ func _run() -> void:
 		var node := scene.get_node_or_null(n)
 		if node != null:
 			node.hide()
+	# The sun holds still. world/day.gd turns it a full circle in eight minutes, and the
+	# renderer here is slow enough that two runs measured the same column at 0.38 and 0.57
+	# under different light.
+	var day := scene.get_node_or_null("Day")
+	if day != null:
+		day.set_process(false)
 	var player := scene.get_node("Player") as Node3D
 	player.set_physics_process(false)
 	var falls := scene.get_node_or_null("Waterfall") as Path3D
@@ -119,9 +125,6 @@ func _run() -> void:
 	# to go dark with everything else, not glow.
 	var sun := scene.get_node_or_null("Sun") as DirectionalLight3D
 	var world := scene.get_node_or_null("WorldEnvironment") as WorldEnvironment
-	var day := scene.get_node_or_null("Day")
-	if day != null:
-		day.set_process(false)
 	if sun != null and world != null:
 		sun.light_energy = 0.04
 		sun.light_color = Color(0.62, 0.74, 1.0)
