@@ -4,10 +4,14 @@ extends SceneTree
 ##
 ## Renders the same island, same two points every time - a cliff (rock by slope alone) and a
 ## flat mid-elevation patch (grass by height alone), both found by search rather than
-## hand-picked. With BIOME_PAINT=1, rock is additionally forced OFF the cliff and ON the flat
-## patch before rendering. Each run prints one RESULT line with the pixel colour it saw at
-## both points; a separate small script (tests/_compare_biome_paint.py) runs both and checks
-## that painting actually moved them, and moved them the right way.
+## hand-picked. With BIOME_PAINT=1, both are additionally painted with one custom palette
+## entry - a colour the automatic rules have no name for, magenta, proving this paints an
+## actual named biome and not just a bias on the existing rock/vegetation/jungle rules (an
+## earlier version of this tool only had those three). Each run prints one RESULT line with
+## the pixel colour it saw at both points; a separate small script
+## (tests/_compare_biome_paint.py) runs both and checks that painting moved both points
+## visibly towards magenta - low green, high red and blue - and that neither reads that way
+## unpainted, since neither rock nor grass ever does.
 ##
 ## Two processes, not one render before painting and a second after: the first version of this
 ## test tried that with one camera pulled back far enough to unproject both points into a
@@ -20,6 +24,9 @@ extends SceneTree
 ## point at a time (_look_and_sample) and reading dead centre of the screen, which look_at
 ## always aims at the nearest thing on that exact line, does not have this problem - but two
 ## renders of the same scene needing two different live states is still simplest as two runs.
+
+const TMP_PALETTE := "res://tests/_tmp_paint_view_palette.png"
+const PAINTED_COLOUR := Color(0.95, 0.05, 0.85)   # magenta: no automatic rule ever draws this
 
 var failures := 0
 
@@ -66,12 +73,20 @@ func _find_point(terrain: Node, centre: Vector2, radius: float, rising: bool,
 
 
 func _run() -> void:
+	# One-entry palette, on disk before the terrain reads it, so it comes up painted from the
+	# start of _ready() exactly as a saved project would.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PALETTE))
+	var palette := Image.create(1, 1, false, Image.FORMAT_RGBA8)
+	palette.set_pixel(0, 0, PAINTED_COLOUR)
+	palette.save_png(ProjectSettings.globalize_path(TMP_PALETTE))
+
 	var terrain := StaticBody3D.new()
 	terrain.name = "Terrain"
 	terrain.set_script(load("res://world/terrain.gd"))
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
 	terrain.height_scale = 180.0
+	terrain.biome_palette_path = TMP_PALETTE
 	var scene := Node3D.new()
 	root.add_child(scene)
 	var sun := DirectionalLight3D.new()
@@ -109,8 +124,8 @@ func _run() -> void:
 
 	if OS.get_environment("BIOME_PAINT") == "1":
 		var image: Image = terrain.biome_image()
-		_dab(image, terrain, rock_point, 1, 0.0, 5.0)   # G -> 0: rock forced off the cliff
-		_dab(image, terrain, grass_point, 1, 1.0, 5.0)  # G -> 1: rock forced onto the grass
+		_dab(image, terrain, rock_point, 1, 1.0, 5.0)
+		_dab(image, terrain, grass_point, 1, 1.0, 5.0)
 		terrain.set_biome_image(image)
 		for k in 3:
 			await process_frame
@@ -133,6 +148,7 @@ func _run() -> void:
 	var grass_pixel := await _look_and_sample(cam, terrain, grass_point, out_dir,
 			"biome_grass_" + ("painted" if painted else "baseline") + ".png")
 
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TMP_PALETTE))
 	print("RESULT rock_slope=%.3f grass_slope=%.3f rock_pixel=%.4f,%.4f,%.4f grass_pixel=%.4f,%.4f,%.4f"
 			% [rock_slope, grass_slope, rock_pixel.r, rock_pixel.g, rock_pixel.b,
 			grass_pixel.r, grass_pixel.g, grass_pixel.b])
@@ -156,10 +172,14 @@ func _look_and_sample(cam: Camera3D, terrain: Node, point: Vector2, out_dir: Str
 	return image.get_pixel(image.get_width() / 2, image.get_height() / 2)
 
 
-## Paints a small soft circle, exactly the way addons/biome_painter's brush is meant to: each
-## pixel blended toward `target` by strength * falloff. `channel` is 0 for R (vegetation) or 1
-## for G (rock).
-func _dab(image: Image, terrain: Node, centre_world: Vector2, channel: int, target: float, radius_m: float) -> void:
+## The same brush maths as addons/biome_painter._dab (kept in step by eye, not by sharing code -
+## this file has no addon to import from): every pixel within radius_m of centre_world moves
+## towards (target_index, target_strength) by a soft circular falloff. A pixel switching to a
+## different index starts that index's own opacity from 0 rather than inheriting whatever the
+## old biome there had built up - irrelevant here, since every dab in this test targets the
+## same index 1 from a blank start, but kept for parity with the real tool.
+func _dab(image: Image, terrain: Node, centre_world: Vector2, target_index: int,
+		target_strength: float, radius_m: float) -> void:
 	var world_size: float = terrain.world_size
 	var scale: float = image.get_width() / world_size
 	var centre_px := Vector2((centre_world.x / world_size + 0.5) * image.get_width(),
@@ -174,10 +194,10 @@ func _dab(image: Image, terrain: Node, centre_world: Vector2, channel: int, targ
 			var d := Vector2(x, y).distance_to(centre_px)
 			if d > radius_px:
 				continue
-			var strength := 1.0 - smoothstep(0.0, radius_px, d)
+			var brush_strength := 1.0 - smoothstep(0.0, radius_px, d)
 			var c := image.get_pixel(x, y)
-			if channel == 0:
-				c.r = lerpf(c.r, target, strength)
-			else:
-				c.g = lerpf(c.g, target, strength)
+			var current_index := int(round(c.r * 255.0))
+			var base_strength := c.g if (target_index == 0 or current_index == target_index) else 0.0
+			c.r = float(target_index) / 255.0
+			c.g = lerpf(base_strength, target_strength, brush_strength)
 			image.set_pixel(x, y, c)

@@ -1,6 +1,7 @@
-"""Runs tests/biome_paint_view.gd once unpainted and once painted, and checks that painting
-moved the two measured pixels, in the right direction. Called by run_biome_paint_view.sh, not
-run directly - it needs GODOT and OUT_DIR set.
+"""Runs tests/biome_paint_view.gd once unpainted and once painted with a custom magenta biome,
+and checks that painting moved the two measured pixels visibly towards magenta - low green,
+high red and blue - which no automatic rule ever draws. Called by biome_painter tests, not run
+directly - it needs GODOT and BIOME_VIEW_OUT set.
 
 Kept as a small script rather than more GDScript because the check itself (parse two RESULT
 lines, compare six numbers) needs no rendering context, and Python's assert-and-print is a lot
@@ -45,13 +46,12 @@ def run(paint: bool):
     }
 
 
-def distance(a, b):
-    return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
-
-
-def greyness(c):
+def magenta_ness(c):
+    """High when green sits well below both red and blue - the one thing every automatic
+    colour (green grass, grey rock, warm sand, dark jungle) never does, and the painted colour
+    (0.95, 0.05, 0.85) always does, whatever the lighting scales it by."""
     r, g, b = c
-    return 1.0 - (abs(r - g) + abs(g - b) + abs(r - b)) / 3.0
+    return min(r, b) - g
 
 
 def main():
@@ -69,23 +69,17 @@ def main():
     check(base["rock_slope"] > 0.5, "the rock point was not steep automatically (%.2f)" % base["rock_slope"])
     check(base["grass_slope"] < 0.3, "the grass point was not flat automatically (%.2f)" % base["grass_slope"])
 
-    moved_rock = distance(base["rock"], paint["rock"])
-    moved_grass = distance(base["grass"], paint["grass"])
-    print("rock point:  auto %s -> painted 'no rock'   %s  (moved %.3f)" % (base["rock"], paint["rock"], moved_rock))
-    print("grass point: auto %s -> painted 'full rock' %s  (moved %.3f)" % (base["grass"], paint["grass"], moved_grass))
-    check(moved_rock > 0.08, "painting 'no rock' onto the cliff barely changed its colour (%.3f)" % moved_rock)
-    check(moved_grass > 0.08, "painting 'full rock' onto the grass barely changed its colour (%.3f)" % moved_grass)
+    rock_before, rock_after = magenta_ness(base["rock"]), magenta_ness(paint["rock"])
+    grass_before, grass_after = magenta_ness(base["grass"]), magenta_ness(paint["grass"])
+    print("rock point:  auto %s -> painted magenta %s  (magenta-ness %.3f -> %.3f)"
+          % (base["rock"], paint["rock"], rock_before, rock_after))
+    print("grass point: auto %s -> painted magenta %s  (magenta-ness %.3f -> %.3f)"
+          % (base["grass"], paint["grass"], grass_before, grass_after))
 
-    grey_rock_before, grey_rock_after = greyness(base["rock"]), greyness(paint["rock"])
-    grey_grass_before, grey_grass_after = greyness(base["grass"]), greyness(paint["grass"])
-    print("greyness: rock point %.3f -> %.3f (should fall); grass point %.3f -> %.3f (should rise)"
-          % (grey_rock_before, grey_rock_after, grey_grass_before, grey_grass_after))
-    check(grey_rock_after < grey_rock_before,
-          "removing rock from the cliff should make it less grey, not more (%.3f -> %.3f)"
-          % (grey_rock_before, grey_rock_after))
-    check(grey_grass_after > grey_grass_before,
-          "forcing rock onto the grass should make it more grey, not less (%.3f -> %.3f)"
-          % (grey_grass_before, grey_grass_after))
+    check(rock_before < 0.05, "the unpainted cliff already reads as magenta-ish (%.3f) - the check proves nothing" % rock_before)
+    check(grass_before < 0.05, "the unpainted grass already reads as magenta-ish (%.3f) - the check proves nothing" % grass_before)
+    check(rock_after > 0.15, "painting magenta onto the cliff barely shows (magenta-ness %.3f)" % rock_after)
+    check(grass_after > 0.15, "painting magenta onto the grass barely shows (magenta-ness %.3f)" % grass_after)
 
     print("biome_paint_view: %s" % ("PASS" if failures == 0 else "%d FAILED" % failures))
     sys.exit(1 if failures else 0)

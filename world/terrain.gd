@@ -16,11 +16,31 @@ extends StaticBody3D
 ## height map and the slope would draw on their own. Painted with addons/biome_painter, which
 ## reads and writes this file directly - no scene edit, no rebuild, just a live shader texture
 ## it hands the terrain to show while you paint (set_biome_image) and saves once a stroke ends.
-## Blank grey (0.5 in every channel) means nothing is painted; missing entirely is the same
-## thing, with nothing on disk yet. Read the same raw way as the height map, for the same
-## reason: Godot's texture importer may recompress a painted PNG, which for the height map
-## would flatten it, and here would round a barely-painted edge back to fully neutral.
+##
+## Two channels: red is which entry of biome_palette_path is painted here, 0 for none (the
+## automatic colour stands); green is how strongly, 0 to 1, so a soft brush edge fades back to
+## automatic rather than cutting to it. Not further biases on the automatic rules (an earlier
+## version of this was three fixed axes - vegetation, rock, jungle - which could not add a
+## biome the automatic rules have no idea about, like a painted path or a scorched patch): this
+## looks up an actual colour and blends straight to it, so the palette can hold as many
+## biomes, in whatever colours, as the palette is given.
+##
+## Blank (0 in both channels) means nothing painted; missing entirely is the same thing, with
+## nothing on disk yet. Read the same raw way as the height map, for the same reason: Godot's
+## texture importer may recompress a painted PNG, which for the height map would flatten it,
+## and here would round a barely-painted edge back to fully neutral, or round a biome index to
+## a different one entirely.
 @export_file("*.png") var biome_path := "res://terrain/island_biome.png"
+## The colours biome_path's red channel indexes into: column i (0-based) is the colour for
+## index i + 1 (index 0 is reserved - "nothing painted" - and has no column). Sampled with
+## point filtering, in the shader, so a soft brush edge blends through the strength channel
+## and never through two neighbouring palette colours smearing into each other. Missing
+## entirely, or on a Terrain that has never had addons/biome_painter open on it, falls back to
+## this terrain's own grass, jungle, sand and rock colours, in that order - Paint works before
+## anyone has added a single named biome. The names themselves (what addons/biome_painter's
+## dock shows) live beside this file, in biome_palette_path with ".txt" for ".png" - the shader
+## never needs a name, only a colour, so terrain.gd does not read that file at all.
+@export_file("*.png") var biome_palette_path := "res://terrain/biome_palette.png"
 ## The settings below reshape the whole ground, so in the editor changing one rebuilds all of
 ## it - the partial rebuild an edit gets would leave the untouched chunks on the old setting.
 @export var world_size := 400.0:   ## metres across
@@ -185,6 +205,11 @@ var _size := 0
 ## one for a live preview without saving.
 var _biome_image: Image
 var _biome_texture: ImageTexture
+## The named colours biome_image()'s red channel indexes into - see biome_palette_path. Same
+## live-preview/save split as the map above: biome_palette_image() to read and mutate,
+## set_biome_palette_image() to show a change immediately.
+var _biome_palette_image: Image
+var _biome_palette_texture: ImageTexture
 ## The ground: one MeshInstance3D per chunk under a "Ground" node, row by row, and the cut rim
 ## triangles each chunk contributed, kept apart so a rebuilt chunk replaces only its own.
 var _ground: Node3D
@@ -239,6 +264,7 @@ func _ready() -> void:
 		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
 		return
 	_biome_image = _load_biome_image()
+	_biome_palette_image = _load_biome_palette_image()
 	_base_heights = _heights.duplicate()
 	_built_quads = maxi(chunk_quads, 1)
 	_built_resolution = mesh_resolution
@@ -716,9 +742,11 @@ func _load_png() -> bool:
 const BIOME_MAP_SIZE := 1024
 
 ## Reads biome_path raw, the same way as the height map and for the same reason - Godot's
-## import step may recompress it - or hands back a blank one, all pixels (0.5, 0.5, 0.5, 1):
-## every channel reads as "nothing painted here" (see the biome_map uniform doc in the shader).
-## Never fails: an island with nothing painted is meant to look exactly as it always has.
+## import step may recompress it, which for a painted map would round a barely-painted edge
+## back to fully neutral or round a biome index to a different one entirely - or hands back a
+## blank one, (0, 0, *, *) everywhere: index 0, "nothing painted here" (see the biome_map
+## uniform doc in the shader). Never fails: an island with nothing painted is meant to look
+## exactly as it always has.
 func _load_biome_image() -> Image:
 	if biome_path != "" and FileAccess.file_exists(biome_path):
 		var image := Image.load_from_file(ProjectSettings.globalize_path(biome_path))
@@ -727,7 +755,7 @@ func _load_biome_image() -> Image:
 				image.convert(Image.FORMAT_RGBA8)
 			return image
 	var blank := Image.create(BIOME_MAP_SIZE, BIOME_MAP_SIZE, false, Image.FORMAT_RGBA8)
-	blank.fill(Color(0.5, 0.5, 0.5, 1.0))
+	blank.fill(Color(0.0, 0.0, 0.0, 1.0))
 	return blank
 
 
@@ -761,6 +789,51 @@ func set_biome_image(image: Image) -> void:
 ## set_biome_image() already shows what is being painted without touching disk.
 func reload_biome_map() -> void:
 	set_biome_image(_load_biome_image())
+
+
+## Reads biome_palette_path raw, or builds one from this terrain's own grass, jungle, sand and
+## rock colours (in that order, so a fresh Terrain already has four sensible names once
+## addons/biome_painter opens on it and writes biome_palette_path's sidecar .txt) when there is
+## nothing on disk yet. One row (height 1), point-sampled by index in the shader.
+func _load_biome_palette_image() -> Image:
+	if biome_palette_path != "" and FileAccess.file_exists(biome_palette_path):
+		var image := Image.load_from_file(ProjectSettings.globalize_path(biome_palette_path))
+		if image != null:
+			if image.get_format() != Image.FORMAT_RGBA8:
+				image.convert(Image.FORMAT_RGBA8)
+			return image
+	var colours := [grass_colour, jungle_colour, dry_sand_colour, rock_colour]
+	var palette := Image.create(colours.size(), 1, false, Image.FORMAT_RGBA8)
+	for i in colours.size():
+		palette.set_pixel(i, 0, colours[i])
+	return palette
+
+
+## The palette the paint tool should read and mutate directly - see biome_image().
+func biome_palette_image() -> Image:
+	if _biome_palette_image == null:
+		_biome_palette_image = _load_biome_palette_image()
+	return _biome_palette_image
+
+
+## Shows a repainted palette immediately - see set_biome_image(). Every painted pixel's colour
+## can change at once from this (index 3 turning red everywhere it was painted, say), which is
+## the point: a palette entry is a name for a colour, and renaming its colour should not mean
+## repainting everything that uses it.
+func set_biome_palette_image(image: Image) -> void:
+	_biome_palette_image = image
+	if material == null:
+		return
+	if _biome_palette_texture != null and Vector2i(_biome_palette_texture.get_size()) == image.get_size():
+		_biome_palette_texture.update(image)
+	else:
+		_biome_palette_texture = ImageTexture.create_from_image(image)
+	material.set_shader_parameter("biome_palette", _biome_palette_texture)
+
+
+## Re-reads biome_palette_path from disk and shows it - see reload_biome_map().
+func reload_biome_palette() -> void:
+	set_biome_palette_image(_load_biome_palette_image())
 
 
 ## Bilinear sample of the height map in 0..1 texture space.
@@ -1446,6 +1519,7 @@ func _setup_material() -> void:
 	# Every rebuild reapplies whatever is currently painted (a fresh material after a
 	# script reload has forgotten the texture, same as it has forgotten every colour above).
 	set_biome_image(biome_image())
+	set_biome_palette_image(biome_palette_image())
 
 
 ## Terrain point in world space, height sampled from the map.

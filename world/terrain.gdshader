@@ -24,12 +24,18 @@ uniform float night_fill : hint_range(0.0, 1.0) = 0.10;
 uniform bool palette_preview = false;
 
 group_uniforms Ground;
-// Painted by hand (addons/biome_painter), on top of the automatic biome below: R pushes
-// toward vegetation or sand, G toward or away from rock, B toward jungle or plain grass, each
-// 0.5 = untouched (this point still reads the automatic answer), 0 or 1 = fully forced. terrain.gd
-// always assigns a real texture, blank grey where nothing has been painted, so an unpainted
-// island looks exactly as it did before this uniform existed.
+// Painted by hand (addons/biome_painter): R is which column of biome_palette is painted here
+// (0..1, scaled by 255 below - 0 means nothing painted, the automatic colour below stands),
+// G is how strongly, 0 to 1, so a soft brush edge fades back to automatic rather than cutting
+// to it. terrain.gd always assigns a real texture, blank where nothing has been painted, so an
+// unpainted island looks exactly as it did before this uniform existed.
 uniform sampler2D biome_map : filter_linear;
+// The colours biome_map's R channel indexes into - column i is the colour for index i + 1.
+// Point-sampled (filter_nearest): the softness of a painted edge lives entirely in biome_map's
+// G channel, and linear-filtering this too would blend column i's colour into column i + 1's
+// for any index that is not a whole number of texels from the left edge - two unrelated
+// colours briefly smearing into each other near the middle of the texture.
+uniform sampler2D biome_palette : filter_nearest;
 // Sandy seabed stays distinct from the water tint above it.
 uniform vec3 seabed_colour : source_color = vec3(0.780, 0.700, 0.500);
 uniform vec3 deep_seabed_colour : source_color = vec3(0.180, 0.360, 0.330);
@@ -202,13 +208,6 @@ void fragment() {
     float patches = fbm(world_position.xz * patch_scale);
     float edge_patches = fbm(world_position.xz * 0.42);
     float coast_offset = (macro - 0.5) * edge_break + (edge_patches - 0.5) * 0.42;
-    // Hand-painted push on top of the automatic biome: -1 at fully painted "away", 0 wherever
-    // nothing has been painted (biome_map reads 0.5 there), +1 at fully painted "toward". Added
-    // straight onto the masks below rather than replacing the final colour, so a painted patch
-    // keeps the same noise texture and soft transitions as everywhere else - only which side of
-    // the line it falls on is forced. Full magnitude always wins outright: each mask below is
-    // already 0 to 1, so +-1 pushes it to the clamped end whatever the automatic answer was.
-    vec3 biome_bias = (texture(biome_map, ground_uv).rgb - 0.5) * 2.0;
     float slope = 1.0 - clamp(n.y, 0.0, 1.0);
     // The face's own slope, from how the position changes across the pixel. The vertex normals
     // are smoothed from the height map, and on a wall narrower than the mesh's 1.2 m vertex
@@ -239,14 +238,12 @@ void fragment() {
     float grass_islands = smoothstep(0.70, 0.78, macro) * smoothstep(1.15, 2.2, height)
         * (1.0 - smoothstep(grass_line - 1.25, grass_line - 0.25, height));
     vegetation = max(vegetation, grass_islands);
-    vegetation = clamp(vegetation + biome_bias.r, 0.0, 1.0);
 
     // Jungle floor is an inland material, not green noise scattered across the beach.
     float jungle_line = max(dry_sand_top + 2.8, grass_top * 0.22) + (macro - 0.5) * 4.0;
     float jungle_shape = smoothstep(jungle_line - 0.65, jungle_line + 0.65, height);
     float jungle_patch = smoothstep(0.46, 0.61, fbm(world_position.xz * patch_scale * 0.62 + vec2(-4.0, 12.0)));
     float jungle = jungle_shape * mix(0.55, 1.0, jungle_patch) * jungle_coverage;
-    jungle = clamp(jungle + biome_bias.b, 0.0, 1.0);
     vec3 vegetation_colour = mix(grass_colour, jungle_colour, jungle);
     float grass_value = mix(0.91, 1.06, smoothstep(0.38, 0.64, patches));
     ground = mix(ground, vegetation_colour * grass_value, vegetation);
@@ -255,7 +252,6 @@ void fragment() {
     float rock_slope = max(slope, face_slope) + (macro - 0.5) * rock_edge_break;
     float rock = smoothstep(rock_begins, max(rock_full, rock_begins + 0.001), rock_slope);
     rock = max(rock, smoothstep(rock_full, min(rock_full + 0.2, 1.0), face_slope));
-    rock = clamp(rock + biome_bias.g, 0.0, 1.0);
     float rock_plane = dot(n.xz, normalize(vec2(0.68, -0.73))) * 0.5 + 0.5;
     rock_plane = floor(clamp(rock_plane + (macro - 0.5) * 0.25, 0.0, 0.999) * 3.0) / 2.0;
     float rock_detail = fbm(world_position.xz * 0.045 + vec2(height * 0.035, -height * 0.025));
@@ -269,6 +265,20 @@ void fragment() {
     float patch_band = smoothstep(0.44, 0.50, patches) + smoothstep(0.61, 0.67, patches);
     ground *= 0.965 + 0.028 * patch_band;
     vec3 colour = ground;
+
+    // Hand-painted override, straight onto the finished automatic colour rather than into any
+    // one of the masks above: a painted biome can be any colour at all, including one the
+    // automatic rules have no name for, so it has to replace the answer rather than nudge a
+    // term inside it. Everything below (sheen, caustics, the rim light) still runs on top, so
+    // a painted patch still catches the sun and the tide the same as anywhere else.
+    vec4 biome_raw = texture(biome_map, ground_uv);
+    int biome_index = int(round(biome_raw.r * 255.0));
+    if (biome_index > 0) {
+        float palette_width = float(textureSize(biome_palette, 0).x);
+        vec3 painted = texture(biome_palette,
+            vec2((float(biome_index - 1) + 0.5) / max(palette_width, 1.0), 0.5)).rgb;
+        colour = mix(colour, painted, biome_raw.g);
+    }
 
     // A restrained wet-sand sheen, lit by the same sun as the cast shadows.
     float wet = (1.0 - dry) * smoothstep(-0.04, 0.02, height) * (1.0 - rock) * (1.0 - vegetation);
