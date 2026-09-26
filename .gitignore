@@ -8,8 +8,16 @@ Thumbs.db
 export_presets.cfg
 
 # Godot import metadata: regenerated per machine, and a guaranteed pull conflict when the
-# project is opened on both a PC and an iPad. The height maps and screenshots are data, not
-# textures - the .gdignore files next to them keep Godot from importing them at all.
+# project is opened on both a PC and an iPad. The screenshots in docs/ and the art in
+# art/references/ are data, not textures, so each carries a .gdignore and Godot never imports
+# them.
+#
+# terrain/ USED TO, and must not. A .gdignore does not only hide a folder from the editor: the
+# exporter cannot see it either, and no export filter reaches back in - "*.r16" in the preset
+# looked right and shipped nothing. The build ran, failed to open res://terrain/island.r16,
+# and came up with no island at all. Godot does not import .r16 anyway, so the folder costs
+# nothing being visible; the two .png height maps beside them are imported now, which is the
+# whole price.
 *.import
 
 # ...except the few that carry settings which exist NOWHERE ELSE. A rigged model's scale has

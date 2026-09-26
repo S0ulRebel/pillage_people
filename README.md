@@ -372,9 +372,15 @@ only be seen, not reasoned about.
 ## Working on two machines (PC + iPad)
 
 Godot writes a `.import` file next to every asset, and the contents differ per machine — so
-with both a PC and an iPad in one repo, every pull collides on files nobody edited. The height
-maps and the screenshots are data rather than textures, so `terrain/` and `docs/` each carry a
+with both a PC and an iPad in one repo, every pull collides on files nobody edited. The screenshots
+in `docs/` and the art in `art/references/` are data rather than textures, so each carries a
 `.gdignore`. `*.import` is gitignored.
+
+`terrain/` must NOT carry one, whatever it looks like it saves. A `.gdignore` hides a folder
+from the exporter as well as from the editor, and no export filter reaches back in: `*.r16` in
+the preset looked right and shipped nothing, so the exported game opened with no island. The
+game reads `res://terrain/island.r16` with `FileAccess` at run time, and a file the exporter
+cannot see is a file the build does not have.
 
 If Working Copy says a pull was aborted because of uncommitted changes, check what they are
 first: if they are only `.import`/`.godot` files, discard them and pull again.
