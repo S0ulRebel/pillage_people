@@ -3,6 +3,7 @@
 *.translation
 
 # Editor/OS noise
+__pycache__/
 .DS_Store
 Thumbs.db
 export_presets.cfg
