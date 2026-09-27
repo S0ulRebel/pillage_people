@@ -313,7 +313,7 @@ vec2 billow(vec2 dp, float radius, float squash, float seed, vec3 light, float l
 		+ (seed - 0.5) * 0.22 - behind * 0.1 + lift - 0.02;
 	// Four values by thresholds set to the sheet's own proportions on TRADE-WIND CUMULUS: the
 	// shadow the biggest share, white a crown and a rim.
-	float level = t > 0.44 ? 1.0 : (t > 0.30 ? 0.667 : (t > 0.19 ? 0.333 : 0.0));
+	float level = t > 0.405 ? 1.0 : (t > 0.30 ? 0.667 : (t > 0.19 ? 0.333 : 0.0));
 	return vec2(here, level);
 }
 
