@@ -356,9 +356,11 @@ The clouds are painted in the sky shader, no textures, in the four shades measur
   the sky material) and a few small puffs, which join into an overcast sheet as the cover rises.
 - **The bank** - heaped domes all round the horizon, tall in stretches and gone in others.
 - **The masses** - seventeen cumulus in three rings: big towers standing on the horizon,
-  middling ones behind and above them, small ones high up. Each is heaps of round lobes lit on
-  their own sun side (the cauliflower), on a flat base with thin streaks along it. They grow in
-  one by one as the cover rises.
+  middling ones behind and above them, small ones high up. Each is a pile of billows - round
+  puffs with scalloped rims, lit as balls - painted from the top row down, so every lower
+  billow's lit rim cuts across the darker body of the one behind it (the cauliflower). The
+  bottom row is squashed wide, which gives a level but lumpy base, with thin streaks trailing
+  out from under it. They grow in one by one as the cover rises.
 
 **The weather is two numbers**, `cloud_cover` (0 clear, about 0.55 the sheet's trade-wind
 cumulus, 1 overcast) and `cloud_storm` (0 fair, 1 the sheet's squall slate). They are global

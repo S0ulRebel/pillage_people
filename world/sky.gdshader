@@ -156,7 +156,7 @@ uniform float cloud_speed : hint_range(0.0, 2.0) = 0.1;
 // INCREMENTAL, and this sky then costs what a flat colour does.
 uniform float preview_time = 0.0;
 // How tall the heaped bank round the horizon grows, in degrees, at full cover.
-uniform float bank_degrees : hint_range(0.0, 15.0) = 6.0;
+uniform float bank_degrees : hint_range(0.0, 15.0) = 5.0;
 // Thin high streaks - the sheet's cirrus, and the little broken strokes beside its cumulus.
 uniform float wisps : hint_range(0.0, 1.0) = 0.35;
 // The weather, shared with the ground's cloud shadows - see the header. 0 is TROPICAL CLEAR,
@@ -244,31 +244,6 @@ float halo(float away, float r, float reach, float strength) {
 	return pow(1.0 - t, 2.5) * strength * step(r, away);
 }
 
-// One lobe: a disc whose rim wobbles - two sines round it and a little noise - so a row of
-// them reads as lumps, not as a chain of beads. `wobble` is the mass's own noise field, one
-// value per pixel, shared by all its lobes.
-float stamp(vec2 dp, float radius, float seed, float wobble, float px) {
-	// The nudge keeps atan defined on the centre pixel itself.
-	float theta = atan(dp.y + 1.0e-5, dp.x);
-	float rim = radius * (1.0 + 0.09 * sin(5.0 * theta + seed * 6.2832)
-		+ 0.03 * sin(9.0 * theta - seed * 4.1) + 0.12 * (wobble - 0.5));
-	return 1.0 - smoothstep(-px, px, length(dp) - rim);
-}
-
-// Which of the four shades a lobe is at this pixel: low lobes darker than high ones, and
-// every lobe lit on its own light side (`light` is the direction to the light in the sky's
-// across-and-up degrees) and shaded on the other. That second term is the whole difference
-// between cauliflower and cut paper: shaded only by height, a mass is a few flat bands. It is
-// a nudge, a shade either way at most - at twice this, every lobe split into its own light
-// and dark half and a mass read as fish scales. `lift` moves every lobe toward the light
-// shades: the moonlit clouds of FULL MOON carry more of their white than the day's do.
-float lobe_shade(float height_in_mass, vec2 from_centre, float radius, vec2 light, float jitter,
-		float lift) {
-	float facing = dot(from_centre / max(radius, 0.001), light);
-	float t = height_in_mass * 0.80 + facing * 0.20 + jitter * 0.16 + 0.12 + lift;
-	return floor(clamp(t, 0.0, 0.999) * 4.0) / 3.0;
-}
-
 // Paint one layer over what is already there, the way the sheet is painted: `here` of this
 // layer's shade over the shade below.
 void paint(float here, float level, inout float cover, inout float shade) {
@@ -276,86 +251,135 @@ void paint(float here, float level, inout float cover, inout float shade) {
 	cover = max(cover, here);
 }
 
-// One cumulus mass: rows of lobes from the bottom up inside a low heap, each painted over
-// the ones before it, standing on a flat base with a shelf of thin streaks along it. `sky` is
-// this pixel's (azimuth, elevation) in degrees; the mass sits at `azimuth`, its base at
-// `elevation`, `width` degrees to either side and `height` degrees tall.
+// One billow, the unit the sheet's cumulus is built from: a round puff whose outline is a
+// ring of small bumps (the scallops), lit as if it were a ball. Returns how much of this
+// pixel it covers in x and its shade in y, 0 shadow to 1 white.
 //
-// Only the lobes near this pixel are looked at: the rows within reach of its height, and in
-// each the few columns within reach across. The first version tried all sixty lobes of every
-// mass at every pixel inside its box - atan, two sines and a noise each - and this one looks
-// at about fifteen.
+// `dp` is the pixel from the billow's centre in degrees, `squash` flattens it (the bottom row
+// of a cloud is wider than it is tall, which is what gives a cloud a base without cutting
+// one), `light` is the direction to the light in (across, up, toward the eye), `low` how far
+// down the cloud the billow sits, 0 top to 1 bottom, and `lift` moves every shade lighter
+// (the moonlit sheet carries more of its white than the day's does).
+//
+// The shades are bands of the ball's lighting: a white crescent on the light side of the
+// crown, a light band inside it, and the blue-lavender body - most of the billow, as it is
+// most of the sheet's cloud - darkening to the shadow low down on the far side. Lower
+// billows are darker overall: the sheet's cloud is white on top and blue underneath.
+vec2 billow(vec2 dp, float radius, float squash, float seed, vec3 light, float low, float lift,
+		float px) {
+	vec2 q = vec2(dp.x, dp.y / squash);
+	float d = length(q);
+	if (d > radius * 1.08) {
+		return vec2(0.0);
+	}
+	// The scallops: semicircles round the rim, nine to thirteen of them, so the outline is a
+	// run of small round bumps meeting in cusps - not a wobble, which read as a jelly.
+	float theta = atan(q.y + 1.0e-5, q.x);
+	float bumps = 9.0 + floor(seed * 5.0);
+	float s = fract(theta / 6.2832 * bumps + seed * 3.1);
+	float bump = sqrt(max(1.0 - (2.0 * s - 1.0) * (2.0 * s - 1.0), 0.0));
+	float rim = radius * (0.9 + 0.1 * bump);
+	float here = 1.0 - smoothstep(-px, px, d - rim);
+	// The ball: its normal from where on the disc this pixel is.
+	vec2 on_disc = q / max(rim, 0.001);
+	vec3 n = normalize(vec3(on_disc, sqrt(max(1.0 - dot(on_disc, on_disc), 0.0)) + 0.15));
+	float lit = dot(n, light);
+	// The rim light: a light band hugging the outline on the light side. It is what separates
+	// a billow from the darker one behind it - on the sheet every low billow is mostly body,
+	// with its top edge lit. Without it the lower half of a tower merged into one flat slab;
+	// lit as a plain ball instead, every billow grew the same white crescent and the cloud
+	// read as a row of Cs.
+	float edge = smoothstep(0.68, 0.9, d / max(rim, 0.001));
+	float toward = dot(normalize(on_disc + vec2(0.0, 1.0e-4)), normalize(light.xy + vec2(0.0, 1.0e-4)));
+	float rim_light = edge * smoothstep(0.1, 0.55, toward);
+	// Height in the cloud counts as much as the ball's own light: white gathers at the top.
+	// The crown's billows are mostly white on the sheet, not just rimmed: the top of the
+	// cloud gets a lift of its own.
+	float high = 1.0 - low;
+	float t = lit * 0.35 + high * 0.40 + high * high * 0.18 + rim_light * 0.30 + (seed - 0.5) * 0.08
+		+ lift - 0.04;
+	// Four shades by thresholds set to the sheet's own proportions on TRADE-WIND CUMULUS's
+	// big cloud: white a sliver, light and the blue mid most of it, shadow in the crevices.
+	float level = t > 0.80 ? 1.0 : (t > 0.52 ? 0.667 : (t > 0.20 ? 0.333 : 0.0));
+	return vec2(here, level);
+}
+
+// One cumulus: rows of billows inside a heap, painted from the TOP row down, so each lower
+// billow sits in front of the ones above it and its bright crown cuts across their darker
+// bodies - that overlap is the cauliflower. The bottom row is squashed wide and flat, which
+// gives the cloud a base that is level but still lumpy, and a shelf of thin streaks runs out
+// from under it, in front.
+//
+// `sky` is this pixel's (azimuth, elevation) in degrees; the cloud sits at `azimuth`, its
+// base at `elevation`, `width` degrees to either side and `height` degrees tall. Only the
+// billows near this pixel are looked at: the rows within reach of its height, and in each
+// the two or three columns within reach across.
 void cumulus(vec2 sky, float azimuth, float elevation, float width, float height, float seed,
-		vec2 light, float lift, float px, inout float cover, inout float shade) {
+		vec3 light, float lift, float px, inout float cover, inout float shade) {
 	// Degrees across and up from the base's middle, the across scaled so a degree is a
 	// degree at this elevation.
 	float x = azimuth_offset(sky.x, azimuth) * cos(radians(elevation));
 	float y = sky.y - elevation;
-	if (abs(x) > width * 1.6 || y < -height * 0.2 || y > height * 1.3) {
+	if (abs(x) > width * 1.7 || y < -height * 0.25 || y > height * 1.25) {
 		return;
 	}
-	vec2 p = vec2(x, y);
-	float wobble = noise(p / max(height, 0.1) * 2.2 + seed * 3.7);
-
-	// The shelf first, so the mass paints over it: a few thin streaks along the base, reaching
-	// out past the heap on both sides.
-	// No wisps, no shelf. The edge is a fixed width rather than a pixel's: this runs only
-	// inside the mass's box, and fwidth is not defined across the edge of a branch.
-	float sx = x / (width * 1.55);
-	float sy = (y - height * 0.03) / (height * 0.09);
-	float strokes = noise(vec2(x / (height * 0.8), y / (height * 0.03)) + seed * 5.1);
-	float reach = max(1.0 - sx * sx, 0.0) * max(1.0 - sy * sy, 0.0);
-	float edge = mix(0.62, 0.26, wisps);
-	paint(smoothstep(edge - 0.02, edge + 0.02, strokes * reach), 0.667, cover, shade);
-
 	const int ROWS = 5;
-	const int COLS = 14;
-	float mass = 0.0;
-	float level = 0.0;
-	for (int row = 0; row < ROWS; row++) {
+	for (int pass = 0; pass < ROWS; pass++) {
+		int row = ROWS - 1 - pass;
 		float fr = float(row);
-		float row_y = height * (0.07 + 0.2 * fr);
-		float radius = height * (0.21 - 0.016 * fr);
-		if (abs(y - row_y) > radius * 1.35 + height * 0.07) {
+		// Never smaller than a quarter of the cloud's width: a small cloud is three or four
+		// billows on the sheet, and sized by its height alone it broke into dozens of scales.
+		float radius = max(height * (0.27 - 0.03 * fr), width * 0.24);
+		float squash = row == 0 ? 0.55 : 1.0;
+		float row_y = height * (0.08 + 0.2 * fr);
+		if (abs(y - row_y) > radius * 1.15 + height * 0.06) {
 			continue;
 		}
-		float row_w = width * (1.0 - 0.16 * fr);
-		float spacing = 2.0 * row_w / float(COLS - 1);
+		float row_w = width * (1.0 - 0.17 * fr);
+		// Billows a little closer than touching, so they overlap into one mass.
+		float spacing = radius * 1.25;
+		float count = max(floor(2.0 * row_w / spacing), 1.0);
+		spacing = 2.0 * row_w / count;
 		int nearest = int(floor((x + row_w) / spacing + 0.5));
-		for (int col = max(nearest - 2, 0); col <= min(nearest + 2, COLS - 1); col++) {
+		for (int col = max(nearest - 1, 0); col <= min(nearest + 1, int(count)); col++) {
 			float fc = float(col);
 			float h1 = hash(vec2(seed * 31.0 + fr * 13.0, fc + seed));
 			float h2 = hash(vec2(seed * 17.0 + fr * 7.0 + 100.0, fc));
 			float h3 = hash(vec2(seed * 23.0 + 200.0 + fr, fc + seed * 0.5));
-			vec2 centre = vec2(-row_w + fc * spacing + (h1 - 0.5) * spacing * 0.8,
-				row_y + (h2 - 0.5) * height * 0.10);
-			// Only lobes inside the mass's heap: an ellipse a little taller than wide-and-
-			// low, heaped in the middle, so the mass is a tower rather than a bar.
+			// Jittered by more than a third of the spacing each way, or the billows line up in
+			// rows and the cloud reads as stacked cushions.
+			vec2 centre = vec2(-row_w + fc * spacing + (h1 - 0.5) * spacing * 0.75,
+				row_y + (h2 - 0.5) * height * 0.16);
+			// Only billows inside the heap: an ellipse heaped in the middle, so the cloud is a
+			// tower rather than a bar.
 			float ex = centre.x / width;
-			float ey = (centre.y - height * 0.48) / (height * 0.72);
-			if (ex * ex + ey * ey > 1.0) {
+			float ey = (centre.y - height * 0.45) / (height * 0.7);
+			if (ex * ex + ey * ey > 1.05) {
 				continue;
 			}
-			float r = radius * (0.85 + 0.3 * h3);
-			vec2 dp = p - centre;
-			if (dot(dp, dp) > r * r * 1.6) {
-				continue;
-			}
-			float here = stamp(dp, r, h3, wobble, px);
-			level = mix(level, lobe_shade(centre.y / height, dp, r, light, h1 - 0.5, lift), here);
-			mass = max(mass, here);
+			float r = radius * (0.8 + 0.4 * h3);
+			vec2 b = billow(vec2(x, y) - centre, r, squash, h3, light,
+				1.0 - clamp(centre.y / height, 0.0, 1.0), lift, px);
+			paint(b.x, b.y, cover, shade);
 		}
 	}
-	// A flat base, gently uneven: the bottom row's lobes hang below it and are cut off.
-	mass *= smoothstep(-px, px, y - (wobble - 0.5) * height * 0.05);
-	paint(mass, level, cover, shade);
+	// The shelf: a few thin streaks along the base, reaching out past the cloud on both sides
+	// and lying over the bottom of it. The edge is a fixed width rather than a pixel's: this
+	// runs only inside the cloud's box, and fwidth is not defined across the edge of a branch.
+	float sx = x / (width * 1.6);
+	float sy = (y + height * 0.02) / (height * 0.07);
+	float strokes = noise(vec2(x / (height * 0.9), y / (height * 0.022)) + seed * 5.1);
+	float reach = max(1.0 - sx * sx, 0.0) * max(1.0 - sy * sy, 0.0);
+	float edge = mix(0.62, 0.30, wisps);
+	float shelf = smoothstep(edge - 0.02, edge + 0.02, strokes * reach);
+	paint(shelf, strokes > 0.75 ? 0.667 : 0.333, cover, shade);
 }
 
-// The heaped bank all the way round the horizon: two rows of lobes, the far one bigger and
+// The heaped bank all the way round the horizon: two rows of billows, the far one bigger and
 // slower, rising and falling round the sky on a slow noise so the bank has tall stretches and
 // gaps. Everything the chase camera sees of the sky is its lowest twenty degrees, and on the
 // sheet that is where most of the cloud is.
-void horizon_bank(vec2 sky, float drift, vec2 light, float lift, float amount, float px,
+void horizon_bank(vec2 sky, float drift, vec3 light, float lift, float amount, float px,
 		inout float cover, inout float shade) {
 	if (sky.y > bank_degrees * 1.3 || sky.y < -1.0 || amount <= 0.0) {
 		return;
@@ -383,14 +407,9 @@ void horizon_bank(vec2 sky, float drift, vec2 light, float lift, float amount, f
 			// Sunk below the line, so what shows is a dome.
 			vec2 centre = vec2((cell + 0.5 + (hash(vec2(id, fl + 4.0)) - 0.5) * 0.6) * cell_degrees,
 				-r * (0.45 - 0.2 * hash(vec2(id + 9.0, fl))));
-			vec2 dp = vec2(at * cell_degrees - centre.x, sky.y - centre.y);
-			if (dot(dp, dp) > r * r * 1.6) {
-				continue;
-			}
-			float here = stamp(dp, r, hash(vec2(id, fl + 2.0)), 0.5, px);
-			float height_in_bank = (sky.y - centre.y) / max(r * 1.4, 0.1);
-			paint(here, lobe_shade(height_in_bank, dp, r, light, hash(vec2(id + 3.0, fl)) - 0.5, lift),
-				cover, shade);
+			vec2 b = billow(vec2(at * cell_degrees - centre.x, sky.y - centre.y), r, 1.0,
+				hash(vec2(id, fl + 2.0)), light, 0.35 + 0.3 * fl, lift, px);
+			paint(b.x, b.y, cover, shade);
 		}
 	}
 }
@@ -559,20 +578,20 @@ void sky() {
 	// from the side more than from above.
 	float lit_from_above = mix(0.35, 1.0, clamp(to_sun.y * 2.0, 0.0, 1.0));
 	float bank_side = clamp(azimuth_offset(sun_azimuth, azimuth) / 25.0, -1.0, 1.0) * (1.0 - 2.0 * night);
-	float lift_shades = 0.12 * night;
-	horizon_bank(sky_at, drift, normalize(vec2(bank_side * 0.9, lit_from_above)), lift_shades,
+	float lift_shades = 0.3 * night;
+	horizon_bank(sky_at, drift, normalize(vec3(bank_side * 0.8, lit_from_above, 0.55)), lift_shades,
 		amount, px, cover, shade);
 	// (azimuth, base elevation, half-width, height, seed, rank). A mass is there once the
 	// cover reaches its rank, growing in over the last fifth of it rather than popping.
 	// Three rings: big masses standing on the horizon, middling ones behind and above them,
 	// and a few small ones high up - the sheet's cloud thins with height, it does not stop.
 	vec4 masses[17] = vec4[17](
-		vec4(10.0, 2.0, 16.0, 22.0), vec4(70.0, 3.0, 12.0, 10.0), vec4(125.0, 1.5, 17.0, 26.0),
-		vec4(190.0, 2.5, 14.0, 11.0), vec4(250.0, 1.8, 16.0, 14.0), vec4(305.0, 3.2, 11.0, 9.0),
-		vec4(42.0, 9.0, 10.0, 8.0), vec4(100.0, 11.0, 9.0, 7.5), vec4(160.0, 8.5, 11.0, 9.0),
-		vec4(222.0, 10.5, 9.5, 8.0), vec4(280.0, 9.5, 10.5, 8.5), vec4(338.0, 12.0, 8.0, 6.5),
-		vec4(15.0, 20.0, 6.0, 4.5), vec4(135.0, 18.0, 7.0, 5.0), vec4(265.0, 22.0, 5.5, 4.0),
-		vec4(200.0, 27.0, 4.5, 3.2), vec4(75.0, 29.0, 5.0, 3.5));
+		vec4(10.0, 2.0, 13.6, 22.0), vec4(70.0, 3.0, 10.2, 10.0), vec4(125.0, 1.5, 14.4, 26.0),
+		vec4(190.0, 2.5, 11.9, 11.0), vec4(250.0, 1.8, 13.6, 14.0), vec4(305.0, 3.2, 9.3, 9.0),
+		vec4(42.0, 9.0, 8.5, 8.0), vec4(100.0, 11.0, 7.6, 7.5), vec4(160.0, 8.5, 9.3, 9.0),
+		vec4(222.0, 10.5, 8.1, 8.0), vec4(280.0, 9.5, 8.9, 8.5), vec4(338.0, 12.0, 6.8, 6.5),
+		vec4(15.0, 20.0, 5.1, 4.5), vec4(135.0, 18.0, 6.0, 5.0), vec4(265.0, 22.0, 4.7, 4.0),
+		vec4(200.0, 27.0, 3.8, 3.2), vec4(75.0, 29.0, 4.2, 3.5));
 	vec2 ranks[17] = vec2[17](
 		vec2(4.0, 0.10), vec2(5.0, 0.35), vec2(6.0, 0.05), vec2(7.0, 0.25), vec2(8.0, 0.15),
 		vec2(9.0, 0.45), vec2(12.0, 0.30), vec2(13.0, 0.40), vec2(14.0, 0.20), vec2(15.0, 0.50),
@@ -586,7 +605,7 @@ void sky() {
 		vec4 at = masses[m];
 		float side = clamp(azimuth_offset(sun_azimuth, at.x + drift) / 25.0, -1.0, 1.0)
 			* (1.0 - 2.0 * night);
-		vec2 light = normalize(vec2(side * 0.9, lit_from_above));
+		vec3 light = normalize(vec3(side * 0.8, lit_from_above, 0.55));
 		cumulus(sky_at, at.x + drift, at.y, at.z * grow, at.w * grow, ranks[m].x, light,
 			lift_shades, px, cover, shade);
 	}
