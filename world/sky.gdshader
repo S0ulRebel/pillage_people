@@ -272,13 +272,15 @@ vec2 billow(vec2 dp, float radius, float squash, float seed, vec3 light, float l
 	if (d > radius * 1.08) {
 		return vec2(0.0);
 	}
-	// The scallops: semicircles round the rim, nine to thirteen of them, so the outline is a
-	// run of small round bumps meeting in cusps - not a wobble, which read as a jelly.
+	// The scallops: semicircles round the rim, so the outline is a run of small round bumps
+	// meeting in cusps - not a wobble, which read as a jelly. Each billow its own count, seven
+	// to fifteen, and its own depth: the same scallop on every billow was a pattern.
 	float theta = atan(q.y + 1.0e-5, q.x);
-	float bumps = 9.0 + floor(seed * 5.0);
+	float bumps = 7.0 + floor(seed * 9.0);
+	float depth = 0.05 + 0.11 * fract(seed * 7.31);
 	float s = fract(theta / 6.2832 * bumps + seed * 3.1);
 	float bump = sqrt(max(1.0 - (2.0 * s - 1.0) * (2.0 * s - 1.0), 0.0));
-	float rim = radius * (0.9 + 0.1 * bump);
+	float rim = radius * (1.0 - depth + depth * bump);
 	float here = 1.0 - smoothstep(-px, px, d - rim);
 	// The ball: its normal from where on the disc this pixel is.
 	vec2 on_disc = q / max(rim, 0.001);
@@ -320,7 +322,18 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 	// degree at this elevation.
 	float x = azimuth_offset(sky.x, azimuth) * cos(radians(elevation));
 	float y = sky.y - elevation;
-	if (abs(x) > width * 1.7 || y < -height * 0.25 || y > height * 1.25) {
+	// Each cloud its own shape, from its seed: the heap leans to one side, by up to a third of
+	// its width, and its top slopes. A cloud much wider than tall is a flat cloudlet - the
+	// sheet's small streaky ones - squashed in every row, not just the bottom. Every cloud the
+	// same symmetric dome was the uniformity.
+	float lean = (hash(vec2(seed, 91.0)) - 0.5) * 0.7;
+	float slope = (hash(vec2(seed, 57.0)) - 0.5) * 0.5;
+	bool flat_cloud = height < width * 0.45;
+	// The box everything below can reach: the leaning heap and its biggest billow round it.
+	// Narrower than that and a leaning tower was cut off down one side by a straight line.
+	float reach_out = max(height * 0.27, width * 0.24) * 1.4;
+	if (abs(x - lean * width) > width * 1.05 + reach_out || y < -reach_out * 0.6
+			|| y > height * 1.05 + reach_out) {
 		return;
 	}
 	const int ROWS = 5;
@@ -330,7 +343,7 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 		// Never smaller than a quarter of the cloud's width: a small cloud is three or four
 		// billows on the sheet, and sized by its height alone it broke into dozens of scales.
 		float radius = max(height * (0.27 - 0.03 * fr), width * 0.24);
-		float squash = row == 0 ? 0.55 : 1.0;
+		float squash = (row == 0 || flat_cloud) ? 0.55 : 1.0;
 		float row_y = height * (0.08 + 0.2 * fr);
 		if (abs(y - row_y) > radius * 1.15 + height * 0.06) {
 			continue;
@@ -346,18 +359,24 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 			float h1 = hash(vec2(seed * 31.0 + fr * 13.0, fc + seed));
 			float h2 = hash(vec2(seed * 17.0 + fr * 7.0 + 100.0, fc));
 			float h3 = hash(vec2(seed * 23.0 + 200.0 + fr, fc + seed * 0.5));
+			float h4 = hash(vec2(seed * 41.0 + fr * 3.0, fc * 1.7 + 50.0));
+			// A few billows left out high up, so the outline has steps. Lower down, or more of
+			// them, and a cloud came apart into floating balloons.
+			if (row > 1 && h4 > 0.88) {
+				continue;
+			}
 			// Jittered by more than a third of the spacing each way, or the billows line up in
 			// rows and the cloud reads as stacked cushions.
 			vec2 centre = vec2(-row_w + fc * spacing + (h1 - 0.5) * spacing * 0.75,
 				row_y + (h2 - 0.5) * height * 0.16);
 			// Only billows inside the heap: an ellipse heaped in the middle, so the cloud is a
 			// tower rather than a bar.
-			float ex = centre.x / width;
-			float ey = (centre.y - height * 0.45) / (height * 0.7);
+			float ex = (centre.x - lean * width) / width;
+			float ey = (centre.y - height * (0.45 + slope * ex)) / (height * 0.7);
 			if (ex * ex + ey * ey > 1.05) {
 				continue;
 			}
-			float r = radius * (0.8 + 0.4 * h3);
+			float r = radius * (0.65 + 0.7 * h3);
 			vec2 b = billow(vec2(x, y) - centre, r, squash, h3, light,
 				1.0 - clamp(centre.y / height, 0.0, 1.0), lift, px);
 			paint(b.x, b.y, cover, shade);
@@ -366,9 +385,12 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 	// The shelf: a few thin streaks along the base, reaching out past the cloud on both sides
 	// and lying over the bottom of it. The edge is a fixed width rather than a pixel's: this
 	// runs only inside the cloud's box, and fwidth is not defined across the edge of a branch.
+	// Sized by the cloud's bulk, not its height, so a flat cloudlet trails streaks as long as
+	// its own body - on the sheet the small ones are as much streak as puff.
+	float bulk = max(height, width * 0.35);
 	float sx = x / (width * 1.6);
-	float sy = (y + height * 0.02) / (height * 0.07);
-	float strokes = noise(vec2(x / (height * 0.9), y / (height * 0.022)) + seed * 5.1);
+	float sy = (y + bulk * 0.02) / (bulk * 0.07);
+	float strokes = noise(vec2(x / (bulk * 0.9), y / (bulk * 0.022)) + seed * 5.1);
 	float reach = max(1.0 - sx * sx, 0.0) * max(1.0 - sy * sy, 0.0);
 	float edge = mix(0.62, 0.30, wisps);
 	float shelf = smoothstep(edge - 0.02, edge + 0.02, strokes * reach);
@@ -397,10 +419,11 @@ void horizon_bank(vec2 sky, float drift, vec3 light, float lift, float amount, f
 			float turn = (id + 0.5) / cells * 6.2832;
 			// The envelope: how tall the bank is here. Sampled on a circle so it wraps.
 			float envelope = noise(vec2(cos(turn), sin(turn)) * 2.6 + fl * 7.3);
-			envelope = smoothstep(0.80 - amount * 0.6, 0.95, envelope);
+			// High enough that the bank breaks: tall stretches, low ones and open sea between.
+			envelope = smoothstep(0.88 - amount * 0.55, 0.98, envelope);
 			// Wide enough that neighbours overlap into one heap: narrower than a cell and the
 			// bank was a row of separate loaves along the sea.
-			float r = envelope * bank_degrees * (1.0 - 0.45 * fl) * (0.7 + 0.5 * hash(vec2(id, fl)));
+			float r = envelope * bank_degrees * (1.0 - 0.45 * fl) * (0.45 + 0.9 * hash(vec2(id, fl)));
 			if (r < 0.15) {
 				continue;
 			}
@@ -415,8 +438,8 @@ void horizon_bank(vec2 sky, float drift, vec3 light, float lift, float amount, f
 }
 
 // The deck: small puffs and cirrus on a flat layer overhead, seen in perspective, so they
-// shrink and crowd toward the horizon on their own the way a real deck does. A few small
-// puffs in fair weather; from about 0.7 cover they join into BRIGHT OVERCAST's layered sheet.
+// shrink and crowd toward the horizon on their own the way a real deck does. Only cirrus in
+// fair weather; past about 0.6 cover the puffs come and join into BRIGHT OVERCAST's sheet.
 void cloud_deck(vec3 dir, float elevation, vec3 to_sun, float drift, float amount,
 		inout float cover, inout float shade) {
 	if (dir.y < 0.03) {
@@ -429,8 +452,10 @@ void cloud_deck(vec3 dir, float elevation, vec3 to_sun, float drift, float amoun
 	// Cirrus: noise stretched along one bearing, cut thin.
 	vec2 along = vec2(0.94, 0.34);
 	vec2 c = vec2(dot(deck, along), dot(deck, vec2(-along.y, along.x)));
-	float streak = noise(c * vec2(0.9, 7.0)) * 0.7 + noise(c * vec2(2.3, 15.0) + 4.1) * 0.3;
-	float cirrus = band(streak, 1.0 - wisps * 0.34) * smoothstep(14.0, 30.0, elevation);
+	// Long and thin, and broken by a finer layer into feathery strokes: stretched less than
+	// this, each streak was a single white leaf.
+	float streak = noise(c * vec2(0.45, 11.0)) * 0.6 + noise(c * vec2(1.6, 26.0) + 4.1) * 0.4;
+	float cirrus = band(streak, 1.0 - wisps * 0.3) * smoothstep(14.0, 30.0, elevation);
 	paint(cirrus * 0.9, 0.667 + 0.333 * step(0.8, streak), cover, shade);
 
 	// Puffs: two octaves for the body and a third for lumpy edges; lit where the density
@@ -439,10 +464,10 @@ void cloud_deck(vec3 dir, float elevation, vec3 to_sun, float drift, float amoun
 	float density = noise(q) * 0.55 + noise(q * 2.2 + 3.1) * 0.3 + noise(q * 6.0 + 7.7) * 0.15;
 	vec2 toward = normalize(to_sun.xz + vec2(0.0001)) * 0.18;
 	float behind = noise(q + toward) * 0.55 + noise((q + toward) * 2.2 + 3.1) * 0.3;
-	// Few and small until the weather turns: at the sheet's trade-wind cover a couple of
-	// percent of the deck, at full cover most of it. A linear threshold covered half the
-	// sky in flat white splats at 0.55.
-	float threshold = mix(0.97, 0.42, smoothstep(0.35, 1.0, amount));
+	// None in fair weather - on their own a few noise puffs read as white leaves, nothing like
+	// the sheet's cloudlets, which are the flat masses - and from past the trade-wind cover
+	// they gather into the overcast sheet: most of the deck at full cover.
+	float threshold = mix(1.05, 0.42, smoothstep(0.58, 1.0, amount));
 	float puff = band(density, threshold) * low;
 	float lit = clamp((density - behind) * 4.0 + 0.5, 0.0, 1.0);
 	float level = floor(clamp(lit * 0.8 + (density - threshold) * 1.5, 0.0, 0.999) * 4.0) / 3.0;
@@ -583,21 +608,21 @@ void sky() {
 		amount, px, cover, shade);
 	// (azimuth, base elevation, half-width, height, seed, rank). A mass is there once the
 	// cover reaches its rank, growing in over the last fifth of it rather than popping.
-	// Three rings: big masses standing on the horizon, middling ones behind and above them,
-	// and a few small ones high up - the sheet's cloud thins with height, it does not stop.
-	vec4 masses[17] = vec4[17](
-		vec4(10.0, 2.0, 13.6, 22.0), vec4(70.0, 3.0, 10.2, 10.0), vec4(125.0, 1.5, 14.4, 26.0),
-		vec4(190.0, 2.5, 11.9, 11.0), vec4(250.0, 1.8, 13.6, 14.0), vec4(305.0, 3.2, 9.3, 9.0),
-		vec4(42.0, 9.0, 8.5, 8.0), vec4(100.0, 11.0, 7.6, 7.5), vec4(160.0, 8.5, 9.3, 9.0),
-		vec4(222.0, 10.5, 8.1, 8.0), vec4(280.0, 9.5, 8.9, 8.5), vec4(338.0, 12.0, 6.8, 6.5),
-		vec4(15.0, 20.0, 5.1, 4.5), vec4(135.0, 18.0, 6.0, 5.0), vec4(265.0, 22.0, 4.7, 4.0),
-		vec4(200.0, 27.0, 3.8, 3.2), vec4(75.0, 29.0, 4.2, 3.5));
-	vec2 ranks[17] = vec2[17](
-		vec2(4.0, 0.10), vec2(5.0, 0.35), vec2(6.0, 0.05), vec2(7.0, 0.25), vec2(8.0, 0.15),
-		vec2(9.0, 0.45), vec2(12.0, 0.30), vec2(13.0, 0.40), vec2(14.0, 0.20), vec2(15.0, 0.50),
-		vec2(16.0, 0.35), vec2(17.0, 0.55), vec2(1.0, 0.45), vec2(2.0, 0.40), vec2(3.0, 0.50),
-		vec2(10.0, 0.45), vec2(11.0, 0.70));
-	for (int m = 0; m < 17; m++) {
+	// Grouped, with open sky between, the way the sheet composes them: two clusters - a tower
+	// with a heap beside it and a flat cloudlet above - a few loners, and small flat cloudlets
+	// scattered higher. Seventeen masses spread evenly round the sky were too many and all
+	// alike; the sun is at about -35.
+	vec4 masses[13] = vec4[13](
+		vec4(125.0, 1.5, 12.0, 26.0), vec4(152.0, 3.0, 9.0, 13.0), vec4(98.0, 11.0, 7.0, 2.4),
+		vec4(8.0, 2.0, 11.0, 19.0), vec4(34.0, 5.5, 8.0, 11.0), vec4(57.0, 15.0, 8.0, 2.2),
+		vec4(242.0, 2.5, 12.0, 15.0), vec4(305.0, 3.0, 8.5, 11.0), vec4(205.0, 12.0, 6.0, 1.8),
+		vec4(280.0, 18.0, 7.0, 2.0), vec4(322.0, 10.0, 5.0, 1.6), vec4(178.0, 23.0, 5.0, 1.5),
+		vec4(72.0, 21.0, 6.0, 1.8));
+	vec2 ranks[13] = vec2[13](
+		vec2(4.0, 0.05), vec2(5.0, 0.30), vec2(6.0, 0.35), vec2(7.0, 0.10), vec2(8.0, 0.40),
+		vec2(9.0, 0.45), vec2(12.0, 0.20), vec2(13.0, 0.60), vec2(14.0, 0.25), vec2(15.0, 0.50),
+		vec2(16.0, 0.55), vec2(17.0, 0.65), vec2(1.0, 0.50));
+	for (int m = 0; m < 13; m++) {
 		float grow = smoothstep(ranks[m].y - 0.2, ranks[m].y, amount);
 		if (grow < 0.05) {
 			continue;
