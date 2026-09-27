@@ -32,14 +32,17 @@ const NIGHT_MID := Color(0.05, 0.25, 0.56)
 const NIGHT_CLOUD_FACE := Color(0.70, 0.71, 0.85)
 const NIGHT_CLOUD_PLANE := Color(0.49, 0.50, 0.61)
 const MOON := Color(0.99, 0.96, 0.80)
-## How much of the sky is cloud, by height: TRADE-WIND CUMULUS is 27% in its top third, 34% in
-## the middle and 40% in the bottom, measured with _cloud_cover's own sieve. The views here
-## are lower than the sheet's panel (it runs to about 55 degrees, these to 40), so the bottom
-## band is held to at least the sheet's bottom third, and each band to at least the one above
-## it: the cloud piles up toward the horizon, not away from it.
-const COVER_LOW_MIN := 0.28
-const COVER_LOW_MAX := 0.65
-const COVER_MID_MIN := 0.20
+## How much of the sky is cloud, by height, measured with _cloud_cover's own sieve: on the sheet
+## TROPICAL CLEAR is 3% in its top third, 14% in the middle and 37% in the bottom, and
+## TRADE-WIND CUMULUS 28%, 52% and 69%. The default weather sits between the two - the
+## trade-wind panel drawn round the whole sky was too much cloud - so the bands are held to
+## that range, a little wider, and each to at least the one above it: the cloud piles up
+## toward the horizon, not away from it. (The views here run to 40 degrees and the sheet's
+## panel to about 55, which only makes the comparison kinder at the top.)
+const COVER_LOW_MIN := 0.33
+const COVER_LOW_MAX := 0.72
+const COVER_MID_MIN := 0.12
+const COVER_MID_MAX := 0.55
 ## Cloud shadows at the same cover: some of the island in shadow, not all of it and not none.
 const SHADOWED_MIN := 0.08
 const SHADOWED_MAX := 0.5
@@ -184,14 +187,14 @@ func _check_cover(camera: Camera3D, eye: Vector3, bearing: float) -> void:
 		low += _cloud_cover(image, 0.5, 0.645) / 4.0
 		mid += _cloud_cover(image, 0.284, 0.5) / 4.0
 		high += _cloud_cover(image, 0.04, 0.284) / 4.0
-	print("cloud cover round the sky: %.0f%% at 2-12 degrees, %.0f%% at 12-26, %.0f%% at 26-40 (sheet: 40%%, 34%%, 27%% bottom to top)"
+	print("cloud cover round the sky: %.0f%% at 2-12 degrees, %.0f%% at 12-26, %.0f%% at 26-40 (sheet, bottom to top: clear 37%%, 14%%, 3%%; trade-wind 69%%, 52%%, 28%%)"
 			% [low * 100.0, mid * 100.0, high * 100.0])
 	if low < COVER_LOW_MIN or low > COVER_LOW_MAX:
 		_failures += 1
 		push_error("the cloud low round the horizon is off the sheet")
-	if mid < COVER_MID_MIN:
+	if mid < COVER_MID_MIN or mid > COVER_MID_MAX:
 		_failures += 1
-		push_error("the sky between 12 and 26 degrees is nearly empty")
+		push_error("the cloud between 12 and 26 degrees is off the sheet")
 	if mid > low or high > mid + 0.03:
 		_failures += 1
 		push_error("the cloud does not pile up toward the horizon")
@@ -234,19 +237,20 @@ func _frame() -> Image:
 	return root.get_texture().get_image()
 
 
-## The share of the sky in a band of rows that is cloud. Cloud is pale (saturation under
-## 0.33) and bright (value over 0.55); sky is saturated and blue. Anything else - the
-## mountain, which since the terrain stamps fills half of two of these views, a palm - is
-## neither and does not count either way.
+## The share of the sky in a band of rows that is cloud. Cloud is paler than the sky
+## (saturation under 0.45 - the sheet's blue shadow tone is 0.39, and a sieve at 0.33 took it
+## for sky, on the sheet and here alike) and bright (value over 0.55); sky is saturated and
+## blue. Anything else - the mountain, which since the terrain stamps fills half of two of
+## these views, a palm - is neither and does not count either way.
 func _cloud_cover(image: Image, from: float, to: float) -> float:
 	var cloud := 0
 	var sky := 0
 	for y in range(int(image.get_height() * from), int(image.get_height() * to), 3):
 		for x in range(0, image.get_width(), 3):
 			var c := image.get_pixel(x, y)
-			if c.s < 0.33 and c.v > 0.55:
+			if c.s < 0.45 and c.v > 0.55:
 				cloud += 1
-			elif c.s >= 0.33 and c.v > 0.5 and c.h > 0.5 and c.h < 0.7:
+			elif c.s >= 0.45 and c.v > 0.5 and c.h > 0.5 and c.h < 0.7:
 				sky += 1
 	return float(cloud) / float(maxi(cloud + sky, 1))
 

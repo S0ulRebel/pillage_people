@@ -92,13 +92,13 @@ uniform vec3 night_horizon : source_color = vec3(0.17, 0.46, 0.76);
 uniform vec3 night_low : source_color = vec3(0.17, 0.46, 0.76);
 uniform vec3 night_mid : source_color = vec3(0.05, 0.25, 0.56);
 uniform vec3 night_zenith : source_color = vec3(0.05, 0.17, 0.43);
-// Moonlit clouds, FULL MOON's, in four shades: lavender-white (0.78, 0.76, 0.86), pale blue
-// (0.62, 0.64, 0.82), the blue most of the cloud is (0.44, 0.56, 0.84), and the shadow
-// (0.37, 0.42, 0.62).
-uniform vec3 night_cloud_white : source_color = vec3(0.74, 0.73, 0.86);
-uniform vec3 night_cloud_light : source_color = vec3(0.62, 0.64, 0.82);
-uniform vec3 night_cloud_mid : source_color = vec3(0.44, 0.56, 0.84);
-uniform vec3 night_cloud_shadow : source_color = vec3(0.37, 0.42, 0.62);
+// Moonlit clouds, FULL MOON's four values the same way: lavender-white (0.75, 0.73, 0.84)
+// 19%, pale blue (0.56, 0.63, 0.85) 22%, the blue most of the cloud is (0.42, 0.55, 0.83)
+// 38%, and the shadow (0.32, 0.46, 0.77) 19% - a blue, where this used to be a grey.
+uniform vec3 night_cloud_white : source_color = vec3(0.75, 0.73, 0.84);
+uniform vec3 night_cloud_light : source_color = vec3(0.56, 0.63, 0.85);
+uniform vec3 night_cloud_mid : source_color = vec3(0.42, 0.55, 0.83);
+uniform vec3 night_cloud_shadow : source_color = vec3(0.32, 0.46, 0.77);
 
 // ---- Moon -------------------------------------------------------------------------------
 group_uniforms Moon;
@@ -128,17 +128,20 @@ uniform float star_strength : hint_range(0.0, 1.0) = 0.9;
 
 // ---- Clouds -----------------------------------------------------------------------------
 group_uniforms Clouds;
-// The sheet's cumulus is not one shape with a shadow: it is heaps of small round lobes, each
-// lit on its own sun side and shaded on the other - that is what makes it read as cauliflower
-// rather than cut paper - sitting on flat bases with thin streaks along them, and piled
-// deepest near the horizon: TRADE-WIND CUMULUS is 27% cloud in its top third, 34% in the
-// middle and 40% in the bottom. The shades, measured on its big cloud and how much of it each
-// covers: white (0.98, 0.94, 0.91) 8%, light (0.94, 0.91, 0.91) 46%, a blue-lavender mid
-// (0.74, 0.81, 0.95) 38%, and the shadow (0.69, 0.77, 0.91) 8%.
-uniform vec3 cloud_white : source_color = vec3(0.98, 0.94, 0.91);
-uniform vec3 cloud_light : source_color = vec3(0.94, 0.91, 0.91);
-uniform vec3 cloud_mid : source_color = vec3(0.74, 0.81, 0.95);
-uniform vec3 cloud_shadow : source_color = vec3(0.69, 0.77, 0.91);
+// The sheet's cumulus is not one shape with a shadow: it is heaps of round billows, each lit
+// on its own sun side and shaded on the other, sitting on flat bases with thin streaks along
+// them, and piled deepest near the horizon: TRADE-WIND CUMULUS is 27% cloud in its top third,
+// 34% in the middle and 40% in the bottom.
+//
+// Four values, clearly apart - the sheet's cloud clusters into exactly four (k-means over its
+// cloud pixels): white (0.94, 0.91, 0.91) 22%, a pale grey-lavender (0.80, 0.85, 0.94) 19%,
+// lavender (0.70, 0.79, 0.95) 21%, and the blue shadow (0.57, 0.73, 0.94) 36% - the biggest
+// share is the darkest. The first measurement of these took white and light 0.04 apart and
+// mid and shadow 0.05 apart, so the clouds drew two values where the sheet paints four.
+uniform vec3 cloud_white : source_color = vec3(0.94, 0.91, 0.91);
+uniform vec3 cloud_light : source_color = vec3(0.80, 0.85, 0.94);
+uniform vec3 cloud_mid : source_color = vec3(0.70, 0.79, 0.95);
+uniform vec3 cloud_shadow : source_color = vec3(0.57, 0.73, 0.94);
 // APPROACHING SQUALL's slate, in the same four shades, darkest first measured: (0.20, 0.32,
 // 0.48), (0.25, 0.39, 0.56), (0.32, 0.47, 0.63), (0.46, 0.60, 0.68). cloud_storm mixes every
 // cloud toward these, and the dome toward the squall's muted teal (0.29, 0.49, 0.64).
@@ -266,7 +269,7 @@ void paint(float here, float level, inout float cover, inout float shade) {
 // most of the sheet's cloud - darkening to the shadow low down on the far side. Lower
 // billows are darker overall: the sheet's cloud is white on top and blue underneath.
 vec2 billow(vec2 dp, float radius, float squash, float seed, vec3 light, float low, float lift,
-		float px) {
+		float sunward, float behind, float px) {
 	vec2 q = vec2(dp.x, dp.y / squash);
 	float d = length(q);
 	if (d > radius * 1.08) {
@@ -296,13 +299,21 @@ vec2 billow(vec2 dp, float radius, float squash, float seed, vec3 light, float l
 	float rim_light = edge * smoothstep(0.1, 0.55, toward);
 	// Height in the cloud counts as much as the ball's own light: white gathers at the top.
 	// The crown's billows are mostly white on the sheet, not just rimmed: the top of the
-	// cloud gets a lift of its own.
+	// cloud gets a lift of its own. Across the whole mass there is a second gradient: the side
+	// toward the sun is the white side, the far side the blue one (`sunward`). And a mass
+	// behind is a step darker than the clumps in front of it (`behind`) - that is the depth.
 	float high = 1.0 - low;
-	float t = lit * 0.35 + high * 0.40 + high * high * 0.18 + rim_light * 0.30 + (seed - 0.5) * 0.08
-		+ lift - 0.04;
-	// Four shades by thresholds set to the sheet's own proportions on TRADE-WIND CUMULUS's
-	// big cloud: white a sliver, light and the blue mid most of it, shadow in the crevices.
-	float level = t > 0.80 ? 1.0 : (t > 0.52 ? 0.667 : (t > 0.20 ? 0.333 : 0.0));
+	// Mostly by WHERE the billow is, only a little by where on the billow the pixel is: on the
+	// sheet (its tone map) each billow is one flat tone, and the tones come in big patches -
+	// white crowns on the sun side, pale and lavender through the middle, the blue shadow low
+	// and away from the sun - with a lighter cap on the lit shoulder of some. Weighted toward
+	// the ball, every billow drew the same white crescent and pale band, which read as a
+	// pattern stamped over the cloud.
+	float t = lit * 0.16 + high * 0.42 + high * high * 0.16 + rim_light * 0.12 + sunward * 0.2
+		+ (seed - 0.5) * 0.22 - behind * 0.1 + lift - 0.02;
+	// Four values by thresholds set to the sheet's own proportions on TRADE-WIND CUMULUS: the
+	// shadow the biggest share, white a crown and a rim.
+	float level = t > 0.44 ? 1.0 : (t > 0.30 ? 0.667 : (t > 0.19 ? 0.333 : 0.0));
 	return vec2(here, level);
 }
 
@@ -342,7 +353,9 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 		float fr = float(row);
 		// Never smaller than a quarter of the cloud's width: a small cloud is three or four
 		// billows on the sheet, and sized by its height alone it broke into dozens of scales.
-		float radius = max(height * (0.27 - 0.03 * fr), width * 0.24);
+		// Shrinking only slowly up the rows: rows are a fifth of the height apart, and billows
+		// smaller than that floated off the top of the cloud as separate balls.
+		float radius = max(height * (0.28 - 0.012 * fr), width * 0.24);
 		float squash = (row == 0 || flat_cloud) ? 0.55 : 1.0;
 		float row_y = height * (0.08 + 0.2 * fr);
 		if (abs(y - row_y) > radius * 1.15 + height * 0.06) {
@@ -362,7 +375,7 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 			float h4 = hash(vec2(seed * 41.0 + fr * 3.0, fc * 1.7 + 50.0));
 			// A few billows left out high up, so the outline has steps. Lower down, or more of
 			// them, and a cloud came apart into floating balloons.
-			if (row > 1 && h4 > 0.88) {
+			if (row > 1 && row < ROWS - 1 && h4 > 0.9) {
 				continue;
 			}
 			// Jittered by more than a third of the spacing each way, or the billows line up in
@@ -377,9 +390,47 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 				continue;
 			}
 			float r = radius * (0.65 + 0.7 * h3);
+			float sunward = clamp((centre.x - lean * width) / width * sign(light.x) * 1.4, -1.0, 1.0)
+				* abs(light.x) / max(length(light.xy), 0.001);
 			vec2 b = billow(vec2(x, y) - centre, r, squash, h3, light,
-				1.0 - clamp(centre.y / height, 0.0, 1.0), lift, px);
+				1.0 - clamp(centre.y / height, 0.0, 1.0), lift, sunward, flat_cloud ? 0.0 : 1.0, px);
 			paint(b.x, b.y, cover, shade);
+		}
+	}
+	// The clumps in front. On the sheet a big mass never stands alone: two or three small heaps
+	// of billows sit in front of its lower third, on the same base, their crowns lit white
+	// against the darker body behind - the bright small shape over the dark big one is most of
+	// the sheet's depth. Each heap is a small dome of five billows: two low, two higher, one
+	// on top. Flat cloudlets have none; they are small already.
+	if (!flat_cloud) {
+		for (int h = 0; h < 3; h++) {
+			float fh = float(h);
+			float k1 = hash(vec2(seed * 7.7 + fh, 301.0));
+			float k2 = hash(vec2(seed * 3.3 + fh, 302.0));
+			if (k2 > 0.8) {
+				continue;
+			}
+			// Spread across the mass's foot, and sized a third to a half of its big billows.
+			float cr = max(height * 0.1, width * 0.09) * (0.8 + 0.6 * k2);
+			vec2 heap = vec2(lean * width + (fh - 1.0 + (k1 - 0.5) * 0.6) * width * 0.62,
+				cr * 0.35);
+			if (abs(x - heap.x) > cr * 3.2 || y > heap.y + cr * 3.2) {
+				continue;
+			}
+			for (int j = 0; j < 5; j++) {
+				float fj = float(j);
+				vec2 offset = j == 0 ? vec2(-1.1, 0.0) : (j == 1 ? vec2(1.0, 0.1)
+					: (j == 2 ? vec2(-0.45, 0.85) : (j == 3 ? vec2(0.55, 0.8) : vec2(0.0, 1.55))));
+				float kj = hash(vec2(seed * 5.1 + fh * 3.0, fj + 310.0));
+				vec2 centre = heap + offset * cr + (vec2(kj, fract(kj * 7.3)) - 0.5) * cr * 0.5;
+				float r = cr * (0.75 + 0.5 * kj);
+				float squash = j < 2 ? 0.6 : 1.0;
+				float sunward = clamp(offset.x * 0.5 * sign(light.x), -1.0, 1.0) * 0.6;
+				vec2 b = billow(vec2(x, y) - centre, r, squash, kj, light,
+					1.0 - clamp((centre.y - heap.y) / (cr * 2.2), 0.0, 1.0) * 0.9, lift, sunward,
+					0.0, px);
+				paint(b.x, b.y, cover, shade);
+			}
 		}
 	}
 	// The shelf: a few thin streaks along the base, reaching out past the cloud on both sides
@@ -431,7 +482,7 @@ void horizon_bank(vec2 sky, float drift, vec3 light, float lift, float amount, f
 			vec2 centre = vec2((cell + 0.5 + (hash(vec2(id, fl + 4.0)) - 0.5) * 0.6) * cell_degrees,
 				-r * (0.45 - 0.2 * hash(vec2(id + 9.0, fl))));
 			vec2 b = billow(vec2(at * cell_degrees - centre.x, sky.y - centre.y), r, 1.0,
-				hash(vec2(id, fl + 2.0)), light, 0.35 + 0.3 * fl, lift, px);
+				hash(vec2(id, fl + 2.0)), light, 0.35 + 0.3 * fl, lift, 0.0, 0.5 - 0.5 * fl, px);
 			paint(b.x, b.y, cover, shade);
 		}
 	}
