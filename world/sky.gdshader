@@ -412,29 +412,54 @@ void cumulus(vec2 sky, float azimuth, float elevation, float width, float height
 	paint(shelf, strokes > 0.75 ? 0.667 : 0.333, cover, shade);
 }
 
-// Streaks: thin broken bands of cloud lying across the sky between the heaps and the
-// zenith - the little strokes beside the sheet's cumulus by day, and GOLDEN-HOUR GLOW's
-// coral bands, which fill its whole middle, toward sunset. Noise stretched along the horizon,
-// in (azimuth, elevation) so the bands lie level; the seam where azimuth wraps is blended.
-float streak_noise(float az, float el) {
-	vec2 q = vec2(az / 18.0, el / 2.4);
-	return noise(q) * 0.55 + noise(q * vec2(2.7, 2.1) + 3.7) * 0.3 + noise(q * vec2(7.0, 4.0) + 9.1) * 0.15;
-}
-
-void streaks(vec2 sky, float drift, float amount, float px, inout float cover, inout float shade) {
-	if (amount <= 0.0 || sky.y < 4.0 || sky.y > 42.0) {
+// Cloudlets: the flat, stretched little clouds lying across the middle of the sky in rows -
+// a few beside the sheet's cumulus by day, and GOLDEN-HOUR GLOW's coral bands, which fill its
+// whole middle, toward sunset. On the sheet they are not streaks of noise but small clouds
+// like the big ones: wavy lobes in value layers, coral tops over violet undersides, only much
+// wider than tall. So each is a flat heap; they sit in cells of a grid of rows across the
+// sky, each cell holding one or none, and `amount` is how many of the cells do.
+void cloudlets(vec2 sky, float drift, float sun_azimuth, float night, float lit_from_above,
+		float amount, float px, inout float cover, inout float shade) {
+	if (amount <= 0.0 || sky.y < 6.0 || sky.y > 44.0) {
 		return;
 	}
+	const float ROW = 5.0;
+	const float CELL = 15.0;
+	float row = floor((sky.y - 6.0) / ROW);
 	float az = mod(sky.x - drift * 0.8 + 720.0, 360.0);
-	float n = mix(streak_noise(az, sky.y), streak_noise(az - 360.0, sky.y), smoothstep(300.0, 360.0, az));
-	// Thickest in the middle band of the sky, thinning out above and below.
-	float band_at = smoothstep(4.0, 12.0, sky.y) * (1.0 - smoothstep(22.0, 42.0, sky.y));
-	float edge = 1.0 - amount * 0.5 * band_at;
-	float here = smoothstep(edge - 0.015, edge + 0.015, n);
-	// A lit top and a darker underside, the way the sheet's strokes are painted.
-	float above = streak_noise(az, sky.y + 0.35);
-	float level = above < n ? 1.0 : (n > edge + 0.05 ? 0.667 : 0.333);
-	paint(here, level, cover, shade);
+	float col = floor(az / CELL);
+	float cells = 360.0 / CELL;
+	for (int dr = 0; dr >= -1; dr--) {
+		float r = row + float(dr);
+		if (r < 0.0) {
+			continue;
+		}
+		for (int dc = -1; dc <= 1; dc++) {
+			float c = mod(col + float(dc), cells);
+			vec2 id = vec2(c, r);
+			float h1 = hash(id + 7.1);
+			// Denser in the middle rows, thinning out toward the zenith.
+			float here_amount = amount * (1.0 - smoothstep(4.0, 7.0, r) * 0.6);
+			if (h1 > here_amount) {
+				continue;
+			}
+			float h2 = hash(id * 1.3 + 17.0);
+			float h3 = hash(id * 2.1 + 29.0);
+			float width = 4.0 + 5.0 * h2;
+			float height = width * (0.16 + 0.1 * h3);
+			vec2 at = vec2((c + 0.2 + 0.6 * h3) * CELL, 6.0 + (r + 0.15 + 0.5 * h2) * ROW);
+			float x = azimuth_offset(az, at.x) * cos(radians(at.y));
+			float y = sky.y - at.y;
+			if (abs(x) > width * 1.4 + height || y < -height || y > height * 2.0) {
+				continue;
+			}
+			float side = clamp(azimuth_offset(sun_azimuth, at.x + drift * 0.8) / 25.0, -1.0, 1.0)
+				* (1.0 - 2.0 * night);
+			vec3 light = normalize(vec3(side * 0.8, lit_from_above, 0.55));
+			heap_layer(vec2(x, y), width, height, 300.0 + c * 7.0 + r, (h1 - 0.5) * 0.4, 0.2,
+				light, px, cover, shade);
+		}
+	}
 }
 
 // Long low banks on the horizon: the sheet's lower third is heaps sitting on the sea in long
@@ -633,9 +658,9 @@ void sky() {
 	// from the side more than from above.
 	float lit_from_above = mix(0.35, 1.0, clamp(to_sun.y * 2.0, 0.0, 1.0));
 	float lift_shades = 0.0;
-	// Streaks mid-sky: a few by day, GOLDEN-HOUR GLOW's bands toward sunset.
-	streaks(sky_at, drift, clamp(wisps * 0.7 + golden * 0.8, 0.0, 1.0) * mix(0.6, 1.0, amount), px,
-		cover, shade);
+	// Cloudlets mid-sky: a few by day, GOLDEN-HOUR GLOW's rows of them toward sunset.
+	cloudlets(sky_at, drift, sun_azimuth, night, lit_from_above,
+		clamp(wisps * 0.3 + golden * 0.75, 0.0, 0.85) * mix(0.6, 1.0, amount), px, cover, shade);
 	horizon_banks(sky_at, drift, sun_azimuth, night, lit_from_above, lift_shades, amount, px,
 		cover, shade);
 	// (azimuth, base elevation, half-width, height) and (seed, rank). A mass is there once the
