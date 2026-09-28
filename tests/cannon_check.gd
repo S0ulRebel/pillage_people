@@ -69,6 +69,7 @@ func _run() -> void:
 	# which is worse than a failing check, because nothing says it did not happen.
 	await _check_barrel(scene, terrain, spawn)
 	await _check_manning(scene)
+	_check_through_deck(scene)
 	_check_two_kinds(scene)
 	_check_heard(scene, placed)
 	_finish()
@@ -438,6 +439,50 @@ func _check_manning(scene: Node3D) -> void:
 			% [balls.size(), gun.reload_fraction() * 100.0])
 	check(balls.size() > 0, "a full press-drag-release through the viewport fired nothing")
 	check(gun.reload_fraction() < 1.0, "the gun is ready again the instant it fired")
+
+
+## A gun is manned from the deck it stands on, not through the planks above it.
+##
+## The reach is a straight-line distance of about 2.75 m and the decks are 2.6 m apart, so
+## standing on the weather deck over a broadside gun used to put him in reach of it. Nothing
+## errored: E simply manned a gun on the deck below, and camera_rig stopped orbiting because
+## boarding() said yes. Asked both ways round, because a rule that refuses everything passes
+## the first half on its own.
+func _check_through_deck(scene: Node3D) -> void:
+	var player := scene.get_node_or_null("Player") as Node3D
+	var ship := scene.get_node_or_null("Ship") as Node3D
+	check(player != null and ship != null, "no Player or no Ship in main.tscn")
+	if player == null or ship == null:
+		return
+	if player.is_manning():
+		player.try_cannon()
+	var gun := ship.get_node_or_null("Guns/CannonStarboard7") as Cannon
+	check(gun != null, "the ship has no starboard gun at z 7 to stand over")
+	if gun == null:
+		return
+
+	# Set and asked in the same frame, so neither gravity nor the swell moves him in between.
+	# Straight over the gun, on the weather deck: in reach by distance, one deck up.
+	player.global_position = ship.to_global(Vector3(1.2, ship.DECK_Y, 8.0))
+	var span: float = player.global_position.distance_to(gun.global_position)
+	var above: Node3D = player._near_cannon()
+	print("through deck: %.2f m from the gun below (reach %.2f), offered %s, boarding %s"
+			% [span, gun.reach(), above, player.boarding()])
+	check(span <= gun.reach(),
+			"the weather-deck spot is %.2f m from the gun, outside its %.2f reach - this no longer"
+			% [span, gun.reach()] + " tests the floor, only the distance")
+	check(above == null,
+			"standing on the weather deck, E offers %s on the gun deck below" % above)
+	check(not player.boarding(),
+			"on the weather deck over a gun, boarding() still says E would do something")
+
+	# Beside the same gun on its own deck: still his to man.
+	player.global_position = ship.to_global(Vector3(1.2, ship.GUN_DECK_Y, 7.0))
+	var beside: Node3D = player._near_cannon()
+	print("gun deck: %.2f m from the gun, feet %.2f m above its floor, offered %s"
+			% [player.global_position.distance_to(gun.global_position),
+			player.global_position.y - gun.floor_height(), beside])
+	check(beside == gun, "standing beside a gun on the gun deck, E offers %s, not it" % beside)
 
 
 ## The ship's guns and the hilltop gun must be DIFFERENT WEAPONS, out of one script.

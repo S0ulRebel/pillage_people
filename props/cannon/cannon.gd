@@ -229,6 +229,13 @@ func reach() -> float:
 	return maxf(box.size.x, box.size.z) * 0.5 + 1.8
 
 
+## The height of the floor it stands on, in world space: the bottom of its mesh. Measured
+## rather than read off global_position.y, because a hand-placed gun's origin is wherever it
+## was put - this is the number to hold a pair of feet against to ask whether they share a deck.
+func floor_height() -> float:
+	return (global_transform * bounds()).position.y
+
+
 func man(who: Node3D) -> bool:
 	if is_manned() or who == null:
 		return false

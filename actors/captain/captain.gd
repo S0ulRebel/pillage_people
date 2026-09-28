@@ -699,8 +699,16 @@ func is_manning() -> bool:
 	return _cannon != null and is_instance_valid(_cannon) and _cannon.rider() == self
 
 
-## The nearest cannon within its own reach, or null. The cannon decides how close is close
-## enough, from its own measured size.
+## How far a gun's floor may sit above or below his feet and still be the floor he is on.
+## The ship's decks are 2.6 m apart and a gun's reach is about 2.75 m, so without this the
+## reach passes straight through the planking and E mans the gun on the deck below.
+## Measured: stood beside a deck gun his feet are 0.6 m under its carriage, on the weather deck
+## over it 2.1 m above, and cannon_check drops him on the hill gun from 1.0 m up.
+const GUN_FLOOR_GAP := 1.4
+
+
+## The nearest cannon within its own reach, on the floor he is standing on, or null. The
+## cannon decides how close is close enough, from its own measured size.
 func _near_cannon() -> Node3D:
 	var best: Node3D = null
 	var closest := INF
@@ -709,9 +717,12 @@ func _near_cannon() -> Node3D:
 		if gun == null or not gun.has_method("reach"):
 			continue
 		var span: float = global_position.distance_to(gun.global_position)
-		if span <= gun.reach() and span < closest:
-			closest = span
-			best = gun
+		if span > gun.reach() or span >= closest:
+			continue
+		if absf(global_position.y - gun.floor_height()) > GUN_FLOOR_GAP:
+			continue
+		closest = span
+		best = gun
 	return best
 
 
