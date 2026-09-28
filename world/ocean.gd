@@ -351,6 +351,23 @@ func surface_y(x: float, z: float) -> float:
 	return _sea_level + offset.y
 
 
+## The surface at (x, z) as height, rising speed and upward acceleration, from the same sum as
+## surface_y a moment either side on the water clock. Differencing surface_y between physics
+## ticks instead jitters: the clock moves with the rendered frames, not the ticks, so one tick
+## can see it step twice and the next not at all.
+func surface_motion(x: float, z: float) -> Vector3:
+	const STEP := 1.0 / 60.0
+	var now := _clock
+	_clock = now - STEP
+	var before := surface_y(x, z)
+	_clock = now + STEP
+	var after := surface_y(x, z)
+	_clock = now
+	var here := surface_y(x, z)
+	return Vector3(here, (after - before) / (2.0 * STEP),
+			(after - 2.0 * here + before) / (STEP * STEP))
+
+
 ## Waves flatten as the seabed rises. This one is real rather than a rendering concession,
 ## so it stays: without it cargo in the shallows bobs as hard as cargo in open water.
 func _shoal_at(p: Vector2) -> float:

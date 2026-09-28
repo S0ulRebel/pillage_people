@@ -149,18 +149,27 @@ func _physics_process(_delta: float) -> void:
 	# average height while the water visibly rises and falls around it - which reads as the
 	# barrel being pinned rather than as it floating. Asking the ocean where its surface
 	# actually is puts the barrel on the wave.
-	var surface := water_level
+	var water := Vector3(water_level, 0.0, 0.0)
 	if ocean != null:
-		surface = ocean.surface_y(global_position.x, global_position.z)
-	var depth := surface - global_position.y
+		water = ocean.surface_motion(global_position.x, global_position.z)
+	var depth := water.x - global_position.y
 	if depth <= 0.0:
 		linear_damp = 0.0
 		angular_damp = 0.2
 		return
 	var submerged := clampf(depth / maxf(height(), 0.01), 0.0, 1.0)
-	apply_central_force(Vector3.UP * buoyancy * mass * submerged)
+	# Water that is itself speeding up or slowing down pushes harder or softer on what floats
+	# in it, which carries the barrel with the wave. Lifted by depth alone it had to fall
+	# behind the water before it was pushed, so it trailed every rise and flew past every crest.
+	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	var carried := maxf(1.0 + water.z / gravity, 0.0)
+	apply_central_force(Vector3.UP * buoyancy * mass * submerged * carried)
 	linear_damp = water_drag * submerged
 	angular_damp = water_spin_drag * submerged
+	# The damp drags against still water, but a swell moves the water up and down. Pushing along
+	# at the water's own rising speed makes it drag against the water rather than the air, so
+	# it settles the bobbing without holding the barrel back from the wave.
+	apply_central_force(Vector3.UP * linear_damp * mass * water.y)
 
 
 func _descendants(node: Node) -> Array[Node]:
