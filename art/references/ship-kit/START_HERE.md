@@ -57,6 +57,8 @@ Done so far:
 
 - **Hull extras** (tripo/hull.json) into `art/models/ship/hull/`: the gunport lid (H11) and one bay of wale (H12). Tripo's hull shells were dropped; they copied the old painted sheet's errors, and the textured canonical shells replace them. The frame's opening is sized to the kit's 1.0 m gunport. The lid is exported closed, re-hung on its own hinge node, so the engine opens it by turning that one node. The wale is one 2 m bay with straight butt ends.
 
+**On the ship:** props/ship/ship.gd loads these into the slots its placeholders used: the helm, capstan, rudder with its hinge strip, mainmast, topmast, mast top, both yard sizes, foremast and bowsprit. It adds a binnacle, two mast collars, the stern lantern, and a frame and open lid on all eight gunports. Where a model file is missing, the placeholder is built instead. `python tools/texture_game_hull.py` gives the game's own hull (art/models/ship/double_deck.glb, with its raked bow and bulged stern) the kit's plank texture without moving a vertex. tests/ship_fittings_check.gd fails if any slot falls back to its placeholder or a part sits off its mark.
+
 The curved bow and stern rails keep Tripo's curves, which do not follow the kit outlines. None of these parts is placed on the ship yet. Each report lists what was dropped and why.
 
 See canonical/validation.json for measured results. These are geometric construction checks; final materials, collision, character traversal and buoyancy are not validated here. Existing abandoned versions live only in _archive and must not be mixed with this kit.

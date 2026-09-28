@@ -3,9 +3,14 @@ class_name Ship
 extends Node3D
 ## The double-deck hull from the canonical kit, moored off the beach.
 ##
-## The mesh is the construction form, not a finished model: broad faces, no planking pass.
-## It is copied into art/models so the scene does not load out of the reference kit, and so a
-## later styling pass can replace the file without touching the kit.
+## The mesh is the construction form with the kit's plank texture laid on it, not yet a
+## finished model: no bevels, trim or ironwork. It is copied into art/models so the scene does
+## not load out of the reference kit, and so a later styling pass can replace the file without
+## touching the kit.
+##
+## The fittings are models cut from the Tripo sheets (art/models/ship/fittings, rigging),
+## each placed in the node its placeholder used to fill. Where a model file is missing, the
+## placeholder is built instead, so the ship never loses a part it needs.
 ##
 ## Axes and sizes are the kit's, in metres: X starboard, Y up, Z aft, keel at Y=0, bow at Z=0,
 ## stern at Z=14, beam 6. The gunport sills are at Y=3.4, so the keel sits two metres under
@@ -51,6 +56,22 @@ const RUDDER_AT := Vector3(0.0, 1.8, 14.9)
 ## meet that opening: the sill is 0.8 m off the deck and the barrel axis is only 0.62 m up.
 const GUN_DECK_Y := 2.6
 const GUN_PORT_Z := [5.0, 7.0, 9.0, 11.0]
+## Centre of each port's opening: the kit's sill is 0.8 m off the gun deck, the opening 0.8 m tall.
+const GUN_PORT_Y := GUN_DECK_Y + 1.2
+## Ahead of the wheel and clear of the capstan's bars (they sweep to 11.6), where the helmsman can read it.
+const BINNACLE_AT := Vector3(0.0, DECK_Y, 12.0)
+## Top of the stern rail, on the centreline, where the bulged stern reaches aft furthest.
+const LANTERN_AT := Vector3(0.0, 6.0, 16.68)
+## How far the gunport lids stand open, so the guns can run out under them.
+const LID_OPEN_DEGREES := 100.0
+## The mast top's platform floor stands 1.06 m above the model's lowest point; this puts that
+## floor just above the placeholder's, and the model's collar clear of the course yard at 4.6.
+const MAST_TOP_Y := 4.72
+
+const FITTINGS := "res://art/models/ship/fittings/"
+const RIGGING := "res://art/models/ship/rigging/"
+const HULL_PARTS := "res://art/models/ship/hull/"
+const DECK_PARTS := "res://art/models/ship/deck/"
 const CannonScene := preload("res://props/cannon/cannon.tscn")
 const SailScript := preload("res://props/ship/sail.gd")
 const AHEAD_SPEED := 7.0
@@ -100,6 +121,7 @@ func _ready() -> void:
 	_build_sail()
 	_build_topsail()
 	_build_backstays()
+	_build_deck_fittings()
 
 
 ## Floats broadside to the beach the coastal study picked, close enough to swim to.
@@ -313,15 +335,7 @@ func _build() -> void:
 		mesh_node.layers = 1 | (1 << 19)
 		if mesh_node.mesh == null:
 			continue
-		for surface in mesh_node.mesh.get_surface_count():
-			var material := mesh_node.mesh.surface_get_material(surface)
-			if material is BaseMaterial3D:
-				var flat: BaseMaterial3D = material.duplicate()
-				flat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-				flat.metallic = 0.0
-				flat.roughness = 1.0
-				flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-				mesh_node.set_surface_override_material(surface, flat)
+		_toon(mesh_node)
 		# The deck and the stairs are part of the mesh. A box would fill the hatch.
 		# Skip when one is already there: a tool script's _ready runs again on reload, and a
 		# second body would stack on the first.
@@ -334,8 +348,41 @@ func _build() -> void:
 			mesh_node.create_trimesh_collision()
 
 
-## A wheel and a stand, in the kit's helm box, until a real F01_HELM model replaces it.
-## The node is named Helm and sits on HELM_AT so the swap is a mesh, not a new place.
+## The flat toon pass the whole ship shares: no specular, no metal, full roughness. Each
+## surface gets its own copy, so the imported material is never edited in place.
+func _toon(mesh_node: MeshInstance3D) -> void:
+	for surface in mesh_node.mesh.get_surface_count():
+		var material := mesh_node.mesh.surface_get_material(surface)
+		if material is BaseMaterial3D:
+			var flat: BaseMaterial3D = material.duplicate()
+			flat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+			flat.metallic = 0.0
+			flat.roughness = 1.0
+			flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+			mesh_node.set_surface_override_material(surface, flat)
+
+
+## Puts the model at `path` under `parent` as a child named Model, toon-shaded like the hull.
+## False when the file is not there, so the caller can build its placeholder instead. Each
+## model's origin is already its attachment point (see art/references/ship-kit/tripo), so a
+## part lands by its node's position, never by an offset measured off the mesh.
+func _fit_model(parent: Node3D, path: String, at := Vector3.ZERO, degrees := Vector3.ZERO) -> bool:
+	if not ResourceLoader.exists(path):
+		return false
+	var model := (load(path) as PackedScene).instantiate() as Node3D
+	model.name = "Model"
+	model.position = at
+	model.rotation_degrees = degrees
+	parent.add_child(model)
+	for node in _descendants(model):
+		if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+			_toon(node as MeshInstance3D)
+	return true
+
+
+## The F03 helm model, or a wheel and a stand in the kit's helm box when it is missing.
+## The node is named Helm and sits on HELM_AT so the swap is a mesh, not a new place. The
+## model's wheel is on its aft side, toward HELM_FEET.
 func _build_helm() -> void:
 	var helm := get_node_or_null("Helm") as Node3D
 	if helm != null:
@@ -345,6 +392,9 @@ func _build_helm() -> void:
 	helm.name = "Helm"
 	helm.position = HELM_AT
 	add_child(helm)
+	_helm_body(helm)
+	if _fit_model(helm, FITTINGS + "helm.glb"):
+		return
 	var timber := _flat(Color(0.55, 0.36, 0.18))
 	var iron := _flat(Color(0.22, 0.22, 0.24))
 	var brass := _flat(Color(0.75, 0.58, 0.22))
@@ -363,6 +413,10 @@ func _build_helm() -> void:
 		var rim := _box(wheel, Vector3(cos(ang) * 0.46, sin(ang) * 0.46, 0.0), Vector3(0.2, 0.07, 0.07), timber)
 		rim.rotation.z = ang + PI * 0.5
 	_cylinder(wheel, Vector3.ZERO, 0.08, 0.1, brass)
+
+
+## The stand collides and the wheel does not: the helmsman stands 0.4 m aft of its rim.
+func _helm_body(helm: Node3D) -> void:
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
@@ -373,8 +427,9 @@ func _build_helm() -> void:
 	helm.add_child(body)
 
 
-## Lower mast, topmast and a lookout, in the kit's sizes, until those models replace it.
-## The node is named Mast and sits on MAST_AT so the swap is a mesh, not a new place.
+## Lower mast, topmast and a lookout: the M02/M03/M04 models, or spars in the kit's sizes
+## when they are missing. The node is named Mast and sits on MAST_AT so the swap is a mesh,
+## not a new place.
 func _build_mast() -> void:
 	var existing := get_node_or_null("Mast") as Node3D
 	if existing != null:
@@ -388,15 +443,31 @@ func _build_mast() -> void:
 	add_child(mast)
 	var timber := _flat(Color(0.55, 0.36, 0.18))
 	var iron := _flat(Color(0.22, 0.22, 0.24))
-	# M01: 5.5 m, radius 0.25 at the deck narrowing to 0.18 at the head.
-	_spar(mast, 2.75, 0.25, 0.18, 5.5, timber)
-	# M02 sits on that head and runs another 3 m, down to a 0.08 m tip.
-	_spar(mast, 7.0, 0.18, 0.08, 3.0, timber)
-	_spar(mast, 1.4, 0.3, 0.3, 0.08, iron)
-	_spar(mast, 3.6, 0.24, 0.24, 0.08, iron)
-	_spar(mast, 5.42, 0.22, 0.22, 0.1, iron)
-	# M03 wraps the joint: a platform and a rail, not a socket in the spar.
-	_spar(mast, 5.5, 1.05, 1.05, 0.18, timber)
+	# M01: 5.5 m, radius 0.25 at the deck narrowing to 0.18 at the head. The model is the same
+	# 5.5 m from its deck contact, with the topmast's heel seated on its head.
+	var lower := Node3D.new()
+	lower.name = "Lower"
+	mast.add_child(lower)
+	if not _fit_model(lower, RIGGING + "mainmast.glb"):
+		_spar(lower, 2.75, 0.25, 0.18, 5.5, timber)
+		_spar(lower, 1.4, 0.3, 0.3, 0.08, iron)
+		_spar(lower, 3.6, 0.24, 0.24, 0.08, iron)
+		_spar(lower, 5.42, 0.22, 0.22, 0.1, iron)
+	var upper := Node3D.new()
+	upper.name = "Topmast"
+	upper.position = Vector3(0.0, 5.5, 0.0)
+	mast.add_child(upper)
+	if not _fit_model(upper, RIGGING + "topmast.glb"):
+		# M02 sits on that head and runs another 3 m, down to a 0.08 m tip.
+		_spar(upper, 1.5, 0.18, 0.08, 3.0, timber)
+	# M03 wraps the joint: a platform and a rail, not a socket in the spar. The model's hole
+	# was sized to clear the 0.18 m head; the posts and ring are still the placeholder's,
+	# because Tripo's platform has no rail and the lookout needs one.
+	var top := Node3D.new()
+	top.name = "Top"
+	mast.add_child(top)
+	if not _fit_model(top, RIGGING + "mast_top.glb", Vector3(0.0, MAST_TOP_Y, 0.0)):
+		_spar(top, 5.5, 1.05, 1.05, 0.18, timber)
 	for i in 8:
 		var ang := TAU * float(i) / 8.0
 		_box(mast, Vector3(cos(ang) * 0.95, 6.05, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
@@ -405,12 +476,14 @@ func _build_mast() -> void:
 	var yard := Node3D.new()
 	yard.name = "Yard"
 	yard.position = Vector3(0.0, 4.6, 0.0)
-	# Local up lies along starboard, so the spar runs athwartships and tapers to both tips.
-	yard.rotation_degrees.z = -90.0
 	mast.add_child(yard)
-	_spar(yard, -2.0, 0.06, 0.12, 4.0, timber)
-	_spar(yard, 2.0, 0.12, 0.06, 4.0, timber)
-	_spar(yard, 0.0, 0.2, 0.2, 0.12, iron)
+	# The model already runs athwartships along X, from its sling at the origin.
+	if not _fit_model(yard, RIGGING + "lower_yard.glb"):
+		# Local up lies along starboard, so the spar runs athwartships and tapers to both tips.
+		yard.rotation_degrees.z = -90.0
+		_spar(yard, -2.0, 0.06, 0.12, 4.0, timber)
+		_spar(yard, 2.0, 0.12, 0.06, 4.0, timber)
+		_spar(yard, 0.0, 0.2, 0.2, 0.12, iron)
 	var old_foot := mast.get_node_or_null("FootYard")
 	if old_foot != null:
 		old_foot.free()
@@ -451,11 +524,13 @@ func _build_foremast() -> void:
 	mast.name = "Foremast"
 	mast.position = FOREMAST_AT
 	add_child(mast)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	_spar(mast, 2.1, 0.2, 0.12, 4.2, timber)
-	_spar(mast, 1.1, 0.24, 0.24, 0.08, iron)
-	_spar(mast, 3.3, 0.16, 0.16, 0.08, iron)
+	# The M01 model is the same 4.2 m from its deck contact.
+	if not _fit_model(mast, RIGGING + "foremast.glb"):
+		var timber := _flat(Color(0.55, 0.36, 0.18))
+		var iron := _flat(Color(0.22, 0.22, 0.24))
+		_spar(mast, 2.1, 0.2, 0.12, 4.2, timber)
+		_spar(mast, 1.1, 0.24, 0.24, 0.08, iron)
+		_spar(mast, 3.3, 0.16, 0.16, 0.08, iron)
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
@@ -478,10 +553,13 @@ func _build_bowsprit() -> void:
 	# Local up is turned to point forward (-Z) and a little above the horizontal.
 	sprit.rotation_degrees.x = -77.0
 	add_child(sprit)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	_spar(sprit, 1.5, 0.15, 0.08, 3.0, timber)
-	_spar(sprit, 0.35, 0.2, 0.2, 0.12, iron)
+	# The M07 model reaches along its own -Z from the heel at its origin; turning it 90 degrees
+	# about X lays that along this node's +Y, the direction the placeholder spar runs.
+	if not _fit_model(sprit, RIGGING + "bowsprit.glb", Vector3.ZERO, Vector3(90.0, 0.0, 0.0)):
+		var timber := _flat(Color(0.55, 0.36, 0.18))
+		var iron := _flat(Color(0.22, 0.22, 0.24))
+		_spar(sprit, 1.5, 0.15, 0.08, 3.0, timber)
+		_spar(sprit, 0.35, 0.2, 0.2, 0.12, iron)
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
@@ -505,8 +583,9 @@ func _build_bobstay() -> void:
 	_rope(stay, tip, Vector3(0.0, 2.6, -0.6), 0.02, _flat(Color(0.45, 0.34, 0.22)))
 
 
-## A blade on the stern hinge, under the counter, until a real rudder replaces it.
-## The node is named Rudder and its origin is the hinge, so the swap keeps this place.
+## The F06 blade and its sternpost hinge strip, or a placeholder blade on an iron post.
+## The node is named Rudder and its origin is the hinge, so the swap keeps this place. Both
+## models share that origin: the blade reaches aft of it, the strip sits just forward.
 func _build_rudder() -> void:
 	if get_node_or_null("Rudder") != null:
 		return
@@ -514,17 +593,27 @@ func _build_rudder() -> void:
 	rudder.name = "Rudder"
 	rudder.position = RUDDER_AT
 	add_child(rudder)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	# The hinge post. The blade's forward edge is this axis.
-	_spar(rudder, -0.5, 0.08, 0.08, 2.0, iron)
-	# Wider at the foot, shorter under the counter, still inside the kit's box.
-	for i in 6:
-		var t := float(i) / 5.0
-		var y := -1.35 + t * 1.7
-		var length := lerpf(0.95, 0.55, t)
-		_box(rudder, Vector3(0.0, y, 0.08 + length * 0.5), Vector3(0.16, 0.26, length), timber)
-	_box(rudder, Vector3(0.0, -0.5, 0.35), Vector3(0.2, 1.7, 0.06), iron)
+	var blade := FITTINGS + "rudder.glb"
+	var strip := FITTINGS + "rudder_hinges.glb"
+	# Both or neither: a model blade on the placeholder's iron post would hang off nothing.
+	if ResourceLoader.exists(blade) and ResourceLoader.exists(strip):
+		_fit_model(rudder, blade)
+		var hinges := Node3D.new()
+		hinges.name = "Hinges"
+		rudder.add_child(hinges)
+		_fit_model(hinges, strip)
+	else:
+		var timber := _flat(Color(0.55, 0.36, 0.18))
+		var iron := _flat(Color(0.22, 0.22, 0.24))
+		# The hinge post. The blade's forward edge is this axis.
+		_spar(rudder, -0.5, 0.08, 0.08, 2.0, iron)
+		# Wider at the foot, shorter under the counter, still inside the kit's box.
+		for i in 6:
+			var t := float(i) / 5.0
+			var y := -1.35 + t * 1.7
+			var length := lerpf(0.95, 0.55, t)
+			_box(rudder, Vector3(0.0, y, 0.08 + length * 0.5), Vector3(0.16, 0.26, length), timber)
+		_box(rudder, Vector3(0.0, -0.5, 0.35), Vector3(0.2, 1.7, 0.06), iron)
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
@@ -535,7 +624,7 @@ func _build_rudder() -> void:
 	rudder.add_child(body)
 
 
-## A drum and two bars, inside the kit's capstan box, until a real F02_CAPSTAN replaces it.
+## The F05 capstan model, or a drum and two bars inside the kit's capstan box.
 ## The node is named Capstan and sits on CAPSTAN_AT so the swap is a mesh, not a new place.
 ## Only the drum collides. The bars are the working radius, and a solid box that wide would
 ## close the path from the hatch to the wheel.
@@ -546,15 +635,16 @@ func _build_capstan() -> void:
 	capstan.name = "Capstan"
 	capstan.position = CAPSTAN_AT
 	add_child(capstan)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	_spar(capstan, 0.08, 0.55, 0.55, 0.16, timber)
-	_spar(capstan, 0.52, 0.34, 0.28, 0.72, timber)
-	_spar(capstan, 0.7, 0.36, 0.36, 0.06, iron)
-	_spar(capstan, 0.98, 0.42, 0.5, 0.2, timber)
-	# Two bars through the head, out to the 1.4 m bound on each axis.
-	_box(capstan, Vector3(0.0, 0.88, 0.0), Vector3(2.8, 0.08, 0.08), timber)
-	_box(capstan, Vector3(0.0, 0.88, 0.0), Vector3(0.08, 0.08, 2.8), timber)
+	if not _fit_model(capstan, FITTINGS + "capstan.glb"):
+		var timber := _flat(Color(0.55, 0.36, 0.18))
+		var iron := _flat(Color(0.22, 0.22, 0.24))
+		_spar(capstan, 0.08, 0.55, 0.55, 0.16, timber)
+		_spar(capstan, 0.52, 0.34, 0.28, 0.72, timber)
+		_spar(capstan, 0.7, 0.36, 0.36, 0.06, iron)
+		_spar(capstan, 0.98, 0.42, 0.5, 0.2, timber)
+		# Two bars through the head, out to the 1.4 m bound on each axis.
+		_box(capstan, Vector3(0.0, 0.88, 0.0), Vector3(2.8, 0.08, 0.08), timber)
+		_box(capstan, Vector3(0.0, 0.88, 0.0), Vector3(0.08, 0.08, 2.8), timber)
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
@@ -564,6 +654,65 @@ func _build_capstan() -> void:
 	shape.position = Vector3(0.0, 0.55, 0.0)
 	body.add_child(shape)
 	capstan.add_child(body)
+
+
+## The fittings with no placeholder to replace: a binnacle ahead of the wheel, a collar where
+## each mast meets the deck, the lantern on the stern rail, and a frame and lid on every
+## gunport. Each is placed only if its model is there - none of them is something the ship
+## needs in order to work.
+func _build_deck_fittings() -> void:
+	if get_node_or_null("DeckFittings") != null:
+		return
+	var fittings := Node3D.new()
+	fittings.name = "DeckFittings"
+	add_child(fittings)
+
+	var binnacle := Node3D.new()
+	binnacle.name = "Binnacle"
+	binnacle.position = BINNACLE_AT
+	fittings.add_child(binnacle)
+	if _fit_model(binnacle, FITTINGS + "binnacle.glb"):
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var col := CylinderShape3D.new()
+		col.radius = 0.3
+		col.height = 1.1
+		shape.shape = col
+		shape.position = Vector3(0.0, 0.55, 0.0)
+		body.add_child(shape)
+		binnacle.add_child(body)
+
+	# The collar's hole is 0.52 m across, for the mainmast's 0.5 m foot; the foremast is thinner.
+	for spot in [["MastCollar", MAST_AT], ["ForemastCollar", FOREMAST_AT]]:
+		var collar := Node3D.new()
+		collar.name = spot[0]
+		collar.position = spot[1]
+		fittings.add_child(collar)
+		_fit_model(collar, DECK_PARTS + "mast_collar.glb")
+
+	# The model's origin is the top of its wall plate, and the lantern hangs aft of it (+Z).
+	var lantern := Node3D.new()
+	lantern.name = "SternLantern"
+	lantern.position = LANTERN_AT
+	fittings.add_child(lantern)
+	_fit_model(lantern, FITTINGS + "stern_lantern.glb")
+
+	# The frame faces +X with its back on the hull, centred on its opening; turned half round
+	# it serves the port side. The lid is its own node hung on its hinge: +Z swings it out.
+	var lids := Node3D.new()
+	lids.name = "GunportLids"
+	fittings.add_child(lids)
+	for z in GUN_PORT_Z:
+		for side in [1.0, -1.0]:
+			var port := Node3D.new()
+			port.name = "Port%s%d" % ["Starboard" if side > 0.0 else "Port", int(z)]
+			port.position = Vector3(side * BEAM * 0.5, GUN_PORT_Y, z)
+			port.rotation_degrees.y = 0.0 if side > 0.0 else 180.0
+			lids.add_child(port)
+			if _fit_model(port, HULL_PARTS + "gunport_lid.glb"):
+				var lid := port.find_child("lid", true, false) as Node3D
+				if lid != null:
+					lid.rotation_degrees.z = LID_OPEN_DEGREES
 
 
 ## The course hangs from its yard. The jib runs from the foremast to the bowsprit.
@@ -622,8 +771,11 @@ func _crossyard(mast: Node3D, yard_name: String, y: float, half: float, thick: f
 	var yard := Node3D.new()
 	yard.name = yard_name
 	yard.position = Vector3(0.0, y, 0.12)
-	yard.rotation_degrees.z = -90.0
 	mast.add_child(yard)
+	# The M06 model is 5.2 m, the same as 2 * half, and already runs along X from its sling.
+	if _fit_model(yard, RIGGING + "topsail_yard.glb"):
+		return
+	yard.rotation_degrees.z = -90.0
 	_spar(yard, -half * 0.5, thick * 0.55, thick, half, timber)
 	_spar(yard, half * 0.5, thick, thick * 0.55, half, timber)
 	_spar(yard, 0.0, thick + 0.04, thick + 0.04, 0.1, iron)
