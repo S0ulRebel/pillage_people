@@ -352,8 +352,8 @@ func _check_quarterdeck(ship: Node3D) -> void:
 	probe.free()
 
 
-## The rail that replaced the bulwark: the wall is gone aft of the bow head, the rail is built
-## from the models, every post stands on the hull's edge, and it collides without a gap.
+## The rail that replaced the bulwark: the wall is gone, the rail is built from the models,
+## its posts are evenly spaced and each stands on the hull's edge, and it collides without a gap.
 func _check_rail(ship: Node3D) -> void:
 	var to_ship := ship.global_transform.affine_inverse()
 	var hull_wall := 0
@@ -362,9 +362,9 @@ func _check_rail(ship: Node3D) -> void:
 		for surface in mesh_node.mesh.get_surface_count():
 			for v in mesh_node.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
 				var p: Vector3 = to_ship * mesh_node.global_transform * v
-				if p.y > Ship.DECK_Y + 0.01 and p.z > -0.8:
+				if p.y > Ship.DECK_Y + 0.01:
 					hull_wall += 1
-	check(hull_wall == 0, "%d hull vertices still stand above the deck aft of the bow head" % hull_wall)
+	check(hull_wall == 0, "%d hull vertices still stand above the weather deck" % hull_wall)
 
 	var rail := ship.get_node_or_null("Rail")
 	var body := ship.get_node_or_null("Rail/Body") as StaticBody3D
@@ -387,6 +387,13 @@ func _check_rail(ship: Node3D) -> void:
 	var count := placed.size()
 	check(count == posts.multimesh.instance_count, "the rail's posts are not all placed")
 	var centre := Vector3(0.0, Ship.DECK_Y, 7.0)
+	# Evenly spaced, stern as bow: no stretch of the rail crowded with posts.
+	var gaps: Array[float] = []
+	for i in count - 1:
+		gaps.append((placed[i] as Transform3D).origin.distance_to((placed[i + 1] as Transform3D).origin))
+	if not gaps.is_empty():
+		check(gaps.max() - gaps.min() < 0.1 and gaps.max() <= Ship.RAIL_SPAN + 0.01,
+				"the rail's posts are %.2f to %.2f m apart; they should be even, at most %.1f" % [gaps.min(), gaps.max(), Ship.RAIL_SPAN])
 	for i in count:
 		var at: Transform3D = placed[i]
 		var out := at.basis.z

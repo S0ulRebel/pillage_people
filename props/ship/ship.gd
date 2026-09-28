@@ -56,9 +56,10 @@ const HELM_REACH := 1.6
 const MAST_AT := Vector3(0.0, DECK_Y, 9.0)
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
-## Base of the bowsprit, seated in the raked stem just under the rail. The spar's own
-## length runs forward from here. A real F03_BOWSPRIT drops in on this node.
-const BOWSPRIT_AT := Vector3(0.0, 5.65, -2.66)
+## Heel of the bowsprit, resting on the deck just inboard of the stem. The spar's own length
+## runs forward from here, over the stem head between the two knightheads the rail ends on. A
+## real F03_BOWSPRIT drops in on this node; its heel is 0.3 m across.
+const BOWSPRIT_AT := Vector3(0.0, DECK_Y + 0.15, -1.9)
 ## Hinge of the rudder, on the stern under the counter. The blade hangs aft of this
 ## point. A real F04_RUDDER drops in on this node.
 const RUDDER_AT := Vector3(0.0, 1.8, 14.9)
@@ -113,19 +114,22 @@ const DECK_PROPS := [
 ]
 ## The rail round the weather deck, which stands where the solid bulwark was (see
 ## tools/strip_game_bulwarks.py). The hull's wall now ends at the deck in a flat top 0.2 m
-## wide; this is the centre line of that top, measured off double_deck.glb, as (x, z). It runs
-## down the starboard side from the bow head, which is kept solid because the bowsprit is
-## seated in it, round the stern to the centreline. The port side is its mirror.
-## A post stands on every corner of the hull's panels, and no more than RAIL_SPAN apart along
-## them. The handrail and base are fitted to each span, and balusters are spread along it, so
-## the same parts follow any path.
+## wide; this is the centre line of that top, measured off double_deck.glb, as (x, z), at
+## each corner of the hull's panels. It runs down the starboard side from the knighthead at
+## the bow, round the stern to the centreline; the port side is its mirror. The knightheads
+## stand either side of the bowsprit, 0.34 m out, so the spar passes between them.
 const RAIL_PATH := [
-	Vector2(1.132, -0.935), Vector2(2.115, 0.745), Vector2(2.9, 4.0), Vector2(2.9, 6.0),
-	Vector2(2.9, 8.0), Vector2(2.9, 10.0), Vector2(2.9, 12.0), Vector2(2.845, 12.72),
-	Vector2(2.68, 13.45), Vector2(2.41, 14.165), Vector2(2.05, 14.825), Vector2(1.615, 15.39),
-	Vector2(1.11, 15.82), Vector2(0.57, 16.085), Vector2(0.0, 16.18),
+	Vector2(0.34, -2.065), Vector2(1.132, -0.935), Vector2(2.115, 0.745), Vector2(2.9, 4.0),
+	Vector2(2.9, 12.0), Vector2(2.845, 12.72), Vector2(2.68, 13.45), Vector2(2.41, 14.165),
+	Vector2(2.05, 14.825), Vector2(1.615, 15.39), Vector2(1.11, 15.82), Vector2(0.57, 16.085),
+	Vector2(0.0, 16.18),
 ]
+## Posts stand evenly along the whole rail, bow to stern, no more than this apart. They do not
+## follow the hull's corners: the stern is eight short panels, and a post on each would crowd
+## it. Between posts the handrail and base turn the corners in straight lengths, one per panel.
 const RAIL_SPAN := 2.0
+## How far a rail length runs past a corner into the next, so the outside of the turn closes.
+const RAIL_LAP := 0.04
 ## Balusters stand about this far apart, as on Tripo's straight rail.
 const BALUSTER_PITCH := 0.45
 ## How far the handrail and base run into the post at each end, so no gap shows at a corner.
@@ -904,15 +908,14 @@ func _build_deck_fittings() -> void:
 ## The rail along RAIL_PATH, both sides, from the posts, handrail, base and baluster in
 ## art/models/ship/deck (rail_post.glb, rail_parts.glb). Each part is drawn as one MultiMesh,
 ## so two hundred balusters are one draw call. A baluster that would stand in a cathead's
-## timber is left out. Each span collides as one box the rail's height, so nobody walks off
-## the deck; without the models, plain timber boxes stand in.
+## timber is left out. Each straight length collides as one box the rail's height, so nobody
+## walks off the deck; without the models, plain timber boxes stand in.
 func _build_rail() -> void:
 	if get_node_or_null("Rail") != null:
 		return
 	var rail := Node3D.new()
 	rail.name = "Rail"
 	add_child(rail)
-	var points := _rail_points()
 	var parts := _rail_parts()
 	var timber := _flat(Color(0.55, 0.36, 0.18))
 	if parts.is_empty():
@@ -935,34 +938,61 @@ func _build_rail() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Body"
 	rail.add_child(body)
-	for i in points.size():
-		var along := (points[mini(i + 1, points.size() - 1)] - points[maxi(i - 1, 0)]).normalized()
-		placed["post"].append(Transform3D(_along(along), points[i]))
-	for i in points.size() - 1:
-		var a := points[i]
-		var b := points[i + 1]
-		var span := a.distance_to(b)
-		var dir := (b - a) / span
-		var basis := _along(dir)
-		var inner := span - post_width
-		var stretch := Basis(dir * (inner + RAIL_TUCK * 2.0) / rail_length, Vector3.UP, basis.z)
-		placed["handrail"].append(Transform3D(stretch, (a + b) * 0.5))
-		placed["base"].append(Transform3D(stretch, (a + b) * 0.5))
+	var line := _rail_line()
+	var reach: PackedFloat32Array = [0.0]
+	for i in line.size() - 1:
+		reach.append(reach[i] + line[i].distance_to(line[i + 1]))
+	var length := reach[reach.size() - 1]
+	# An even count, so one post stands on the stern's centreline and the sides mirror.
+	var bays := ceili(length / RAIL_SPAN)
+	bays += bays % 2
+	var posts: Array[float] = []
+	for k in bays + 1:
+		posts.append(length * k / bays)
+		placed["post"].append(_rail_at(line, reach, posts[k]))
+
+	# The rail in straight lengths, one per hull panel between posts: cut at every post and
+	# every corner. Into a post it stops just inside it; past a corner it laps the next length.
+	var cuts: Array[float] = posts.duplicate()
+	for i in range(1, line.size() - 1):
+		var near := false
+		for s in posts:
+			near = near or absf(s - reach[i]) < 0.05
+		if not near:
+			cuts.append(reach[i])
+	cuts.sort()
+	for i in cuts.size() - 1:
+		var from := cuts[i]
+		var to := cuts[i + 1]
+		var mid := _rail_at(line, reach, (from + to) * 0.5)
+		var dir := mid.basis.x
+		var start := from + (post_width * 0.5 - RAIL_TUCK if posts.has(from) else -RAIL_LAP)
+		var end := to - (post_width * 0.5 - RAIL_TUCK if posts.has(to) else -RAIL_LAP)
+		# Measured along this panel's own line, so a lap past its corner runs straight on.
+		var centre := mid.origin + dir * ((start + end) * 0.5 - (from + to) * 0.5)
+		if end - start > 0.02:
+			var stretch := Basis(dir * (end - start) / rail_length, Vector3.UP, mid.basis.z)
+			placed["handrail"].append(Transform3D(stretch, centre))
+			placed["base"].append(Transform3D(stretch, centre))
+		# Collision runs the whole length, through the posts, so there is no gap at either end.
+		var shape := CollisionShape3D.new()
+		var slab := BoxShape3D.new()
+		slab.size = Vector3(to - from + 0.1, RAIL_HEIGHT, 0.2)
+		shape.shape = slab
+		shape.transform = Transform3D(mid.basis, mid.origin + Vector3.UP * RAIL_HEIGHT * 0.5)
+		body.add_child(shape)
+
+	# Balusters spread evenly between each pair of posts, round the corners with the rail.
+	for k in bays:
+		var inner := posts[k + 1] - posts[k] - post_width
 		var count := maxi(1, roundi(inner / BALUSTER_PITCH))
-		for k in count:
-			var at := a + dir * (post_width * 0.5 + inner * (k + 0.5) / count)
-			var here := Transform3D(basis, at)
+		for j in count:
+			var here := _rail_at(line, reach, posts[k] + post_width * 0.5 + inner * (j + 0.5) / count)
 			var blocked := false
 			for box in clear:
 				blocked = blocked or (here * baluster_box).intersects(box)
 			if not blocked:
 				placed["baluster"].append(here)
-		var shape := CollisionShape3D.new()
-		var slab := BoxShape3D.new()
-		slab.size = Vector3(span + 0.2, RAIL_HEIGHT, 0.2)
-		shape.shape = slab
-		shape.transform = Transform3D(basis, (a + b) * 0.5 + Vector3.UP * RAIL_HEIGHT * 0.5)
-		body.add_child(shape)
 
 	for key in ["post", "handrail", "base", "baluster"]:
 		var mesh: Mesh = parts[key]
@@ -984,20 +1014,30 @@ func _build_rail() -> void:
 		rail.add_child(node)
 
 
-## RAIL_PATH round both sides at deck height, as one line: port from the bow head to the stern,
-## then starboard back to the bow head. Long panels are split so no span is over RAIL_SPAN.
-func _rail_points() -> Array[Vector3]:
-	var corners: Array[Vector3] = []
+## RAIL_PATH round both sides at deck height, as one line: port from its knighthead to the
+## stern, then starboard back to its knighthead.
+func _rail_line() -> Array[Vector3]:
+	var line: Array[Vector3] = []
 	for p in RAIL_PATH:
-		corners.append(Vector3(-p.x, DECK_Y, p.y))
+		line.append(Vector3(-p.x, DECK_Y, p.y))
 	for i in range(RAIL_PATH.size() - 2, -1, -1):
-		corners.append(Vector3(RAIL_PATH[i].x, DECK_Y, RAIL_PATH[i].y))
-	var points: Array[Vector3] = [corners[0]]
-	for i in corners.size() - 1:
-		var pieces := ceili(corners[i].distance_to(corners[i + 1]) / RAIL_SPAN - 0.001)
-		for k in range(1, pieces + 1):
-			points.append(corners[i].lerp(corners[i + 1], float(k) / pieces))
-	return points
+		line.append(Vector3(RAIL_PATH[i].x, DECK_Y, RAIL_PATH[i].y))
+	return line
+
+
+## The point `s` metres along `line` (whose corners are `reach` metres along it), facing along
+## the panel it is on, or along the turn when it is on a corner.
+func _rail_at(line: Array[Vector3], reach: PackedFloat32Array, s: float) -> Transform3D:
+	var i := 0
+	while i < line.size() - 2 and reach[i + 1] <= s:
+		i += 1
+	var dir := (line[i + 1] - line[i]).normalized()
+	if absf(s - reach[i + 1]) < 0.001 and i + 2 < line.size():
+		dir = (dir + (line[i + 2] - line[i + 1]).normalized()).normalized()
+	elif absf(s - reach[i]) < 0.001 and i > 0:
+		dir = (dir + (line[i] - line[i - 1]).normalized()).normalized()
+	var at := line[i] + (line[i + 1] - line[i]).normalized() * (s - reach[i])
+	return Transform3D(_along(dir), at)
 
 
 ## The rail's meshes by part, or empty when a model is missing.
