@@ -279,11 +279,12 @@ float wavy(vec2 d, float r, float seed, float px) {
 	return 1.0 - smoothstep(-px, px, len - r * (1.0 + w));
 }
 
-// The biggest circle a heap is built from, from its size: getting on for half its width for
-// a tower - the sheet builds a tower from a handful of big lobes, not a wall of small ones,
-// which read as cobbles - and most of its height for a flat cloud.
+// The biggest circle a heap is built from, from its size: about a third of its width for a
+// tower - big enough that it is lobes and not cobbles, small enough that the outline is
+// bumpy all the way round rather than a few smooth balloons - and most of its height for a
+// flat cloud.
 float heap_radius(float width, float height) {
-	return height < width * 0.45 ? height * 0.55 : min(width * 0.42, height * 0.4);
+	return height < width * 0.45 ? height * 0.55 : min(width * 0.32, height * 0.3);
 }
 
 // A heap, drawn the way the sheet draws one: in VALUE LAYERS. Every lobe is a sine-waved
@@ -304,10 +305,10 @@ void heap_layer(vec2 p, float width, float height, float seed, float lean, float
 		vec3 light, float px, inout float cover, inout float shade) {
 	bool flat_cloud = height < width * 0.45;
 	float r0 = heap_radius(width, height);
-	int rows = flat_cloud ? 2 : clamp(int((height - r0 * 0.9) / (r0 * 0.6)) + 1, 2, 6);
+	int rows = flat_cloud ? 2 : clamp(int((height - r0 * 0.9) / (r0 * 0.66)) + 1, 2, 10);
 	vec2 toward = normalize(vec2(light.x * 0.9, max(light.y, 0.25)));
 	vec2 across = vec2(-toward.y, toward.x);
-	for (int pass = 0; pass < 8; pass++) {
+	for (int pass = 0; pass < 10; pass++) {
 		int row = rows - 1 - pass;
 		if (row < 0) {
 			break;
@@ -315,7 +316,7 @@ void heap_layer(vec2 p, float width, float height, float seed, float lean, float
 		float fr = float(row);
 		float along = fr / float(max(rows - 1, 1));
 		// Rows shrink toward the top, and their spacing with them, so the crown stays joined.
-		float r = r0 * (1.0 - 0.3 * along);
+		float r = r0 * (1.0 - 0.3 * along) * (row == 0 ? 1.25 : 1.0);
 		float row_y = r0 * 0.5 + r0 * 0.74 * (fr - 0.15 * fr * along);
 		if (abs(p.y - row_y) > r * 1.35) {
 			continue;
@@ -359,11 +360,22 @@ void heap_layer(vec2 p, float width, float height, float seed, float lean, float
 			// into the lighter ones behind - never a line, never a crescent on every lobe.
 			float sunward = clamp((c.x - lean * width * along) / max(width, 0.001), -1.0, 1.0)
 				* sign(toward.x) * min(abs(toward.x) * 2.0, 1.0);
-			float value = along * 4.2 + sunward * 1.6 + (h1 - 0.5) * 1.2 + front - 0.55;
+			// Neighbours vary by up to a value either way, so inside a region of one value the
+			// lobes still read: some a step lighter, their round tops against the rest.
+			// By night a narrower spread centred a value up: FULL MOON's cloud is mostly the
+			// mid blue (38%) with less of either end, where TRADE-WIND's is mostly shadow.
+			float by_day = along * 4.2 + sunward * 1.8 + (h1 - 0.5) * 2.0 + front - 0.25;
+			float by_night = along * 2.4 + sunward * 1.0 + (h1 - 0.5) * 1.6 + front + 0.85;
+			float value = mix(by_night, by_day, clamp(daylight, 0.0, 1.0));
 			float base = clamp(floor(value), 0.0, 3.0);
 			float level = base / 3.0;
-			if (base < 3.0) {
-				float cap = wavy(d - toward * rr * 0.34, rr * 0.68, fract(h3 * 5.7), px);
+			// Only some lobes, on the sun side: a cap on every lobe left a darker rim round each
+			// one, and the heap read as outlined cobbles instead of big regions of one value.
+			if (base < 3.0 && sunward > -0.3 && h2 > 0.3) {
+				// Small, and well up the lobe: on the sheet a shadow lobe is mostly shadow, lit
+				// only on its sunward crown. At two thirds of the lobe the cap covered most of it
+				// and the shadow was a thin rim.
+				float cap = wavy(d - toward * rr * 0.5, rr * 0.55, fract(h3 * 5.7), px);
 				level = mix(level, (base + 1.0) / 3.0, cap);
 			}
 			paint(body, level, cover, shade);
