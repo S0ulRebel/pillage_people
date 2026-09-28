@@ -504,7 +504,7 @@
       }
     },
     {
-      "file": "hatch_coaming.glb",
+      "file": "hatch_coaming_sides.glb",
       "id": "F09",
       "name": "Hatch coaming sides",
       "nodes": [
@@ -540,7 +540,8 @@
         "x": "mid",
         "y": "min",
         "z": "mid"
-      }
+      },
+      "notes": "Two side beams only, as Tripo made them; the full frame is the deck sheet's D05 (models/ship/deck/hatch_coaming.glb)."
     },
     {
       "file": "belaying_rack.glb",

@@ -332,16 +332,22 @@
             "foremast aperture",
             "mainmast aperture"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Retain original exterior floor interface; size and align the new aperture to the modeled mast and support system."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Retain original exterior floor interface; size and align the new aperture to the modeled mast and support system.",
+          "models": [
+            "../../../models/ship/deck/mast_collar.glb"
+          ]
         },
         {
           "id": "D05",
           "name": "Hatch-aperture floor variant",
           "interface_reference": "FLOOR_CENTRE",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "attachment": "F09.hatch_opening",
-          "notes": "Cut an actual opening; replace the solid tile."
+          "notes": "Cut an actual opening; replace the solid tile.",
+          "models": [
+            "../../../models/ship/deck/hatch_coaming.glb"
+          ]
         },
         {
           "id": "D06",
@@ -379,8 +385,11 @@
             "port support knee",
             "starboard support knee"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Expose coherent load paths; maintain headroom, apertures and walkways."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Expose coherent load paths; maintain headroom, apertures and walkways.",
+          "models": [
+            "../../../models/ship/deck/deck_beam.glb"
+          ]
         }
       ],
       "reference_sheet": "02-decks-railings.webp"
@@ -392,25 +401,31 @@
         {
           "id": "R01",
           "name": "Straight railing infill",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "interface_reference": "2 m canonical centre-bay envelope",
           "components": [
             "top rail",
             "lower rail",
             "infill balusters"
           ],
-          "notes": "Ends connect to separate shared R02 posts; no terminal posts included."
+          "notes": "Ends connect to separate shared R02 posts; no terminal posts included.",
+          "models": [
+            "../../../models/ship/deck/rail_straight.glb"
+          ]
         },
         {
           "id": "R02",
           "name": "Separate shared post",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "variants": [
             "straight junction",
             "corner junction",
             "end termination"
           ],
-          "notes": "Own each seam post once. Never bake it into a deck tile or adjacent rail infill."
+          "notes": "Own each seam post once. Never bake it into a deck tile or adjacent rail infill.",
+          "models": [
+            "../../../models/ship/deck/rail_post.glb"
+          ]
         },
         {
           "id": "R03",
@@ -419,16 +434,22 @@
             "port bow rail",
             "starboard bow rail"
           ],
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "interface_reference": "TOP_BOW replacement envelope and DOWN boundary",
-          "notes": "Separate R02 junction posts; coherent closed prow junction without closing the AFT interior."
+          "notes": "Separate R02 junction posts; coherent closed prow junction without closing the AFT interior.",
+          "models": [
+            "../../../models/ship/deck/rail_bow_pair.glb"
+          ]
         },
         {
           "id": "R04",
           "name": "Shaped stern rail",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "interface_reference": "TOP_STERN replacement envelope and DOWN boundary",
-          "notes": "Segment only where shared R02 posts and matching profiles support the split."
+          "notes": "Segment only where shared R02 posts and matching profiles support the split.",
+          "models": [
+            "../../../models/ship/deck/rail_stern.glb"
+          ]
         },
         {
           "id": "R05",
@@ -437,9 +458,12 @@
             "port stair rail",
             "starboard stair rail"
           ],
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "attachment": "C06.stair_edge",
-          "notes": "Match actual stair rise, run and landing; posts are R02 instances."
+          "notes": "Match actual stair rise, run and landing; posts are R02 instances.",
+          "models": [
+            "../../../models/ship/deck/rail_stair.glb"
+          ]
         }
       ],
       "reference_sheet": "02-decks-railings.webp"
@@ -456,7 +480,11 @@
             "door leaf",
             "door hardware"
           ],
-          "fit_status": "proposed_unmodeled"
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/cabin/cabin_door_wall.glb",
+            "../../../models/ship/cabin/cabin_door.glb"
+          ]
         },
         {
           "id": "C02",
@@ -466,8 +494,11 @@
             "window frame",
             "glazing"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Repeat only after wall ends, course heights and supports match."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Repeat only after wall ends, course heights and supports match.",
+          "models": [
+            "../../../models/ship/cabin/cabin_window_wall.glb"
+          ]
         },
         {
           "id": "C03",
@@ -476,8 +507,11 @@
             "port corner wall",
             "starboard corner wall"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Shaped for the same cabin master and stern outline; mirroring requires UV inspection."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Shaped for the same cabin master and stern outline; mirroring requires UV inspection.",
+          "models": [
+            "../../../models/ship/cabin/cabin_corners.glb"
+          ]
         },
         {
           "id": "C04",
@@ -487,7 +521,10 @@
             "window frames",
             "glazing"
           ],
-          "fit_status": "proposed_unmodeled"
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/cabin/cabin_transom.glb"
+          ]
         },
         {
           "id": "C05",
@@ -497,8 +534,11 @@
             "support beams",
             "edge fascia"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Cabin roof and walking deck require explicit beam and wall support; no unsupported stacking on rails."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Cabin roof and walking deck require explicit beam and wall support; no unsupported stacking on rails.",
+          "models": [
+            "../../../models/ship/cabin/quarterdeck_panels.glb"
+          ]
         },
         {
           "id": "C06",
@@ -529,8 +569,11 @@
             "bracket timber",
             "local fastening hardware"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Attach to modeled framing and support the actual gallery; do not terminate in decorative planking alone."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Attach to modeled framing and support the actual gallery; do not terminate in decorative planking alone.",
+          "models": [
+            "../../../models/ship/cabin/gallery_brackets.glb"
+          ]
         }
       ],
       "reference_sheet": "03-cabin-quarterdeck.webp"
@@ -866,7 +909,7 @@
           "notes": "Actual opening below; no solid deck tile beneath the grating.",
           "models": [
             "../../../models/ship/fittings/hatch_grating.glb",
-            "../../../models/ship/fittings/hatch_coaming.glb"
+            "../../../models/ship/fittings/hatch_coaming_sides.glb"
           ]
         },
         {

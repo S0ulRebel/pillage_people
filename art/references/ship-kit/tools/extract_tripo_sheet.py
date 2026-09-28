@@ -13,7 +13,8 @@ drew it, and the whole sheet squeezed into a 1-unit cube. This undoes that, per 
      drop or double a part.
   2. STRAIGHTEN. 'flat' levels the part on its own base (the area-weighted normal of its
      downward faces becomes -Y), then squares it up with the minimum-area rectangle of its
-     footprint. 'pca' maps principal axes to world axes, for round or thin parts with no base.
+     footprint. 'upright' only squares it up, for parts whose underside is not a base.
+     'pca' maps principal axes to world axes, for round or thin parts with no base.
      'turns' then picks which side faces which way, in quarter turns about Y. Rotations only:
      a mirror would flip the texture and the winding.
   3. SCALE to one stated real dimension, uniformly.
@@ -151,6 +152,10 @@ def straighten(spec, tris, key_points):
         base = (unit[down] * area[down, None]).sum(axis=0)
         r = rotation_between(base, np.array([0.0, -1.0, 0.0]))
         r = yaw(square_up(key_points @ r.T)) @ r
+    elif method == 'upright':
+        # Tripo's Y is already up to within a few degrees; only square the footprint. For parts
+        # whose underside is not their base, like a sloped stair rail that 'flat' would level.
+        r = yaw(square_up(key_points))
     elif method == 'pca':
         centred = key_points - key_points.mean(axis=0)
         _, vectors = np.linalg.eigh(centred.T @ centred)   # ascending variance
@@ -202,6 +207,59 @@ def origin_of(spec, low, high, marks):
             value = {'min': low[i], 'mid': (low[i] + high[i]) / 2, 'max': high[i]}[rule]
         point[i] = value + offset
     return point
+
+
+def stretch_middle(geometry, spec):
+    """Lengthen a part along one axis by stretching only its middle; `keep` metres at each end
+    keep their shape. For a deck beam whose knees must stay knees while the beam spans the ship."""
+    axis = AXES[spec['axis']]
+    every = np.concatenate([g[1] for g in geometry])
+    low, high = every[:, axis].min(), every[:, axis].max()
+    centre, half, keep = (low + high) / 2, (high - low) / 2, spec['keep']
+    inner, new_inner = half - keep, spec['length'] / 2 - keep
+    if inner <= 0 or new_inner <= 0:
+        raise SystemExit('stretch: keep is longer than half the part')
+    factor = new_inner / inner
+    for g in geometry:
+        d = g[1][:, axis] - centre
+        middle = np.abs(d) <= inner
+        g[1][:, axis] = centre + np.where(middle, d * factor, np.sign(d) * (new_inner + np.abs(d) - inner))
+        # A stretch along one axis tilts normals away from it: divide that component, renormalise.
+        g[2][middle, axis] /= factor
+        g[2] /= np.maximum(np.linalg.norm(g[2], axis=1, keepdims=True), 1e-12)
+
+
+def top_slope(points, along):
+    """Slope (rise per run) of a part's upper edge: a line through the highest point in each of
+    a dozen bins along `along`, ignoring the end bins where posts and caps sit."""
+    h = points[:, along]
+    edges = np.linspace(h.min(), h.max(), 14)
+    top = [((a + b) / 2, points[(h >= a) & (h < b), 1].max()) for a, b in zip(edges, edges[1:])
+           if ((h >= a) & (h < b)).any()]
+    x, y = np.array(top[2:-2]).T
+    return float(np.polyfit(x, y, 1)[0])
+
+
+def shear_to_slope(geometry, spec):
+    """Re-pitch a sloped part by moving every vertex straight up in proportion to its run.
+    Verticals stay vertical - a stair rail's balusters do not lean - and only the rails tilt."""
+    along = AXES[spec['along']]
+    target = np.tan(np.radians(spec['to_deg']))
+    before = top_slope(np.concatenate([g[1] for g in geometry]), along)
+    # The upper-edge fit is pulled a little by caps and post tops, so shear, re-measure, repeat.
+    for _ in range(6):
+        every = np.concatenate([g[1] for g in geometry])
+        now = top_slope(every, along)
+        k = np.sign(before) * target - now
+        if abs(np.degrees(np.arctan(abs(now))) - spec['to_deg']) < 0.1:
+            break
+        for g in geometry:
+            g[1][:, 1] += k * (g[1][:, along] - every[:, along].min())
+            # Normals transform by the inverse transpose of the shear.
+            g[2][:, along] -= k * g[2][:, 1]
+            g[2] /= np.maximum(np.linalg.norm(g[2], axis=1, keepdims=True), 1e-12)
+    after = top_slope(np.concatenate([g[1] for g in geometry]), along)
+    return round(float(np.degrees(np.arctan(abs(before)))), 1), round(float(np.degrees(np.arctan(abs(after)))), 1)
 
 
 def repack(pieces, atlas):
@@ -350,18 +408,36 @@ def main():
     # A piece that sits inside another part's gap can be claimed at a finer gap instead; it
     # is then taken out of whatever coarse cluster it fell into.
     fine_labels, fine_centres = segment(positions, indices, config.get('fine_gap', 0.002))
-    detached, fine_claimed = np.zeros(len(indices), bool), {}
-    for output in config['outputs']:
+    # Every fine piece, whether an output or a discard claims it, is checked for doubles here
+    # and taken out of the coarse cluster it fell into.
+    detached, fine_owner = np.zeros(len(indices), bool), {}
+    discards = [{'file': 'discard', 'nodes': [{'name': g['what'], 'fine_pieces': g.get('fine_pieces', [])}]}
+                for g in config.get('discard', [])]
+    for output in config['outputs'] + discards:
         for node in output['nodes']:
             for c in node.get('fine_pieces', []):
                 label = claim(fine_centres, np.array(c), f"{output['file']}/{node['name']}")
-                if label in fine_claimed:
-                    raise SystemExit(f"fine piece {c} claimed twice")
-                fine_claimed[label] = output['file']
+                if label in fine_owner:
+                    raise SystemExit(f'fine piece {c} claimed twice')
+                fine_owner[label] = output['file']
                 detached |= fine_labels == label
+
+    # Pieces deliberately left out, each with its reason. They still count toward the total.
+    claimed, discarded = {}, []
+    for group in config.get('discard', []):
+        mask = np.zeros(len(indices), bool)
+        for c in group.get('pieces', []):
+            label = claim(centres, np.array(c), 'discard')
+            if label in claimed:
+                raise SystemExit(f'discard: piece {c} listed twice')
+            claimed[label] = 'discard'
+            mask |= (labels == label) & ~detached
+        for c in group.get('fine_pieces', []):
+            mask |= fine_labels == claim(fine_centres, np.array(c), 'discard')
+        discarded.append({'what': group['what'], 'reason': group['reason'], 'triangles': int(mask.sum())})
     out_dir = (base / config['out_dir']).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    claimed, report, scales = {}, [], {}
+    report, scales, heights = [], {}, {}
 
     for output in config['outputs']:
         where = output['file']
@@ -382,12 +458,45 @@ def main():
         rotated = positions[np.unique(indices[everything])] @ r.T
         raw_marks = {name: centres[claim(centres, np.array(c), where)] @ r.T
                      for name, c in output.get('marks', {}).items()}
+
+        # Per-node turns first, at sheet scale: they are about each node's own centre, so they
+        # commute with the uniform scale, and a node sized by its own extent is then measured
+        # after it has been straightened.
+        pieces, geometry = [], []
+        for node, mask in zip(output['nodes'], node_tris):
+            tri = indices[mask]
+            used, local = np.unique(tri, return_inverse=True)
+            local = local.reshape(-1, 3)
+            p = positions[used] @ r.T
+            n = normals[used] @ r.T
+            if 'realign' in node:
+                # A piece the sheet drew at its own angle, straightened on its own - any 'align'
+                # method - about its own centre, independently of the part it belongs to.
+                centre = (p.min(axis=0) + p.max(axis=0)) / 2
+                turn = straighten(node['realign'], p[local] - centre, p - centre)
+                p = (p - centre) @ turn.T + centre
+                n = n @ turn.T
+            if 'rotate' in node:
+                # A piece Tripo modelled at the wrong angle, turned about its own centre.
+                turn = axis_rotation(*node['rotate'])
+                centre = (p.min(axis=0) + p.max(axis=0)) / 2
+                p = (p - centre) @ turn.T + centre
+                n = n @ turn.T
+            pieces.append((uvs[used], local))
+            geometry.append([node['name'], p, n, None, local])
+
         size = output['size']
         if 'same_scale_as' in size:
             scale = scales[size['same_scale_as']]
         elif 'between_marks' in size:
             a, b = size['between_marks']
             scale = size['metres'] / float(np.linalg.norm(raw_marks[a] - raw_marks[b]))
+        elif 'node' in size:
+            # Scale by one node's extent, e.g. a support frame that must stand a wall's height.
+            node_points = next(g[1] for g in geometry if g[0] == size['node'])
+            scale = size['metres'] / np.ptp(node_points[:, AXES[size['axis']]])
+        elif 'match_height_of' in size:
+            scale = heights[size['match_height_of']] / np.ptp(rotated[:, 1])
         elif size['axis'] == 'xz':
             scale = size['metres'] / max(np.ptp(rotated[:, 0]), np.ptp(rotated[:, 2]))
         else:
@@ -395,23 +504,27 @@ def main():
         scales[output['file']] = scale
         marks = {name: m * scale for name, m in raw_marks.items()}
 
-        pieces, geometry = [], []
-        for node, mask in zip(output['nodes'], node_tris):
-            tri = indices[mask]
-            used, local = np.unique(tri, return_inverse=True)
-            local = local.reshape(-1, 3)
-            p = positions[used] @ r.T * scale
-            n = normals[used] @ r.T
-            if 'rotate' in node:
-                # A piece Tripo modelled at the wrong angle, turned about its own centre.
-                turn = axis_rotation(*node['rotate'])
-                centre = (p.min(axis=0) + p.max(axis=0)) / 2
-                p = (p - centre) @ turn.T + centre
-                n = n @ turn.T
-            n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-12)
-            pieces.append((uvs[used], local))
-            geometry.append([node['name'], p, n, None, local])
+        for node, g in zip(output['nodes'], geometry):
+            g[1] = g[1] * scale
+            if 'squash' in node:
+                # Flatten a slab Tripo drew too thick, about its own centre. Only the edge
+                # grain compresses; the planked faces keep their texture.
+                axis_i = AXES[node['squash']['axis']]
+                centre = (g[1][:, axis_i].min() + g[1][:, axis_i].max()) / 2
+                factor = node['squash']['metres'] / np.ptp(g[1][:, axis_i])
+                g[1][:, axis_i] = centre + (g[1][:, axis_i] - centre) * factor
+                g[2][:, axis_i] /= factor
+            g[2] /= np.maximum(np.linalg.norm(g[2], axis=1, keepdims=True), 1e-12)
+        for node, g in zip(output['nodes'], geometry):
+            if 'rest_on' in node:
+                # Stack a node on another, e.g. roof panels Tripo left floating over their frame.
+                under = next(h for h in geometry if h[0] == node['rest_on'])
+                g[1] = g[1] + [0.0, under[1][:, 1].max() - g[1][:, 1].min(), 0.0]
+        if 'stretch' in output:
+            stretch_middle(geometry, output['stretch'])
+        pitch = shear_to_slope(geometry, output['shear']) if 'shear' in output else None
         every = np.concatenate([g[1] for g in geometry])
+        heights[output['file']] = float(np.ptp(every[:, 1]))
         origin = origin_of(output['origin'], every.min(axis=0), every.max(axis=0), marks)
         for g in geometry:
             g[1] = g[1] - origin
@@ -438,6 +551,7 @@ def main():
             'texel_density_px_per_m': round(float(np.sqrt(uv_area / max(surface, 1e-12))), 1),
             'uv_in_unit_square': bool((uv_all >= 0).all() and (uv_all <= 1).all()),
             'notes': output.get('notes', ''),
+            **({'slope_deg_before_after': pitch} if pitch else {}),
         })
 
     problems = []
@@ -445,12 +559,13 @@ def main():
                  if k not in claimed and ((labels == k) & ~detached).any()]
     if unclaimed:
         problems.append(f'unclaimed pieces: {unclaimed}')
-    if sum(r['triangles'] for r in report) != len(indices):
+    if sum(r['triangles'] for r in report) + sum(d['triangles'] for d in discarded) != len(indices):
         problems.append('triangle count does not add up to the source')
     for r in report:
         if not r['uv_in_unit_square']:
             problems.append(f"{r['file']}: UVs outside the unit square")
     summary = {'source': config['source'], 'source_triangles': int(len(indices)), 'parts': report,
+               'discarded': discarded,
                'passed': not problems, 'problems': problems}
     (base / f'{config_path.stem}-report.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     contact_sheet(out_dir, report, base / f'{config_path.stem}-parts.png')
