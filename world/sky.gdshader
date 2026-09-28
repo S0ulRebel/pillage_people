@@ -254,214 +254,140 @@ void paint(float here, float level, inout float cover, inout float shade) {
 	cover = max(cover, here);
 }
 
-// One billow, the unit the sheet's cumulus is built from: a round puff whose outline is a
-// ring of small bumps (the scallops), lit as if it were a ball. Returns how much of this
-// pixel it covers in x and its shade in y, 0 shadow to 1 white.
-//
-// `dp` is the pixel from the billow's centre in degrees, `squash` flattens it (the bottom row
-// of a cloud is wider than it is tall, which is what gives a cloud a base without cutting
-// one), `light` is the direction to the light in (across, up, toward the eye), `low` how far
-// down the cloud the billow sits, 0 top to 1 bottom, and `lift` moves every shade lighter
-// (the moonlit sheet carries more of its white than the day's does).
-//
-// The shades are bands of the ball's lighting: a white crescent on the light side of the
-// crown, a light band inside it, and the blue-lavender body - most of the billow, as it is
-// most of the sheet's cloud - darkening to the shadow low down on the far side. Lower
-// billows are darker overall: the sheet's cloud is white on top and blue underneath.
-vec2 billow(vec2 dp, float radius, float squash, float seed, vec3 light, float low, float lift,
-		float sunward, float behind, float px) {
-	vec2 q = vec2(dp.x, dp.y / squash);
-	float d = length(q);
-	if (d > radius * 1.08) {
-		return vec2(0.0);
-	}
-	// The scallops: semicircles round the rim, so the outline is a run of small round bumps
-	// meeting in cusps - not a wobble, which read as a jelly. Each billow its own count, seven
-	// to fifteen, and its own depth: the same scallop on every billow was a pattern.
-	float theta = atan(q.y + 1.0e-5, q.x);
-	float bumps = 7.0 + floor(seed * 9.0);
-	float depth = 0.05 + 0.11 * fract(seed * 7.31);
-	float s = fract(theta / 6.2832 * bumps + seed * 3.1);
-	float bump = sqrt(max(1.0 - (2.0 * s - 1.0) * (2.0 * s - 1.0), 0.0));
-	float rim = radius * (1.0 - depth + depth * bump);
-	float here = 1.0 - smoothstep(-px, px, d - rim);
-	// The ball: its normal from where on the disc this pixel is.
-	vec2 on_disc = q / max(rim, 0.001);
-	vec3 n = normalize(vec3(on_disc, sqrt(max(1.0 - dot(on_disc, on_disc), 0.0)) + 0.15));
-	float lit = dot(n, light);
-	// The rim light: a light band hugging the outline on the light side. It is what separates
-	// a billow from the darker one behind it - on the sheet every low billow is mostly body,
-	// with its top edge lit. Without it the lower half of a tower merged into one flat slab;
-	// lit as a plain ball instead, every billow grew the same white crescent and the cloud
-	// read as a row of Cs.
-	float edge = smoothstep(0.68, 0.9, d / max(rim, 0.001));
-	float toward = dot(normalize(on_disc + vec2(0.0, 1.0e-4)), normalize(light.xy + vec2(0.0, 1.0e-4)));
-	float rim_light = edge * smoothstep(0.1, 0.55, toward);
-	// Height in the cloud counts as much as the ball's own light: white gathers at the top.
-	// The crown's billows are mostly white on the sheet, not just rimmed: the top of the
-	// cloud gets a lift of its own. Across the whole mass there is a second gradient: the side
-	// toward the sun is the white side, the far side the blue one (`sunward`). And a mass
-	// behind is a step darker than the clumps in front of it (`behind`) - that is the depth.
-	float high = 1.0 - low;
-	// Mostly by WHERE the billow is, only a little by where on the billow the pixel is: on the
-	// sheet (its tone map) each billow is one flat tone, and the tones come in big patches -
-	// white crowns on the sun side, pale and lavender through the middle, the blue shadow low
-	// and away from the sun - with a lighter cap on the lit shoulder of some. Weighted toward
-	// the ball, every billow drew the same white crescent and pale band, which read as a
-	// pattern stamped over the cloud.
-	// The per-billow jitter is small: neighbouring billows share a tone, so the lumps show at
-	// the silhouette and where the tone steps, as on the sheet, and not round every billow -
-	// at three times this each billow was outlined and the cloud read as bubble wrap.
-	// `sunward` here is the lighting of the whole bulge this billow is part of (heap_layer),
-	// the biggest term; the billow's own ball and rim only nudge it, enough to give a lit
-	// edge where the bulge's tone is about to step.
-	float t = lit * 0.07 + high * 0.24 + high * high * 0.08 + rim_light * 0.08 + sunward * 0.34
-		+ (seed - 0.5) * 0.05 - behind * 0.08 + lift + 0.02;
-	// Four values by thresholds set to the sheets' own proportions, counted on renders framed
-	// like their panels. By day TRADE-WIND CUMULUS: shadow the biggest share (36%), then
-	// lavender 21, pale 19, white 22. By night FULL MOON is the other way about - mostly the
-	// mid blue (38%), shadow and white 19 each - so the cuts move with the daylight.
-	float dark = 1.0 - clamp(daylight, 0.0, 1.0);
-	float white_cut = mix(0.48, 0.50, dark);
-	float light_cut = mix(0.35, 0.37, dark);
-	float shadow_cut = mix(0.21, 0.115, dark);
-	float level = t > white_cut ? 1.0 : (t > light_cut ? 0.667 : (t > shadow_cut ? 0.333 : 0.0));
-	return vec2(here, level);
+vec2 cmul(vec2 a, vec2 b) {
+	return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
 }
 
-// The silhouette of a heap: how many degrees above its base its top is at `x` (x of the
-// result, -1 where there is no heap), and the bulge that top belongs to - its centre and
-// radius (yzw) - so the billows under it can be lit as part of that one round form. Built from round bulges the way the sheet's are: a main tower with a
-// rounded top, two crown bulges on its shoulders, and lower heaps either side - so the
-// outline is big round lobes stepping down, not a smooth mound or a haystack (a single
-// half-ellipse, the first try, came out as a pointed pile). `domes` of them, at most seven.
-vec4 heap_shape(float x, float width, float height, float seed, float lean, int domes) {
-	vec4 best = vec4(-1.0, 0.0, 0.0, 1.0);
-	float main_c = lean * width;
-	float main_r = min(width * 0.64, height * 0.9);
-	for (int i = 0; i < 7; i++) {
-		if (i >= domes) {
+// How much of this pixel a sine-waved circle covers: a circle whose radius is modulated by
+// two sines round it - five to seven gentle waves, and two broad ones so it is not
+// symmetric - the unit every shape in the sheet's cumulus is drawn from. The sines are taken
+// as powers of the unit direction (complex multiplication) rather than sin(k * atan), which
+// is the same curve without an atan per circle.
+float wavy(vec2 d, float r, float seed, float px) {
+	float len = length(d);
+	if (len > r * 1.2) {
+		return 0.0;
+	}
+	vec2 u = d / max(len, 1.0e-5);
+	vec2 u2 = cmul(u, u);
+	vec2 u3 = cmul(u2, u);
+	vec2 u6 = cmul(u3, u3);
+	vec2 uk = seed < 0.33 ? cmul(u2, u3) : (seed < 0.66 ? u6 : cmul(u6, u));
+	float a1 = seed * 6.2832;
+	float a2 = seed * 17.0;
+	float w = 0.08 * cmul(uk, vec2(cos(a1), sin(a1))).y + 0.06 * cmul(u2, vec2(cos(a2), sin(a2))).y;
+	return 1.0 - smoothstep(-px, px, len - r * (1.0 + w));
+}
+
+// The biggest circle a heap is built from, from its size: getting on for half its width for
+// a tower - the sheet builds a tower from a handful of big lobes, not a wall of small ones,
+// which read as cobbles - and most of its height for a flat cloud.
+float heap_radius(float width, float height) {
+	return height < width * 0.45 ? height * 0.55 : min(width * 0.42, height * 0.4);
+}
+
+// A heap, drawn the way the sheet draws one: in VALUE LAYERS. Every lobe is a sine-waved
+// circle, packed tight - closer than their radius - so there are no holes, in rows from the
+// top down, each lower row painted in front of the one above. Each lobe is ONE flat value from
+// where it sits (the white crown up top on the sun side, the blue shadow low and away from
+// it), with a lighter cap on its sun-top side. So the value regions are shapes: the round tops
+// of darker lobes in front cut into the lighter ones behind, and every edge between two
+// values is a run of round arcs, as on the sheet.
+//
+// The earlier versions lit every lump as a ball and picked its value from that, which drew a
+// crescent on every lump and straight lines where two met; the values were never shapes.
+//
+// `p` is the pixel in degrees from the heap's base centre; `front` lifts every lobe's value
+// (the clumps in front are lighter than the mass behind them); `light` is the direction to the
+// light in the sky's (across, up).
+void heap_layer(vec2 p, float width, float height, float seed, float lean, float front,
+		vec3 light, float px, inout float cover, inout float shade) {
+	bool flat_cloud = height < width * 0.45;
+	float r0 = heap_radius(width, height);
+	int rows = flat_cloud ? 2 : clamp(int((height - r0 * 0.9) / (r0 * 0.6)) + 1, 2, 6);
+	vec2 toward = normalize(vec2(light.x * 0.9, max(light.y, 0.25)));
+	vec2 across = vec2(-toward.y, toward.x);
+	for (int pass = 0; pass < 8; pass++) {
+		int row = rows - 1 - pass;
+		if (row < 0) {
 			break;
 		}
-		float fi = float(i);
-		float a = hash(vec2(seed * 13.1 + fi, 71.0));
-		float b = hash(vec2(seed * 7.7 + fi, 73.0));
-		float c;
-		float r;
-		float h;
-		if (i == 0) {
-			c = main_c;
-			r = main_r;
-			h = height;
-		} else if (i < 3) {
-			// Crown bulges, one each side of the main top, a little lower.
-			float side = i == 1 ? -1.0 : 1.0;
-			c = main_c + side * main_r * (0.45 + 0.25 * a);
-			r = main_r * (0.45 + 0.2 * b);
-			h = height * (0.78 + 0.15 * a);
-		} else {
-			// Lower heaps either side, alternating, further out each time.
-			float side = mod(fi, 2.0) < 0.5 ? -1.0 : 1.0;
-			float out_by = 0.9 + 0.35 * floor((fi - 3.0) / 2.0) + 0.3 * a;
-			c = main_c + side * (main_r * out_by + width * 0.12);
-			r = width * (0.22 + 0.16 * b);
-			h = height * (0.3 + 0.3 * b) / (1.0 + 0.5 * floor((fi - 3.0) / 2.0));
-		}
-		float u = x - c;
-		if (abs(u) < r) {
-			// A circle whose top is at h, and straight down below its widest point.
-			float cy = h - r;
-			float here = cy + sqrt(r * r - u * u);
-			if (here > best.x) {
-				best = vec4(here, c, cy, r);
-			}
-		}
-	}
-	return best;
-}
-
-// One layer of a heap: small billows on a grid under heap_top's silhouette, the pixel's own
-// cell and its neighbours only, painted from the top row down so each lower billow sits in
-// front of the one above and its lit edge cuts across the darker body behind - the sheet's
-// cauliflower. The billows are small, about a twelfth of the heap across, and that is the
-// sheet: dozens of lumps to a cloud. The first version used a handful of billows a quarter of
-// the cloud wide and read as balloons.
-//
-// `p` is the pixel in degrees from the heap's base centre; `cell` the grid spacing in
-// degrees; `front` 1 for the clumps in front (a step lighter), 0 for the mass behind them.
-void heap_layer(vec2 p, float width, float height, float seed, float lean, int domes, float cell,
-		bool flat_cloud, float front, vec3 light, float lift, float px, inout float cover,
-		inout float shade) {
-	float row_h = cell * (flat_cloud ? 0.6 : 0.8);
-	float ix = floor(p.x / cell);
-	float iy = floor(p.y / row_h);
-	for (int dy = 1; dy >= -1; dy--) {
-		float jy = iy + float(dy);
-		if (jy < 0.0) {
+		float fr = float(row);
+		float along = fr / float(max(rows - 1, 1));
+		// Rows shrink toward the top, and their spacing with them, so the crown stays joined.
+		float r = r0 * (1.0 - 0.3 * along);
+		float row_y = r0 * 0.5 + r0 * 0.74 * (fr - 0.15 * fr * along);
+		if (abs(p.y - row_y) > r * 1.35) {
 			continue;
 		}
-		for (int dx = -1; dx <= 1; dx++) {
-			float jx = ix + float(dx);
-			vec2 id = vec2(jx, jy);
-			float h1 = hash(id + seed * 17.3);
-			float h2 = hash(id * 1.7 + seed * 5.9 + 11.0);
-			float h3 = hash(id * 2.3 + seed * 3.1 + 29.0);
-			// Jittered well off the grid and sized from half again to three halves of the cell:
-			// even lumps on a neat grid read as fish scales.
-			vec2 centre = vec2((jx + 0.5 + (h1 - 0.5) * 0.9) * cell,
-				(jy + 0.5 + (h2 - 0.5) * 0.7) * row_h);
-			if (jy == 0.0) {
-				centre.y = row_h * 0.35;
-			}
-			vec4 shape = heap_shape(centre.x, width, height, seed, lean, domes);
-			float top = shape.x;
-			if (top < 0.0 || centre.y > top + cell * 0.15) {
+		float squash = row == 0 ? 0.62 : 1.0;
+		// A dome, not a pyramid: rows narrow slowly and then quickly near the top.
+		// Each row its own width and its own shift sideways, so the outline steps in and out
+		// in big lobes the way the sheet's towers do, instead of rounding into one egg.
+		float hr = hash(vec2(seed * 3.7 + fr, 509.0));
+		float hs = hash(vec2(seed * 5.3 + fr, 511.0));
+		float row_w = max(width * sqrt(max(1.0 - along * along * 0.85, 0.0)) * (0.6 + 0.6 * hr)
+			- r * 0.8, 0.0);
+		float row_c = lean * width * along + (hs - 0.5) * width * 0.35 * along;
+		// Closer together than one radius, so neighbours overlap and leave no gap.
+		float count = max(1.0, floor(2.0 * row_w / (r * 0.95)) + 1.0);
+		float spacing = count > 1.0 ? 2.0 * row_w / (count - 1.0) : 0.0;
+		int nearest = count > 1.0 ? int(floor((p.x - row_c + row_w) / spacing + 0.5)) : 0;
+		for (int col = nearest - 1; col <= nearest + 1; col++) {
+			if (col < 0 || float(col) > count - 1.0) {
 				continue;
 			}
-			// Lit as part of its bulge: the billow's place on that big round form - its
-			// shoulder toward the light white, its underside blue - is what sets its tone.
-			// Neighbouring billows on one bulge then share a tone, and the lumps show only
-			// where the bulge's tone steps and along its outline, as on the sheet. Lit each on
-			// its own, every billow was outlined and a heap read as a pile of balls.
-			vec2 on_bulge = (centre - shape.yz) / max(shape.w, 0.001);
-			on_bulge.y = max(on_bulge.y, -0.9);
-			on_bulge /= max(1.0, length(on_bulge));
-			vec3 bulge_n = normalize(vec3(on_bulge, sqrt(max(1.0 - dot(on_bulge, on_bulge), 0.0)) + 0.25));
-			float bulge_lit = dot(bulge_n, light);
-			float r = cell * (0.5 + 0.55 * h3 * h3);
-			float squash = (jy == 0.0 || flat_cloud) ? 0.55 : 1.0;
-			// Height in its own column (each dome gets its crown) and in the whole heap.
-			float local = clamp(centre.y / max(top, 0.001), 0.0, 1.0);
-			float overall = clamp(centre.y / max(height, 0.001), 0.0, 1.0);
-			float high = mix(overall, local, 0.55);
-			vec2 b = billow(p - centre, r, squash, h3, light, 1.0 - high, lift + front * 0.08,
-				bulge_lit, 1.0 - front, px);
-			paint(b.x, b.y, cover, shade);
+			float fc = float(col);
+			float h1 = hash(vec2(seed * 31.0 + fr * 13.0, fc + seed));
+			float h2 = hash(vec2(seed * 17.0 + fr * 7.0 + 100.0, fc));
+			float h3 = hash(vec2(seed * 23.0 + 200.0 + fr, fc + seed * 0.5));
+			// Sizes and places varied a good deal, so the outline is big lobes and small ones,
+			// not an even dome.
+			vec2 c = vec2(row_c - row_w + fc * spacing + (h1 - 0.5) * r * 0.45,
+				row_y + (h2 - 0.5) * r * 0.35);
+			float rr = r * (0.72 + 0.56 * h3);
+			vec2 d = p - c;
+			d.y /= squash;
+			float body = wavy(d, rr, h3, px);
+			if (body <= 0.0) {
+				continue;
+			}
+			// Its value: one flat value for the whole lobe, from where it sits - high and toward
+			// the sun lighter, low and away darker - and a lighter cap, one value up, on its
+			// sun-top side. The lobes lower down are painted in front, so on the sheet's tone map
+			// the edge between two values is the round top of a darker lobe in front cutting
+			// into the lighter ones behind - never a line, never a crescent on every lobe.
+			float sunward = clamp((c.x - lean * width * along) / max(width, 0.001), -1.0, 1.0)
+				* sign(toward.x) * min(abs(toward.x) * 2.0, 1.0);
+			float value = along * 4.2 + sunward * 1.6 + (h1 - 0.5) * 1.2 + front - 0.55;
+			float base = clamp(floor(value), 0.0, 3.0);
+			float level = base / 3.0;
+			if (base < 3.0) {
+				float cap = wavy(d - toward * rr * 0.34, rr * 0.68, fract(h3 * 5.7), px);
+				level = mix(level, (base + 1.0) / 3.0, cap);
+			}
+			paint(body, level, cover, shade);
 		}
 	}
 }
 
-// One cumulus mass: the heap behind, then two or three low clumps in front of its foot - on
-// the sheet a big mass never stands alone, and the bright small heaps over the darker big one
-// are most of its depth - then a shelf of thin streaks along the base. A mass much wider than
-// tall is a flat cloudlet: fewer domes, squashed lumps, no clumps.
+// One cumulus mass: the heap behind, then a low heap of clumps in front of its foot - on the
+// sheet a big mass never stands alone, and the lighter small heaps over the darker big one
+// are most of its depth - then a shelf of thin streaks along the base.
 void cumulus(vec2 sky, float azimuth, float elevation, float width, float height, float seed,
-		vec3 light, float lift, float px, inout float cover, inout float shade) {
+		vec3 light, float px, inout float cover, inout float shade) {
 	float x = azimuth_offset(sky.x, azimuth) * cos(radians(elevation));
 	float y = sky.y - elevation;
 	float lean = (hash(vec2(seed, 91.0)) - 0.5) * 0.5;
-	bool flat_cloud = height < width * 0.45;
-	float cell = clamp(width / 6.0, 0.55, 3.0);
-	if (abs(x) > width * 1.9 + cell * 2.0 || y < -cell || y > height + cell * 2.0) {
+	float r0 = heap_radius(width, height);
+	if (abs(x) > width * 1.7 + r0 * 1.4 || y < -r0 || y > height + r0) {
 		return;
 	}
 	vec2 p = vec2(x, y);
-	heap_layer(p, width, height, seed, lean, flat_cloud ? 3 : 7, cell, flat_cloud, 0.0, light,
-		lift, px, cover, shade);
-	if (!flat_cloud) {
-		// The clumps: a low heap of their own, three domes across the foot, smaller lumps.
-		heap_layer(p + vec2(0.0, cell * 0.1), width * 0.8, height * 0.3, seed + 41.0,
-			-lean * 2.0, 5, cell * 0.72, false, 1.0, light, lift, px, cover, shade);
+	heap_layer(p, width, height, seed, lean, 0.0, light, px, cover, shade);
+	if (height >= width * 0.45) {
+		heap_layer(p, width * 0.8, height * 0.3, seed + 41.0, -lean * 2.0, 0.8, light, px,
+			cover, shade);
 	}
 	// The shelf: thin streaks along the base, reaching out past the mass on both sides.
 	float bulk = max(height, width * 0.35);
@@ -521,12 +447,11 @@ void horizon_banks(vec2 sky, float drift, float sun_azimuth, float night, float 
 		vec3 light = normalize(vec3(side * 0.8, lit_from_above, 0.55));
 		float x = azimuth_offset(sky.x, at);
 		float y = sky.y + 0.4;
-		float cell = clamp(width / 9.0, 0.5, 2.0);
-		if (abs(x) > width * 1.6 + cell * 2.0) {
+		if (abs(x) > width * 1.3 + heap_radius(width, height) * 1.4) {
 			continue;
 		}
-		heap_layer(vec2(x, y), width, height, 200.0 + fk, 0.0, 7, cell, false, 0.5, light, lift,
-			px, cover, shade);
+		heap_layer(vec2(x, y), width, height, 200.0 + fk, 0.0, 0.3 + lift, light, px, cover,
+			shade);
 	}
 }
 
@@ -726,8 +651,8 @@ void sky() {
 		float side = clamp(azimuth_offset(sun_azimuth, at.x + drift) / 25.0, -1.0, 1.0)
 			* (1.0 - 2.0 * night);
 		vec3 light = normalize(vec3(side * 0.8, lit_from_above, 0.55));
-		cumulus(sky_at, at.x + drift, at.y, at.z * grow, at.w * grow, ranks[m].x, light,
-			lift_shades, px, cover, shade);
+		cumulus(sky_at, at.x + drift, at.y, at.z * grow, at.w * grow, ranks[m].x, light, px,
+			cover, shade);
 	}
 	// Down to the horizon line and no further, so a cloud never becomes a bar lying on the sea.
 	float lift = smoothstep(0.0, 0.006, up);
