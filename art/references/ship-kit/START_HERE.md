@@ -51,7 +51,7 @@ Tripo, given a whole reference sheet, returns one fused mesh: every part in one 
 Done so far:
 - **Fittings** (tripo/fittings.json) into `art/models/ship/fittings/`, 17 files. The helm, capstan and rudder match the envelopes ship.gd reserves for them. The cannon barrel's origin is on its trunnion axis. The anchor stock was turned 90 degrees to cross the flukes.
 - **Cabin** (tripo/cabin.json) into `art/models/ship/cabin/`, 8 files. Walls are 2.42 m, the kit's clear room height. The quarterdeck panels were flattened from about 0.45 m to the kit's 0.18 m, so the walking surface lands at 2.6 m, where STAIRS_260 arrives. The door leaf is sized to the doorway, and a threshold block across it was dropped. Tripo's 8-step stairs were dropped for STAIRS_260.
-- **Whole cabin** (`cabin_house.glb`, same sheet). The separate walls cannot close a room, because their widths (2.44, 2.79 and 4.46 m) share no bay. So the ship uses Tripo's assembled cabin, turned so its door faces the bow. Tripo had it pitched about 1.4 degrees nose-up, which is levelled out. It is scaled so its roof, the quarterdeck, is 2.6 m up. Its stairs (about 65 degrees, too steep to walk) were fused to the front wall, so they are cut away triangle by triangle (`cut` in the config) rather than claimed as a piece. It comes out 3.80 m wide, 5.38 m long and 3.48 m to the rail tops.
+- **Whole cabin** (`cabin_house.glb`, same sheet). The separate walls cannot close a room, because their widths (2.44, 2.79 and 4.46 m) share no bay. It was first placed whole, turned so its door faces the bow; the stern castle has since replaced it. Tripo had it pitched about 1.4 degrees nose-up, which is levelled out. It is scaled so its roof, the quarterdeck, is 2.6 m up. Its stairs (about 65 degrees, too steep to walk) were fused to the front wall, so they are cut away triangle by triangle (`cut` in the config) rather than claimed as a piece. It comes out 3.80 m wide, 5.38 m long and 3.48 m to the rail tops.
 - **Deck** (tripo/deck.json) into `art/models/ship/deck/`, 8 files. The six floor slabs were dropped for the canonical floors. The straight rail fills a 2 m bay and comes out 0.81 m tall, and the other rails match that height. The beam's knees keep their shape while its middle stretches to the 5.6 m span. The stair rail is sheared (balusters stay vertical) to the stairs' 38.7 degrees.
 
 - **Rigging** (tripo/rigging.json) into `art/models/ship/rigging/`, 18 files, sized to what ship.gd already builds. Tripo drew every spar squat: its mainmast was about 4.4 times as tall as it is wide, where the game's is 22 times. Each spar is scaled by its thickness, and only the plain timber between the iron bands is lengthened, so the bands, heels, jaws and sling bands keep their shape. The mast top is sized by its hole, so it clears the 0.18 m mast head. The sails are mainly texture and shape references, because sail.gd simulates the cloth. The fixed shroud and stay ropes were dropped, because ship.gd draws ropes to fit each hull. A rope coil fused to the stays was kept as a prop.
@@ -60,12 +60,14 @@ Done so far:
 
 **On the ship:** props/ship/ship.gd loads these into the slots its placeholders used: the helm, capstan, rudder with its hinge strip, mainmast, topmast, mast top, both yard sizes, foremast and bowsprit. It adds a binnacle, two mast collars, the stern lantern, and a frame and open lid on all eight gunports. On the weather deck there are the bitts, the anchor cable and rope coils, the hatch with its grating, cleats and belaying racks. A cathead sits on each bow with its anchor, and deck beams run under the weather deck. Where a model file is missing, the placeholder is built instead.
 
-**The quarterdeck:**
-- The whole cabin stands at the stern, as far aft as the narrowing hull allows (its walls 4 cm inside the bulwarks). Its roof is the quarterdeck, 2.6 m above the weather deck.
-- STAIRS_260 (copied to `art/models/ship/deck/stairs_260.glb`) climbs to it on the port side, from just aft of the stair opening. The stair rail runs up its outboard edge, and a straight rail closes the roof's forward edge.
-- The cabin, stairs and hull collide as their exact meshes, so the steps and the roof are walked on, not boxes. The cabin door is modelled shut.
-- The wheel, the binnacle and a rope coil stand on the quarterdeck. The capstan moved to the gun deck under it, because the weather deck there is now the cabin's floor.
-- The course's foot hangs free, so a following wind swings it back over the quarterdeck. The cloth is kept out of the cabin's box and drapes on it.
+**The stern castle and quarterdeck:**
+- `python tools/build_stern_castle.py` builds the castle from the game hull's own outline (`cabin/stern_castle.glb`). Its walls stand on the hull's outer edge from z 10.4 round the stern, one 2.6 m tier high, facet for facet with the hull below and planked with the same texture. A front wall closes it across the deck, and its roof is the quarterdeck.
+- It replaces Tripo's cabin_house.glb, a 3.8 m box that could not follow a hull that narrows to a point over its last four metres. That model stays in `cabin/` but is not placed.
+- STAIRS_260 (copied to `art/models/ship/deck/stairs_260.glb`) climbs to the quarterdeck on the port side, from just aft of the stair opening. Its rail runs up the outboard edge.
+- Tripo's door leaf is on the front wall, shut. The castle has no windows yet.
+- The castle, stairs and hull collide as their exact meshes.
+- The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
+- The course's foot hangs free, so a following wind swings it back toward the castle. The cloth is kept out of the castle's box.
 
 **The rail:** the solid wall round the weather deck is gone, bow to stern, and a rail stands in its place.
 - `python tools/strip_game_bulwarks.py` takes the top tier off the game hull down to the deck. The tier below ends in a flat wall top, 0.2 m wide along the sides.
@@ -74,16 +76,17 @@ Done so far:
   - posts spaced evenly along the whole length, at most 2 m apart;
   - between posts, the handrail and base turn the path's corners in straight lengths that lap each other;
   - balusters spread about 0.45 m apart.
-- Here the path is the centre line of the hull's wall top, so the rail follows the bow, the sides and the rounded stern.
+- Here the path is the centre line of the hull's wall top. On the weather deck the rail runs from the bow to the castle's front. The quarterdeck's rail runs on the castle's wall top round the stern, and across its front, leaving a gap where the stairs arrive.
+- A turn sharper than 30 degrees (the quarterdeck's front corners) always gets a post.
 - At the bow the rail ends on two knightheads. The bowsprit rests on the deck and passes over the stem between them.
 - Each straight length collides as one box.
 
 `python tools/texture_game_hull.py` gives the game's own hull (art/models/ship/double_deck.glb, with its raked bow and bulged stern) the kit's plank texture without moving a vertex. tests/ship_fittings_check.gd fails in any of these cases:
 - a slot falls back to its placeholder;
 - a part sits off its mark;
-- the cabin pokes through the hull;
+- the castle's sides do not meet the hull's;
 - the way up the stairs to the wheel has a step the captain cannot take, or no room for him;
-- the course hangs inside the cabin;
+- the course hangs inside the castle;
 - a rail post is off the hull's edge or unevenly spaced, the rail's collision has a gap, or a wall still stands above the deck.
 
 The curved bow and stern rails keep Tripo's curves, which do not follow the kit outlines, so they are not placed on the ship; neither are the separate cabin walls, transom, corners, door, quarterdeck panels and gallery brackets. Each report lists what was dropped and why.

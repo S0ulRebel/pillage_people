@@ -255,8 +255,8 @@ func _check_beams(ship: Node3D) -> void:
 				"%s comes down to %.2f over the gun deck's middle; the captain is 1.9 m tall" % [beam.name, lowest])
 
 
-## The stern cabin and its roof, the quarterdeck: inside the bulwarks, level, reached by the
-## stairs, and holding the wheel with room for the helmsman behind it.
+## The stern castle and its roof, the quarterdeck: the hull's own sides carried up, level,
+## reached by the stairs, and holding the wheel with room for the helmsman behind it.
 func _check_quarterdeck(ship: Node3D) -> void:
 	var cabin_node := ship.get_node_or_null("Quarterdeck/Cabin") as Node3D
 	var stairs_node := ship.get_node_or_null("Quarterdeck/Stairs") as Node3D
@@ -266,36 +266,29 @@ func _check_quarterdeck(ship: Node3D) -> void:
 	var space := ship.get_world_3d().direct_space_state
 	var cabin := _bounds(ship, cabin_node)
 
-	# Inside the bulwarks: level by level up to the rail, the hull's side is further out than
-	# the cabin's. The stern narrows, so this is what decides how far aft the cabin can go.
-	var own: Array[RID] = []
-	for body in ship.get_node("Quarterdeck").find_children("*", "StaticBody3D", true, false):
-		own.append((body as StaticBody3D).get_rid())
-	var widest := {}
-	var to_ship := ship.global_transform.affine_inverse()
-	for m in cabin_node.find_children("*", "MeshInstance3D", true, false):
-		var mesh_node := m as MeshInstance3D
-		for surface in mesh_node.mesh.get_surface_count():
-			for v in mesh_node.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
-				var p: Vector3 = to_ship * mesh_node.global_transform * v
-				if p.y < Ship.DECK_Y + 0.8:
-					var slot := int(floor(p.z / 0.1))
-					widest[slot] = maxf(widest.get(slot, 0.0), absf(p.x))
-	for slot in widest:
-		var z := (float(slot) + 0.5) * 0.1
+	# The castle is the hull carried up: at every station along it, its side starts where the
+	# hull's side ends at the deck, to 2 cm, on both sides and round the stern. (Round the stern
+	# the hull flares out as it rises; the castle's walls go straight up from the deck line.)
+	var station := Ship.CASTLE_FRONT_Z + 0.05
+	while station < cabin.end.z - 0.05:
 		for side in [-1.0, 1.0]:
-			var query := PhysicsRayQueryParameters3D.create(ship.to_global(Vector3(0.0, Ship.DECK_Y + 0.3, z)),
-					ship.to_global(Vector3(side * 3.5, Ship.DECK_Y + 0.3, z)))
-			query.exclude = own
-			var hit := space.intersect_ray(query)
-			var wall := absf(ship.to_local(hit.position).x) if not hit.is_empty() else INF
-			check(wall > widest[slot], "the cabin reaches %.2f out at z %.1f, through the hull's side at %.2f"
-					% [widest[slot], z, wall])
+			var faces: Array[float] = []
+			for y in [Ship.DECK_Y - 0.03, Ship.DECK_Y + 0.03]:
+				var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(
+						ship.to_global(Vector3(side * 4.0, y, station)), ship.to_global(Vector3(0.0, y, station))))
+				faces.append(absf(ship.to_local(hit.position).x) if not hit.is_empty() else -1.0)
+			check(faces[0] > 0.0 and absf(faces[0] - faces[1]) <= 0.02,
+					"at z %.1f the castle's side is at %.2f, the hull's at %.2f" % [station, faces[1], faces[0]])
+		station += 0.25
+	check(absf(cabin.position.z - Ship.CASTLE_FRONT_Z) <= TOLERANCE,
+			"the castle's front is at %.2f, not CASTLE_FRONT_Z %.2f" % [cabin.position.z, Ship.CASTLE_FRONT_Z])
+	check(absf(cabin.end.y - Ship.QUARTERDECK_Y) <= TOLERANCE, "the castle's roof is at %.2f" % cabin.end.y)
 
 	# The roof is level and walkable: every sample inside its rails is at the quarterdeck's
 	# height, apart from the fittings standing on it.
 	var fittings: Array[AABB] = []
-	for path in ["Helm", "DeckFittings/Binnacle", "DeckFittings/CoilQuarterdeck", "DeckFittings/BreastRail"]:
+	for path in ["Helm", "DeckFittings/Binnacle", "DeckFittings/CoilQuarterdeck", "DeckFittings/CleatStarboardAft",
+			"DeckFittings/CleatPortAft"]:
 		fittings.append(_bounds(ship, ship.get_node_or_null(path)))
 	for i in 9:
 		for j in 14:
@@ -380,44 +373,50 @@ func _check_rail(ship: Node3D) -> void:
 	if posts == null:
 		return
 
-	# Every post on the wall top: over the hull at the deck, and the hull's outer edge within
-	# 0.3 m outboard of it (the top is 0.2 m wide along the sides, 0.5 m at the stern's tip). The rays start inside the rail's own collision, which they ignore.
+	# Every post on a wall top: over the hull or the castle at its own height, and the edge
+	# within 0.3 m outboard of it (the top is 0.2 m wide along the sides, 0.5 m at the stern's
+	# tip). A post's local +Z faces out. The rays start inside the rail's own collision, which
+	# they ignore.
 	var space := ship.get_world_3d().direct_space_state
-	var placed: Array = posts.get_meta("placed", [])
-	var count := placed.size()
-	check(count == posts.multimesh.instance_count, "the rail's posts are not all placed")
-	var centre := Vector3(0.0, Ship.DECK_Y, 7.0)
-	# Evenly spaced, stern as bow: no stretch of the rail crowded with posts.
+	# The quarterdeck's stairs arrive between two posts: the rays past the edge ignore them.
+	var stairs: Array[RID] = []
+	for stair_body in ship.get_node("Quarterdeck/Stairs").find_children("*", "StaticBody3D", true, false):
+		stairs.append((stair_body as StaticBody3D).get_rid())
+	var lines: Array = rail.get_meta("post_lines", [])
+	var total := 0
+	for line in lines:
+		total += (line as Array).size()
+	check(lines.size() >= 3 and total == posts.multimesh.instance_count, "the rail's posts are not all placed")
 	var gaps: Array[float] = []
-	for i in count - 1:
-		gaps.append((placed[i] as Transform3D).origin.distance_to((placed[i + 1] as Transform3D).origin))
-	if not gaps.is_empty():
-		check(gaps.max() - gaps.min() < 0.1 and gaps.max() <= Ship.RAIL_SPAN + 0.01,
-				"the rail's posts are %.2f to %.2f m apart; they should be even, at most %.1f" % [gaps.min(), gaps.max(), Ship.RAIL_SPAN])
-	for i in count:
-		var at: Transform3D = placed[i]
-		var out := at.basis.z
-		if out.dot(at.origin - centre) < 0.0:
-			out = -out
-		# 5 cm along the rail: the posts stand on the hull's panel joins, and a ray exactly on the
-		# seam between two triangles can slip through it.
-		var foot := at.origin + at.basis.x * 0.05 + Vector3(0.0, 0.02, 0.0)
-		var under := _ray_down(ship, foot, 0.3)
-		var y := ship.to_local(under.position).y if not under.is_empty() else -INF
-		check(absf(y - Ship.DECK_Y) <= 0.03, "rail post %d at (%.2f, %.2f) is not on the hull (met %.2f)" % [i, at.origin.x, at.origin.z, y])
-		var beyond := _ray_down(ship, foot + out * 0.3, 0.3)
-		check(beyond.is_empty(), "rail post %d at (%.2f, %.2f) stands inboard of the hull's edge" % [i, at.origin.x, at.origin.z])
-
-		# No gap in the collision between this post and the next: a ray across the rail's line
-		# meets the rail's own body all the way along.
-		if i + 1 < count:
-			var next: Vector3 = (placed[i + 1] as Transform3D).origin
+	for line in lines:
+		for i in (line as Array).size():
+			var at: Transform3D = line[i]
+			var out := at.basis.z
+			# 5 cm along the rail: posts stand on the hull's panel joins, and a ray exactly on
+			# the seam between two triangles can slip through it.
+			var foot := at.origin + at.basis.x * 0.05 + Vector3(0.0, 0.02, 0.0)
+			var under := _ray_down(ship, foot, 0.3)
+			var y := ship.to_local(under.position).y if not under.is_empty() else -INF
+			check(absf(y - at.origin.y) <= 0.03, "rail post at (%.2f, %.2f) is not on the hull (met %.2f)" % [at.origin.x, at.origin.z, y])
+			var past := foot + out * 0.3
+			var down := PhysicsRayQueryParameters3D.create(ship.to_global(past), ship.to_global(past - Vector3(0.0, 0.3, 0.0)))
+			down.exclude = stairs
+			var beyond := space.intersect_ray(down)
+			check(beyond.is_empty(), "rail post at (%.2f, %.2f) stands inboard of the edge" % [at.origin.x, at.origin.z])
+			if i + 1 == (line as Array).size():
+				continue
+			var next: Vector3 = (line[i + 1] as Transform3D).origin
+			gaps.append(at.origin.distance_to(next))
+			# No gap in the collision between this post and the next: a ray across the rail's
+			# line meets the rail's own body all the way along.
 			for k in range(1, 10):
 				var q := at.origin.lerp(next, k / 10.0) + Vector3(0.0, 0.4, 0.0)
-				var query := PhysicsRayQueryParameters3D.create(ship.to_global(q - out * 0.4), ship.to_global(q + out * 0.4))
-				var hit := space.intersect_ray(query)
-				check(not hit.is_empty() and hit.collider == body,
-						"the rail does not collide at (%.2f, %.2f)" % [q.x, q.z])
+				var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(q - out * 0.4), ship.to_global(q + out * 0.4)))
+				check(not hit.is_empty() and hit.collider == body, "the rail does not collide at (%.2f, %.2f)" % [q.x, q.z])
+	# Posts spaced alike everywhere, stern as bow: no stretch of the rail crowded with them.
+	if not gaps.is_empty():
+		check(gaps.min() >= 1.0 and gaps.max() <= Ship.RAIL_SPAN + 0.01,
+				"the rail's posts are %.2f to %.2f m apart; they should be 1 to %.1f" % [gaps.min(), gaps.max(), Ship.RAIL_SPAN])
 
 	# No baluster stands in a cathead's timber.
 	var balusters := rail.get_node_or_null("Balusters") as MultiMeshInstance3D

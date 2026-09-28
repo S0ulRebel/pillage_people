@@ -37,15 +37,17 @@ const BOARD_MARGIN := 3.0
 ## above the deck so he drops onto it instead of spawning in the slab. On the centreline he is
 ## out of reach of the guns below, which measure their reach straight through the deck.
 const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 7.9)
-## The stern cabin's floor centre. Its door faces the bow and its roof is the quarterdeck. As
-## far aft as the narrowing stern allows: its walls stay 4 cm inside the bulwarks.
-const CABIN_AT := Vector3(0.0, DECK_Y, 12.75)
-## The quarterdeck's walking surface, the cabin roof: one kit tier (2.6 m) above the weather
-## deck, which is exactly where STAIRS_260 lands.
+## Front face of the stern castle (art/models/ship/cabin/stern_castle.glb, built by
+## tools/build_stern_castle.py, whose FRONT_Z must match). The castle is the hull carried up
+## one tier: its walls stand on the hull's outer edge from here round the stern. Its roof is
+## the quarterdeck, and the cabin is under it.
+const CASTLE_FRONT_Z := 10.4
+## The quarterdeck's walking surface, the castle's roof: one kit tier (2.6 m) above the
+## weather deck, which is exactly where STAIRS_260 lands.
 const QUARTERDECK_Y := DECK_Y + 2.6
 ## Foot of the quarterdeck stairs, the kit's STAIRS_260: 1 m wide, rising aft over 3.25 m.
 ## Port of the centreline and starting just aft of the stair opening, so whoever comes up from
-## the gun deck walks straight on; the top lands on the roof clear of the cabin's corner post.
+## the gun deck walks straight on; its top lands on the roof over the castle's front wall.
 const QUARTERDECK_STAIRS_AT := Vector3(-1.0, DECK_Y, 7.26)
 ## Deck contact of the wheel, on the quarterdeck. The real F01_HELM drops in here.
 const HELM_AT := Vector3(0.0, QUARTERDECK_Y, 13.2)
@@ -76,9 +78,9 @@ const GUN_PORT_Y := GUN_DECK_Y + 1.2
 const CAPSTAN_AT := Vector3(0.0, GUN_DECK_Y, 10.8)
 ## Ahead of the wheel on the quarterdeck, where the helmsman can read it.
 const BINNACLE_AT := Vector3(0.0, QUARTERDECK_Y, 12.15)
-## On the aft face of the rail's stern post, on the centreline: the model's origin is the top
-## of its wall plate, and the lantern hangs aft of it, out over the stern.
-const LANTERN_AT := Vector3(0.0, DECK_Y + 0.9, 16.34)
+## On the aft face of the quarterdeck rail's stern post, on the centreline: the model's origin
+## is the top of its wall plate, and the lantern hangs aft of it, out over the stern.
+const LANTERN_AT := Vector3(0.0, QUARTERDECK_Y + 0.9, 16.34)
 ## How far the gunport lids stand open, so the guns can run out under them.
 const LID_OPEN_DEGREES := 100.0
 ## Where the bow's catheads sit: the origin is the top of the timber's inboard end, 25 degrees
@@ -95,8 +97,7 @@ const DECK_BEAM_Z := [8.0, 10.0, 12.0]
 ## Y is the deck it stands on. Laid out clear of the masts, the cabin and its stairs, the helm,
 ## the binnacle, the boarding spot and the stair opening (x -0.55 to 0.55, z 4 to 7.25). Cleats
 ## and racks sit against the bulwark's inner face, 2.8 m out; the bow narrows, so its fittings
-## stay near the centreline. The breast rail closes the quarterdeck's forward edge from the
-## stairs' landing to the cabin's starboard corner post.
+## stay near the centreline.
 const DECK_PROPS := [
 	["Bitts", "fittings/bollard.glb", Vector3(0.0, DECK_Y, 2.8), 0.0, true],
 	["AnchorCable", "fittings/anchor_cable.glb", Vector3(1.55, DECK_Y, 3.15), 0.0, true],
@@ -108,16 +109,17 @@ const DECK_PROPS := [
 	["RackPort", "fittings/belaying_rack.glb", Vector3(-2.68, DECK_Y, 9.0), 90.0, false],
 	["CoilStarboard", "rigging/rope_coil.glb", Vector3(1.55, DECK_Y, 9.7), 0.0, true],
 	["CoilQuarterdeck", "rigging/rope_coil.glb", Vector3(0.9, QUARTERDECK_Y, 11.1), 0.0, true],
-	["BreastRail", "deck/rail_straight.glb", Vector3(0.35, QUARTERDECK_Y, 10.64), 0.0, true],
-	["CleatStarboardAft", "fittings/cleat.glb", Vector3(2.68, DECK_Y, 11.6), 90.0, false],
-	["CleatPortAft", "fittings/cleat.glb", Vector3(-2.68, DECK_Y, 11.6), 90.0, false],
+	["CleatStarboardAft", "fittings/cleat.glb", Vector3(2.68, QUARTERDECK_Y, 12.5), 90.0, false],
+	["CleatPortAft", "fittings/cleat.glb", Vector3(-2.68, QUARTERDECK_Y, 12.5), 90.0, false],
 ]
 ## The rail round the weather deck, which stands where the solid bulwark was (see
 ## tools/strip_game_bulwarks.py). The hull's wall now ends at the deck in a flat top 0.2 m
 ## wide; this is the centre line of that top, measured off double_deck.glb, as (x, z), at
 ## each corner of the hull's panels. It runs down the starboard side from the knighthead at
 ## the bow, round the stern to the centreline; the port side is its mirror. The knightheads
-## stand either side of the bowsprit, 0.34 m out, so the spar passes between them.
+## stand either side of the bowsprit, 0.34 m out, so the spar passes between them. On the
+## weather deck the rail runs only as far as the stern castle; aft of that the same line,
+## up on the castle's wall top, carries the quarterdeck's rail (see _rail_legs).
 const RAIL_PATH := [
 	Vector2(0.34, -2.065), Vector2(1.132, -0.935), Vector2(2.115, 0.745), Vector2(2.9, 4.0),
 	Vector2(2.9, 12.0), Vector2(2.845, 12.72), Vector2(2.68, 13.45), Vector2(2.41, 14.165),
@@ -130,6 +132,9 @@ const RAIL_PATH := [
 const RAIL_SPAN := 2.0
 ## How far a rail length runs past a corner into the next, so the outside of the turn closes.
 const RAIL_LAP := 0.04
+## A turn sharper than this, in degrees, gets a post on it: the quarterdeck's front corners.
+## The hull's own corners turn 16 degrees at most, and the rail laps round them.
+const RAIL_CORNER := 30.0
 ## Balusters stand about this far apart, as on Tripo's straight rail.
 const BALUSTER_PITCH := 0.45
 ## How far the handrail and base run into the post at each end, so no gap shows at a corner.
@@ -434,11 +439,10 @@ func _walkable(node: Node3D) -> void:
 			mesh_node.create_trimesh_collision()
 
 
-## The stern cabin and the stairs up to its roof, the quarterdeck. The cabin is Tripo's whole
-## cabin (art/models/ship/cabin/cabin_house.glb): the separate wall parts have no common bay
-## and do not close a room. Its door is part of the mesh and stays shut; the roof, its rails
-## and the stairs collide exactly, so the captain can walk up and round the wheel. Where a
-## model is missing, a plain block and a ramp of the same size stand in.
+## The stern castle and the stairs up to its roof, the quarterdeck. The castle's model is in
+## ship space, so it stands at the origin. Its door is Tripo's door leaf, shut, on the front
+## wall. The castle and the stairs collide exactly, so the captain can walk up and round the
+## wheel. Where a model is missing, a plain block and a ramp of the same size stand in.
 func _build_quarterdeck() -> void:
 	if get_node_or_null("Quarterdeck") != null:
 		return
@@ -449,13 +453,20 @@ func _build_quarterdeck() -> void:
 
 	var cabin := Node3D.new()
 	cabin.name = "Cabin"
-	cabin.position = CABIN_AT
 	quarterdeck.add_child(cabin)
-	if _fit_model(cabin, CABIN_PARTS + "cabin_house.glb"):
+	if _fit_model(cabin, CABIN_PARTS + "stern_castle.glb"):
 		_walkable(cabin)
 	else:
-		_box(cabin, Vector3(0.0, 1.3, 0.0), Vector3(3.6, 2.6, 5.2), timber)
+		var length := STERN_Z - 0.3 - CASTLE_FRONT_Z
+		_box(cabin, Vector3(0.0, QUARTERDECK_Y - 1.3, CASTLE_FRONT_Z + length * 0.5), Vector3(5.6, 2.6, length), timber)
 		_solid(cabin)
+	# Starboard of the stairs, its back against the front wall. The model's origin is the foot
+	# of its leaf, halfway through its depth.
+	var door := Node3D.new()
+	door.name = "Door"
+	door.position = Vector3(0.6, DECK_Y, CASTLE_FRONT_Z - 0.157)
+	quarterdeck.add_child(door)
+	_fit_model(door, CABIN_PARTS + "cabin_door.glb")
 
 	# The model's origin is its foot on the centreline; it climbs 2.6 m toward +Z.
 	var stairs := Node3D.new()
@@ -938,18 +949,54 @@ func _build_rail() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Body"
 	rail.add_child(body)
-	var line := _rail_line()
+	var post_lines: Array = []
+	for line in _rail_legs():
+		post_lines.append(_lay_rail(line, post_width, rail_length, baluster_box, clear, placed, body))
+	# Every post, line by line, for the tests: the MultiMesh does not keep them headless.
+	rail.set_meta("post_lines", post_lines)
+
+	for key in ["post", "handrail", "base", "baluster"]:
+		var mesh: Mesh = parts[key]
+		var multi := MultiMesh.new()
+		multi.transform_format = MultiMesh.TRANSFORM_3D
+		multi.mesh = mesh
+		multi.instance_count = placed[key].size()
+		for n in placed[key].size():
+			multi.set_instance_transform(n, placed[key][n])
+		var node := MultiMeshInstance3D.new()
+		node.name = key.capitalize() + "s"
+		node.multimesh = multi
+		# Kept on the node too: without a renderer (headless runs, the tests) the MultiMesh does
+		# not hold its instances' transforms.
+		node.set_meta("placed", placed[key])
+		var material := mesh.surface_get_material(0)
+		if material is BaseMaterial3D:
+			node.material_override = _toon_copy(material)
+		rail.add_child(node)
+
+
+## One leg of rail along `line`: posts spaced evenly from end to end, the handrail and base in
+## straight lengths between them, and balusters spread between each pair. Adds what it places
+## to `placed`, and a collision box per straight length to `body`. Returns the posts.
+func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, baluster_box: AABB,
+		clear: Array[AABB], placed: Dictionary, body: StaticBody3D) -> Array[Transform3D]:
 	var reach: PackedFloat32Array = [0.0]
 	for i in line.size() - 1:
 		reach.append(reach[i] + line[i].distance_to(line[i + 1]))
 	var length := reach[reach.size() - 1]
-	# An even count, so one post stands on the stern's centreline and the sides mirror.
-	var bays := ceili(length / RAIL_SPAN)
-	bays += bays % 2
+	# A leg that mirrors across the centreline gets an even count, so a post stands on its
+	# middle: the stern's centreline, where the lantern hangs.
+	var bays := ceili(length / RAIL_SPAN - 0.001)
+	var first := line[0]
+	var last := line[line.size() - 1]
+	if absf(first.x) > 0.01 and absf(first.x + last.x) < 0.01 and absf(first.z - last.z) < 0.01:
+		bays += bays % 2
 	var posts: Array[float] = []
+	var standing: Array[Transform3D] = []
 	for k in bays + 1:
 		posts.append(length * k / bays)
-		placed["post"].append(_rail_at(line, reach, posts[k]))
+		standing.append(_rail_at(line, reach, posts[k]))
+	placed["post"].append_array(standing)
 
 	# The rail in straight lengths, one per hull panel between posts: cut at every post and
 	# every corner. Into a post it stops just inside it; past a corner it laps the next length.
@@ -993,36 +1040,49 @@ func _build_rail() -> void:
 				blocked = blocked or (here * baluster_box).intersects(box)
 			if not blocked:
 				placed["baluster"].append(here)
-
-	for key in ["post", "handrail", "base", "baluster"]:
-		var mesh: Mesh = parts[key]
-		var multi := MultiMesh.new()
-		multi.transform_format = MultiMesh.TRANSFORM_3D
-		multi.mesh = mesh
-		multi.instance_count = placed[key].size()
-		for n in placed[key].size():
-			multi.set_instance_transform(n, placed[key][n])
-		var node := MultiMeshInstance3D.new()
-		node.name = key.capitalize() + "s"
-		node.multimesh = multi
-		# Kept on the node too: without a renderer (headless runs, the tests) the MultiMesh does
-		# not hold its instances' transforms.
-		node.set_meta("placed", placed[key])
-		var material := mesh.surface_get_material(0)
-		if material is BaseMaterial3D:
-			node.material_override = _toon_copy(material)
-		rail.add_child(node)
+	return standing
 
 
-## RAIL_PATH round both sides at deck height, as one line: port from its knighthead to the
-## stern, then starboard back to its knighthead.
-func _rail_line() -> Array[Vector3]:
-	var line: Array[Vector3] = []
+## The rail's lines, each running with the deck on its left so a post's local +Z faces out:
+## - the weather deck, each side from its knighthead at the bow to the castle's front wall;
+## - the quarterdeck's edge, from the stairs' landing out to the port front corner, round the
+##   stern on the castle's wall top, and back across the front to the landing.
+## A line is split into legs wherever it turns more than RAIL_CORNER, and each leg gets its own
+## evenly spaced posts, so a square corner always has a post on it.
+func _rail_legs() -> Array:
+	var front := CASTLE_FRONT_Z - 0.16
+	var starboard: Array[Vector3] = [Vector3(2.9, DECK_Y, front)]
+	for i in range(RAIL_PATH.size() - 1, -1, -1):
+		if RAIL_PATH[i].y < front:
+			starboard.append(Vector3(RAIL_PATH[i].x, DECK_Y, RAIL_PATH[i].y))
+	var port: Array[Vector3] = []
+	for i in range(starboard.size() - 1, -1, -1):
+		port.append(Vector3(-starboard[i].x, DECK_Y, starboard[i].z))
+
+	var edge := CASTLE_FRONT_Z + 0.1
+	var landing := QUARTERDECK_STAIRS_AT.x
+	var top: Array[Vector3] = [Vector3(landing - 0.55, QUARTERDECK_Y, edge), Vector3(-2.9, QUARTERDECK_Y, edge)]
 	for p in RAIL_PATH:
-		line.append(Vector3(-p.x, DECK_Y, p.y))
+		if p.y > edge:
+			top.append(Vector3(-p.x, QUARTERDECK_Y, p.y))
 	for i in range(RAIL_PATH.size() - 2, -1, -1):
-		line.append(Vector3(RAIL_PATH[i].x, DECK_Y, RAIL_PATH[i].y))
-	return line
+		if RAIL_PATH[i].y > edge:
+			top.append(Vector3(RAIL_PATH[i].x, QUARTERDECK_Y, RAIL_PATH[i].y))
+	top.append_array([Vector3(2.9, QUARTERDECK_Y, edge), Vector3(landing + 0.55, QUARTERDECK_Y, edge)])
+
+	var legs: Array = []
+	for line in [port, starboard, top]:
+		var leg: Array[Vector3] = [line[0]]
+		for i in range(1, line.size()):
+			leg.append(line[i])
+			if i < line.size() - 1:
+				var into: Vector3 = line[i] - line[i - 1]
+				var turn := into.normalized().angle_to((line[i + 1] - line[i]).normalized())
+				if turn > deg_to_rad(RAIL_CORNER):
+					legs.append(leg)
+					leg = [line[i]]
+		legs.append(leg)
+	return legs
 
 
 ## The point `s` metres along `line` (whose corners are `reach` metres along it), facing along
@@ -1190,9 +1250,8 @@ func _build_backstays() -> void:
 	var head_z := MAST_AT.z + 0.35
 	for side in [-1.0, 1.0]:
 		var head := Vector3(side * 0.22, head_y, head_z)
-		# On top of the rail post at the stern quarter. The next post aft would take the rope
-		# through the cabin's rail; this one clears it by half a metre.
-		var foot := Vector3(side * 2.41, DECK_Y + 0.95, 14.165)
+		# On the quarterdeck's rail at the stern quarter.
+		var foot := Vector3(side * 2.41, QUARTERDECK_Y + RAIL_HEIGHT, 14.165)
 		_rope(stays, head, foot, 0.02, rope)
 
 

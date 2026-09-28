@@ -35,14 +35,13 @@ def primitives(path):
     return out
 
 
-def textured(source):
-    """The hull as a .glb: these (material, POSITION bytes, NORMAL bytes) primitives with the
-    kit's plank texture and UVs laid on them."""
+def textured(source, name='double_deck'):
+    """A .glb of one node, `name`: these (material, POSITION bytes, NORMAL bytes) primitives
+    with the kit's plank texture and UVs laid on them."""
     images = {name: texture_kit.texture(name) for name in texture_kit.RECIPES}
     writer, gltf = glb_io.Writer(), texture_kit.new_gltf()
     materials = texture_kit.add_materials(writer, gltf, images, {name for name, _, _ in source})
-    gltf['nodes'].append({'name': 'double_deck',
-                          'mesh': texture_kit.add_mesh(writer, gltf, 'double_deck', source, materials)})
+    gltf['nodes'].append({'name': name, 'mesh': texture_kit.add_mesh(writer, gltf, name, source, materials)})
     gltf['scenes'][0]['nodes'] = [0]
     return writer.glb(gltf)
 
