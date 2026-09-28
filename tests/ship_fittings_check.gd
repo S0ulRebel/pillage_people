@@ -128,6 +128,10 @@ func _run() -> void:
 	_check_catheads(ship)
 	_check_beams(ship)
 	_check_quarterdeck(ship)
+	var windows := ship.get_node_or_null("Quarterdeck/Windows")
+	check(windows != null and windows.get_child_count() == Ship.CASTLE_WINDOWS.size()
+			and windows.get_children().all(func(w: Node) -> bool: return w.get_node_or_null("Model") != null),
+			"the stern castle's windows are missing")
 	_check_rail(ship)
 	await _check_course_clears_cabin(ship)
 

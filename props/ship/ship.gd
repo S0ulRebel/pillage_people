@@ -42,6 +42,17 @@ const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 7.9)
 ## one tier: its walls stand on the hull's outer edge from here round the stern. Its roof is
 ## the quarterdeck, and the cabin is under it.
 const CASTLE_FRONT_Z := 10.4
+## Tripo's arched window (art/models/ship/cabin/cabin_window.glb, used as delivered): 1 m tall,
+## facing +Z, its back 0.105 m behind its origin. Scaled to 1.1 m. Each is [where its back
+## meets the castle wall, the way it faces]: one on each side forward, one on each quarter,
+## one on the stern. The stern one spans the stern's point, so it sits 8 cm into the wall to
+## close the gap at its edges.
+const WINDOW_SCALE := 1.1
+const CASTLE_WINDOWS := [
+	[Vector3(3.0, DECK_Y + 0.9, 11.2), 90.0], [Vector3(-3.0, DECK_Y + 0.9, 11.2), -90.0],
+	[Vector3(2.63, DECK_Y + 0.9, 13.91), 69.8], [Vector3(-2.63, DECK_Y + 0.9, 13.91), -69.8],
+	[Vector3(0.0, DECK_Y + 0.9, 16.35), 0.0],
+]
 ## The quarterdeck's walking surface, the castle's roof: one kit tier (2.6 m) above the
 ## weather deck, which is exactly where STAIRS_260 lands.
 const QUARTERDECK_Y := DECK_Y + 2.6
@@ -461,6 +472,18 @@ func _build_quarterdeck() -> void:
 		var length := STERN_Z - 0.3 - CASTLE_FRONT_Z
 		_box(cabin, Vector3(0.0, QUARTERDECK_Y - 1.3, CASTLE_FRONT_Z + length * 0.5), Vector3(5.6, 2.6, length), timber)
 		_solid(cabin)
+	var windows := Node3D.new()
+	windows.name = "Windows"
+	quarterdeck.add_child(windows)
+	for spot in CASTLE_WINDOWS:
+		var window := Node3D.new()
+		var facing := deg_to_rad(spot[1])
+		# Stood out from the wall by the depth behind its origin, so its back is on the wall.
+		window.position = spot[0] + Vector3(sin(facing), 0.0, cos(facing)) * 0.105 * WINDOW_SCALE
+		window.rotation.y = facing
+		window.scale = Vector3.ONE * WINDOW_SCALE
+		windows.add_child(window)
+		_fit_model(window, CABIN_PARTS + "cabin_window.glb")
 	# Starboard of the stairs, its back against the front wall. The model's origin is the foot
 	# of its leaf, halfway through its depth.
 	var door := Node3D.new()

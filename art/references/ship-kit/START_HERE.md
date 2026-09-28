@@ -64,7 +64,7 @@ Done so far:
 - `python tools/build_stern_castle.py` builds the castle from the game hull's own outline (`cabin/stern_castle.glb`). Its walls stand on the hull's outer edge from z 10.4 round the stern, one 2.6 m tier high, facet for facet with the hull below and planked with the same texture. A front wall closes it across the deck, and its roof is the quarterdeck.
 - It replaces Tripo's cabin_house.glb, a 3.8 m box that could not follow a hull that narrows to a point over its last four metres. That model stays in `cabin/` but is not placed.
 - STAIRS_260 (copied to `art/models/ship/deck/stairs_260.glb`) climbs to the quarterdeck on the port side, from just aft of the stair opening. A rail runs up each side, laid from the same parts as every other rail. Tripo's sheared stair rail (`deck/rail_stair.glb`) is no longer placed.
-- Tripo's door leaf is on the front wall, shut. The castle has no windows yet.
+- Tripo's door leaf is on the front wall, shut. Five of Tripo's arched windows (`cabin/cabin_window.glb`, used as delivered, scaled to 1.1 m) are on the walls: one on each side, one on each quarter and one on the stern.
 - The castle, stairs and hull collide as their exact meshes.
 - The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
 - The course's foot hangs free, so a following wind swings it back toward the castle. The cloth is kept out of the castle's box.
