@@ -209,6 +209,32 @@ def origin_of(spec, low, high, marks):
     return point
 
 
+def stretch_zones(geometry, spec):
+    """Lengthen a part along one axis by stretching only the listed zones - fractions of its
+    length, measured from the low end - all by the same factor, so a taper stays a taper.
+    Everything outside the zones (iron bands, heels, jaws, sling bands) keeps its shape. For
+    spars Tripo drew squat: scale by thickness, then stretch the plain timber between the bands."""
+    axis = AXES[spec['axis']]
+    every = np.concatenate([g[1] for g in geometry])
+    low, high = every[:, axis].min(), every[:, axis].max()
+    span = high - low
+    zones = sorted((low + a * span, low + b * span) for a, b in spec['zones'])
+    free = sum(b - a for a, b in zones)
+    factor = (free + spec['length'] - span) / free
+    if factor < 1:
+        raise SystemExit('stretch: the zones would have to shrink; lengthen only')
+    for g in geometry:
+        v = g[1][:, axis]
+        grown = np.zeros_like(v)
+        inside = np.zeros(len(v), bool)
+        for a, b in zones:
+            grown += np.clip(v - a, 0, b - a) * (factor - 1)
+            inside |= (v >= a) & (v <= b)
+        g[1][:, axis] = v + grown
+        g[2][inside, axis] /= factor
+        g[2] /= np.maximum(np.linalg.norm(g[2], axis=1, keepdims=True), 1e-12)
+
+
 def stretch_middle(geometry, spec):
     """Lengthen a part along one axis by stretching only its middle; `keep` metres at each end
     keep their shape. For a deck beam whose knees must stay knees while the beam spans the ship."""
@@ -521,7 +547,7 @@ def main():
                 under = next(h for h in geometry if h[0] == node['rest_on'])
                 g[1] = g[1] + [0.0, under[1][:, 1].max() - g[1][:, 1].min(), 0.0]
         if 'stretch' in output:
-            stretch_middle(geometry, output['stretch'])
+            (stretch_zones if 'zones' in output['stretch'] else stretch_middle)(geometry, output['stretch'])
         pitch = shear_to_slope(geometry, output['shear']) if 'shear' in output else None
         every = np.concatenate([g[1] for g in geometry])
         heights[output['file']] = float(np.ptp(every[:, 1]))

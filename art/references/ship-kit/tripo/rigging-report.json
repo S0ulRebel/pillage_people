@@ -1,0 +1,634 @@
+{
+  "source": "rigging.glb",
+  "source_triangles": 20328,
+  "parts": [
+    {
+      "file": "mainmast.glb",
+      "id": "M02",
+      "name": "Mainmast (lower)",
+      "nodes": [
+        "mainmast"
+      ],
+      "triangles": 348,
+      "bounds_min_m": [
+        -0.25,
+        0.0,
+        -0.2481
+      ],
+      "bounds_max_m": [
+        0.25,
+        5.5,
+        0.2481
+      ],
+      "size_m": [
+        0.5,
+        5.5,
+        0.4962
+      ],
+      "scale_from_sheet": 14.4262,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 167.1,
+      "uv_in_unit_square": true,
+      "notes": "The game's M01: 5.5 m, 0.5 m across at the deck. Tripo drew it squat (4.4:1), so it is scaled by its thickness and only the timber between the bands is lengthened; the heel, both bands and the head keep their shape. Origin at the deck."
+    },
+    {
+      "file": "foremast.glb",
+      "id": "M01",
+      "name": "Foremast",
+      "nodes": [
+        "foremast"
+      ],
+      "triangles": 284,
+      "bounds_min_m": [
+        -0.2,
+        0.0,
+        -0.1951
+      ],
+      "bounds_max_m": [
+        0.2,
+        4.2,
+        0.1951
+      ],
+      "size_m": [
+        0.4,
+        4.2,
+        0.3902
+      ],
+      "scale_from_sheet": 11.9619,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 193.4,
+      "uv_in_unit_square": true,
+      "notes": "The game's foremast: 4.2 m, 0.4 m across at the deck. Stretched between its band and heel only."
+    },
+    {
+      "file": "topmast.glb",
+      "id": "M03",
+      "name": "Topmast",
+      "nodes": [
+        "topmast"
+      ],
+      "triangles": 370,
+      "bounds_min_m": [
+        -0.18,
+        0.0,
+        -0.1803
+      ],
+      "bounds_max_m": [
+        0.18,
+        3.0,
+        0.1803
+      ],
+      "size_m": [
+        0.36,
+        3.0,
+        0.3606
+      ],
+      "scale_from_sheet": 11.7243,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 224.5,
+      "uv_in_unit_square": true,
+      "notes": "The game's M02: 3 m, 0.36 m at the heel. Origin at the heel, which sits on the lower mast's head."
+    },
+    {
+      "file": "mast_top.glb",
+      "id": "M04",
+      "name": "Mast top platform",
+      "nodes": [
+        "mast_top"
+      ],
+      "triangles": 1398,
+      "bounds_min_m": [
+        -1.3,
+        0.0,
+        -1.2915
+      ],
+      "bounds_max_m": [
+        1.3,
+        1.3009,
+        1.2915
+      ],
+      "size_m": [
+        2.6,
+        1.3009,
+        2.5831
+      ],
+      "scale_from_sheet": 14.8695,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 247.2,
+      "uv_in_unit_square": true,
+      "notes": "Sized by its mast hole, not its rim: the square opening is 0.19 m from centre to wall, clearing the lower mast's 0.18 m head. That makes the platform about 2.6 m across, larger than ship.gd's 2.1 m placeholder."
+    },
+    {
+      "file": "lower_yard.glb",
+      "id": "M05",
+      "name": "Lower (course) yard",
+      "nodes": [
+        "lower_yard"
+      ],
+      "triangles": 1180,
+      "bounds_min_m": [
+        -4.0,
+        -0.12,
+        -0.0682
+      ],
+      "bounds_max_m": [
+        4.0,
+        0.12,
+        0.0682
+      ],
+      "size_m": [
+        8.0,
+        0.24,
+        0.1364
+      ],
+      "scale_from_sheet": 5.0229,
+      "origin": {
+        "x": "mid",
+        "y": "mid",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 385.5,
+      "uv_in_unit_square": true,
+      "notes": "The game's course yard: 8 m, clearing the 6 m beam. The central sling band and the end eyes keep their shape. Origin at the sling."
+    },
+    {
+      "file": "topsail_yard.glb",
+      "id": "M06",
+      "name": "Topsail yard",
+      "nodes": [
+        "topsail_yard"
+      ],
+      "triangles": 1182,
+      "bounds_min_m": [
+        -2.6,
+        -0.09,
+        -0.0551
+      ],
+      "bounds_max_m": [
+        2.6,
+        0.09,
+        0.0551
+      ],
+      "size_m": [
+        5.2,
+        0.18,
+        0.1102
+      ],
+      "scale_from_sheet": 4.3971,
+      "origin": {
+        "x": "mid",
+        "y": "mid",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 481.9,
+      "uv_in_unit_square": true,
+      "notes": "The game's topsail yard, 5.2 m. Origin at the sling."
+    },
+    {
+      "file": "bowsprit.glb",
+      "id": "M07",
+      "name": "Bowsprit",
+      "nodes": [
+        "bowsprit"
+      ],
+      "triangles": 616,
+      "bounds_min_m": [
+        -0.1649,
+        -0.15,
+        -3.0
+      ],
+      "bounds_max_m": [
+        0.1649,
+        0.15,
+        0.0
+      ],
+      "size_m": [
+        0.3297,
+        0.3,
+        3.0
+      ],
+      "scale_from_sheet": 7.4958,
+      "origin": {
+        "x": "mid",
+        "y": "mid",
+        "z": "max"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 450.5,
+      "uv_in_unit_square": true,
+      "notes": "The game's 3 m bowsprit, 0.3 m at the heel. Origin at the heel; the spar reaches forward along -Z. ship.gd's placeholder runs along its local +Y instead, so rotate the node when swapping."
+    },
+    {
+      "file": "gaff.glb",
+      "id": "M08",
+      "name": "Gaff",
+      "nodes": [
+        "gaff"
+      ],
+      "triangles": 1301,
+      "bounds_min_m": [
+        -0.053,
+        -0.08,
+        0.0
+      ],
+      "bounds_max_m": [
+        0.053,
+        0.08,
+        3.5
+      ],
+      "size_m": [
+        0.106,
+        0.16,
+        3.5
+      ],
+      "scale_from_sheet": 4.2345,
+      "origin": {
+        "x": "mid",
+        "y": "mid",
+        "z": "min"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 649.9,
+      "uv_in_unit_square": true,
+      "notes": "Optional (M08), for a spanker on the mainmast. 3.5 m; origin at the jaws, which wrap the mast, and the spar reaches aft (+Z)."
+    },
+    {
+      "file": "boom.glb",
+      "id": "M08",
+      "name": "Boom",
+      "nodes": [
+        "boom"
+      ],
+      "triangles": 748,
+      "bounds_min_m": [
+        -0.0406,
+        -0.09,
+        0.0
+      ],
+      "bounds_max_m": [
+        0.0406,
+        0.09,
+        4.5
+      ],
+      "size_m": [
+        0.0811,
+        0.18,
+        4.5
+      ],
+      "scale_from_sheet": 3.5882,
+      "origin": {
+        "x": "mid",
+        "y": "mid",
+        "z": "min"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 589.6,
+      "uv_in_unit_square": true,
+      "notes": "Optional (M08). 4.5 m; origin at the gooseneck end, the spar reaching aft (+Z)."
+    },
+    {
+      "file": "sail_course.glb",
+      "id": "S01",
+      "name": "Lower square sail (course)",
+      "nodes": [
+        "sail"
+      ],
+      "triangles": 645,
+      "bounds_min_m": [
+        -3.6,
+        -4.3981,
+        -0.5948
+      ],
+      "bounds_max_m": [
+        3.6,
+        0.0,
+        0.5948
+      ],
+      "size_m": [
+        7.2,
+        4.3981,
+        1.1896
+      ],
+      "scale_from_sheet": 32.9132,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 110.0,
+      "uv_in_unit_square": true,
+      "notes": "7.2 m across, the width of the game's course (sail.gd HALF_WIDTH 3.6). Origin at the middle of the head, which laces to the yard. The game simulates its sails as cloth, so this is mainly their texture and shape reference."
+    },
+    {
+      "file": "sail_topsail.glb",
+      "id": "S02",
+      "name": "Topsail",
+      "nodes": [
+        "sail"
+      ],
+      "triangles": 621,
+      "bounds_min_m": [
+        -2.3,
+        -3.081,
+        -0.4622
+      ],
+      "bounds_max_m": [
+        2.3,
+        0.0,
+        0.4622
+      ],
+      "size_m": [
+        4.6,
+        3.081,
+        0.9245
+      ],
+      "scale_from_sheet": 24.7535,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 145.9,
+      "uv_in_unit_square": true,
+      "notes": "4.6 m across, the game's topsail. Origin at the middle of the head."
+    },
+    {
+      "file": "sail_jib.glb",
+      "id": "S03",
+      "name": "Jib",
+      "nodes": [
+        "sail"
+      ],
+      "triangles": 444,
+      "bounds_min_m": [
+        -0.2882,
+        -3.5,
+        -0.9231
+      ],
+      "bounds_max_m": [
+        0.2882,
+        0.0,
+        0.9231
+      ],
+      "size_m": [
+        0.5764,
+        3.5,
+        1.8463
+      ],
+      "scale_from_sheet": 14.9488,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 242.6,
+      "uv_in_unit_square": true,
+      "notes": "About 3.5 m tall, the drop from the game's foremast head to the bowsprit. A fore-and-aft sail: it lies in the ship's centre plane (Y-Z). Its luff leans slightly forward as extracted; on the game's rig the stay runs about 65 degrees from vertical, so turn it about X to lie along the stay, or use it as the texture for sail.gd's jib."
+    },
+    {
+      "file": "sail_spanker.glb",
+      "id": "S04",
+      "name": "Spanker (optional)",
+      "nodes": [
+        "sail"
+      ],
+      "triangles": 612,
+      "bounds_min_m": [
+        -0.3479,
+        0.0,
+        0.0
+      ],
+      "bounds_max_m": [
+        0.3479,
+        3.0264,
+        4.3
+      ],
+      "size_m": [
+        0.6958,
+        3.0264,
+        4.3
+      ],
+      "scale_from_sheet": 21.8405,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "min"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 165.6,
+      "uv_in_unit_square": true,
+      "notes": "Optional, for the gaff and boom. Foot 4.3 m, just inside the 4.5 m boom. Origin at the tack, where the boom meets the mast."
+    },
+    {
+      "file": "flag.glb",
+      "id": "S05",
+      "name": "Jolly Roger",
+      "nodes": [
+        "flag"
+      ],
+      "triangles": 431,
+      "bounds_min_m": [
+        -1.5,
+        -0.9747,
+        -0.1487
+      ],
+      "bounds_max_m": [
+        0.0,
+        0.0,
+        0.1487
+      ],
+      "size_m": [
+        1.5,
+        0.9747,
+        0.2973
+      ],
+      "scale_from_sheet": 7.332,
+      "origin": {
+        "x": "max",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 491.7,
+      "uv_in_unit_square": true,
+      "notes": "1.5 m. Origin at the top of the hoist, the edge with the loops (+X); the fly runs toward -X."
+    },
+    {
+      "file": "block_single.glb",
+      "id": "G03",
+      "name": "Single block",
+      "nodes": [
+        "block"
+      ],
+      "triangles": 847,
+      "bounds_min_m": [
+        -0.0769,
+        -0.35,
+        -0.1033
+      ],
+      "bounds_max_m": [
+        0.0769,
+        0.0,
+        0.1033
+      ],
+      "size_m": [
+        0.1538,
+        0.35,
+        0.2066
+      ],
+      "scale_from_sheet": 3.5137,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 1025.4,
+      "uv_in_unit_square": true,
+      "notes": "0.35 m with its strop. Origin at the strop, where it hangs from."
+    },
+    {
+      "file": "block_double.glb",
+      "id": "G03",
+      "name": "Double block",
+      "nodes": [
+        "block"
+      ],
+      "triangles": 843,
+      "bounds_min_m": [
+        -0.0829,
+        -0.4,
+        -0.1121
+      ],
+      "bounds_max_m": [
+        0.0829,
+        0.0,
+        0.1121
+      ],
+      "size_m": [
+        0.1657,
+        0.4,
+        0.2241
+      ],
+      "scale_from_sheet": 3.7926,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 950.8,
+      "uv_in_unit_square": true,
+      "notes": "0.4 m with its strop. Origin at the strop."
+    },
+    {
+      "file": "deadeye.glb",
+      "id": "G03",
+      "name": "Deadeye with lanyard",
+      "nodes": [
+        "deadeye"
+      ],
+      "triangles": 853,
+      "bounds_min_m": [
+        -0.098,
+        -0.35,
+        -0.0909
+      ],
+      "bounds_max_m": [
+        0.098,
+        0.0,
+        0.0909
+      ],
+      "size_m": [
+        0.196,
+        0.35,
+        0.1817
+      ],
+      "scale_from_sheet": 3.602,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 1002.3,
+      "uv_in_unit_square": true,
+      "notes": "0.35 m with its strop. Origin at the strop."
+    },
+    {
+      "file": "rope_coil.glb",
+      "id": "G02",
+      "name": "Rope coil",
+      "nodes": [
+        "ring_a",
+        "ring_b",
+        "ring_c"
+      ],
+      "triangles": 1446,
+      "bounds_min_m": [
+        -0.2973,
+        0.0,
+        -0.3
+      ],
+      "bounds_max_m": [
+        0.2973,
+        0.4633,
+        0.3
+      ],
+      "size_m": [
+        0.5946,
+        0.4633,
+        0.6
+      ],
+      "scale_from_sheet": 7.9471,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 453.0,
+      "uv_in_unit_square": true,
+      "notes": "Cut out of Tripo's stays piece: three rings, aligned on the largest one's plane so the coil stands upright. Tripo coiled it tall, like a spring: 0.6 m across and about 0.47 m high."
+    }
+  ],
+  "discarded": [
+    {
+      "what": "G01 shrouds and ratlines",
+      "reason": "A fixed panel. Shrouds have to run from each mast head to that hull's rail, so ship.gd draws them to fit, and the manifest requires every rope to be re-lengthed per hull.",
+      "triangles": 3545
+    },
+    {
+      "what": "G02 stays and sheets",
+      "reason": "Fixed-length ropes, same reason as the shrouds; the coil that was fused to them is kept as rope_coil.glb.",
+      "triangles": 2614
+    }
+  ],
+  "passed": true,
+  "problems": []
+}

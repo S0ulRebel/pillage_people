@@ -589,8 +589,11 @@
             "shaft",
             "local collars"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Forward mast, shorter than the aft mainmast; align with D04 and modeled supports."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Forward mast, shorter than the aft mainmast; align with D04 and modeled supports.",
+          "models": [
+            "../../../models/ship/rigging/foremast.glb"
+          ]
         },
         {
           "id": "M02",
@@ -599,8 +602,11 @@
             "shaft",
             "local collars"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Aft mast, taller than the foremast; align with D04 and modeled supports."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Aft mast, taller than the foremast; align with D04 and modeled supports.",
+          "models": [
+            "../../../models/ship/rigging/mainmast.glb"
+          ]
         },
         {
           "id": "M03",
@@ -609,7 +615,10 @@
             "fore",
             "main"
           ],
-          "fit_status": "proposed_unmodeled"
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/rigging/topmast.glb"
+          ]
         },
         {
           "id": "M04",
@@ -624,8 +633,11 @@
             "fore",
             "main"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Visible supported platform; avoid unsupported deep basket forms."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Visible supported platform; avoid unsupported deep basket forms.",
+          "models": [
+            "../../../models/ship/rigging/mast_top.glb"
+          ]
         },
         {
           "id": "M05",
@@ -638,7 +650,10 @@
             "fore",
             "main"
           ],
-          "fit_status": "proposed_unmodeled"
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/rigging/lower_yard.glb"
+          ]
         },
         {
           "id": "M06",
@@ -651,7 +666,10 @@
             "fore",
             "main"
           ],
-          "fit_status": "proposed_unmodeled"
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/rigging/topsail_yard.glb"
+          ]
         },
         {
           "id": "M07",
@@ -660,8 +678,11 @@
             "bowsprit timber",
             "support fittings"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Define a supported hull attachment and named jib/stay endpoints."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Define a supported hull attachment and named jib/stay endpoints.",
+          "models": [
+            "../../../models/ship/rigging/bowsprit.glb"
+          ]
         },
         {
           "id": "M08",
@@ -671,9 +692,13 @@
             "boom",
             "mast connection hardware"
           ],
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "notes": "Optional gaff with open jaws/parrel and boom with articulated gooseneck attach to aft mainmast M02. No additional standing mast. Check clearance above helm, cabin and lantern.",
-          "optional": true
+          "optional": true,
+          "models": [
+            "../../../models/ship/rigging/gaff.glb",
+            "../../../models/ship/rigging/boom.glb"
+          ]
         }
       ],
       "reference_sheet": "04-masts-sails-rigging.webp"
@@ -689,9 +714,12 @@
             "fore",
             "main"
           ],
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "material": "MAT_SAIL_IVORY",
-          "attachment": "Matching M05 yard cloth attachment points"
+          "attachment": "Matching M05 yard cloth attachment points",
+          "models": [
+            "../../../models/ship/rigging/sail_course.glb"
+          ]
         },
         {
           "id": "S02",
@@ -700,32 +728,44 @@
             "fore",
             "main"
           ],
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "material": "MAT_SAIL_IVORY",
-          "attachment": "Matching M06 yard cloth attachment points"
+          "attachment": "Matching M06 yard cloth attachment points",
+          "models": [
+            "../../../models/ship/rigging/sail_topsail.glb"
+          ]
         },
         {
           "id": "S03",
           "name": "Triangular jib",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "material": "MAT_SAIL_IVORY",
-          "attachment": "Named head, tack and clew points on matched stays and sheets"
+          "attachment": "Named head, tack and clew points on matched stays and sheets",
+          "models": [
+            "../../../models/ship/rigging/sail_jib.glb"
+          ]
         },
         {
           "id": "S04",
           "name": "Gaff spanker",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "material": "MAT_SAIL_IVORY",
           "attachment": "Matched M08 gaff/boom cloth attachment points",
           "optional": true,
-          "notes": "Four-sided gaff sail with separate tack, throat, peak and clew; not a second triangular jib."
+          "notes": "Four-sided gaff sail with separate tack, throat, peak and clew; not a second triangular jib.",
+          "models": [
+            "../../../models/ship/rigging/sail_spanker.glb"
+          ]
         },
         {
           "id": "S05",
           "name": "Separate Jolly Roger flag",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "material": "MAT_FLAG_BLACK",
-          "notes": "Small separate flag; no skull emblem on working sails; cloth detached from mast hardware."
+          "notes": "Small separate flag; no skull emblem on working sails; cloth detached from mast hardware.",
+          "models": [
+            "../../../models/ship/rigging/flag.glb"
+          ]
         }
       ],
       "reference_sheet": "04-masts-sails-rigging.webp"
@@ -757,8 +797,11 @@
             "individual stays",
             "individual sheets"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Every rope records named start/end attachments and routing guides; re-length per assembled hull and rig layout."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Every rope records named start/end attachments and routing guides; re-length per assembled hull and rig layout.",
+          "models": [
+            "../../../models/ship/rigging/rope_coil.glb"
+          ]
         },
         {
           "id": "G03",
@@ -768,8 +811,13 @@
             "deadeyes",
             "local fastening hardware"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Size to the same rope family and anchor to actual modeled structure."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Size to the same rope family and anchor to actual modeled structure.",
+          "models": [
+            "../../../models/ship/rigging/block_single.glb",
+            "../../../models/ship/rigging/block_double.glb",
+            "../../../models/ship/rigging/deadeye.glb"
+          ]
         }
       ],
       "reference_sheet": "04-masts-sails-rigging.webp"
