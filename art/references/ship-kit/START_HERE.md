@@ -72,12 +72,14 @@ Done so far:
 **The rail:** the solid wall round the weather deck is gone, bow to stern, and a rail stands in its place.
 - `python tools/strip_game_bulwarks.py` takes the top tier off the game hull down to the deck. The tier below ends in a flat wall top, 0.2 m wide along the sides.
 - `python tools/split_rail.py` splits Tripo's straight rail into a handrail, a base rail and one baluster (`deck/rail_parts.glb`).
-- ship.gd lays them along any path, as follows:
+- `python tools/rail_profiles.py` slices the handrail and base across their middles into profiles. It bakes each one's wood off Tripo's atlas into a strip that repeats every metre without a seam (`deck/rail_sweep.glb`).
+- ship.gd lays a rail along any path, as follows:
   - posts spaced evenly along the whole length, at most 2 m apart;
-  - between posts, the handrail and base turn the path's corners in straight lengths that lap each other;
+  - the handrail and base each swept along the path as one continuous mesh, mitred at every corner, with the grain at the same density everywhere;
   - balusters spread about 0.45 m apart.
+- Laid as stretched copies of Tripo's pieces instead, the rail read as a dashed line: each copy had its own rounded ends and its own stretch.
 - Here the path is the centre line of the hull's wall top. On the weather deck the rail runs from the bow to the castle's front. The quarterdeck's rail runs on the castle's wall top round the stern, and across its front, leaving a gap where the stairs arrive.
-- The stairs' two rails run up the slope and on into the quarterdeck's front rail as one line. On the slope the handrail and base are sheared, not turned, so they stay upright like the balusters. They stand 0.1 m outside the treads, leaving the stairs' full 1 m clear. Each has a post only at its foot and its head, with balusters all the way between. Where two legs of rail meet, their corner post stands once.
+- The stairs' two rails run up the slope and on into the quarterdeck's front rail as one line. On the slope the swept profile stays upright, so the handrail and base are sheared like the balusters. They stand 0.1 m outside the treads, leaving the stairs' full 1 m clear. Each has a post only at its foot and its head, with balusters all the way between. Where two legs of rail meet, their corner post stands once.
 - A turn sharper than 30 degrees (the quarterdeck's front corners, the head of each stair rail) always gets a post.
 - At the bow the rail ends on two knightheads. The bowsprit rests on the deck and passes over the stem between them.
 - Each straight length collides as one box.

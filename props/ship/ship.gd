@@ -128,10 +128,8 @@ const RAIL_PATH := [
 ]
 ## Posts stand evenly along the whole rail, bow to stern, no more than this apart. They do not
 ## follow the hull's corners: the stern is eight short panels, and a post on each would crowd
-## it. Between posts the handrail and base turn the corners in straight lengths, one per panel.
+## it. The handrail and base are swept through the posts and round the corners unbroken.
 const RAIL_SPAN := 2.0
-## How far a rail length runs past a corner into the next, so the outside of the turn closes.
-const RAIL_LAP := 0.04
 ## The stair rails stand this far out from the stairs' centre line: 0.1 m outside each edge,
 ## so the whole 1 m of tread is clear for the captain, who is 0.7 m across. Each has a post at
 ## the foot and one at the head, with balusters all the way between.
@@ -142,8 +140,6 @@ const STAIR_RAIL_OUT := 0.6
 const RAIL_CORNER := 30.0
 ## Balusters stand about this far apart, as on Tripo's straight rail.
 const BALUSTER_PITCH := 0.45
-## How far the handrail and base run into the post at each end, so no gap shows at a corner.
-const RAIL_TUCK := 0.03
 ## Height of the rail's collision: the handrail's top.
 const RAIL_HEIGHT := 0.81
 ## The mast top's platform floor stands 1.06 m above the model's lowest point; this puts that
@@ -928,12 +924,10 @@ func _build_rail() -> void:
 	var parts := _rail_parts()
 	var timber := _flat(Color(0.55, 0.36, 0.18))
 	if parts.is_empty():
-		parts = {"post": _box_mesh(Vector3(0.24, 0.95, 0.24), 0.475), "handrail": _box_mesh(Vector3(1.0, 0.12, 0.14), 0.745),
-				"base": _box_mesh(Vector3(1.0, 0.12, 0.14), 0.06), "baluster": _box_mesh(Vector3(0.08, 0.44, 0.08), 0.38)}
+		parts = {"post": _box_mesh(Vector3(0.24, 0.95, 0.24), 0.475), "baluster": _box_mesh(Vector3(0.08, 0.44, 0.08), 0.38)}
 		for key in parts:
 			(parts[key] as Mesh).surface_set_material(0, timber)
 	var post_width: float = (parts["post"] as Mesh).get_aabb().size.x
-	var rail_length: float = (parts["handrail"] as Mesh).get_aabb().size.x
 
 	# Anything a baluster must not stand in, in ship space.
 	var clear: Array[AABB] = []
@@ -943,17 +937,18 @@ func _build_rail() -> void:
 			clear.append(global_transform.affine_inverse() * cathead.global_transform * _mesh_bounds(cathead))
 	var baluster_box: AABB = (parts["baluster"] as Mesh).get_aabb()
 
-	var placed := {"post": [], "handrail": [], "base": [], "baluster": []}
+	var placed := {"post": [], "baluster": []}
 	var body := StaticBody3D.new()
 	body.name = "Body"
 	rail.add_child(body)
+	var legs := _rail_legs()
 	var post_lines: Array = []
-	for line in _rail_legs():
-		post_lines.append(_lay_rail(line, post_width, rail_length, baluster_box, clear, placed, body))
+	for line in legs:
+		post_lines.append(_lay_rail(line, post_width, baluster_box, clear, placed, body))
 	# Every post, line by line, for the tests: the MultiMesh does not keep them headless.
 	rail.set_meta("post_lines", post_lines)
 
-	for key in ["post", "handrail", "base", "baluster"]:
+	for key in ["post", "baluster"]:
 		var mesh: Mesh = parts[key]
 		var multi := MultiMesh.new()
 		multi.transform_format = MultiMesh.TRANSFORM_3D
@@ -972,11 +967,24 @@ func _build_rail() -> void:
 			node.material_override = _toon_copy(material)
 		rail.add_child(node)
 
+	# The handrail and base: each one profile swept along every leg, as one mesh.
+	for key in ["handrail", "base"]:
+		var profile := _rail_profile(key, timber)
+		var sweep := SurfaceTool.new()
+		sweep.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for line in legs:
+			_sweep(sweep, line, profile)
+		var node := MeshInstance3D.new()
+		node.name = key.capitalize() + "s"
+		node.mesh = sweep.commit()
+		node.material_override = profile["material"]
+		rail.add_child(node)
 
-## One leg of rail along `line`: posts spaced evenly from end to end, the handrail and base in
-## straight lengths between them, and balusters spread between each pair. Adds what it places
-## to `placed`, and a collision box per straight length to `body`. Returns the posts.
-func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, baluster_box: AABB,
+
+## One leg of rail along `line`: posts spaced evenly from end to end and balusters spread
+## between each pair. Adds what it places to `placed`, and a collision box per straight length
+## to `body`. Returns the posts. The handrail and base are swept along the leg (_sweep).
+func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 		clear: Array[AABB], placed: Dictionary, body: StaticBody3D) -> Array[Transform3D]:
 	var reach: PackedFloat32Array = [0.0]
 	for i in line.size() - 1:
@@ -1005,8 +1013,9 @@ func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, balu
 		if not shared:
 			placed["post"].append(standing[k])
 
-	# The rail in straight lengths, one per hull panel between posts: cut at every post and
-	# every corner. Into a post it stops just inside it; past a corner it laps the next length.
+	# Collision in straight lengths, one per hull panel between posts, each running through
+	# the posts so there is no gap at either end. A box cannot shear, so up the stairs it is
+	# tilted instead.
 	var cuts: Array[float] = posts.duplicate()
 	for i in range(1, line.size() - 1):
 		var near := false
@@ -1015,36 +1024,13 @@ func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, balu
 		if not near:
 			cuts.append(reach[i])
 	cuts.sort()
-	# No length longer than a span, so a long bay between posts is joined, not stretched.
-	var joined: Array[float] = []
 	for i in cuts.size() - 1:
-		var pieces := ceili((cuts[i + 1] - cuts[i]) / RAIL_SPAN - 0.001)
-		for k in range(1, pieces):
-			joined.append(lerpf(cuts[i], cuts[i + 1], float(k) / pieces))
-	cuts.append_array(joined)
-	cuts.sort()
-	for i in cuts.size() - 1:
-		var from := cuts[i]
-		var to := cuts[i + 1]
-		var half := (from + to) * 0.5
+		var half := (cuts[i] + cuts[i + 1]) * 0.5
 		var mid := _rail_at(line, reach, half)
-		# This length's own direction, up a slope as well as along: a length lies within one
-		# panel of the line, so its two ends a hair either side of the middle give it.
 		var along := (_rail_at(line, reach, half + 0.005).origin - _rail_at(line, reach, half - 0.005).origin).normalized()
-		var start := from + (post_width * 0.5 - RAIL_TUCK if posts.has(from) else -RAIL_LAP)
-		var end := to - (post_width * 0.5 - RAIL_TUCK if posts.has(to) else -RAIL_LAP)
-		# Measured along this panel's own line, so a lap past its corner runs straight on.
-		var centre := mid.origin + along * ((start + end) * 0.5 - half)
-		if end - start > 0.02:
-			# Sheared up a slope, not turned: the profile stays upright, like the balusters.
-			var stretch := Basis(along * (end - start) / rail_length, Vector3.UP, mid.basis.z)
-			placed["handrail"].append(Transform3D(stretch, centre))
-			placed["base"].append(Transform3D(stretch, centre))
-		# Collision runs the whole length, through the posts, so there is no gap at either end.
-		# A box cannot shear, so on a slope it is tilted instead.
 		var shape := CollisionShape3D.new()
 		var slab := BoxShape3D.new()
-		slab.size = Vector3(to - from + 0.1, RAIL_HEIGHT, 0.2)
+		slab.size = Vector3(cuts[i + 1] - cuts[i] + 0.1, RAIL_HEIGHT, 0.2)
 		shape.shape = slab
 		var side := mid.basis.z
 		shape.transform = Transform3D(Basis(along, side.cross(along), side), mid.origin + Vector3.UP * RAIL_HEIGHT * 0.5)
@@ -1126,19 +1112,120 @@ func _rail_at(line: Array[Vector3], reach: PackedFloat32Array, s: float) -> Tran
 	return Transform3D(_along(dir), at)
 
 
-## The rail's meshes by part, or empty when a model is missing.
+## The rail's post and baluster meshes, or empty when a model is missing.
 func _rail_parts() -> Dictionary:
 	if not ResourceLoader.exists(DECK_PARTS + "rail_parts.glb") or not ResourceLoader.exists(DECK_PARTS + "rail_post.glb"):
 		return {}
 	var parts := {}
 	for file in ["rail_parts.glb", "rail_post.glb"]:
 		var scene := (load(DECK_PARTS + file) as PackedScene).instantiate()
-		for key in ["handrail", "base", "baluster", "post"]:
+		for key in ["baluster", "post"]:
 			var found := scene.find_child(key, true, false) as MeshInstance3D
 			if found != null and found.mesh != null:
 				parts[key] = found.mesh
 		scene.free()
-	return parts if parts.size() == 4 else {}
+	return parts if parts.size() == 2 else {}
+
+
+## The handrail's or base's profile from art/models/ship/deck/rail_sweep.glb
+## (tools/rail_profiles.py): its outline across the rail as (across, up) points in order round
+## it, closed by a repeat of the first, with each point's outward normal and its V, the metres
+## of rail one repeat of its texture covers, and its material. Read by V rather than by vertex
+## order, which the importer need not keep. Without the model, a plain square stands in.
+func _rail_profile(key: String, timber: Material) -> Dictionary:
+	var profile := {"points": PackedVector2Array(), "normals": PackedVector2Array(), "v": PackedFloat32Array(),
+			"tile": 1.0, "material": timber}
+	var mesh: Mesh = null
+	if ResourceLoader.exists(DECK_PARTS + "rail_sweep.glb"):
+		var scene := (load(DECK_PARTS + "rail_sweep.glb") as PackedScene).instantiate()
+		var found := scene.find_child(key, true, false) as MeshInstance3D
+		if found != null:
+			mesh = found.mesh
+		scene.free()
+	if mesh == null:
+		var low := 0.62 if key == "handrail" else 0.0
+		for corner in [Vector2(0.06, low), Vector2(0.06, low + 0.12), Vector2(-0.06, low + 0.12), Vector2(-0.06, low), Vector2(0.06, low)]:
+			profile["points"].append(corner)
+			profile["normals"].append(Vector2(signf(corner.x), 0.0))
+			profile["v"].append(profile["v"].size() / 4.0)
+		return profile
+	var arrays := mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	var ring: Array[int] = []
+	var far := 0.0
+	for i in vertices.size():
+		far = maxf(far, vertices[i].x)
+	for i in vertices.size():
+		if vertices[i].x < far * 0.5:
+			ring.append(i)
+	ring.sort_custom(func(a: int, b: int) -> bool: return uvs[a].y < uvs[b].y)
+	for i in ring:
+		profile["points"].append(Vector2(vertices[i].z, vertices[i].y))
+		profile["normals"].append(Vector2(normals[i].z, normals[i].y))
+		profile["v"].append(uvs[i].y)
+	profile["tile"] = far
+	var material := mesh.surface_get_material(0)
+	if material is BaseMaterial3D:
+		profile["material"] = _toon_copy(material)
+	return profile
+
+
+## `profile` swept along `line` into `into`: a ring of it at every point of the line, upright,
+## turned to face along the line and mitred at every corner so it keeps its thickness round
+## the turn. Up a slope the ring stays upright, so the rail is sheared, like the balusters.
+## U runs with the metres along the line, so the grain is the same density everywhere.
+func _sweep(into: SurfaceTool, line: Array[Vector3], profile: Dictionary) -> void:
+	var points: PackedVector2Array = profile["points"]
+	var normals: PackedVector2Array = profile["normals"]
+	var v: PackedFloat32Array = profile["v"]
+	var tile: float = profile["tile"]
+	var count := points.size()
+	var reach := 0.0
+	var rings: Array[PackedVector3Array] = []
+	var ring_normals: Array[PackedVector3Array] = []
+	var us: Array[float] = []
+	for i in line.size():
+		var into_dir := line[i] - line[maxi(i - 1, 0)] if i > 0 else line[1] - line[0]
+		var out_dir := line[mini(i + 1, line.size() - 1)] - line[i] if i < line.size() - 1 else into_dir
+		var flat_in := Vector3(into_dir.x, 0.0, into_dir.z).normalized()
+		var flat_out := Vector3(out_dir.x, 0.0, out_dir.z).normalized()
+		var across := (flat_in + flat_out).normalized()
+		var side := across.cross(Vector3.UP)
+		var miter := 1.0 / maxf(flat_in.dot(across), 0.3)
+		var tangent := (into_dir.normalized() + out_dir.normalized()).normalized()
+		if i > 0:
+			reach += line[i].distance_to(line[i - 1])
+		var ring := PackedVector3Array()
+		var ring_n := PackedVector3Array()
+		for k in count:
+			ring.append(line[i] + side * points[k].x * miter + Vector3.UP * points[k].y)
+			# The surface's true normal: across the profile's own tangent and along the line.
+			var around := side * -normals[k].y + Vector3.UP * normals[k].x
+			var n := around.cross(tangent).normalized()
+			if n.dot(side * normals[k].x + Vector3.UP * normals[k].y) < 0.0:
+				n = -n
+			ring_n.append(n)
+		rings.append(ring)
+		ring_normals.append(ring_n)
+		us.append(reach / tile)
+	for i in line.size() - 1:
+		for k in count - 1:
+			var quad := [[i, k], [i + 1, k], [i, k + 1], [i, k + 1], [i + 1, k], [i + 1, k + 1]]
+			# Godot's front faces wind clockwise: the corners' own normal points away from the
+			# viewer. Checked on this quad's first triangle, and flipped if it comes out wrong.
+			var a: Vector3 = rings[i][k]
+			var b: Vector3 = rings[i + 1][k]
+			var c: Vector3 = rings[i][k + 1]
+			if (b - a).cross(c - a).dot(ring_normals[i][k]) > 0.0:
+				quad = [[i, k], [i, k + 1], [i + 1, k], [i, k + 1], [i + 1, k + 1], [i + 1, k]]
+			for corner in quad:
+				var r: int = corner[0]
+				var p: int = corner[1]
+				into.set_normal(ring_normals[r][p])
+				into.set_uv(Vector2(us[r], v[p]))
+				into.add_vertex(rings[r][p])
 
 
 ## Local X along `dir` (flat), Y up.

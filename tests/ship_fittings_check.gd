@@ -366,11 +366,31 @@ func _check_rail(ship: Node3D) -> void:
 	if rail == null or body == null:
 		return
 	var posts := rail.get_node_or_null("Posts") as MultiMeshInstance3D
-	for part in ["Posts", "Handrails", "Bases", "Balusters"]:
+	for part in ["Posts", "Balusters"]:
 		var node := rail.get_node_or_null(part) as MultiMeshInstance3D
 		var material := null if node == null else node.material_override as BaseMaterial3D
 		check(node != null and node.multimesh.instance_count > 0 and material != null and material.albedo_texture != null,
 				"the rail's %s are missing or built from the placeholder" % part.to_lower())
+	# The handrail and base are one swept mesh each, textured, reaching every post.
+	for part in ["Handrails", "Bases"]:
+		var node := rail.get_node_or_null(part) as MeshInstance3D
+		var material := null if node == null else node.material_override as BaseMaterial3D
+		check(node != null and node.mesh != null and node.mesh.get_surface_count() == 1 and material != null
+				and material.albedo_texture != null, "the rail's %s are missing or not swept from the profile" % part.to_lower())
+		if node == null or node.mesh == null:
+			continue
+		check(node.mesh.get_faces().size() > 0, "the rail's %s have no faces" % part.to_lower())
+		var sweep := node.mesh.get_aabb()
+		var span := AABB()
+		var first := true
+		for line in rail.get_meta("post_lines", []):
+			for at in line:
+				var here := (at as Transform3D).origin
+				span = AABB(here, Vector3.ZERO) if first else span.expand(here)
+				first = false
+		check(sweep.position.x <= span.position.x + 0.05 and sweep.end.x >= span.end.x - 0.05
+				and sweep.position.z <= span.position.z + 0.05 and sweep.end.z >= span.end.z - 0.05,
+				"the rail's %s do not reach every post" % part.to_lower())
 	if posts == null:
 		return
 
