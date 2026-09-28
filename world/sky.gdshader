@@ -159,7 +159,7 @@ uniform float cloud_speed : hint_range(0.0, 2.0) = 0.1;
 // INCREMENTAL, and this sky then costs what a flat colour does.
 uniform float preview_time = 0.0;
 // How tall the heaped bank round the horizon grows, in degrees, at full cover.
-uniform float bank_degrees : hint_range(0.0, 15.0) = 7.0;
+uniform float bank_degrees : hint_range(0.0, 15.0) = 6.0;
 // Thin high streaks - the sheet's cirrus, and the little broken strokes beside its cumulus.
 uniform float wisps : hint_range(0.0, 1.0) = 0.35;
 // The weather, shared with the ground's cloud shadows - see the header. 0 is TROPICAL CLEAR,
@@ -365,7 +365,7 @@ void heap_layer(vec2 p, float width, float height, float seed, float lean, float
 			// By night a narrower spread centred a value up: FULL MOON's cloud is mostly the
 			// mid blue (38%) with less of either end, where TRADE-WIND's is mostly shadow.
 			float by_day = along * 4.2 + sunward * 1.8 + (h1 - 0.5) * 2.0 + front - 0.25;
-			float by_night = along * 2.4 + sunward * 1.0 + (h1 - 0.5) * 1.6 + front + 0.85;
+			float by_night = along * 2.6 + sunward * 1.0 + (h1 - 0.5) * 1.6 + front + 0.95;
 			float value = mix(by_night, by_day, clamp(daylight, 0.0, 1.0));
 			float base = clamp(floor(value), 0.0, 3.0);
 			float level = base / 3.0;
@@ -445,10 +445,10 @@ void horizon_banks(vec2 sky, float drift, float sun_azimuth, float night, float 
 	if (sky.y > bank_degrees * 1.4 + 2.0 || sky.y < -1.0 || amount <= 0.0) {
 		return;
 	}
-	for (int k = 0; k < 8; k++) {
+	for (int k = 0; k < 12; k++) {
 		float fk = float(k);
 		float h = hash(vec2(fk, 401.0));
-		float at = fk * 45.0 + (h - 0.5) * 20.0 + drift * 0.6;
+		float at = fk * 30.0 + (h - 0.5) * 14.0 + drift * 0.6;
 		float grow = smoothstep(0.1 + h * 0.5, 0.3 + h * 0.5, amount);
 		if (grow <= 0.02) {
 			continue;
@@ -638,23 +638,31 @@ void sky() {
 		cover, shade);
 	horizon_banks(sky_at, drift, sun_azimuth, night, lit_from_above, lift_shades, amount, px,
 		cover, shade);
-	// (azimuth, base elevation, half-width, height, seed, rank). A mass is there once the
+	// (azimuth, base elevation, half-width, height) and (seed, rank). A mass is there once the
 	// cover reaches its rank, growing in over the last fifth of it rather than popping.
-	// Grouped, with open sky between, the way the sheet composes them: two clusters - a tower
-	// with a heap beside it and a flat cloudlet above - a few loners, and small flat cloudlets
-	// scattered higher. Seventeen masses spread evenly round the sky were too many and all
-	// alike; the sun is at about -35.
-	vec4 masses[13] = vec4[13](
-		vec4(125.0, 1.5, 12.0, 26.0), vec4(152.0, 3.0, 9.0, 13.0), vec4(98.0, 11.0, 7.0, 2.4),
-		vec4(8.0, 2.0, 11.0, 19.0), vec4(34.0, 5.5, 8.0, 11.0), vec4(57.0, 15.0, 8.0, 2.2),
-		vec4(242.0, 2.5, 12.0, 15.0), vec4(305.0, 3.0, 8.5, 11.0), vec4(205.0, 12.0, 6.0, 1.8),
-		vec4(280.0, 18.0, 7.0, 2.0), vec4(322.0, 10.0, 5.0, 1.6), vec4(178.0, 23.0, 5.0, 1.5),
-		vec4(72.0, 21.0, 6.0, 1.8));
-	vec2 ranks[13] = vec2[13](
-		vec2(4.0, 0.05), vec2(5.0, 0.30), vec2(6.0, 0.35), vec2(7.0, 0.10), vec2(8.0, 0.40),
-		vec2(9.0, 0.45), vec2(12.0, 0.20), vec2(13.0, 0.60), vec2(14.0, 0.25), vec2(15.0, 0.50),
-		vec2(16.0, 0.55), vec2(17.0, 0.65), vec2(1.0, 0.50));
-	for (int m = 0; m < 13; m++) {
+	// Three rings, drawn back to front: small heaps high up, a ring of middling heaps over the
+	// horizon between the towers, and the towers and big heaps standing on the horizon. The
+	// sheet's sky is this full - TRADE-WIND CUMULUS is cloud over most of its lower half and a
+	// quarter of its top - and thirteen masses left most of the game's sky empty. The sun is
+	// at about -35.
+	vec4 masses[24] = vec4[24](
+		vec4(20.0, 27.0, 8.0, 6.5), vec4(70.0, 21.0, 9.0, 7.0), vec4(115.0, 31.0, 7.0, 5.5),
+		vec4(165.0, 24.0, 8.5, 7.0), vec4(210.0, 30.0, 7.5, 6.0), vec4(255.0, 22.0, 9.0, 7.5),
+		vec4(300.0, 27.0, 8.0, 6.5), vec4(340.0, 33.0, 7.0, 5.5),
+		vec4(45.0, 8.0, 10.0, 10.0), vec4(92.0, 11.0, 9.0, 8.0), vec4(140.0, 9.0, 11.0, 12.0),
+		vec4(185.0, 12.0, 9.0, 8.5), vec4(230.0, 8.5, 10.5, 11.0), vec4(275.0, 10.5, 9.0, 9.0),
+		vec4(320.0, 7.5, 11.0, 10.0), vec4(0.0, 12.0, 8.0, 7.5),
+		vec4(10.0, 2.0, 13.0, 21.0), vec4(60.0, 2.5, 11.0, 13.0), vec4(115.0, 1.5, 13.0, 26.0),
+		vec4(160.0, 2.5, 12.0, 14.0), vec4(205.0, 2.0, 11.0, 12.0), vec4(245.0, 2.5, 13.0, 18.0),
+		vec4(290.0, 3.0, 10.0, 11.0), vec4(335.0, 2.0, 12.0, 16.0));
+	vec2 ranks[24] = vec2[24](
+		vec2(21.0, 0.40), vec2(22.0, 0.30), vec2(23.0, 0.55), vec2(24.0, 0.35), vec2(25.0, 0.50),
+		vec2(26.0, 0.30), vec2(27.0, 0.45), vec2(28.0, 0.60),
+		vec2(31.0, 0.25), vec2(32.0, 0.35), vec2(33.0, 0.20), vec2(34.0, 0.40), vec2(35.0, 0.25),
+		vec2(36.0, 0.30), vec2(37.0, 0.20), vec2(38.0, 0.45),
+		vec2(4.0, 0.05), vec2(5.0, 0.15), vec2(6.0, 0.05), vec2(7.0, 0.20), vec2(8.0, 0.10),
+		vec2(9.0, 0.10), vec2(12.0, 0.25), vec2(13.0, 0.15));
+	for (int m = 0; m < 24; m++) {
 		float grow = smoothstep(ranks[m].y - 0.2, ranks[m].y, amount);
 		if (grow < 0.05) {
 			continue;
