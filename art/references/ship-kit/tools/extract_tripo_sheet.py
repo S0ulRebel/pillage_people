@@ -255,6 +255,38 @@ def stretch_middle(geometry, spec):
         g[2] /= np.maximum(np.linalg.norm(g[2], axis=1, keepdims=True), 1e-12)
 
 
+def shut_lid(lid, frame):
+    """Swing a lid Tripo modelled propped open until it hangs straight down, centre its plank
+    panel on `frame`, flush against the frame's outer (+X) face, and give it its own node origin
+    on the hinge along its top edge. It exports closed; turning the node +Z opens it outward.
+    Tripo's own hinge placement is not trusted: the lid it drew was off-centre and oversized."""
+    points, normals = lid[1], lid[2]
+    hinge = np.array([points[:, 0].min(), points[:, 1].min(), 0.0])
+    direction = (points - hinge).mean(axis=0)
+    turn = -np.pi / 2 - np.arctan2(direction[1], direction[0])
+    c, s = np.cos(turn), np.sin(turn)
+    rz = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+    closed = (points - hinge) @ rz.T
+    f = frame[1]
+    target = np.array([f[:, 0].max(), (f[:, 1].min() + f[:, 1].max()) / 2, (f[:, 2].min() + f[:, 2].max()) / 2])
+    # Centre the PANEL, not the lid's box, on the frame: the hinge knuckles stand well above
+    # the planks, so a box-centred lid hangs short of the opening's top. The panel is the band
+    # of heights where the lid is nearly full width; the knuckles are narrow.
+    y = closed[:, 1]
+    edges = np.linspace(y.min(), y.max(), 41)
+    width = np.array([np.ptp(closed[(y >= a) & (y <= b), 2]) if ((y >= a) & (y <= b)).sum() > 2 else 0.0
+                      for a, b in zip(edges, edges[1:])])
+    full = np.nonzero(width >= 0.8 * width.max())[0]
+    panel_mid = (edges[full.min()] + edges[full.max() + 1]) / 2
+    closed += [target[0] - closed[:, 0].min(),
+               target[1] - panel_mid,
+               target[2] - (closed[:, 2].min() + closed[:, 2].max()) / 2]
+    pivot = np.array([target[0], closed[:, 1].max(), target[2]])
+    lid[1] = closed - pivot
+    lid[2] = normals @ rz.T
+    lid[5] = pivot
+
+
 def top_slope(points, along):
     """Slope (rise per run) of a part's upper edge: a line through the highest point in each of
     a dozen bins along `along`, ignoring the end bins where posts and caps sit."""
@@ -368,7 +400,7 @@ def write_glb(path, nodes, image):
     gltf['images'].append({'bufferView': writer.view(buffer.getvalue()), 'mimeType': 'image/jpeg'})
     gltf['materials'].append({'name': path.stem, 'pbrMetallicRoughness': {
         'baseColorTexture': {'index': 0}, 'metallicFactor': 0, 'roughnessFactor': 0.85}})
-    for name, positions, normals, uvs, tri in nodes:
+    for name, positions, normals, uvs, tri, *extra in nodes:
         index_kind, fmt = (5123, '<u2') if len(positions) < 65536 else (5125, '<u4')
         indices_view = writer.view(tri.astype(fmt).tobytes(), 34963)
         writer.accessors.append({'bufferView': indices_view, 'componentType': index_kind,
@@ -379,7 +411,10 @@ def write_glb(path, nodes, image):
                            'NORMAL': writer.floats(normals.astype('<f4').tobytes(), 'VEC3'),
                            'TEXCOORD_0': writer.floats(uvs.astype('<f4').tobytes(), 'VEC2')},
             'indices': indices, 'material': 0, 'mode': 4}]})
-        gltf['nodes'].append({'name': name, 'mesh': len(gltf['meshes']) - 1})
+        node = {'name': name, 'mesh': len(gltf['meshes']) - 1}
+        if extra and extra[0] is not None:
+            node['translation'] = [float(v) for v in extra[0]]
+        gltf['nodes'].append(node)
     path.write_bytes(writer.glb(gltf))
 
 
@@ -396,11 +431,13 @@ def contact_sheet(out_dir, report, path):
         with Image.open(BytesIO(glb_io.view_bytes(gltf, binary, gltf['images'][0]['bufferView']))) as im:
             texture = np.asarray(im.convert('RGB'), dtype=np.float32)
         tris, uv = [], []
-        for mesh in gltf['meshes']:
+        for node in gltf['nodes']:
+            mesh = gltf['meshes'][node['mesh']]
+            offset = np.array(node.get('translation', [0.0, 0.0, 0.0]), dtype=np.float32)
             a = mesh['primitives'][0]['attributes']
             kind = {5123: '<u2', 5125: '<u4'}[gltf['accessors'][mesh['primitives'][0]['indices']]['componentType']]
             index = np.frombuffer(glb_io.accessor_bytes(gltf, binary, mesh['primitives'][0]['indices']), kind).reshape(-1, 3)
-            tris.append(np.frombuffer(glb_io.accessor_bytes(gltf, binary, a['POSITION']), '<f4').reshape(-1, 3)[index])
+            tris.append(np.frombuffer(glb_io.accessor_bytes(gltf, binary, a['POSITION']), '<f4').reshape(-1, 3)[index] + offset)
             uv.append(np.frombuffer(glb_io.accessor_bytes(gltf, binary, a['TEXCOORD_0']), '<f4').reshape(-1, 2)[index])
         tris = np.concatenate(tris).astype(np.float64)
         normal = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
@@ -482,7 +519,9 @@ def main():
         r = straighten(output['align'], key_tris, key_tris.reshape(-1, 3))
         everything = np.any(node_tris, axis=0)
         rotated = positions[np.unique(indices[everything])] @ r.T
-        raw_marks = {name: centres[claim(centres, np.array(c), where)] @ r.T
+        # A mark is a piece's centre: [x, y, z] names a coarse piece, {"fine": [x, y, z]} a fine one.
+        raw_marks = {name: (fine_centres[claim(fine_centres, np.array(c['fine']), where)] if isinstance(c, dict)
+                            else centres[claim(centres, np.array(c), where)]) @ r.T
                      for name, c in output.get('marks', {}).items()}
 
         # Per-node turns first, at sheet scale: they are about each node's own centre, so they
@@ -554,15 +593,28 @@ def main():
         origin = origin_of(output['origin'], every.min(axis=0), every.max(axis=0), marks)
         for g in geometry:
             g[1] = g[1] - origin
+        for node, g in zip(output['nodes'], geometry):
+            g.append(None)
+            if 'shut_over' in node:
+                shut_lid(g, next(h for h in geometry if h[0] == node['shut_over']))
+                continue
+            if 'pivot' in node:
+                # A moving piece (a lid) gets its own node origin on its hinge, so the engine
+                # opens it by rotating that one node. Vertices move by -pivot, the node by +pivot:
+                # the part looks exactly the same until something turns it.
+                pivot = origin_of(node['pivot'], g[1].min(axis=0), g[1].max(axis=0), marks)
+                g[1] = g[1] - pivot
+                g[5] = pivot
         image, new_uvs, tex_size = repack(pieces, atlas)
         for g, uv in zip(geometry, new_uvs):
             g[3] = uv
         write_glb(out_dir / output['file'], geometry, image)
 
-        all_p = np.concatenate([g[1] for g in geometry])
+        placed = [g[1] + (g[5] if g[5] is not None else 0.0) for g in geometry]
+        all_p = np.concatenate(placed)
         tris = sum(len(g[4]) for g in geometry)
         surface = uv_area = 0.0
-        for _, gp, _, guv, gt in geometry:
+        for _, gp, _, guv, gt, _ in geometry:
             t3, t2 = gp[gt], guv[gt] * tex_size
             surface += 0.5 * np.linalg.norm(np.cross(t3[:, 1] - t3[:, 0], t3[:, 2] - t3[:, 0]), axis=1).sum()
             e1, e2 = t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0]

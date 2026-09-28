@@ -278,9 +278,12 @@
             "wooden lid",
             "hinges"
           ],
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "attachment": "H05.gunport.hinge_axis",
-          "notes": "Separate operable lid; no permanent plug in opening."
+          "notes": "Separate operable lid; no permanent plug in opening.",
+          "models": [
+            "../../../models/ship/hull/gunport_lid.glb"
+          ]
         },
         {
           "id": "H12",
@@ -290,8 +293,11 @@
             "shaped bow",
             "shaped stern"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Matching wooden profiles, endpoints and course heights; no large iron cage."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Matching wooden profiles, endpoints and course heights; no large iron cage.",
+          "models": [
+            "../../../models/ship/hull/wale.glb"
+          ]
         }
       ],
       "reference_sheet": "01-hull-modules.png"
