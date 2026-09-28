@@ -21,6 +21,9 @@ extends Node3D
 
 const MODEL := "res://art/models/ship/double_deck.glb"
 const LENGTH := 14.0
+## The bulged stern's aftmost point. The hull, and the quarterdeck over it, reach past LENGTH,
+## so standing on board is measured to here.
+const STERN_Z := 16.7
 const BEAM := 6.0
 ## Keel depth below still water. Gun deck is at 2.6, so this leaves it 0.6 m clear.
 const DRAFT := 2.0
@@ -30,21 +33,29 @@ const CLEARANCE := 0.6
 const DECK_Y := 5.2
 ## How far from the hull a climb still counts. The collision stops him short of the planks.
 const BOARD_MARGIN := 3.0
-## Where a climb puts his feet: centreline, aft of the stair opening, a metre above the deck
-## so he drops onto it instead of spawning in the slab.
-const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 10.0)
-## Deck contact of the wheel, on the stern weather deck. The real F01_HELM drops in here.
-const HELM_AT := Vector3(0.0, DECK_Y, 13.05)
+## Where a climb puts his feet: centreline, between the stair opening and the mainmast, a metre
+## above the deck so he drops onto it instead of spawning in the slab. On the centreline he is
+## out of reach of the guns below, which measure their reach straight through the deck.
+const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 7.9)
+## The stern cabin's floor centre. Its door faces the bow and its roof is the quarterdeck. As
+## far aft as the narrowing stern allows: its walls stay 4 cm inside the bulwarks.
+const CABIN_AT := Vector3(0.0, DECK_Y, 12.75)
+## The quarterdeck's walking surface, the cabin roof: one kit tier (2.6 m) above the weather
+## deck, which is exactly where STAIRS_260 lands.
+const QUARTERDECK_Y := DECK_Y + 2.6
+## Foot of the quarterdeck stairs, the kit's STAIRS_260: 1 m wide, rising aft over 3.25 m.
+## Port of the centreline and starting just aft of the stair opening, so whoever comes up from
+## the gun deck walks straight on; the top lands on the roof clear of the cabin's corner post.
+const QUARTERDECK_STAIRS_AT := Vector3(-1.0, DECK_Y, 7.26)
+## Deck contact of the wheel, on the quarterdeck. The real F01_HELM drops in here.
+const HELM_AT := Vector3(0.0, QUARTERDECK_Y, 13.2)
 ## Where his feet go: aft of the wheel, looking toward the bow.
-const HELM_FEET := Vector3(0.0, DECK_Y, 13.9)
+const HELM_FEET := Vector3(0.0, QUARTERDECK_Y, 14.05)
 const HELM_REACH := 1.6
 ## Deck contact of the mainmast, aft of the stair hatch and forward of the wheel.
 const MAST_AT := Vector3(0.0, DECK_Y, 9.0)
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
-## Deck contact of the capstan, on solid planks between the mast and the wheel. The bars
-## fill the kit's 1.4 m box; a real F02_CAPSTAN drops in on this node.
-const CAPSTAN_AT := Vector3(0.0, DECK_Y, 10.8)
 ## Base of the bowsprit, seated in the raked stem just under the rail. The spar's own
 ## length runs forward from here. A real F03_BOWSPRIT drops in on this node.
 const BOWSPRIT_AT := Vector3(0.0, 5.65, -2.66)
@@ -58,8 +69,12 @@ const GUN_DECK_Y := 2.6
 const GUN_PORT_Z := [5.0, 7.0, 9.0, 11.0]
 ## Centre of each port's opening: the kit's sill is 0.8 m off the gun deck, the opening 0.8 m tall.
 const GUN_PORT_Y := GUN_DECK_Y + 1.2
-## Ahead of the wheel and clear of the capstan's bars (they sweep to 11.6), where the helmsman can read it.
-const BINNACLE_AT := Vector3(0.0, DECK_Y, 12.0)
+## Deck contact of the capstan, on the gun deck under the cabin: the weather deck there is
+## the cabin's floor now. Clear of the guns and under the beams; a real F02_CAPSTAN drops in
+## on this node.
+const CAPSTAN_AT := Vector3(0.0, GUN_DECK_Y, 10.8)
+## Ahead of the wheel on the quarterdeck, where the helmsman can read it.
+const BINNACLE_AT := Vector3(0.0, QUARTERDECK_Y, 12.15)
 ## Top of the stern rail, on the centreline, where the bulged stern reaches aft furthest.
 const LANTERN_AT := Vector3(0.0, 6.0, 16.68)
 ## How far the gunport lids stand open, so the guns can run out under them.
@@ -74,10 +89,12 @@ const CATHEAD_FALL := Vector3(1.44, -1.22, 0.0)
 ## Under the weather deck, between the gun ports, spanning the 5.6 m inside the hull. None
 ## over the stair shaft (z 4 to 7.25): a beam there would meet the head of anyone on the stairs.
 const DECK_BEAM_Z := [8.0, 10.0, 12.0]
-## Weather-deck fittings with no role in play: [node, model, position, yaw, collides].
-## Laid out clear of the masts, the capstan's bar sweep, the helm, the binnacle, the boarding
-## spot and the stair opening (x -0.55 to 0.55, z 4 to 7.25). Cleats and racks sit against the
-## bulwark's inner face, 2.8 m out; the bow narrows, so its fittings stay near the centreline.
+## Deck fittings with no role in play: [node, model, position, yaw, collides]. The position's
+## Y is the deck it stands on. Laid out clear of the masts, the cabin and its stairs, the helm,
+## the binnacle, the boarding spot and the stair opening (x -0.55 to 0.55, z 4 to 7.25). Cleats
+## and racks sit against the bulwark's inner face, 2.8 m out; the bow narrows, so its fittings
+## stay near the centreline. The breast rail closes the quarterdeck's forward edge from the
+## stairs' landing to the cabin's starboard corner post.
 const DECK_PROPS := [
 	["Bitts", "fittings/bollard.glb", Vector3(0.0, DECK_Y, 2.8), 0.0, true],
 	["AnchorCable", "fittings/anchor_cable.glb", Vector3(1.55, DECK_Y, 3.15), 0.0, true],
@@ -87,8 +104,9 @@ const DECK_PROPS := [
 	["CleatPortFore", "fittings/cleat.glb", Vector3(-2.68, DECK_Y, 6.5), 90.0, false],
 	["RackStarboard", "fittings/belaying_rack.glb", Vector3(2.68, DECK_Y, 9.0), 90.0, false],
 	["RackPort", "fittings/belaying_rack.glb", Vector3(-2.68, DECK_Y, 9.0), 90.0, false],
-	["CoilStarboard", "rigging/rope_coil.glb", Vector3(2.1, DECK_Y, 10.05), 0.0, true],
-	["CoilPort", "rigging/rope_coil.glb", Vector3(-2.1, DECK_Y, 10.05), 0.0, true],
+	["CoilStarboard", "rigging/rope_coil.glb", Vector3(1.55, DECK_Y, 9.7), 0.0, true],
+	["CoilQuarterdeck", "rigging/rope_coil.glb", Vector3(0.9, QUARTERDECK_Y, 11.1), 0.0, true],
+	["BreastRail", "deck/rail_straight.glb", Vector3(0.35, QUARTERDECK_Y, 10.64), 0.0, true],
 	["CleatStarboardAft", "fittings/cleat.glb", Vector3(2.68, DECK_Y, 11.6), 90.0, false],
 	["CleatPortAft", "fittings/cleat.glb", Vector3(-2.68, DECK_Y, 11.6), 90.0, false],
 ]
@@ -100,6 +118,7 @@ const FITTINGS := "res://art/models/ship/fittings/"
 const RIGGING := "res://art/models/ship/rigging/"
 const HULL_PARTS := "res://art/models/ship/hull/"
 const DECK_PARTS := "res://art/models/ship/deck/"
+const CABIN_PARTS := "res://art/models/ship/cabin/"
 const CannonScene := preload("res://props/cannon/cannon.tscn")
 const SailScript := preload("res://props/ship/sail.gd")
 const AHEAD_SPEED := 7.0
@@ -136,6 +155,7 @@ var _roll_rate := 0.0
 
 func _ready() -> void:
 	_build()
+	_build_quarterdeck()
 	_build_helm()
 	_build_mast()
 	_build_top_rail()
@@ -193,10 +213,11 @@ func can_board(who: Node3D) -> bool:
 	return _hull_distance(local) <= BOARD_MARGIN
 
 
-## True when he is on the weather deck and within reach of the wheel.
+## True when he is up on the quarterdeck and within reach of the wheel. The height matters:
+## the cabin under the wheel is closed, but the gangway beside it is on the weather deck.
 func can_helm(who: Node3D) -> bool:
 	var local := to_local(who.global_position)
-	if not _on_deck(local):
+	if not _on_deck(local) or local.y < HELM_AT.y - 0.6:
 		return false
 	return Vector2(local.x - HELM_AT.x, local.z - HELM_AT.z).length() <= HELM_REACH
 
@@ -329,7 +350,7 @@ func board(who: Node3D) -> void:
 
 
 func _on_deck(local: Vector3) -> bool:
-	return local.y > DECK_Y - 0.6 and absf(local.x) <= BEAM * 0.5 and local.z >= 0.0 and local.z <= LENGTH
+	return local.y > DECK_Y - 0.6 and absf(local.x) <= BEAM * 0.5 and local.z >= 0.0 and local.z <= STERN_Z
 
 
 ## Metres from the hull's rectangular outline. Zero when he is inside it.
@@ -364,16 +385,78 @@ func _build() -> void:
 		if mesh_node.mesh == null:
 			continue
 		_toon(mesh_node)
-		# The deck and the stairs are part of the mesh. A box would fill the hatch.
-		# Skip when one is already there: a tool script's _ready runs again on reload, and a
-		# second body would stack on the first.
+	# The deck and the stairs are part of the mesh. A box would fill the hatch.
+	_walkable(model)
+
+
+## Collision that follows the meshes under `node` exactly, for anything walked on or up: a box
+## would fill the hatch, the stairs' steps and the rail around the quarterdeck. Skips a mesh
+## that already has one: a tool script's _ready runs again on reload, and a second body would
+## stack on the first.
+func _walkable(node: Node3D) -> void:
+	for child in _descendants(node):
+		if not (child is MeshInstance3D) or (child as MeshInstance3D).mesh == null:
+			continue
+		var mesh_node := child as MeshInstance3D
 		var blocked := false
-		for child in mesh_node.get_children():
-			if child is StaticBody3D:
+		for grandchild in mesh_node.get_children():
+			if grandchild is StaticBody3D:
 				blocked = true
 				break
 		if not blocked:
 			mesh_node.create_trimesh_collision()
+
+
+## The stern cabin and the stairs up to its roof, the quarterdeck. The cabin is Tripo's whole
+## cabin (art/models/ship/cabin/cabin_house.glb): the separate wall parts have no common bay
+## and do not close a room. Its door is part of the mesh and stays shut; the roof, its rails
+## and the stairs collide exactly, so the captain can walk up and round the wheel. Where a
+## model is missing, a plain block and a ramp of the same size stand in.
+func _build_quarterdeck() -> void:
+	if get_node_or_null("Quarterdeck") != null:
+		return
+	var quarterdeck := Node3D.new()
+	quarterdeck.name = "Quarterdeck"
+	add_child(quarterdeck)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+
+	var cabin := Node3D.new()
+	cabin.name = "Cabin"
+	cabin.position = CABIN_AT
+	quarterdeck.add_child(cabin)
+	if _fit_model(cabin, CABIN_PARTS + "cabin_house.glb"):
+		_walkable(cabin)
+	else:
+		_box(cabin, Vector3(0.0, 1.3, 0.0), Vector3(3.6, 2.6, 5.2), timber)
+		_solid(cabin)
+
+	# The model's origin is its foot on the centreline; it climbs 2.6 m toward +Z.
+	var stairs := Node3D.new()
+	stairs.name = "Stairs"
+	stairs.position = QUARTERDECK_STAIRS_AT
+	quarterdeck.add_child(stairs)
+	if _fit_model(stairs, DECK_PARTS + "stairs_260.glb"):
+		_walkable(stairs)
+		# On the outboard edge, rising with the treads to the cabin's corner post. It does not
+		# collide: half of it stands over the treads, and the 1 m stair is only just wide
+		# enough for the captain as it is.
+		var rail := Node3D.new()
+		rail.name = "Rail"
+		rail.position = Vector3(-0.5, 0.0, 0.0)
+		stairs.add_child(rail)
+		_fit_model(rail, DECK_PARTS + "rail_stair.glb")
+	else:
+		var run := Vector2(3.25, 2.6)
+		var ramp := _box(stairs, Vector3(0.0, run.y * 0.5, run.x * 0.5), Vector3(1.0, 0.1, run.length()), timber)
+		ramp.rotation.x = -atan2(run.y, run.x)
+		var body := StaticBody3D.new()
+		var shape := CollisionShape3D.new()
+		var slab := BoxShape3D.new()
+		slab.size = Vector3(1.0, 0.1, run.length())
+		shape.shape = slab
+		shape.transform = ramp.transform
+		body.add_child(shape)
+		stairs.add_child(body)
 
 
 ## The flat toon pass the whole ship shares: no specular, no metal, full roughness. Each
@@ -655,7 +738,7 @@ func _build_rudder() -> void:
 ## The F05 capstan model, or a drum and two bars inside the kit's capstan box.
 ## The node is named Capstan and sits on CAPSTAN_AT so the swap is a mesh, not a new place.
 ## Only the drum collides. The bars are the working radius, and a solid box that wide would
-## close the path from the hatch to the wheel.
+## close the gun deck's walk between the guns.
 func _build_capstan() -> void:
 	if get_node_or_null("Capstan") != null:
 		return
@@ -829,6 +912,13 @@ func _build_sail() -> void:
 	var sail := SailScript.new() as Node3D
 	sail.name = "Sail"
 	sail.call("pin_foot", false)
+	# The foot hangs free, and a breeze from astern swings it back over the quarterdeck's
+	# forward edge. The cloth drapes on the cabin instead of hanging through it.
+	var cabin := get_node_or_null("Quarterdeck/Cabin") as Node3D
+	if cabin != null:
+		var box := _mesh_bounds(cabin)
+		box.position += cabin.position
+		sail.call("keep_out", box.grow(0.05))
 	add_child(sail)
 	if get_node_or_null("Foremast") == null or get_node_or_null("Bowsprit") == null:
 		return

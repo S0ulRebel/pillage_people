@@ -297,9 +297,9 @@
       }
     },
     {
-      "file": "cabin_assembled_preview.glb",
+      "file": "cabin_house.glb",
       "id": "C00",
-      "name": "Assembled cabin (preview)",
+      "name": "Stern cabin, whole (roof is the quarterdeck)",
       "nodes": [
         {
           "name": "cabin",
@@ -329,18 +329,31 @@
       ],
       "align": {
         "method": "flat",
-        "turns": 0
+        "turns": 3,
+        "then": [
+          [
+            "x",
+            -1.43
+          ]
+        ]
       },
       "size": {
         "axis": "y",
-        "metres": 3.4
+        "metres": 3.482
       },
       "origin": {
         "x": "mid",
         "y": "min",
         "z": "mid"
       },
-      "notes": "Tripo's own assembled cabin, kept whole as a stand-in. Its walls do not share the modular parts' 2.42 m height."
+      "notes": "Tripo's own assembled cabin, used whole because the separate wall parts do not close a cabin: their widths (door wall 2.44, window wall 2.79, transom 4.46 m) have no common bay. Turned so its door faces the bow (-Z), and scaled so its roof - the walkable quarterdeck, inside a rail - is exactly 2.6 m up, the kit's deck pitch, where STAIRS_260 arrives. Its steep built-in stairs are cut away.",
+      "cut": {
+        "axis": "z",
+        "drop_below_fraction": 0.2,
+        "by": "any",
+        "what": "built-in stairs",
+        "reason": "Tripo's stairs climb about 2.6 m in 1.1 m (roughly 65 degrees), too steep to walk. The kit's STAIRS_260 (38.7 degrees) replaces them in front of the cabin."
+      }
     }
   ],
   "discard": [

@@ -209,6 +209,29 @@ def origin_of(spec, low, high, marks):
     return point
 
 
+def cut_away(geometry, pieces, spec):
+    """Drop every triangle lying wholly in the first `drop_below_fraction` of the part's extent
+    along `axis`. For a piece Tripo fused onto a part - a cabin's stairs - that is not a
+    separate shell and so cannot be claimed away. With "by": "any" a triangle goes when any
+    corner is in that zone, which also takes long stringers reaching back into the part.
+    Returns how many triangles went."""
+    axis = AXES[spec['axis']]
+    every = np.concatenate([g[1] for g in geometry])
+    limit = every[:, axis].min() + spec['drop_below_fraction'] * np.ptp(every[:, axis])
+    removed = 0
+    for index, g in enumerate(geometry):
+        if spec.get('by') == 'any':
+            keep = ~(g[1][g[4]][:, :, axis] < limit).any(axis=1)
+        else:
+            keep = ~(g[1][g[4]][:, :, axis] < limit).all(axis=1)
+        removed += int((~keep).sum())
+        used, local = np.unique(g[4][keep], return_inverse=True)
+        g[1], g[2], g[4] = g[1][used], g[2][used], local.reshape(-1, 3)
+        uv, _ = pieces[index]
+        pieces[index] = (uv[used], g[4])
+    return removed
+
+
 def stretch_zones(geometry, spec):
     """Lengthen a part along one axis by stretching only the listed zones - fractions of its
     length, measured from the low end - all by the same factor, so a taper stays a taper.
@@ -585,6 +608,10 @@ def main():
                 # Stack a node on another, e.g. roof panels Tripo left floating over their frame.
                 under = next(h for h in geometry if h[0] == node['rest_on'])
                 g[1] = g[1] + [0.0, under[1][:, 1].max() - g[1][:, 1].min(), 0.0]
+        if 'cut' in output:
+            removed = cut_away(geometry, pieces, output['cut'])
+            discarded.append({'what': f"{output['file']}: {output['cut']['what']}",
+                              'reason': output['cut']['reason'], 'triangles': removed})
         if 'stretch' in output:
             (stretch_zones if 'zones' in output['stretch'] else stretch_middle)(geometry, output['stretch'])
         pitch = shear_to_slope(geometry, output['shear']) if 'shear' in output else None

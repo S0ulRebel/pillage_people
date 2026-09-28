@@ -47,26 +47,29 @@ func _run() -> void:
 	for path in ["Helm", "Capstan", "Foremast", "Bowsprit", "Rudder", "Rudder/Hinges",
 			"Mast/Lower", "Mast/Topmast", "Mast/Top", "Mast/Yard", "Mast/TopsailYard",
 			"Mast/TopsailFoot", "DeckFittings/Binnacle", "DeckFittings/MastCollar",
-			"DeckFittings/ForemastCollar", "DeckFittings/SternLantern"]:
+			"DeckFittings/ForemastCollar", "DeckFittings/SternLantern", "Quarterdeck/Cabin",
+			"Quarterdeck/Stairs", "Quarterdeck/Stairs/Rail"]:
 		var slot := ship.get_node_or_null(path)
 		check(slot != null and slot.get_node_or_null("Model") != null,
 				"%s has no model - its .glb is missing and the placeholder was built instead" % path)
 
-	# Deck fittings stand ON the weather deck: not hovering, not sunk into the slab.
-	for path in ["Helm", "Capstan", "DeckFittings/Binnacle", "DeckFittings/MastCollar"]:
+	# Fittings stand ON their deck: not hovering, not sunk into the slab. The wheel and the
+	# binnacle are up on the quarterdeck, the capstan down on the gun deck.
+	var decks := {"Helm": Ship.QUARTERDECK_Y, "Capstan": Ship.GUN_DECK_Y,
+			"DeckFittings/Binnacle": Ship.QUARTERDECK_Y, "DeckFittings/MastCollar": Ship.DECK_Y,
+			"Quarterdeck/Cabin": Ship.DECK_Y, "Quarterdeck/Stairs": Ship.DECK_Y}
+	for path in decks:
 		var box := _bounds(ship, ship.get_node_or_null(path))
-		check(absf(box.position.y - Ship.DECK_Y) <= TOLERANCE,
-				"%s's foot is at %.3f, the deck is at %.2f" % [path, box.position.y, Ship.DECK_Y])
+		check(absf(box.position.y - decks[path]) <= TOLERANCE,
+				"%s's foot is at %.3f, its deck is at %.2f" % [path, box.position.y, decks[path]])
 
 	# The helmsman stands aft of the wheel: the whole helm must be forward of his feet, and
-	# the binnacle forward of the helm and clear of the capstan's bars.
+	# the binnacle forward of the helm.
 	var helm := _bounds(ship, ship.get_node_or_null("Helm"))
 	check(helm.end.z < Ship.HELM_FEET.z, "the helm reaches %.2f, past the helmsman's feet at %.2f"
 			% [helm.end.z, Ship.HELM_FEET.z])
 	var binnacle := _bounds(ship, ship.get_node_or_null("DeckFittings/Binnacle"))
-	var capstan := _bounds(ship, ship.get_node_or_null("Capstan"))
-	check(not binnacle.intersects(helm) and not binnacle.intersects(capstan),
-			"the binnacle overlaps the helm or the capstan's bars")
+	check(not binnacle.intersects(helm), "the binnacle overlaps the helm")
 
 	# The masts: the lower mast's head is where the topmast's heel sits, 5.5 m up, and the
 	# topmast ends 3 m above that - the lengths ship.gd's sails and ropes are rigged to.
@@ -124,6 +127,8 @@ func _run() -> void:
 	_check_deck_props(ship)
 	_check_catheads(ship)
 	_check_beams(ship)
+	_check_quarterdeck(ship)
+	await _check_course_clears_cabin(ship)
 
 	# The hull carries the plank texture: its wood material has a texture, not a flat colour.
 	var textured := false
@@ -137,7 +142,7 @@ func _run() -> void:
 	_finish()
 
 
-## Everything standing on the weather deck: on it, on solid planks, and out of each other's way.
+## Everything standing on a deck: on it, on solid planks, and out of each other's way.
 func _check_deck_props(ship: Node3D) -> void:
 	var standing := {}
 	for entry in Ship.DECK_PROPS:
@@ -147,11 +152,19 @@ func _check_deck_props(ship: Node3D) -> void:
 		if node == null:
 			continue
 		var box := _bounds(ship, node.get_node_or_null("Model"))
-		check(absf(box.position.y - Ship.DECK_Y) <= TOLERANCE,
-				"%s's foot is at %.3f, the deck is at %.2f" % [path, box.position.y, Ship.DECK_Y])
+		var deck: float = (entry[2] as Vector3).y
+		check(absf(box.position.y - deck) <= TOLERANCE,
+				"%s's foot is at %.3f, its deck is at %.2f" % [path, box.position.y, deck])
 		standing[path] = box
-	for path in ["Helm", "Capstan", "DeckFittings/Binnacle", "DeckFittings/MastCollar", "DeckFittings/ForemastCollar"]:
+	for path in ["Helm", "Capstan", "DeckFittings/Binnacle", "DeckFittings/MastCollar",
+			"DeckFittings/ForemastCollar", "Quarterdeck/Stairs"]:
 		standing[path] = _bounds(ship, ship.get_node_or_null(path))
+	# Nothing on the weather deck stands in the cabin; the stairs land in its front on purpose.
+	var cabin := _bounds(ship, ship.get_node_or_null("Quarterdeck/Cabin"))
+	for path in standing:
+		var box: AABB = standing[path]
+		if path != "Quarterdeck/Stairs" and box.position.y < Ship.DECK_Y + 0.5:
+			check(not box.intersects(cabin), "%s stands in the stern cabin" % path)
 
 	var hatch := ship.get_node_or_null("DeckFittings/Hatch") as Node3D
 	if hatch != null:
@@ -170,23 +183,28 @@ func _check_deck_props(ship: Node3D) -> void:
 			check(not a.intersects(standing[names[j]]), "%s and %s overlap" % [names[i], names[j]])
 
 	# On solid planks: a short ray down just inside each corner of the footprint must meet the
-	# deck at DECK_Y. Over the stair shaft it would fall to the stairs, and outboard of the
-	# bulwark it would meet nothing - or the bulwark - instead.
+	# deck the fitting stands on. Over the stair shaft it would fall to the stairs, outboard of
+	# the bulwark it would meet nothing - or the bulwark - and off the quarterdeck's edge it
+	# would drop to the weather deck.
 	var space := ship.get_world_3d().direct_space_state
+	var footing := {}
 	for entry in Ship.DECK_PROPS:
-		var path: String = "DeckFittings/" + entry[0]
+		footing["DeckFittings/" + entry[0]] = (entry[2] as Vector3).y
+	footing["Helm"] = Ship.QUARTERDECK_Y
+	footing["DeckFittings/Binnacle"] = Ship.QUARTERDECK_Y
+	footing["Capstan"] = Ship.GUN_DECK_Y
+	for path in footing:
 		if not standing.has(path):
 			continue
 		var box: AABB = standing[path]
+		var deck: float = footing[path]
 		for corner in [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)]:
 			var x := lerpf(box.position.x + 0.05, box.end.x - 0.05, corner.x)
 			var z := lerpf(box.position.z + 0.05, box.end.z - 0.05, corner.y)
-			var from := ship.to_global(Vector3(x, Ship.DECK_Y + 0.03, z))
-			var to := ship.to_global(Vector3(x, Ship.DECK_Y - 0.3, z))
-			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, to))
+			var hit := _ray_down(ship, Vector3(x, deck + 0.03, z), 0.33)
 			var y := ship.to_local(hit.position).y if not hit.is_empty() else -INF
-			check(absf(y - Ship.DECK_Y) <= 0.05,
-					"%s's corner at (%.2f, %.2f) is not over the deck (ray met %.2f)" % [path, x, z, y])
+			check(absf(y - deck) <= 0.05,
+					"%s's corner at (%.2f, %.2f) is not over its deck (ray met %.2f)" % [path, x, z, y])
 
 
 ## A cathead on each bow with its anchor hanging clear: outboard of the hull, above the water.
@@ -234,6 +252,134 @@ func _check_beams(ship: Node3D) -> void:
 						lowest = minf(lowest, p.y)
 		check(lowest >= Ship.GUN_DECK_Y + 1.95,
 				"%s comes down to %.2f over the gun deck's middle; the captain is 1.9 m tall" % [beam.name, lowest])
+
+
+## The stern cabin and its roof, the quarterdeck: inside the bulwarks, level, reached by the
+## stairs, and holding the wheel with room for the helmsman behind it.
+func _check_quarterdeck(ship: Node3D) -> void:
+	var cabin_node := ship.get_node_or_null("Quarterdeck/Cabin") as Node3D
+	var stairs_node := ship.get_node_or_null("Quarterdeck/Stairs") as Node3D
+	if cabin_node == null or stairs_node == null:
+		check(false, "the quarterdeck is missing")
+		return
+	var space := ship.get_world_3d().direct_space_state
+	var cabin := _bounds(ship, cabin_node)
+
+	# Inside the bulwarks: level by level up to the rail, the hull's side is further out than
+	# the cabin's. The stern narrows, so this is what decides how far aft the cabin can go.
+	var own: Array[RID] = []
+	for body in ship.get_node("Quarterdeck").find_children("*", "StaticBody3D", true, false):
+		own.append((body as StaticBody3D).get_rid())
+	var widest := {}
+	var to_ship := ship.global_transform.affine_inverse()
+	for m in cabin_node.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := m as MeshInstance3D
+		for surface in mesh_node.mesh.get_surface_count():
+			for v in mesh_node.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
+				var p: Vector3 = to_ship * mesh_node.global_transform * v
+				if p.y < Ship.DECK_Y + 0.8:
+					var slot := int(floor(p.z / 0.1))
+					widest[slot] = maxf(widest.get(slot, 0.0), absf(p.x))
+	for slot in widest:
+		var z := (float(slot) + 0.5) * 0.1
+		for side in [-1.0, 1.0]:
+			var query := PhysicsRayQueryParameters3D.create(ship.to_global(Vector3(0.0, Ship.DECK_Y + 0.3, z)),
+					ship.to_global(Vector3(side * 3.5, Ship.DECK_Y + 0.3, z)))
+			query.exclude = own
+			var hit := space.intersect_ray(query)
+			var wall := absf(ship.to_local(hit.position).x) if not hit.is_empty() else INF
+			check(wall > widest[slot], "the cabin reaches %.2f out at z %.1f, through the hull's side at %.2f"
+					% [widest[slot], z, wall])
+
+	# The roof is level and walkable: every sample inside its rails is at the quarterdeck's
+	# height, apart from the fittings standing on it.
+	var fittings: Array[AABB] = []
+	for path in ["Helm", "DeckFittings/Binnacle", "DeckFittings/CoilQuarterdeck", "DeckFittings/BreastRail"]:
+		fittings.append(_bounds(ship, ship.get_node_or_null(path)))
+	for i in 9:
+		for j in 14:
+			var at := Vector3(-1.2 + 0.3 * i, Ship.QUARTERDECK_Y + 1.5, 10.8 + 0.28 * j)
+			var covered := false
+			for box in fittings:
+				covered = covered or (at.x > box.position.x - 0.05 and at.x < box.end.x + 0.05
+						and at.z > box.position.z - 0.05 and at.z < box.end.z + 0.05)
+			if covered:
+				continue
+			var hit := _ray_down(ship, at, 2.5)
+			var y := ship.to_local(hit.position).y if not hit.is_empty() else -INF
+			check(absf(y - Ship.QUARTERDECK_Y) <= 0.06,
+					"the quarterdeck at (%.1f, %.1f) is at %.2f, not %.2f" % [at.x, at.z, y, Ship.QUARTERDECK_Y])
+
+	# Up the stairs and aft to the wheel's side: no step higher than the captain's step, and
+	# his body - 0.35 m round, 1.9 m tall - fits all the way, lifted by one step for the stairs.
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.33
+	capsule.height = 1.9
+	var body := PhysicsShapeQueryParameters3D.new()
+	body.shape = capsule
+	var x := Ship.QUARTERDECK_STAIRS_AT.x
+	var last := Ship.DECK_Y
+	var z := Ship.QUARTERDECK_STAIRS_AT.z - 1.0
+	while z <= Ship.HELM_FEET.z:
+		var hit := _ray_down(ship, Vector3(x, Ship.QUARTERDECK_Y + 2.5, z), 5.5)
+		var y := ship.to_local(hit.position).y if not hit.is_empty() else -INF
+		check(y - last <= 0.35 and y - last >= -0.35,
+				"the way up to the quarterdeck jumps from %.2f to %.2f at z %.2f" % [last, y, z])
+		body.transform = Transform3D(ship.global_basis, ship.to_global(Vector3(x, y + 0.35 + 0.95, z)))
+		var blocked := space.intersect_shape(body, 1)
+		check(blocked.is_empty(), "the captain does not fit on the way up at z %.2f (height %.2f)" % [z, y])
+		last = y
+		z += 0.05
+	check(absf(last - Ship.QUARTERDECK_Y) <= 0.06, "the stairs do not reach the quarterdeck (%.2f)" % last)
+
+	# The helmsman's spot: on the roof, and room for him between the wheel and the stern rail.
+	var feet := _ray_down(ship, Ship.HELM_FEET + Vector3(0.0, 0.5, 0.0), 1.0)
+	check(not feet.is_empty() and absf(ship.to_local(feet.position).y - Ship.QUARTERDECK_Y) <= 0.06,
+			"the helmsman's feet are not on the quarterdeck")
+	body.transform = Transform3D(ship.global_basis, ship.to_global(Ship.HELM_FEET + Vector3(0.0, 0.05 + 0.95, 0.0)))
+	check(space.intersect_shape(body, 1).is_empty(), "the helmsman does not fit behind the wheel")
+	check(Ship.HELM_AT.x > cabin.position.x and Ship.HELM_AT.x < cabin.end.x
+			and Ship.HELM_AT.z > cabin.position.z and Ship.HELM_AT.z < cabin.end.z, "the wheel is not over the cabin")
+
+	# The wheel answers from the quarterdeck only, not from the weather deck under it.
+	var probe := Node3D.new()
+	ship.add_child(probe)
+	probe.position = Ship.HELM_FEET + Vector3(0.0, 0.1, 0.0)
+	check(ship.can_helm(probe), "the helmsman's spot is out of the wheel's reach")
+	probe.position = Vector3(Ship.HELM_AT.x, Ship.DECK_Y + 0.1, Ship.HELM_AT.z)
+	check(not ship.can_helm(probe), "the wheel answers from the deck under the quarterdeck")
+	probe.free()
+
+
+## The course's foot hangs free. With the breeze from dead astern it swings back over the
+## quarterdeck; the cloth must drape on the cabin, never hang inside it.
+func _check_course_clears_cabin(ship: Node3D) -> void:
+	var wind := ship.get_tree().get_first_node_in_group("wind")
+	var sail := ship.get_node_or_null("Sail")
+	var cabin_node := ship.get_node_or_null("Quarterdeck/Cabin") as Node3D
+	if wind == null or sail == null or cabin_node == null:
+		check(false, "no wind, course or cabin to test the course against")
+		return
+	var aft := ship.global_basis.z
+	for i in 240:
+		wind.set("_angle", atan2(aft.x, aft.z))
+		await physics_frame
+	var cabin := _bounds(ship, cabin_node).grow(-0.01)
+	var inside := 0
+	var reach := -INF
+	for p in sail.get("_pos") as PackedVector3Array:
+		reach = maxf(reach, p.z)
+		if cabin.has_point(p):
+			inside += 1
+	check(reach > cabin.position.z, "the test wind never swung the course back to the cabin (reached z %.2f)" % reach)
+	check(inside == 0, "%d points of the course hang inside the stern cabin" % inside)
+
+
+## A ray straight down in ship space from `from`, `length` long.
+func _ray_down(ship: Node3D, from: Vector3, length: float) -> Dictionary:
+	var space := ship.get_world_3d().direct_space_state
+	return space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(from),
+			ship.to_global(from - Vector3(0.0, length, 0.0))))
 
 
 ## Axis-aligned bounds, in ship space, of every mesh under `node`.

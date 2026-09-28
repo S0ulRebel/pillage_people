@@ -244,38 +244,38 @@
       "notes": ""
     },
     {
-      "file": "cabin_assembled_preview.glb",
+      "file": "cabin_house.glb",
       "id": "C00",
-      "name": "Assembled cabin (preview)",
+      "name": "Stern cabin, whole (roof is the quarterdeck)",
       "nodes": [
         "cabin"
       ],
-      "triangles": 6877,
+      "triangles": 6725,
       "bounds_min_m": [
-        -3.2078,
+        -1.8979,
         0.0,
-        -1.7989
+        -2.6877
       ],
       "bounds_max_m": [
-        3.2078,
-        3.4,
-        1.7989
+        1.8979,
+        3.482,
+        2.6877
       ],
       "size_m": [
-        6.4155,
-        3.4,
-        3.5978
+        3.7958,
+        3.482,
+        5.3754
       ],
-      "scale_from_sheet": 20.4602,
+      "scale_from_sheet": 21.5863,
       "origin": {
         "x": "mid",
         "y": "min",
         "z": "mid"
       },
       "texture_px": 4096,
-      "texel_density_px_per_m": 134.9,
+      "texel_density_px_per_m": 128.0,
       "uv_in_unit_square": true,
-      "notes": "Tripo's own assembled cabin, kept whole as a stand-in. Its walls do not share the modular parts' 2.42 m height."
+      "notes": "Tripo's own assembled cabin, used whole because the separate wall parts do not close a cabin: their widths (door wall 2.44, window wall 2.79, transom 4.46 m) have no common bay. Turned so its door faces the bow (-Z), and scaled so its roof - the walkable quarterdeck, inside a rail - is exactly 2.6 m up, the kit's deck pitch, where STAIRS_260 arrives. Its steep built-in stairs are cut away."
     }
   ],
   "discarded": [
@@ -293,6 +293,11 @@
       "what": "door-wall threshold block",
       "reason": "Sits across the bottom of the doorway 0.47 m high, so nobody could walk through; the frame already has its own sill.",
       "triangles": 284
+    },
+    {
+      "what": "cabin_house.glb: built-in stairs",
+      "reason": "Tripo's stairs climb about 2.6 m in 1.1 m (roughly 65 degrees), too steep to walk. The kit's STAIRS_260 (38.7 degrees) replaces them in front of the cabin.",
+      "triangles": 152
     }
   ],
   "passed": true,
