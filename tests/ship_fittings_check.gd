@@ -128,6 +128,7 @@ func _run() -> void:
 	_check_catheads(ship)
 	_check_beams(ship)
 	_check_quarterdeck(ship)
+	_check_rail(ship)
 	await _check_course_clears_cabin(ship)
 
 	# The hull carries the plank texture: its wood material has a texture, not a flat colour.
@@ -349,6 +350,76 @@ func _check_quarterdeck(ship: Node3D) -> void:
 	probe.position = Vector3(Ship.HELM_AT.x, Ship.DECK_Y + 0.1, Ship.HELM_AT.z)
 	check(not ship.can_helm(probe), "the wheel answers from the deck under the quarterdeck")
 	probe.free()
+
+
+## The rail that replaced the bulwark: the wall is gone aft of the bow head, the rail is built
+## from the models, every post stands on the hull's edge, and it collides without a gap.
+func _check_rail(ship: Node3D) -> void:
+	var to_ship := ship.global_transform.affine_inverse()
+	var hull_wall := 0
+	for m in ship.get_node("Model").find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := m as MeshInstance3D
+		for surface in mesh_node.mesh.get_surface_count():
+			for v in mesh_node.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
+				var p: Vector3 = to_ship * mesh_node.global_transform * v
+				if p.y > Ship.DECK_Y + 0.01 and p.z > -0.8:
+					hull_wall += 1
+	check(hull_wall == 0, "%d hull vertices still stand above the deck aft of the bow head" % hull_wall)
+
+	var rail := ship.get_node_or_null("Rail")
+	var body := ship.get_node_or_null("Rail/Body") as StaticBody3D
+	check(rail != null and body != null, "the rail is missing")
+	if rail == null or body == null:
+		return
+	var posts := rail.get_node_or_null("Posts") as MultiMeshInstance3D
+	for part in ["Posts", "Handrails", "Bases", "Balusters"]:
+		var node := rail.get_node_or_null(part) as MultiMeshInstance3D
+		var material := null if node == null else node.material_override as BaseMaterial3D
+		check(node != null and node.multimesh.instance_count > 0 and material != null and material.albedo_texture != null,
+				"the rail's %s are missing or built from the placeholder" % part.to_lower())
+	if posts == null:
+		return
+
+	# Every post on the wall top: over the hull at the deck, and the hull's outer edge within
+	# 0.3 m outboard of it (the top is 0.2 m wide along the sides, 0.5 m at the stern's tip). The rays start inside the rail's own collision, which they ignore.
+	var space := ship.get_world_3d().direct_space_state
+	var placed: Array = posts.get_meta("placed", [])
+	var count := placed.size()
+	check(count == posts.multimesh.instance_count, "the rail's posts are not all placed")
+	var centre := Vector3(0.0, Ship.DECK_Y, 7.0)
+	for i in count:
+		var at: Transform3D = placed[i]
+		var out := at.basis.z
+		if out.dot(at.origin - centre) < 0.0:
+			out = -out
+		# 5 cm along the rail: the posts stand on the hull's panel joins, and a ray exactly on the
+		# seam between two triangles can slip through it.
+		var foot := at.origin + at.basis.x * 0.05 + Vector3(0.0, 0.02, 0.0)
+		var under := _ray_down(ship, foot, 0.3)
+		var y := ship.to_local(under.position).y if not under.is_empty() else -INF
+		check(absf(y - Ship.DECK_Y) <= 0.03, "rail post %d at (%.2f, %.2f) is not on the hull (met %.2f)" % [i, at.origin.x, at.origin.z, y])
+		var beyond := _ray_down(ship, foot + out * 0.3, 0.3)
+		check(beyond.is_empty(), "rail post %d at (%.2f, %.2f) stands inboard of the hull's edge" % [i, at.origin.x, at.origin.z])
+
+		# No gap in the collision between this post and the next: a ray across the rail's line
+		# meets the rail's own body all the way along.
+		if i + 1 < count:
+			var next: Vector3 = (placed[i + 1] as Transform3D).origin
+			for k in range(1, 10):
+				var q := at.origin.lerp(next, k / 10.0) + Vector3(0.0, 0.4, 0.0)
+				var query := PhysicsRayQueryParameters3D.create(ship.to_global(q - out * 0.4), ship.to_global(q + out * 0.4))
+				var hit := space.intersect_ray(query)
+				check(not hit.is_empty() and hit.collider == body,
+						"the rail does not collide at (%.2f, %.2f)" % [q.x, q.z])
+
+	# No baluster stands in a cathead's timber.
+	var balusters := rail.get_node_or_null("Balusters") as MultiMeshInstance3D
+	var shape := balusters.multimesh.mesh.get_aabb()
+	for side in ["CatheadStarboard", "CatheadPort"]:
+		var cathead := _bounds(ship, ship.get_node_or_null("DeckFittings/" + side))
+		for at in balusters.get_meta("placed", []):
+			var box := (at as Transform3D) * shape
+			check(not box.intersects(cathead), "a baluster at (%.2f, %.2f) stands in %s" % [box.get_center().x, box.get_center().z, side])
 
 
 ## The course's foot hangs free. With the breeze from dead astern it swings back over the

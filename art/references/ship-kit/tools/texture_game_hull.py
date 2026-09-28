@@ -35,17 +35,23 @@ def primitives(path):
     return out
 
 
-def main():
-    source = primitives(HULL)
-    if len(glb_io.read(HULL)[0]['nodes']) != 1:
-        raise SystemExit(f'{HULL}: expected one node, as the kit writes it')
+def textured(source):
+    """The hull as a .glb: these (material, POSITION bytes, NORMAL bytes) primitives with the
+    kit's plank texture and UVs laid on them."""
     images = {name: texture_kit.texture(name) for name in texture_kit.RECIPES}
     writer, gltf = glb_io.Writer(), texture_kit.new_gltf()
     materials = texture_kit.add_materials(writer, gltf, images, {name for name, _, _ in source})
     gltf['nodes'].append({'name': 'double_deck',
                           'mesh': texture_kit.add_mesh(writer, gltf, 'double_deck', source, materials)})
     gltf['scenes'][0]['nodes'] = [0]
-    data = writer.glb(gltf)
+    return writer.glb(gltf)
+
+
+def main():
+    source = primitives(HULL)
+    if len(glb_io.read(HULL)[0]['nodes']) != 1:
+        raise SystemExit(f'{HULL}: expected one node, as the kit writes it')
+    data = textured(source)
 
     staged = HULL.with_suffix('.textured.tmp')
     staged.write_bytes(data)

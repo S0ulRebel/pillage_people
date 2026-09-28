@@ -75,8 +75,9 @@ const GUN_PORT_Y := GUN_DECK_Y + 1.2
 const CAPSTAN_AT := Vector3(0.0, GUN_DECK_Y, 10.8)
 ## Ahead of the wheel on the quarterdeck, where the helmsman can read it.
 const BINNACLE_AT := Vector3(0.0, QUARTERDECK_Y, 12.15)
-## Top of the stern rail, on the centreline, where the bulged stern reaches aft furthest.
-const LANTERN_AT := Vector3(0.0, 6.0, 16.68)
+## On the aft face of the rail's stern post, on the centreline: the model's origin is the top
+## of its wall plate, and the lantern hangs aft of it, out over the stern.
+const LANTERN_AT := Vector3(0.0, DECK_Y + 0.9, 16.34)
 ## How far the gunport lids stand open, so the guns can run out under them.
 const LID_OPEN_DEGREES := 100.0
 ## Where the bow's catheads sit: the origin is the top of the timber's inboard end, 25 degrees
@@ -110,6 +111,27 @@ const DECK_PROPS := [
 	["CleatStarboardAft", "fittings/cleat.glb", Vector3(2.68, DECK_Y, 11.6), 90.0, false],
 	["CleatPortAft", "fittings/cleat.glb", Vector3(-2.68, DECK_Y, 11.6), 90.0, false],
 ]
+## The rail round the weather deck, which stands where the solid bulwark was (see
+## tools/strip_game_bulwarks.py). The hull's wall now ends at the deck in a flat top 0.2 m
+## wide; this is the centre line of that top, measured off double_deck.glb, as (x, z). It runs
+## down the starboard side from the bow head, which is kept solid because the bowsprit is
+## seated in it, round the stern to the centreline. The port side is its mirror.
+## A post stands on every corner of the hull's panels, and no more than RAIL_SPAN apart along
+## them. The handrail and base are fitted to each span, and balusters are spread along it, so
+## the same parts follow any path.
+const RAIL_PATH := [
+	Vector2(1.132, -0.935), Vector2(2.115, 0.745), Vector2(2.9, 4.0), Vector2(2.9, 6.0),
+	Vector2(2.9, 8.0), Vector2(2.9, 10.0), Vector2(2.9, 12.0), Vector2(2.845, 12.72),
+	Vector2(2.68, 13.45), Vector2(2.41, 14.165), Vector2(2.05, 14.825), Vector2(1.615, 15.39),
+	Vector2(1.11, 15.82), Vector2(0.57, 16.085), Vector2(0.0, 16.18),
+]
+const RAIL_SPAN := 2.0
+## Balusters stand about this far apart, as on Tripo's straight rail.
+const BALUSTER_PITCH := 0.45
+## How far the handrail and base run into the post at each end, so no gap shows at a corner.
+const RAIL_TUCK := 0.03
+## Height of the rail's collision: the handrail's top.
+const RAIL_HEIGHT := 0.81
 ## The mast top's platform floor stands 1.06 m above the model's lowest point; this puts that
 ## floor just above the placeholder's, and the model's collar clear of the course yard at 4.6.
 const MAST_TOP_Y := 4.72
@@ -124,7 +146,7 @@ const SailScript := preload("res://props/ship/sail.gd")
 const AHEAD_SPEED := 7.0
 const ASTERN_SPEED := 3.5
 const YAW_RATE := 0.45
-## Keel to the top of the bulwark. The fraction of this under the surface is the buoyancy.
+## Keel to the top of the rail. The fraction of this under the surface is the buoyancy.
 const HULL_HEIGHT := 6.0
 ## How hard a difference in submersion heels the hull, in radians per second squared.
 const PITCH_RESPONSE := 6.0
@@ -170,6 +192,7 @@ func _ready() -> void:
 	_build_topsail()
 	_build_backstays()
 	_build_deck_fittings()
+	_build_rail()
 
 
 ## Floats broadside to the beach the coastal study picked, close enough to swim to.
@@ -465,12 +488,16 @@ func _toon(mesh_node: MeshInstance3D) -> void:
 	for surface in mesh_node.mesh.get_surface_count():
 		var material := mesh_node.mesh.surface_get_material(surface)
 		if material is BaseMaterial3D:
-			var flat: BaseMaterial3D = material.duplicate()
-			flat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-			flat.metallic = 0.0
-			flat.roughness = 1.0
-			flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-			mesh_node.set_surface_override_material(surface, flat)
+			mesh_node.set_surface_override_material(surface, _toon_copy(material))
+
+
+func _toon_copy(material: BaseMaterial3D) -> BaseMaterial3D:
+	var flat: BaseMaterial3D = material.duplicate()
+	flat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	flat.metallic = 0.0
+	flat.roughness = 1.0
+	flat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	return flat
 
 
 ## Puts the model at `path` under `parent` as a child named Model, toon-shaded like the hull.
@@ -874,6 +901,140 @@ func _build_deck_fittings() -> void:
 		_fit_model(beam, DECK_PARTS + "deck_beam.glb")
 
 
+## The rail along RAIL_PATH, both sides, from the posts, handrail, base and baluster in
+## art/models/ship/deck (rail_post.glb, rail_parts.glb). Each part is drawn as one MultiMesh,
+## so two hundred balusters are one draw call. A baluster that would stand in a cathead's
+## timber is left out. Each span collides as one box the rail's height, so nobody walks off
+## the deck; without the models, plain timber boxes stand in.
+func _build_rail() -> void:
+	if get_node_or_null("Rail") != null:
+		return
+	var rail := Node3D.new()
+	rail.name = "Rail"
+	add_child(rail)
+	var points := _rail_points()
+	var parts := _rail_parts()
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	if parts.is_empty():
+		parts = {"post": _box_mesh(Vector3(0.24, 0.95, 0.24), 0.475), "handrail": _box_mesh(Vector3(1.0, 0.12, 0.14), 0.745),
+				"base": _box_mesh(Vector3(1.0, 0.12, 0.14), 0.06), "baluster": _box_mesh(Vector3(0.08, 0.44, 0.08), 0.38)}
+		for key in parts:
+			(parts[key] as Mesh).surface_set_material(0, timber)
+	var post_width: float = (parts["post"] as Mesh).get_aabb().size.x
+	var rail_length: float = (parts["handrail"] as Mesh).get_aabb().size.x
+
+	# Anything a baluster must not stand in, in ship space.
+	var clear: Array[AABB] = []
+	for name in ["CatheadStarboard", "CatheadPort"]:
+		var cathead := get_node_or_null("DeckFittings/" + name) as Node3D
+		if cathead != null:
+			clear.append(global_transform.affine_inverse() * cathead.global_transform * _mesh_bounds(cathead))
+	var baluster_box: AABB = (parts["baluster"] as Mesh).get_aabb()
+
+	var placed := {"post": [], "handrail": [], "base": [], "baluster": []}
+	var body := StaticBody3D.new()
+	body.name = "Body"
+	rail.add_child(body)
+	for i in points.size():
+		var along := (points[mini(i + 1, points.size() - 1)] - points[maxi(i - 1, 0)]).normalized()
+		placed["post"].append(Transform3D(_along(along), points[i]))
+	for i in points.size() - 1:
+		var a := points[i]
+		var b := points[i + 1]
+		var span := a.distance_to(b)
+		var dir := (b - a) / span
+		var basis := _along(dir)
+		var inner := span - post_width
+		var stretch := Basis(dir * (inner + RAIL_TUCK * 2.0) / rail_length, Vector3.UP, basis.z)
+		placed["handrail"].append(Transform3D(stretch, (a + b) * 0.5))
+		placed["base"].append(Transform3D(stretch, (a + b) * 0.5))
+		var count := maxi(1, roundi(inner / BALUSTER_PITCH))
+		for k in count:
+			var at := a + dir * (post_width * 0.5 + inner * (k + 0.5) / count)
+			var here := Transform3D(basis, at)
+			var blocked := false
+			for box in clear:
+				blocked = blocked or (here * baluster_box).intersects(box)
+			if not blocked:
+				placed["baluster"].append(here)
+		var shape := CollisionShape3D.new()
+		var slab := BoxShape3D.new()
+		slab.size = Vector3(span + 0.2, RAIL_HEIGHT, 0.2)
+		shape.shape = slab
+		shape.transform = Transform3D(basis, (a + b) * 0.5 + Vector3.UP * RAIL_HEIGHT * 0.5)
+		body.add_child(shape)
+
+	for key in ["post", "handrail", "base", "baluster"]:
+		var mesh: Mesh = parts[key]
+		var multi := MultiMesh.new()
+		multi.transform_format = MultiMesh.TRANSFORM_3D
+		multi.mesh = mesh
+		multi.instance_count = placed[key].size()
+		for n in placed[key].size():
+			multi.set_instance_transform(n, placed[key][n])
+		var node := MultiMeshInstance3D.new()
+		node.name = key.capitalize() + "s"
+		node.multimesh = multi
+		# Kept on the node too: without a renderer (headless runs, the tests) the MultiMesh does
+		# not hold its instances' transforms.
+		node.set_meta("placed", placed[key])
+		var material := mesh.surface_get_material(0)
+		if material is BaseMaterial3D:
+			node.material_override = _toon_copy(material)
+		rail.add_child(node)
+
+
+## RAIL_PATH round both sides at deck height, as one line: port from the bow head to the stern,
+## then starboard back to the bow head. Long panels are split so no span is over RAIL_SPAN.
+func _rail_points() -> Array[Vector3]:
+	var corners: Array[Vector3] = []
+	for p in RAIL_PATH:
+		corners.append(Vector3(-p.x, DECK_Y, p.y))
+	for i in range(RAIL_PATH.size() - 2, -1, -1):
+		corners.append(Vector3(RAIL_PATH[i].x, DECK_Y, RAIL_PATH[i].y))
+	var points: Array[Vector3] = [corners[0]]
+	for i in corners.size() - 1:
+		var pieces := ceili(corners[i].distance_to(corners[i + 1]) / RAIL_SPAN - 0.001)
+		for k in range(1, pieces + 1):
+			points.append(corners[i].lerp(corners[i + 1], float(k) / pieces))
+	return points
+
+
+## The rail's meshes by part, or empty when a model is missing.
+func _rail_parts() -> Dictionary:
+	if not ResourceLoader.exists(DECK_PARTS + "rail_parts.glb") or not ResourceLoader.exists(DECK_PARTS + "rail_post.glb"):
+		return {}
+	var parts := {}
+	for file in ["rail_parts.glb", "rail_post.glb"]:
+		var scene := (load(DECK_PARTS + file) as PackedScene).instantiate()
+		for key in ["handrail", "base", "baluster", "post"]:
+			var found := scene.find_child(key, true, false) as MeshInstance3D
+			if found != null and found.mesh != null:
+				parts[key] = found.mesh
+		scene.free()
+	return parts if parts.size() == 4 else {}
+
+
+## Local X along `dir` (flat), Y up.
+func _along(dir: Vector3) -> Basis:
+	var x := Vector3(dir.x, 0.0, dir.z).normalized()
+	return Basis(x, Vector3.UP, x.cross(Vector3.UP))
+
+
+## A box mesh of `size` whose centre stands `lift` above its origin.
+func _box_mesh(size: Vector3, lift: float) -> ArrayMesh:
+	var box := BoxMesh.new()
+	box.size = size
+	var arrays := box.get_mesh_arrays()
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	for i in vertices.size():
+		vertices[i].y += lift
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
 ## Bounds of every mesh under `node`, in `node`'s own space.
 func _mesh_bounds(node: Node3D) -> AABB:
 	var box := AABB()
@@ -989,7 +1150,9 @@ func _build_backstays() -> void:
 	var head_z := MAST_AT.z + 0.35
 	for side in [-1.0, 1.0]:
 		var head := Vector3(side * 0.22, head_y, head_z)
-		var foot := Vector3(side * 2.3, 6.0, 15.2)
+		# On top of the rail post at the stern quarter. The next post aft would take the rope
+		# through the cabin's rail; this one clears it by half a metre.
+		var foot := Vector3(side * 2.41, DECK_Y + 0.95, 14.165)
 		_rope(stays, head, foot, 0.02, rope)
 
 

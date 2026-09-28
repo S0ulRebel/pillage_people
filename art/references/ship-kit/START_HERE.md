@@ -67,12 +67,22 @@ Done so far:
 - The wheel, the binnacle and a rope coil stand on the quarterdeck. The capstan moved to the gun deck under it, because the weather deck there is now the cabin's floor.
 - The course's foot hangs free, so a following wind swings it back over the quarterdeck. The cloth is kept out of the cabin's box and drapes on it.
 
+**The rail:** the solid wall round the weather deck is gone, and a rail stands in its place.
+- `python tools/strip_game_bulwarks.py` takes the top tier off the game hull down to the deck. It keeps the pointed bow head, where the bowsprit is seated. The tier below ends in a flat wall top 0.2 m wide.
+- `python tools/split_rail.py` splits Tripo's straight rail into a handrail, a base rail and one baluster (`deck/rail_parts.glb`).
+- ship.gd lays them along any path, as follows:
+  - a post on each corner, and at most every 2 m;
+  - the handrail and base fitted to each span;
+  - balusters spread about 0.45 m apart.
+- Here the path is the centre line of the hull's wall top, so the rail follows the bow, the sides and the rounded stern exactly. Each span collides as one box.
+
 `python tools/texture_game_hull.py` gives the game's own hull (art/models/ship/double_deck.glb, with its raked bow and bulged stern) the kit's plank texture without moving a vertex. tests/ship_fittings_check.gd fails in any of these cases:
 - a slot falls back to its placeholder;
 - a part sits off its mark;
 - the cabin pokes through the hull;
 - the way up the stairs to the wheel has a step the captain cannot take, or no room for him;
-- the course hangs inside the cabin.
+- the course hangs inside the cabin;
+- a rail post is off the hull's edge, the rail's collision has a gap, or a wall still stands above the deck.
 
 The curved bow and stern rails keep Tripo's curves, which do not follow the kit outlines, so they are not placed on the ship; neither are the separate cabin walls, transom, corners, door, quarterdeck panels and gallery brackets. Each report lists what was dropped and why.
 
