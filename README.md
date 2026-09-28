@@ -353,12 +353,25 @@ The clouds are painted in the sky shader, no textures, in the four shades measur
 `art/references/sky-and-clouds-v1.png`, back to front:
 
 - **The deck** - a flat layer overhead seen in perspective: thin cirrus streaks (`wisps` on
-  the sky material) and a few small puffs, which join into an overcast sheet as the cover rises.
-- **The bank** - heaped domes all round the horizon, tall in stretches and gone in others.
-- **The masses** - seventeen cumulus in three rings: big towers standing on the horizon,
-  middling ones behind and above them, small ones high up. Each is heaps of round lobes lit on
-  their own sun side (the cauliflower), on a flat base with thin streaks along it. They grow in
-  one by one as the cover rises.
+  the sky material), and past about 0.6 cover, puffs that join into an overcast sheet.
+- **The cloudlets** - small flat clouds mid-sky: a few blobs on a streaky base, white top, blue
+  underside, trailing streaks. A few by day, rows of them at the golden hour.
+- **The horizon heaps** - eighteen low cumulus round the sea line, overlapping in runs with gaps.
+- **The masses** - twenty-four cumulus in three rings, towers on the horizon, middling heaps
+  above them, small ones high up. They grow in one by one as the cover rises.
+
+Every cumulus is built by the same recipe, a port of a prototype matched side by side against
+the sheet, following thirteen rules read off it. The rules are written out at the top of
+**THE PAINTED CUMULUS** in `world/sky.gdshader`, and each is commented where it is used. A cloud
+is a path of big blobs (base run, off-centre tower with a bulging sun side, a crown, shoulders
+stepping down), each big blob is a body with a run of medium bumps round its rim, and the
+sun-side bumps carry small leaning scallops: the white band. Every shape is a circle wobbled by
+sines. Lower blobs are in front and darker, the bumps under a blob sit behind it, and a shelf of
+streaks runs under the base. The values come from a diagonal gradient toward the light, in four
+steps. The knobs are in the material's **Cloud Shapes** group: `cloud_detail` (2 all, 1 no
+scallops, 0 big blobs only - the first thing to turn down if a device is slow; the cost on
+iPad has not been measured), `smallest_lobe`, `base_squash`, and the `value_*` numbers for the
+gradient. The clouds' placement and seeds are the two tables near the end of `sky()`.
 
 **The weather is two numbers**, `cloud_cover` (0 clear, about 0.55 the sheet's trade-wind
 cumulus, 1 overcast) and `cloud_storm` (0 fair, 1 the sheet's squall slate). They are global
