@@ -132,7 +132,11 @@ const RAIL_PATH := [
 const RAIL_SPAN := 2.0
 ## How far a rail length runs past a corner into the next, so the outside of the turn closes.
 const RAIL_LAP := 0.04
-## A turn sharper than this, in degrees, gets a post on it: the quarterdeck's front corners.
+## The stair rails stand this far out from the stairs' centre line: 0.1 m outside each edge,
+## so the whole 1 m of tread is clear for the captain, who is 0.7 m across.
+const STAIR_RAIL_OUT := 0.6
+## A turn sharper than this, in degrees, gets a post on it: the quarterdeck's front corners,
+## and the top of each stair rail.
 ## The hull's own corners turn 16 degrees at most, and the rail laps round them.
 const RAIL_CORNER := 30.0
 ## Balusters stand about this far apart, as on Tripo's straight rail.
@@ -473,16 +477,9 @@ func _build_quarterdeck() -> void:
 	stairs.name = "Stairs"
 	stairs.position = QUARTERDECK_STAIRS_AT
 	quarterdeck.add_child(stairs)
+	# Its rails are the rail's own parts, laid up the slope with the quarterdeck's (_rail_legs).
 	if _fit_model(stairs, DECK_PARTS + "stairs_260.glb"):
 		_walkable(stairs)
-		# On the outboard edge, rising with the treads to the cabin's corner post. It does not
-		# collide: half of it stands over the treads, and the 1 m stair is only just wide
-		# enough for the captain as it is.
-		var rail := Node3D.new()
-		rail.name = "Rail"
-		rail.position = Vector3(-0.5, 0.0, 0.0)
-		stairs.add_child(rail)
-		_fit_model(rail, DECK_PARTS + "rail_stair.glb")
 	else:
 		var run := Vector2(3.25, 2.6)
 		var ramp := _box(stairs, Vector3(0.0, run.y * 0.5, run.x * 0.5), Vector3(1.0, 0.1, run.length()), timber)
@@ -1011,22 +1008,28 @@ func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, balu
 	for i in cuts.size() - 1:
 		var from := cuts[i]
 		var to := cuts[i + 1]
-		var mid := _rail_at(line, reach, (from + to) * 0.5)
-		var dir := mid.basis.x
+		var half := (from + to) * 0.5
+		var mid := _rail_at(line, reach, half)
+		# This length's own direction, up a slope as well as along: a length lies within one
+		# panel of the line, so its two ends a hair either side of the middle give it.
+		var along := (_rail_at(line, reach, half + 0.005).origin - _rail_at(line, reach, half - 0.005).origin).normalized()
 		var start := from + (post_width * 0.5 - RAIL_TUCK if posts.has(from) else -RAIL_LAP)
 		var end := to - (post_width * 0.5 - RAIL_TUCK if posts.has(to) else -RAIL_LAP)
 		# Measured along this panel's own line, so a lap past its corner runs straight on.
-		var centre := mid.origin + dir * ((start + end) * 0.5 - (from + to) * 0.5)
+		var centre := mid.origin + along * ((start + end) * 0.5 - half)
 		if end - start > 0.02:
-			var stretch := Basis(dir * (end - start) / rail_length, Vector3.UP, mid.basis.z)
+			# Sheared up a slope, not turned: the profile stays upright, like the balusters.
+			var stretch := Basis(along * (end - start) / rail_length, Vector3.UP, mid.basis.z)
 			placed["handrail"].append(Transform3D(stretch, centre))
 			placed["base"].append(Transform3D(stretch, centre))
 		# Collision runs the whole length, through the posts, so there is no gap at either end.
+		# A box cannot shear, so on a slope it is tilted instead.
 		var shape := CollisionShape3D.new()
 		var slab := BoxShape3D.new()
 		slab.size = Vector3(to - from + 0.1, RAIL_HEIGHT, 0.2)
 		shape.shape = slab
-		shape.transform = Transform3D(mid.basis, mid.origin + Vector3.UP * RAIL_HEIGHT * 0.5)
+		var side := mid.basis.z
+		shape.transform = Transform3D(Basis(along, side.cross(along), side), mid.origin + Vector3.UP * RAIL_HEIGHT * 0.5)
 		body.add_child(shape)
 
 	# Balusters spread evenly between each pair of posts, round the corners with the rail.
@@ -1045,8 +1048,10 @@ func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, balu
 
 ## The rail's lines, each running with the deck on its left so a post's local +Z faces out:
 ## - the weather deck, each side from its knighthead at the bow to the castle's front wall;
-## - the quarterdeck's edge, from the stairs' landing out to the port front corner, round the
-##   stern on the castle's wall top, and back across the front to the landing.
+## - the quarterdeck's: up the stairs' outboard side, across the front to the port corner,
+##   round the stern on the castle's wall top, back across the front to the landing and down
+##   the stairs' inboard side. The stair rails start 0.16 m up from the stairs' foot, so the
+##   inboard post stays clear of the stair opening in the deck below.
 ## A line is split into legs wherever it turns more than RAIL_CORNER, and each leg gets its own
 ## evenly spaced posts, so a square corner always has a post on it.
 func _rail_legs() -> Array:
@@ -1061,14 +1066,17 @@ func _rail_legs() -> Array:
 
 	var edge := CASTLE_FRONT_Z + 0.1
 	var landing := QUARTERDECK_STAIRS_AT.x
-	var top: Array[Vector3] = [Vector3(landing - 0.55, QUARTERDECK_Y, edge), Vector3(-2.9, QUARTERDECK_Y, edge)]
+	var foot := QUARTERDECK_STAIRS_AT.z + 0.16
+	var top: Array[Vector3] = [Vector3(landing - STAIR_RAIL_OUT, DECK_Y, foot),
+			Vector3(landing - STAIR_RAIL_OUT, QUARTERDECK_Y, edge), Vector3(-2.9, QUARTERDECK_Y, edge)]
 	for p in RAIL_PATH:
 		if p.y > edge:
 			top.append(Vector3(-p.x, QUARTERDECK_Y, p.y))
 	for i in range(RAIL_PATH.size() - 2, -1, -1):
 		if RAIL_PATH[i].y > edge:
 			top.append(Vector3(RAIL_PATH[i].x, QUARTERDECK_Y, RAIL_PATH[i].y))
-	top.append_array([Vector3(2.9, QUARTERDECK_Y, edge), Vector3(landing + 0.55, QUARTERDECK_Y, edge)])
+	top.append_array([Vector3(2.9, QUARTERDECK_Y, edge), Vector3(landing + STAIR_RAIL_OUT, QUARTERDECK_Y, edge),
+			Vector3(landing + STAIR_RAIL_OUT, DECK_Y, foot)])
 
 	var legs: Array = []
 	for line in [port, starboard, top]:

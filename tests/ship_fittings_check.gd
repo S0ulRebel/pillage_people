@@ -48,7 +48,7 @@ func _run() -> void:
 			"Mast/Lower", "Mast/Topmast", "Mast/Top", "Mast/Yard", "Mast/TopsailYard",
 			"Mast/TopsailFoot", "DeckFittings/Binnacle", "DeckFittings/MastCollar",
 			"DeckFittings/ForemastCollar", "DeckFittings/SternLantern", "Quarterdeck/Cabin",
-			"Quarterdeck/Stairs", "Quarterdeck/Stairs/Rail"]:
+			"Quarterdeck/Stairs"]:
 		var slot := ship.get_node_or_null(path)
 		check(slot != null and slot.get_node_or_null("Model") != null,
 				"%s has no model - its .glb is missing and the placeholder was built instead" % path)
@@ -305,9 +305,10 @@ func _check_quarterdeck(ship: Node3D) -> void:
 					"the quarterdeck at (%.1f, %.1f) is at %.2f, not %.2f" % [at.x, at.z, y, Ship.QUARTERDECK_Y])
 
 	# Up the stairs and aft to the wheel's side: no step higher than the captain's step, and
-	# his body - 0.35 m round, 1.9 m tall - fits all the way, lifted by one step for the stairs.
+	# his body - 0.35 m round, 1.9 m tall - fits all the way with 2 cm to spare, lifted by one
+	# step for the stairs. Between the stair rails, too.
 	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.33
+	capsule.radius = 0.37
 	capsule.height = 1.9
 	var body := PhysicsShapeQueryParameters3D.new()
 	body.shape = capsule
@@ -392,17 +393,26 @@ func _check_rail(ship: Node3D) -> void:
 		for i in (line as Array).size():
 			var at: Transform3D = line[i]
 			var out := at.basis.z
+			var stair := Ship.QUARTERDECK_STAIRS_AT
+			if at.origin.z < Ship.CASTLE_FRONT_Z + 0.2 and at.origin.z > stair.z and absf(at.origin.x - stair.x) < 0.8:
+				# Up the stairs, to the pair at their head: either side of them, 0.1 m outside the
+				# treads, rising with them.
+				var rise := (at.origin.z - stair.z - 0.16) / (Ship.CASTLE_FRONT_Z + 0.1 - stair.z - 0.16)
+				check(absf(absf(at.origin.x - stair.x) - Ship.STAIR_RAIL_OUT) <= 0.01
+						and absf(at.origin.y - lerpf(Ship.DECK_Y, Ship.QUARTERDECK_Y, rise)) <= 0.01,
+						"stair rail post at (%.2f, %.2f, %.2f) is off the stairs' rail line" % [at.origin.x, at.origin.y, at.origin.z])
 			# 5 cm along the rail: posts stand on the hull's panel joins, and a ray exactly on
 			# the seam between two triangles can slip through it.
-			var foot := at.origin + at.basis.x * 0.05 + Vector3(0.0, 0.02, 0.0)
-			var under := _ray_down(ship, foot, 0.3)
-			var y := ship.to_local(under.position).y if not under.is_empty() else -INF
-			check(absf(y - at.origin.y) <= 0.03, "rail post at (%.2f, %.2f) is not on the hull (met %.2f)" % [at.origin.x, at.origin.z, y])
-			var past := foot + out * 0.3
-			var down := PhysicsRayQueryParameters3D.create(ship.to_global(past), ship.to_global(past - Vector3(0.0, 0.3, 0.0)))
-			down.exclude = stairs
-			var beyond := space.intersect_ray(down)
-			check(beyond.is_empty(), "rail post at (%.2f, %.2f) stands inboard of the edge" % [at.origin.x, at.origin.z])
+			else:
+				var foot := at.origin + at.basis.x * 0.05 + Vector3(0.0, 0.02, 0.0)
+				var under := _ray_down(ship, foot, 0.3)
+				var y := ship.to_local(under.position).y if not under.is_empty() else -INF
+				check(absf(y - at.origin.y) <= 0.03, "rail post at (%.2f, %.2f) is not on the hull (met %.2f)" % [at.origin.x, at.origin.z, y])
+				var past := foot + out * 0.3
+				var down := PhysicsRayQueryParameters3D.create(ship.to_global(past), ship.to_global(past - Vector3(0.0, 0.3, 0.0)))
+				down.exclude = stairs
+				var beyond := space.intersect_ray(down)
+				check(beyond.is_empty(), "rail post at (%.2f, %.2f) stands inboard of the edge" % [at.origin.x, at.origin.z])
 			if i + 1 == (line as Array).size():
 				continue
 			var next: Vector3 = (line[i + 1] as Transform3D).origin

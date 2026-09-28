@@ -63,7 +63,7 @@ Done so far:
 **The stern castle and quarterdeck:**
 - `python tools/build_stern_castle.py` builds the castle from the game hull's own outline (`cabin/stern_castle.glb`). Its walls stand on the hull's outer edge from z 10.4 round the stern, one 2.6 m tier high, facet for facet with the hull below and planked with the same texture. A front wall closes it across the deck, and its roof is the quarterdeck.
 - It replaces Tripo's cabin_house.glb, a 3.8 m box that could not follow a hull that narrows to a point over its last four metres. That model stays in `cabin/` but is not placed.
-- STAIRS_260 (copied to `art/models/ship/deck/stairs_260.glb`) climbs to the quarterdeck on the port side, from just aft of the stair opening. Its rail runs up the outboard edge.
+- STAIRS_260 (copied to `art/models/ship/deck/stairs_260.glb`) climbs to the quarterdeck on the port side, from just aft of the stair opening. A rail runs up each side, laid from the same parts as every other rail. Tripo's sheared stair rail (`deck/rail_stair.glb`) is no longer placed.
 - Tripo's door leaf is on the front wall, shut. The castle has no windows yet.
 - The castle, stairs and hull collide as their exact meshes.
 - The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
@@ -77,7 +77,8 @@ Done so far:
   - between posts, the handrail and base turn the path's corners in straight lengths that lap each other;
   - balusters spread about 0.45 m apart.
 - Here the path is the centre line of the hull's wall top. On the weather deck the rail runs from the bow to the castle's front. The quarterdeck's rail runs on the castle's wall top round the stern, and across its front, leaving a gap where the stairs arrive.
-- A turn sharper than 30 degrees (the quarterdeck's front corners) always gets a post.
+- The stairs' two rails run up the slope and on into the quarterdeck's front rail as one line. On the slope the handrail and base are sheared, not turned, so they stay upright like the balusters. They stand 0.1 m outside the treads, leaving the stairs' full 1 m clear.
+- A turn sharper than 30 degrees (the quarterdeck's front corners, the head of each stair rail) always gets a post.
 - At the bow the rail ends on two knightheads. The bowsprit rests on the deck and passes over the stem between them.
 - Each straight length collides as one box.
 
