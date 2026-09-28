@@ -77,7 +77,7 @@ Done so far:
   - between posts, the handrail and base turn the path's corners in straight lengths that lap each other;
   - balusters spread about 0.45 m apart.
 - Here the path is the centre line of the hull's wall top. On the weather deck the rail runs from the bow to the castle's front. The quarterdeck's rail runs on the castle's wall top round the stern, and across its front, leaving a gap where the stairs arrive.
-- The stairs' two rails run up the slope and on into the quarterdeck's front rail as one line. On the slope the handrail and base are sheared, not turned, so they stay upright like the balusters. They stand 0.1 m outside the treads, leaving the stairs' full 1 m clear.
+- The stairs' two rails run up the slope and on into the quarterdeck's front rail as one line. On the slope the handrail and base are sheared, not turned, so they stay upright like the balusters. They stand 0.1 m outside the treads, leaving the stairs' full 1 m clear. Each has a post only at its foot and its head, with balusters all the way between. Where two legs of rail meet, their corner post stands once.
 - A turn sharper than 30 degrees (the quarterdeck's front corners, the head of each stair rail) always gets a post.
 - At the bow the rail ends on two knightheads. The bowsprit rests on the deck and passes over the stem between them.
 - Each straight length collides as one box.

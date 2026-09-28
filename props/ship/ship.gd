@@ -133,7 +133,8 @@ const RAIL_SPAN := 2.0
 ## How far a rail length runs past a corner into the next, so the outside of the turn closes.
 const RAIL_LAP := 0.04
 ## The stair rails stand this far out from the stairs' centre line: 0.1 m outside each edge,
-## so the whole 1 m of tread is clear for the captain, who is 0.7 m across.
+## so the whole 1 m of tread is clear for the captain, who is 0.7 m across. Each has a post at
+## the foot and one at the head, with balusters all the way between.
 const STAIR_RAIL_OUT := 0.6
 ## A turn sharper than this, in degrees, gets a post on it: the quarterdeck's front corners,
 ## and the top of each stair rail.
@@ -988,12 +989,21 @@ func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, balu
 	var last := line[line.size() - 1]
 	if absf(first.x) > 0.01 and absf(first.x + last.x) < 0.01 and absf(first.z - last.z) < 0.01:
 		bays += bays % 2
+	# A leg that climbs, up the stairs, has a post only at its foot and its head, and
+	# balusters all the way between.
+	if absf(first.y - last.y) > 0.01:
+		bays = 1
 	var posts: Array[float] = []
 	var standing: Array[Transform3D] = []
 	for k in bays + 1:
 		posts.append(length * k / bays)
 		standing.append(_rail_at(line, reach, posts[k]))
-	placed["post"].append_array(standing)
+		# Where two legs meet they share the corner's post: stand it once.
+		var shared := false
+		for other in placed["post"]:
+			shared = shared or (other as Transform3D).origin.distance_to(standing[k].origin) < 0.001
+		if not shared:
+			placed["post"].append(standing[k])
 
 	# The rail in straight lengths, one per hull panel between posts: cut at every post and
 	# every corner. Into a post it stops just inside it; past a corner it laps the next length.
@@ -1004,6 +1014,14 @@ func _lay_rail(line: Array[Vector3], post_width: float, rail_length: float, balu
 			near = near or absf(s - reach[i]) < 0.05
 		if not near:
 			cuts.append(reach[i])
+	cuts.sort()
+	# No length longer than a span, so a long bay between posts is joined, not stretched.
+	var joined: Array[float] = []
+	for i in cuts.size() - 1:
+		var pieces := ceili((cuts[i + 1] - cuts[i]) / RAIL_SPAN - 0.001)
+		for k in range(1, pieces):
+			joined.append(lerpf(cuts[i], cuts[i + 1], float(k) / pieces))
+	cuts.append_array(joined)
 	cuts.sort()
 	for i in cuts.size() - 1:
 		var from := cuts[i]

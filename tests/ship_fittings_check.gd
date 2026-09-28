@@ -384,11 +384,17 @@ func _check_rail(ship: Node3D) -> void:
 	for stair_body in ship.get_node("Quarterdeck/Stairs").find_children("*", "StaticBody3D", true, false):
 		stairs.append((stair_body as StaticBody3D).get_rid())
 	var lines: Array = rail.get_meta("post_lines", [])
-	var total := 0
+	# Legs meeting at a corner both list its post; it stands once.
+	var unique: Array[Vector3] = []
 	for line in lines:
-		total += (line as Array).size()
-	check(lines.size() >= 3 and total == posts.multimesh.instance_count, "the rail's posts are not all placed")
+		for at in line:
+			var here := (at as Transform3D).origin
+			if unique.all(func(p: Vector3) -> bool: return p.distance_to(here) >= 0.001):
+				unique.append(here)
+	check(lines.size() >= 3 and unique.size() == posts.multimesh.instance_count,
+			"%d rail posts placed for %d places; some stand twice or are missing" % [posts.multimesh.instance_count, unique.size()])
 	var gaps: Array[float] = []
+	var stair_posts: Array[Vector3] = []
 	for line in lines:
 		for i in (line as Array).size():
 			var at: Transform3D = line[i]
@@ -397,6 +403,9 @@ func _check_rail(ship: Node3D) -> void:
 			if at.origin.z < Ship.CASTLE_FRONT_Z + 0.2 and at.origin.z > stair.z and absf(at.origin.x - stair.x) < 0.8:
 				# Up the stairs, to the pair at their head: either side of them, 0.1 m outside the
 				# treads, rising with them.
+				var spot := at.origin
+				if stair_posts.all(func(p: Vector3) -> bool: return p.distance_to(spot) >= 0.001):
+					stair_posts.append(spot)
 				var rise := (at.origin.z - stair.z - 0.16) / (Ship.CASTLE_FRONT_Z + 0.1 - stair.z - 0.16)
 				check(absf(absf(at.origin.x - stair.x) - Ship.STAIR_RAIL_OUT) <= 0.01
 						and absf(at.origin.y - lerpf(Ship.DECK_Y, Ship.QUARTERDECK_Y, rise)) <= 0.01,
@@ -416,13 +425,16 @@ func _check_rail(ship: Node3D) -> void:
 			if i + 1 == (line as Array).size():
 				continue
 			var next: Vector3 = (line[i + 1] as Transform3D).origin
-			gaps.append(at.origin.distance_to(next))
+			# Level legs only: a stair rail's one bay runs the whole flight.
+			if absf(next.y - at.origin.y) < 0.01:
+				gaps.append(at.origin.distance_to(next))
 			# No gap in the collision between this post and the next: a ray across the rail's
 			# line meets the rail's own body all the way along.
 			for k in range(1, 10):
 				var q := at.origin.lerp(next, k / 10.0) + Vector3(0.0, 0.4, 0.0)
 				var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(q - out * 0.4), ship.to_global(q + out * 0.4)))
 				check(not hit.is_empty() and hit.collider == body, "the rail does not collide at (%.2f, %.2f)" % [q.x, q.z])
+	check(stair_posts.size() == 4, "%d posts on the stair rails; there should be one at each foot and each head" % stair_posts.size())
 	# Posts spaced alike everywhere, stern as bow: no stretch of the rail crowded with them.
 	if not gaps.is_empty():
 		check(gaps.min() >= 1.0 and gaps.max() <= Ship.RAIL_SPAN + 0.01,
