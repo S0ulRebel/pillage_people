@@ -121,6 +121,10 @@ func _run() -> void:
 			check(absf(absf(frame.position.x + frame.size.x * 0.5) - Ship.BEAM * 0.5) <= 0.3,
 					"%s's frame is not on the hull's side" % port.name)
 
+	_check_deck_props(ship)
+	_check_catheads(ship)
+	_check_beams(ship)
+
 	# The hull carries the plank texture: its wood material has a texture, not a flat colour.
 	var textured := false
 	for node in ship.get_node("Model").find_children("*", "MeshInstance3D", true, false):
@@ -131,6 +135,105 @@ func _run() -> void:
 				textured = true
 	check(textured, "the hull has no plank texture")
 	_finish()
+
+
+## Everything standing on the weather deck: on it, on solid planks, and out of each other's way.
+func _check_deck_props(ship: Node3D) -> void:
+	var standing := {}
+	for entry in Ship.DECK_PROPS:
+		var path: String = "DeckFittings/" + entry[0]
+		var node := ship.get_node_or_null(path) as Node3D
+		check(node != null and node.get_node_or_null("Model") != null, "%s has no model" % path)
+		if node == null:
+			continue
+		var box := _bounds(ship, node.get_node_or_null("Model"))
+		check(absf(box.position.y - Ship.DECK_Y) <= TOLERANCE,
+				"%s's foot is at %.3f, the deck is at %.2f" % [path, box.position.y, Ship.DECK_Y])
+		standing[path] = box
+	for path in ["Helm", "Capstan", "DeckFittings/Binnacle", "DeckFittings/MastCollar", "DeckFittings/ForemastCollar"]:
+		standing[path] = _bounds(ship, ship.get_node_or_null(path))
+
+	var hatch := ship.get_node_or_null("DeckFittings/Hatch") as Node3D
+	if hatch != null:
+		var coaming := _bounds(ship, hatch.get_node_or_null("Model"))
+		var grating := _bounds(ship, hatch.get_node_or_null("Grating"))
+		check(absf(grating.position.y - coaming.end.y) <= TOLERANCE,
+				"the hatch grating is at %.3f, not resting on the coaming's top at %.3f" % [grating.position.y, coaming.end.y])
+
+	# Nothing overlaps anything else, or the stair opening the captain climbs out of.
+	var shaft := AABB(Vector3(-0.55, Ship.DECK_Y, 4.0), Vector3(1.1, 2.0, 3.25))
+	var names := standing.keys()
+	for i in names.size():
+		var a: AABB = standing[names[i]]
+		check(not a.intersects(shaft), "%s stands in the stair opening" % names[i])
+		for j in range(i + 1, names.size()):
+			check(not a.intersects(standing[names[j]]), "%s and %s overlap" % [names[i], names[j]])
+
+	# On solid planks: a short ray down just inside each corner of the footprint must meet the
+	# deck at DECK_Y. Over the stair shaft it would fall to the stairs, and outboard of the
+	# bulwark it would meet nothing - or the bulwark - instead.
+	var space := ship.get_world_3d().direct_space_state
+	for entry in Ship.DECK_PROPS:
+		var path: String = "DeckFittings/" + entry[0]
+		if not standing.has(path):
+			continue
+		var box: AABB = standing[path]
+		for corner in [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)]:
+			var x := lerpf(box.position.x + 0.05, box.end.x - 0.05, corner.x)
+			var z := lerpf(box.position.z + 0.05, box.end.z - 0.05, corner.y)
+			var from := ship.to_global(Vector3(x, Ship.DECK_Y + 0.03, z))
+			var to := ship.to_global(Vector3(x, Ship.DECK_Y - 0.3, z))
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, to))
+			var y := ship.to_local(hit.position).y if not hit.is_empty() else -INF
+			check(absf(y - Ship.DECK_Y) <= 0.05,
+					"%s's corner at (%.2f, %.2f) is not over the deck (ray met %.2f)" % [path, x, z, y])
+
+
+## A cathead on each bow with its anchor hanging clear: outboard of the hull, above the water.
+func _check_catheads(ship: Node3D) -> void:
+	var space := ship.get_world_3d().direct_space_state
+	for side in ["CatheadStarboard", "CatheadPort"]:
+		var path: String = "DeckFittings/" + side
+		var cathead := ship.get_node_or_null(path) as Node3D
+		check(cathead != null and cathead.get_node_or_null("Model") != null, "%s has no model" % path)
+		var anchor: Node3D = null if cathead == null else cathead.get_node_or_null("Anchor") as Node3D
+		check(anchor != null and anchor.get_node_or_null("Model") != null, "%s has no anchor" % path)
+		if anchor == null:
+			continue
+		var box := _bounds(ship, anchor)
+		check(box.position.y > Ship.DRAFT + 0.3,
+				"%s's anchor hangs down to %.2f, into the sea (waterline %.1f)" % [path, box.position.y, Ship.DRAFT])
+		# Outboard of the hull: from the anchor's centre, straight out, there is no more hull.
+		var centre := box.get_center()
+		var out := signf(centre.x)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(
+				ship.to_global(centre), ship.to_global(centre + Vector3(out * 3.0, 0.0, 0.0))))
+		check(hit.is_empty(), "%s's anchor hangs inside the hull" % path)
+
+
+## Beams under the weather deck: against the slab, with headroom under them, none over the stairs.
+func _check_beams(ship: Node3D) -> void:
+	var beams := ship.get_node_or_null("DeckFittings/DeckBeams")
+	check(beams != null and beams.get_child_count() == Ship.DECK_BEAM_Z.size(), "the deck beams are missing")
+	if beams == null:
+		return
+	var to_ship := ship.global_transform.affine_inverse()
+	for beam in beams.get_children():
+		var box := _bounds(ship, beam as Node3D)
+		check(absf(box.end.y - (Ship.DECK_Y - 0.18)) <= TOLERANCE,
+				"%s's top is at %.3f, not under the slab at %.2f" % [beam.name, box.end.y, Ship.DECK_Y - 0.18])
+		check(box.end.z < 4.0 - 0.3 or box.position.z > 7.25 + 0.3, "%s crosses the stair shaft" % beam.name)
+		# Headroom across the middle, where the captain walks: the knees may come lower by the hull.
+		var lowest := INF
+		for m in (beam as Node3D).find_children("*", "MeshInstance3D", true, false):
+			var mesh_node := m as MeshInstance3D
+			for surface in mesh_node.mesh.get_surface_count():
+				for v in mesh_node.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
+					var p: Vector3 = to_ship * mesh_node.global_transform * v
+					if absf(p.x) < 1.2:
+						lowest = minf(lowest, p.y)
+		check(lowest >= Ship.GUN_DECK_Y + 1.95,
+				"%s comes down to %.2f over the gun deck's middle; the captain is 1.9 m tall" % [beam.name, lowest])
 
 
 ## Axis-aligned bounds, in ship space, of every mesh under `node`.

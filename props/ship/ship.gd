@@ -64,6 +64,34 @@ const BINNACLE_AT := Vector3(0.0, DECK_Y, 12.0)
 const LANTERN_AT := Vector3(0.0, 6.0, 16.68)
 ## How far the gunport lids stand open, so the guns can run out under them.
 const LID_OPEN_DEGREES := 100.0
+## Where the bow's catheads sit: the origin is the top of the timber's inboard end, 25 degrees
+## forward of square. That lands the supporter's foot, 1.0 m out and 1.35 m down in the model,
+## on the hull side at z=1.0, and passes the timber through the bulwark at rail height.
+const CATHEAD_AT := Vector3(1.33, 6.0, 1.4)
+const CATHEAD_YAW := 25.0
+## The end of the cathead's fall, in its own space, where the anchor's ring hangs.
+const CATHEAD_FALL := Vector3(1.44, -1.22, 0.0)
+## Under the weather deck, between the gun ports, spanning the 5.6 m inside the hull. None
+## over the stair shaft (z 4 to 7.25): a beam there would meet the head of anyone on the stairs.
+const DECK_BEAM_Z := [8.0, 10.0, 12.0]
+## Weather-deck fittings with no role in play: [node, model, position, yaw, collides].
+## Laid out clear of the masts, the capstan's bar sweep, the helm, the binnacle, the boarding
+## spot and the stair opening (x -0.55 to 0.55, z 4 to 7.25). Cleats and racks sit against the
+## bulwark's inner face, 2.8 m out; the bow narrows, so its fittings stay near the centreline.
+const DECK_PROPS := [
+	["Bitts", "fittings/bollard.glb", Vector3(0.0, DECK_Y, 2.8), 0.0, true],
+	["AnchorCable", "fittings/anchor_cable.glb", Vector3(1.55, DECK_Y, 3.15), 0.0, true],
+	["BowCoil", "rigging/rope_coil.glb", Vector3(-1.55, DECK_Y, 3.15), 0.0, true],
+	["Hatch", "deck/hatch_coaming.glb", Vector3(1.55, DECK_Y, 5.4), 0.0, true],
+	["CleatStarboardFore", "fittings/cleat.glb", Vector3(2.68, DECK_Y, 6.5), 90.0, false],
+	["CleatPortFore", "fittings/cleat.glb", Vector3(-2.68, DECK_Y, 6.5), 90.0, false],
+	["RackStarboard", "fittings/belaying_rack.glb", Vector3(2.68, DECK_Y, 9.0), 90.0, false],
+	["RackPort", "fittings/belaying_rack.glb", Vector3(-2.68, DECK_Y, 9.0), 90.0, false],
+	["CoilStarboard", "rigging/rope_coil.glb", Vector3(2.1, DECK_Y, 10.05), 0.0, true],
+	["CoilPort", "rigging/rope_coil.glb", Vector3(-2.1, DECK_Y, 10.05), 0.0, true],
+	["CleatStarboardAft", "fittings/cleat.glb", Vector3(2.68, DECK_Y, 11.6), 90.0, false],
+	["CleatPortAft", "fittings/cleat.glb", Vector3(-2.68, DECK_Y, 11.6), 90.0, false],
+]
 ## The mast top's platform floor stands 1.06 m above the model's lowest point; this puts that
 ## floor just above the placeholder's, and the model's collar clear of the course yard at 4.6.
 const MAST_TOP_Y := 4.72
@@ -713,6 +741,82 @@ func _build_deck_fittings() -> void:
 				var lid := port.find_child("lid", true, false) as Node3D
 				if lid != null:
 					lid.rotation_degrees.z = LID_OPEN_DEGREES
+
+	for entry in DECK_PROPS:
+		var prop := Node3D.new()
+		prop.name = entry[0]
+		prop.position = entry[2]
+		prop.rotation_degrees.y = entry[3]
+		fittings.add_child(prop)
+		if not _fit_model(prop, "res://art/models/ship/" + entry[1]):
+			continue
+		if prop.name == "Hatch":
+			# The grating rests on the coaming and covers its opening.
+			var top := _mesh_bounds(prop).end.y
+			var grating := Node3D.new()
+			grating.name = "Grating"
+			grating.position = Vector3(0.0, top, 0.0)
+			prop.add_child(grating)
+			_fit_model(grating, FITTINGS + "hatch_grating.glb")
+		if entry[4]:
+			_solid(prop)
+
+	# One cathead on each bow, the anchor hanging from its fall. The port one is the same model
+	# turned the other way rather than mirrored, so its texture and winding stay right.
+	for side in [1.0, -1.0]:
+		var cathead := Node3D.new()
+		cathead.name = "CatheadStarboard" if side > 0.0 else "CatheadPort"
+		cathead.position = Vector3(side * CATHEAD_AT.x, CATHEAD_AT.y, CATHEAD_AT.z)
+		cathead.rotation_degrees.y = CATHEAD_YAW if side > 0.0 else 180.0 - CATHEAD_YAW
+		fittings.add_child(cathead)
+		if _fit_model(cathead, FITTINGS + "cathead.glb"):
+			var anchor := Node3D.new()
+			anchor.name = "Anchor"
+			anchor.position = CATHEAD_FALL
+			# Flukes fore and aft, along the bow, rather than across it into the planking.
+			anchor.rotation_degrees.y = 90.0
+			cathead.add_child(anchor)
+			_fit_model(anchor, FITTINGS + "anchor.glb")
+
+	# Beams under the weather deck, seen from the gun deck. The model's origin is its top
+	# centre, so it hangs from the underside of the 0.18 m slab.
+	var beams := Node3D.new()
+	beams.name = "DeckBeams"
+	fittings.add_child(beams)
+	for z in DECK_BEAM_Z:
+		var beam := Node3D.new()
+		beam.name = "Beam%d" % int(z)
+		beam.position = Vector3(0.0, DECK_Y - 0.18, z)
+		beams.add_child(beam)
+		_fit_model(beam, DECK_PARTS + "deck_beam.glb")
+
+
+## Bounds of every mesh under `node`, in `node`'s own space.
+func _mesh_bounds(node: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	var to_local := node.global_transform.affine_inverse()
+	for child in _descendants(node):
+		if child is MeshInstance3D and (child as MeshInstance3D).mesh != null:
+			var mesh_node := child as MeshInstance3D
+			var here: AABB = to_local * mesh_node.global_transform * mesh_node.mesh.get_aabb()
+			box = here if first else box.merge(here)
+			first = false
+	return box
+
+
+## A box collider the size of the model, so a coil or a hatch cannot be walked through. Taken
+## from the meshes rather than typed in, so it follows the model if the model changes.
+func _solid(node: Node3D) -> void:
+	var box := _mesh_bounds(node)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var cube := BoxShape3D.new()
+	cube.size = box.size
+	shape.shape = cube
+	shape.position = box.get_center()
+	body.add_child(shape)
+	node.add_child(body)
 
 
 ## The course hangs from its yard. The jib runs from the foremast to the bowsprit.
