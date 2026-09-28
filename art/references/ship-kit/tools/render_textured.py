@@ -94,20 +94,30 @@ def load(path):
             'uvs': np.concatenate(uvs), 'tex': np.concatenate(tex), 'textures': textures}
 
 
-def project(points):
-    return np.stack([points @ RIGHT, -(points @ CAM_UP), points @ EYE], axis=-1)
+def camera(eye):
+    """(eye, right, up, light) for an orthographic view from direction `eye`."""
+    eye = unit(eye)
+    right = unit(np.cross([0, 1, 0], eye)) if abs(eye[1]) < 0.99 else unit([1, 0, 0])
+    up = unit(np.cross(eye, right))
+    return eye, right, up, unit(-right * 0.55 + up * 0.9 + eye * 0.6)
 
 
-def extent(mesh):
-    xy = project(mesh['tris'].reshape(-1, 3))[:, :2]
+def project(points, view=None):
+    eye, right, up, _ = view or (EYE, RIGHT, CAM_UP, LIGHT)
+    return np.stack([points @ right, -(points @ up), points @ eye], axis=-1)
+
+
+def extent(mesh, view=None):
+    xy = project(mesh['tris'].reshape(-1, 3), view)[:, :2]
     return xy.min(axis=0), xy.max(axis=0)
 
 
-def render(mesh, size, scale):
+def render(mesh, size, scale, view=None):
     """Toon-shaded, textured, orthographic z-buffer render; transparent background."""
+    eye, _, _, light = view or (EYE, RIGHT, CAM_UP, LIGHT)
     width, height = size[0] * SS, size[1] * SS
-    low, high = extent(mesh)
-    screen = project(mesh['tris'])
+    low, high = extent(mesh, view)
+    screen = project(mesh['tris'], view)
     screen[..., :2] = (screen[..., :2] - (low + high) / 2) * scale * SS + np.array([width, height]) / 2
     depth = np.full((height, width), -np.inf)
     color = np.zeros((height, width, 3), dtype=np.float32)
@@ -140,9 +150,9 @@ def render(mesh, size, scale):
         th, tw = texture.shape[:2]
         texel = texture[((v % 1.0) * th).astype(int) % th, ((u % 1.0) * tw).astype(int) % tw]
         normal = mesh['normals'][index].copy()
-        if normal @ EYE < 0:
+        if normal @ eye < 0:
             normal = -normal
-        lit = float(normal @ LIGHT)
+        lit = float(normal @ light)
         band = 1.0 if lit > 0.55 else 0.86 if lit > 0.15 else 0.7   # three flat toon bands
         color[region][visible] = texel * band
         depth[region][visible] = z[visible]
@@ -165,10 +175,10 @@ def render(mesh, size, scale):
     return Image.fromarray(rgba).resize(size, Image.Resampling.LANCZOS)
 
 
-def fit_scale(meshes, cell, padding=0.03):
+def fit_scale(meshes, cell, padding=0.03, view=None):
     scale = np.inf
     for mesh in meshes:
-        low, high = extent(mesh)
+        low, high = extent(mesh, view)
         span = np.maximum(high - low, 1e-6)
         scale = min(scale, cell[0] * (1 - 2 * padding) / span[0], cell[1] * (1 - 2 * padding) / span[1])
     return scale

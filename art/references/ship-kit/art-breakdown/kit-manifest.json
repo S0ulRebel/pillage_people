@@ -118,7 +118,8 @@
     "part_fit_status_values": {
       "canonical_interface_inherited_art_unverified": "Source interface dimensions are retained; finished geometry and materials remain unmodeled and unverified.",
       "proposed_unmodeled": "New design or connection, with no fit claim.",
-      "canonical_opening_pair_art_unverified": "Original START/END floor interfaces are retained; styling and any added clearance requirements need checking."
+      "canonical_opening_pair_art_unverified": "Original START/END floor interfaces are retained; styling and any added clearance requirements need checking.",
+      "tripo_extracted_unfitted": "Cut from a Tripo sheet model: upright, real size, own texture. Not yet placed on the hull or checked for clearance."
     }
   },
   "materials": {
@@ -737,9 +738,12 @@
         {
           "id": "F01",
           "name": "Cannon barrel",
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "attachment": "F02.trunnion_axis",
-          "notes": "Exactly two opposite lateral trunnions on one axis. Check muzzle and barrel clearance through H05."
+          "notes": "Exactly two opposite lateral trunnions on one axis. Check muzzle and barrel clearance through H05.",
+          "models": [
+            "../../../models/ship/fittings/cannon_barrel.glb"
+          ]
         },
         {
           "id": "F02",
@@ -753,8 +757,12 @@
             "elevating wedge",
             "breeching attachment eyes"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Rest on the actual gun-deck floor; align trunnions with F01 and port clearance."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Rest on the actual gun-deck floor; align trunnions with F01 and port clearance.",
+          "models": [
+            "../../../models/ship/fittings/gun_carriage.glb",
+            "../../../models/ship/fittings/trunnion_caps.glb"
+          ]
         },
         {
           "id": "F03",
@@ -764,8 +772,11 @@
             "pedestal",
             "wheel axle"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Place on a supported accessible deck with operation clearance."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Place on a supported accessible deck with operation clearance.",
+          "models": [
+            "../../../models/ship/fittings/helm.glb"
+          ]
         },
         {
           "id": "F04",
@@ -775,7 +786,10 @@
             "instrument",
             "glazing"
           ],
-          "fit_status": "proposed_unmodeled"
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/fittings/binnacle.glb"
+          ]
         },
         {
           "id": "F05",
@@ -785,8 +799,11 @@
             "base",
             "removable bars"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Reserve actual bar-sweep clearance."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Reserve actual bar-sweep clearance.",
+          "models": [
+            "../../../models/ship/fittings/capstan.glb"
+          ]
         },
         {
           "id": "F06",
@@ -798,8 +815,12 @@
             "tiller connection",
             "fastening hardware"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Both mating hinge halves must be modeled on one vertical axis. The illustration separates blade and sternpost; supply complete pintles/straps on the blade and matching gudgeons on the sternpost. Rudder stock extends to tiller above. Check full swing clearance."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Both mating hinge halves must be modeled on one vertical axis. The illustration separates blade and sternpost; supply complete pintles/straps on the blade and matching gudgeons on the sternpost. Rudder stock extends to tiller above. Check full swing clearance.",
+          "models": [
+            "../../../models/ship/fittings/rudder.glb",
+            "../../../models/ship/fittings/rudder_hinges.glb"
+          ]
         },
         {
           "id": "F07",
@@ -810,8 +831,13 @@
             "anchor cable",
             "support hardware"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Stocked anchor with stock perpendicular to the fluke plane. Independently model supported cathead and its lifting tackle. Anchor cable attaches to ring and routes through hawse to the cable-handling system. Avoid gun and walking clearances."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Stocked anchor with stock perpendicular to the fluke plane. Independently model supported cathead and its lifting tackle. Anchor cable attaches to ring and routes through hawse to the cable-handling system. Avoid gun and walking clearances.",
+          "models": [
+            "../../../models/ship/fittings/anchor.glb",
+            "../../../models/ship/fittings/cathead.glb",
+            "../../../models/ship/fittings/anchor_cable.glb"
+          ]
         },
         {
           "id": "F08",
@@ -822,8 +848,11 @@
             "light source",
             "exterior bracket"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Mount outside the stern on a visible supported bracket with rig and rudder clearance."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Mount outside the stern on a visible supported bracket with rig and rudder clearance.",
+          "models": [
+            "../../../models/ship/fittings/stern_lantern.glb"
+          ]
         },
         {
           "id": "F09",
@@ -832,9 +861,13 @@
             "grating",
             "coaming"
           ],
-          "fit_status": "proposed_unmodeled",
+          "fit_status": "tripo_extracted_unfitted",
           "attachment": "D05.hatch_opening",
-          "notes": "Actual opening below; no solid deck tile beneath the grating."
+          "notes": "Actual opening below; no solid deck tile beneath the grating.",
+          "models": [
+            "../../../models/ship/fittings/hatch_grating.glb",
+            "../../../models/ship/fittings/hatch_coaming.glb"
+          ]
         },
         {
           "id": "F10",
@@ -845,8 +878,13 @@
             "belaying rack",
             "belaying pins"
           ],
-          "fit_status": "proposed_unmodeled",
-          "notes": "Independent fittings with named rope attachments; maintain passage clearance."
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Independent fittings with named rope attachments; maintain passage clearance.",
+          "models": [
+            "../../../models/ship/fittings/belaying_rack.glb",
+            "../../../models/ship/fittings/cleat.glb",
+            "../../../models/ship/fittings/bollard.glb"
+          ]
         }
       ],
       "reference_sheet": "05-working-fittings.png"

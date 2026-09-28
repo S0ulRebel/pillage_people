@@ -44,4 +44,10 @@ The preview sheets are rendered from these same OBJ meshes. Individual overview 
 - `python tools/render_textured.py` renders art-breakdown/01-hull-modules.png and 01b-hull-assembly.png.
 - `python tools/package_art_breakdown.py` runs every check before it writes anything. It refuses a stale validation report or a sheet that no longer matches a fresh render, then writes art-breakdown/package-check.json and art-breakdown.zip.
 
+## Parts cut from Tripo sheets
+
+Tripo, given a whole reference sheet, returns one fused mesh: every part in one object sharing one 4096 texture, each part turned the way the sheet drew it, and the whole sheet squeezed into a 1-unit cube. `python tools/extract_tripo_sheet.py tripo/<sheet>.json` cuts it into separate parts. Each part is stood upright, squared to the axes, scaled to one stated real dimension and given its attachment origin. It gets its own texture at the source pixel density, with the atlas gutter filled so it cannot bleed in as seams. The config names every piece by its centre on the sheet, and a piece that is left unclaimed or claimed twice stops the run. The tool writes `tripo/<sheet>-report.json` and a `-parts.png` contact sheet.
+
+Done so far: **fittings** (tripo/fittings.json) into `art/models/ship/fittings/`, 17 files. The helm, capstan and rudder match the envelopes ship.gd reserves for them. The cannon barrel's origin is on its trunnion axis. The anchor stock was turned 90 degrees to cross the flukes. None of them is placed on the ship yet.
+
 See canonical/validation.json for measured results. These are geometric construction checks; final materials, collision, character traversal and buoyancy are not validated here. Existing abandoned versions live only in _archive and must not be mixed with this kit.

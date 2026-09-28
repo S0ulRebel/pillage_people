@@ -1,0 +1,645 @@
+{
+  "source": "fittings.glb",
+  "sheet": "05-working-fittings, run through Tripo image-to-3D as one sheet",
+  "out_dir": "../../../models/ship/fittings",
+  "gap": 0.018,
+  "outputs": [
+    {
+      "file": "helm.glb",
+      "id": "F03",
+      "name": "Helm wheel and pedestal",
+      "nodes": [
+        {
+          "name": "helm",
+          "pieces": [
+            [
+              -0.0615,
+              0.4014,
+              -0.1265
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "axis": "y",
+        "metres": 1.5
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "notes": "1.5 m tall, the kit's F01_HELM height. About 1.4 m wide, over the envelope's 1.1 m but inside the +/-0.8 m access clearance it reserves. ship.gd HELM_AT is the deck contact."
+    },
+    {
+      "file": "capstan.glb",
+      "id": "F05",
+      "name": "Capstan with bars",
+      "nodes": [
+        {
+          "name": "capstan",
+          "pieces": [
+            [
+              0.3716,
+              0.4526,
+              -0.1282
+            ],
+            [
+              0.3726,
+              0.3782,
+              -0.127
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "axis": "y",
+        "metres": 1.1
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "notes": "Kit F02_CAPSTAN height, 1.1 m. Tripo drew the bars short for the drum, so they span about 1.65 m, inside the kit's 2.8 m box."
+    },
+    {
+      "file": "cannon_barrel.glb",
+      "id": "F01",
+      "name": "Cannon barrel",
+      "nodes": [
+        {
+          "name": "barrel",
+          "pieces": [
+            [
+              -0.448,
+              0.3987,
+              0.0886
+            ],
+            [
+              -0.4424,
+              0.3994,
+              0.0813
+            ]
+          ]
+        }
+      ],
+      "marks": {
+        "trunnions": [
+          -0.4424,
+          0.3994,
+          0.0813
+        ]
+      },
+      "align": {
+        "method": "pca",
+        "major": "z",
+        "minor": "y",
+        "turns": 2
+      },
+      "size": {
+        "axis": "z",
+        "metres": 1.9
+      },
+      "origin": {
+        "x": "mark:trunnions",
+        "y": "mark:trunnions",
+        "z": "mark:trunnions"
+      },
+      "notes": "Origin on the trunnion axis, muzzle toward -Z, trunnions along X."
+    },
+    {
+      "file": "gun_carriage.glb",
+      "id": "F02",
+      "name": "Gun carriage",
+      "nodes": [
+        {
+          "name": "carriage",
+          "pieces": [
+            [
+              -0.3098,
+              0.3496,
+              -0.1177
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "axis": "xz",
+        "metres": 1.1
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "notes": "Muzzle end toward -Z. The cheeks' inner gap takes the 0.44 m barrel and the trunnions (0.68 m tip to tip) rest across them. Tripo's trunnion caps did not sit on the seats; they are in trunnion_caps.glb."
+    },
+    {
+      "file": "trunnion_caps.glb",
+      "id": "F02",
+      "name": "Trunnion caps and straps (loose)",
+      "nodes": [
+        {
+          "name": "cap_a",
+          "pieces": [
+            [
+              -0.364,
+              0.4368,
+              -0.1353
+            ]
+          ]
+        },
+        {
+          "name": "cap_b",
+          "pieces": [
+            [
+              -0.2434,
+              0.4368,
+              -0.1179
+            ]
+          ]
+        },
+        {
+          "name": "strap_a",
+          "fine_pieces": [
+            [
+              -0.3674,
+              0.3906,
+              -0.137
+            ]
+          ]
+        },
+        {
+          "name": "strap_b",
+          "pieces": [
+            [
+              -0.2478,
+              0.3906,
+              -0.1179
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "same_scale_as": "gun_carriage.glb"
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "notes": "Loose in the Tripo model, floating above the carriage rather than on its seats. Same scale as the carriage; place them by hand if wanted."
+    },
+    {
+      "file": "binnacle.glb",
+      "id": "F04",
+      "name": "Binnacle",
+      "nodes": [
+        {
+          "name": "binnacle",
+          "pieces": [
+            [
+              0.1372,
+              0.4133,
+              -0.1477
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "axis": "y",
+        "metres": 1.1
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      }
+    },
+    {
+      "file": "rudder.glb",
+      "id": "F06",
+      "name": "Rudder blade",
+      "nodes": [
+        {
+          "name": "blade",
+          "pieces": [
+            [
+              -0.3674,
+              0.1211,
+              0.2231
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "pca",
+        "major": "y",
+        "minor": "x",
+        "turns": 2,
+        "refine": {
+          "toward": "-z",
+          "within": 25,
+          "about": "x"
+        }
+      },
+      "size": {
+        "axis": "y",
+        "metres": 2.0
+      },
+      "origin": {
+        "x": "mid",
+        "y": [
+          "max",
+          -0.5
+        ],
+        "z": "min"
+      },
+      "notes": "Kit F04_RUDDER envelope: the straight hinge edge is snapped exactly vertical and sits on the origin; the blade hangs to Y=-1.5 and reaches aft (+Z)."
+    },
+    {
+      "file": "rudder_hinges.glb",
+      "id": "F06",
+      "name": "Sternpost hinge strip",
+      "nodes": [
+        {
+          "name": "hinge_strip",
+          "pieces": [
+            [
+              -0.4841,
+              0.1301,
+              0.2229
+            ],
+            [
+              -0.4709,
+              0.2161,
+              0.2166
+            ],
+            [
+              -0.4707,
+              0.1438,
+              0.2222
+            ],
+            [
+              -0.47,
+              0.0759,
+              0.2258
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "pca",
+        "major": "y",
+        "minor": "x",
+        "turns": 0
+      },
+      "size": {
+        "same_scale_as": "rudder.glb"
+      },
+      "origin": {
+        "x": "mid",
+        "y": [
+          "max",
+          -0.5
+        ],
+        "z": "max"
+      },
+      "notes": "Same scale as the blade (same sheet cell). Mates the blade's hinge edge; pintles and gudgeons were drawn apart, so fit them together in the engine."
+    },
+    {
+      "file": "anchor.glb",
+      "id": "F07",
+      "name": "Stocked anchor",
+      "nodes": [
+        {
+          "name": "anchor",
+          "pieces": [
+            [
+              -0.2668,
+              0.1184,
+              0.1533
+            ]
+          ]
+        },
+        {
+          "name": "stock",
+          "pieces": [
+            [
+              -0.2661,
+              0.1741,
+              0.1499
+            ]
+          ],
+          "rotate": [
+            "y",
+            90
+          ]
+        }
+      ],
+      "align": {
+        "method": "pca",
+        "major": "y",
+        "minor": "z",
+        "turns": 0,
+        "then": [
+          [
+            "z",
+            180
+          ]
+        ]
+      },
+      "size": {
+        "axis": "y",
+        "metres": 1.8
+      },
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "notes": "Tripo put the stock in the plane of the flukes; it is turned 90 degrees so it crosses them, as the manifest requires. Origin at the ring: it hangs from the cathead."
+    },
+    {
+      "file": "cathead.glb",
+      "id": "F07",
+      "name": "Cathead with block and fall",
+      "nodes": [
+        {
+          "name": "cathead",
+          "pieces": [
+            [
+              -0.136,
+              0.1919,
+              0.1538
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 2
+      },
+      "size": {
+        "axis": "xz",
+        "metres": 1.6
+      },
+      "origin": {
+        "x": "min",
+        "y": "max",
+        "z": "mid"
+      },
+      "notes": "Projects outboard along +X from the origin, which is the top of its inboard end. Mirror the node (scale X -1) for the port side."
+    },
+    {
+      "file": "anchor_cable.glb",
+      "id": "F07",
+      "name": "Coiled anchor cable",
+      "nodes": [
+        {
+          "name": "cable",
+          "pieces": [
+            [
+              -0.1707,
+              0.0295,
+              0.0747
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "axis": "xz",
+        "metres": 0.9
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      }
+    },
+    {
+      "file": "stern_lantern.glb",
+      "id": "F08",
+      "name": "Stern lantern on bracket",
+      "nodes": [
+        {
+          "name": "lantern",
+          "pieces": [
+            [
+              0.0618,
+              0.2021,
+              0.1992
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 3
+      },
+      "size": {
+        "axis": "y",
+        "metres": 0.9
+      },
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "min"
+      },
+      "notes": "Wall plate at Z=0 against the transom, lantern hanging aft (+Z). Origin at the top of the plate."
+    },
+    {
+      "file": "hatch_grating.glb",
+      "id": "F09",
+      "name": "Hatch grating",
+      "nodes": [
+        {
+          "name": "grating",
+          "pieces": [
+            [
+              0.231,
+              0.2461,
+              0.0916
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "axis": "xz",
+        "metres": 1.2
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      }
+    },
+    {
+      "file": "hatch_coaming.glb",
+      "id": "F09",
+      "name": "Hatch coaming sides",
+      "nodes": [
+        {
+          "name": "side_a",
+          "pieces": [
+            [
+              0.1743,
+              0.1558,
+              0.1125
+            ]
+          ]
+        },
+        {
+          "name": "side_b",
+          "pieces": [
+            [
+              0.2886,
+              0.157,
+              0.1277
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "same_scale_as": "hatch_grating.glb"
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      }
+    },
+    {
+      "file": "belaying_rack.glb",
+      "id": "F10",
+      "name": "Belaying-pin rack",
+      "nodes": [
+        {
+          "name": "rack",
+          "pieces": [
+            [
+              0.3757,
+              0.1848,
+              -0.1333
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "axis": "xz",
+        "metres": 1.2
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      }
+    },
+    {
+      "file": "cleat.glb",
+      "id": "F10",
+      "name": "Cleat on its block",
+      "nodes": [
+        {
+          "name": "cleat",
+          "pieces": [
+            [
+              0.3398,
+              0.072,
+              -0.123
+            ],
+            [
+              0.3391,
+              0.0449,
+              -0.1213
+            ],
+            [
+              0.3533,
+              0.0564,
+              -0.1643
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "same_scale_as": "belaying_rack.glb"
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      }
+    },
+    {
+      "file": "bollard.glb",
+      "id": "F10",
+      "name": "Paired bitts",
+      "nodes": [
+        {
+          "name": "bitts",
+          "pieces": [
+            [
+              0.447,
+              0.0813,
+              -0.1672
+            ]
+          ]
+        }
+      ],
+      "align": {
+        "method": "flat",
+        "turns": 0
+      },
+      "size": {
+        "same_scale_as": "belaying_rack.glb"
+      },
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      }
+    }
+  ],
+  "fine_gap": 0.002
+}

@@ -85,7 +85,7 @@
     "art-breakdown/drafts/01-hull-modules-painted.webp": "57d503be9164db0fced0af1b35d8f11cf9263c991145ec937da94f17fba9be1e",
     "art-breakdown/drafts/ship-finished-concept-v2.prompt.txt": "e77e6e041096b9650d6a1c9639890dd49956a185eeda2d8f0bbf00307eafa9f3",
     "art-breakdown/generation-prompts.json": "3120f71e97a820aafbcdae3fbbfed63ad10b84d066029ca7b73bbfa300f201de",
-    "art-breakdown/kit-manifest.json": "9a7f80a583bbd47d15c4b095c741074bd55b957cc7d64ba4c3e555ffcf62e199",
+    "art-breakdown/kit-manifest.json": "07ac9a23a6e05bf5df2013f2e55929f8cae3512ccc1e9f61b37343b01b287ffe",
     "textured/assemblies/DOUBLE_DECK.glb": "3369512910d2cf4649f830d95c5789ff4edadbcec18b043d6ea529265ee1ccce",
     "textured/assemblies/SINGLE_DECK.glb": "1ceeff4d0332f38096dd3131bce2767934c554d74284ef8cfa5c006f7908e75d",
     "textured/assemblies/TRIPLE_DECK.glb": "4c5e3ff2f2bff92b8a0ec0b998a70fa5da99b5a6d7da2ea4978bd19d610fb09e",
@@ -112,11 +112,11 @@
     "textured/textures/hull_planks.jpg": "b5f3fe59512be32fc252edc133f688f1e8c0fe600951dc5c1c9a369979c44252",
     "textured/validation.json": "4622cc13f014fb13f316c81db68022af2aafe13bbde395a7312bd6d1cbeb312b",
     "canonical/contract.json": "013a30c83aa267d0b15a0e0b0d89ab25bb274999fa9d4d8f873238eb2447e68d",
-    "START_HERE.md": "ae0a5966dd1589cc57d481bed5e56737bd55e947bf9629fa95a31509f5b03f59",
+    "START_HERE.md": "8a81ba1fdef8335da01ef33f31e63441d2649e80d094beda5379afc640cb85c4",
     "tools/glb_io.py": "e6b483d4ecffb7362f8c7dcb9bb9d1d0d9e126e07eaf1fdd30f6366a45d0662f",
     "tools/texture_kit.py": "918c4d8ffe4b6ef9d87379a09182fc574b579a1f006330fa0ad0d79bc42f91aa",
     "tools/check_textured_kit.py": "382160c476d79cd0863afb51fd6e764b22cc71407af484c079fb0673963ccf6a",
-    "tools/render_textured.py": "2362b472f2efa6dade2afb9d22f81441767bff5bb9edd77abd4b705c382f03e8",
+    "tools/render_textured.py": "2c1b7050f3293bc838fd5989b243bf1aa3dd7c89132de0a7900fb92c1acb3256",
     "tools/package_art_breakdown.py": "dfe61918ae8f9c7e80e78770a9df2b0909e5cc37227c171e2d23a6a9886c51a6"
   }
 }
