@@ -33,4 +33,15 @@ The preview sheets are rendered from these same OBJ meshes. Individual overview 
 - `python tools/render_kit.py --contract canonical/contract.json --out previews` renders the actual geometry. Requires Pillow and NumPy.
 - `python tools/package_kit.py` writes the single active portable ZIP. Archived work is excluded.
 
+## Textured templates and the art breakdown
+
+**textured/** is the canonical kit with UVs and a flat plank albedo added. Every vertex and normal is copied byte-for-byte from canonical/meshes, so the sockets are exactly where they were. Plank courses repeat every 2.6 m tier and 2 m along the hull, so they run straight across every join and stack. No light is baked in. **textured/assemblies/** places those part meshes by translation only.
+
+**art-breakdown/** holds the finished-ship art direction: the corrected master (00), the part sheets, kit-manifest.json and generation-prompts.json. Sheet 01 is rendered from textured/meshes, not painted. The painted version drew H02 with a rocker and a wall across its join, so it is kept only in drafts/. Measure from the contract, never from a sheet.
+
+- `python tools/texture_kit.py` builds textured/ deterministically from canonical/ meshes.
+- `python tools/check_textured_kit.py` proves parity against the canonical GLBs and, independently, the OBJ faces and sockets. It records a sha256 for every file it checked.
+- `python tools/render_textured.py` renders art-breakdown/01-hull-modules.png and 01b-hull-assembly.png.
+- `python tools/package_art_breakdown.py` runs every check before it writes anything. It refuses a stale validation report or a sheet that no longer matches a fresh render, then writes art-breakdown/package-check.json and art-breakdown.zip.
+
 See canonical/validation.json for measured results. These are geometric construction checks; final materials, collision, character traversal and buoyancy are not validated here. Existing abandoned versions live only in _archive and must not be mixed with this kit.

@@ -1,0 +1,122 @@
+{
+  "check_type": "Art-breakdown package integrity plus textured construction-template parity",
+  "part_groups": 57,
+  "families": 8,
+  "canonical_parts": 18,
+  "textured_parts": 18,
+  "textured_assemblies": [
+    "SINGLE_DECK",
+    "DOUBLE_DECK",
+    "TRIPLE_DECK"
+  ],
+  "textured_checks_run": 700,
+  "sheets_not_in_repo": [
+    "05-working-fittings.png"
+  ],
+  "images": [
+    {
+      "file": "00-corrected-ship.webp",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "file": "01-hull-modules.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "file": "01b-hull-assembly.png",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "file": "02-decks-railings.webp",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "file": "03-cabin-quarterdeck.webp",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "file": "04-masts-sails-rigging.webp",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "file": "drafts/01-hull-modules-painted.webp",
+      "size_px": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    }
+  ],
+  "textured_exports_preserve_canonical_geometry": true,
+  "sheets_match_current_render": true,
+  "new_finished_art_geometry_validated": false,
+  "scope_limit": "Construction geometry with UVs and albedo only. Rails, cabin, rigging, fittings, bevels and any new art geometry need their own modelling and validation.",
+  "file_sha256": {
+    "art-breakdown/00-corrected-ship.webp": "d80fd56666a25e36f4fc5418046b2840fb0e7684c861f479037193cc24f3a51b",
+    "art-breakdown/01-hull-modules.png": "8ab30fbe680e341452552450f7201040d45ac73f1c8a197c31159aaf4468dc08",
+    "art-breakdown/01b-hull-assembly.png": "e3a0d53a43de12f8eb5d58f3e3ca8365d1a465072ceb7671c3064f6617996fc6",
+    "art-breakdown/02-decks-railings.webp": "203213c31a7e1a13c18daa5b493835fe62d55ef28dd66e66871dc495e8ebfef3",
+    "art-breakdown/03-cabin-quarterdeck.webp": "c10eca427f7bd9c8fde4b349c49ffe1f59c32ce1420747df787c4d1dfb561cdd",
+    "art-breakdown/04-masts-sails-rigging.webp": "4bde38b3e7574b78c7d69db121f0147a44bf662aa8cbc44d385c3ea19fbc1890",
+    "art-breakdown/drafts/01-hull-modules-painted.webp": "57d503be9164db0fced0af1b35d8f11cf9263c991145ec937da94f17fba9be1e",
+    "art-breakdown/drafts/ship-finished-concept-v2.prompt.txt": "e77e6e041096b9650d6a1c9639890dd49956a185eeda2d8f0bbf00307eafa9f3",
+    "art-breakdown/generation-prompts.json": "3120f71e97a820aafbcdae3fbbfed63ad10b84d066029ca7b73bbfa300f201de",
+    "art-breakdown/kit-manifest.json": "9a7f80a583bbd47d15c4b095c741074bd55b957cc7d64ba4c3e555ffcf62e199",
+    "textured/assemblies/DOUBLE_DECK.glb": "3369512910d2cf4649f830d95c5789ff4edadbcec18b043d6ea529265ee1ccce",
+    "textured/assemblies/SINGLE_DECK.glb": "1ceeff4d0332f38096dd3131bce2767934c554d74284ef8cfa5c006f7908e75d",
+    "textured/assemblies/TRIPLE_DECK.glb": "4c5e3ff2f2bff92b8a0ec0b998a70fa5da99b5a6d7da2ea4978bd19d610fb09e",
+    "textured/meshes/BOTTOM_BOW.glb": "6de3e379453bfd680da88e60fbf94827ff092c59821bd314f5d0017728f30553",
+    "textured/meshes/BOTTOM_CENTRE.glb": "0550c77972e9a4c0e6bc00507c59b3c5c66435d60009c1f88d62f81e2aa61354",
+    "textured/meshes/BOTTOM_STERN.glb": "1e8ab90fb64d4ea303a7faa2756c9bd5d3cf8d098dd5e99c9dcd1961200c2f85",
+    "textured/meshes/FLOOR_BOW.glb": "b4b2e3c55df85b495507e3ecedc1740d2f94e880326d076c6c32c558b6a1d7f4",
+    "textured/meshes/FLOOR_CENTRE.glb": "f85e9dbeedffa855bca19d2bb7562afd6495dc31b327ef3162b453eb1ce40eea",
+    "textured/meshes/FLOOR_STERN.glb": "1b9460a45f755f85c89bc05ba6cc9be46f74558bfe18902f0b032ddf7197aab9",
+    "textured/meshes/MIDDLE_BOW.glb": "ac8b0a521f6deda3910c2b6119900893a06da3d065d606974c57b50ca621ca08",
+    "textured/meshes/MIDDLE_CENTRE.glb": "d78eec4bddbf0fdfe66c34b4370cb1bc0e357ad63dd569dab08df9708a724ecf",
+    "textured/meshes/MIDDLE_CENTRE_GUN.glb": "321943f4b469993539ae98494fd2f9bd8f4b46e4093faabadb4413475947f8b3",
+    "textured/meshes/MIDDLE_STERN.glb": "00cab67e559eda0b7461988871ae7cbb9289941f64c951b27d7f4be26e91731e",
+    "textured/meshes/STAIRS_260.glb": "5e67fcabad355e52ea4e7c798917c601fca1ec7148c656914adeeaf8ae40c0d5",
+    "textured/meshes/STAIR_PORT_END.glb": "7d211022a5905db1c4eb9d7b2e77593da350af65043939471c71b0432cef82e8",
+    "textured/meshes/STAIR_PORT_START.glb": "20c1659977e4ae44e0dfa431e6c8ed36ab0f1bd9bee03c8c3aaffcf50b4e0986",
+    "textured/meshes/STAIR_STARBOARD_END.glb": "d962c55a140a74a67cdcf8d71d01d7edc72474c4ad6715ba22607b983e91e3f4",
+    "textured/meshes/STAIR_STARBOARD_START.glb": "15c5c56e9877e8291ad40ce6a1c438ace614efa5b554e78ab49913a4ff5d23d4",
+    "textured/meshes/TOP_BOW.glb": "dc0706f0edbbcc2337f9b3d39f438f9d1f735d92203e131a176a470a405f0844",
+    "textured/meshes/TOP_CENTRE.glb": "7169a83ff65388b55e1c9a91423612f93c29ebcce8660b837ebe3fa62185d1a6",
+    "textured/meshes/TOP_STERN.glb": "e315c8e312d5af64db85039dd8d5bc300baf8cc40e2b857e211d4294d8a98295",
+    "textured/texture-recipe.json": "82b01614f2d4b10e6bc9a208ec71aeda2a5dbdebd24224ac96b17be4ccdc5fee",
+    "textured/textures/deck_planks.jpg": "b6092af1d9e87965831388da83990d6713c60742a375f468645bdd3abe22d11c",
+    "textured/textures/hull_planks.jpg": "b5f3fe59512be32fc252edc133f688f1e8c0fe600951dc5c1c9a369979c44252",
+    "textured/validation.json": "4622cc13f014fb13f316c81db68022af2aafe13bbde395a7312bd6d1cbeb312b",
+    "canonical/contract.json": "013a30c83aa267d0b15a0e0b0d89ab25bb274999fa9d4d8f873238eb2447e68d",
+    "START_HERE.md": "ae0a5966dd1589cc57d481bed5e56737bd55e947bf9629fa95a31509f5b03f59",
+    "tools/glb_io.py": "e6b483d4ecffb7362f8c7dcb9bb9d1d0d9e126e07eaf1fdd30f6366a45d0662f",
+    "tools/texture_kit.py": "918c4d8ffe4b6ef9d87379a09182fc574b579a1f006330fa0ad0d79bc42f91aa",
+    "tools/check_textured_kit.py": "382160c476d79cd0863afb51fd6e764b22cc71407af484c079fb0673963ccf6a",
+    "tools/render_textured.py": "2362b472f2efa6dade2afb9d22f81441767bff5bb9edd77abd4b705c382f03e8",
+    "tools/package_art_breakdown.py": "dfe61918ae8f9c7e80e78770a9df2b0909e5cc37227c171e2d23a6a9886c51a6"
+  }
+}

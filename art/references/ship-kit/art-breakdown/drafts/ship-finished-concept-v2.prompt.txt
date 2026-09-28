@@ -1,0 +1,21 @@
+Generated with built-in imagegen.
+Reference inputs:
+- reference/env_kits.png
+- reference/render_styles.png (top-left style only)
+- ship-kit-consolidation/accessories/04-masts-and-lookouts-v1.png
+- ship-kit-consolidation/accessories/05-deck-fittings-v1.png
+
+Use case: stylized-concept.
+Asset type: finished full-ship visual reference for a 3D game model.
+
+Create ONE complete, fully assembled and fully textured pirate sailing ship, faithfully belonging to the illustrated pirate world in the supplied reference images. It must have the finish and shape language of the original artwork.
+
+Input roles: image 1 (environment sheet) is the primary art-direction reference, especially the wooden ship in BEACH/SHIPWRECK and the materials and construction in ON SHIP. Image 2 is a style guide: use ONLY its upper-left TOON / CEL-SHADED treatment, with clean readable shapes and broad lighting bands. Do not depict the captain. Images 3 and 4 are supporting references for mast, lookout, capstan, helm, rudder and bowsprit construction, rope bindings and hardware, integrated into the completed vessel. Do not copy their sheet layout.
+
+Subject: a medium-sized two-masted pirate ship with a curved, full-bellied timber hull, a graceful rising sheer toward bow and stern, a closed symmetric pointed bow, a continuous keel and a rounded stern body. Integrated raised captain's quarters at the stern with framed window galleries and a railed quarterdeck above, accessible stairs from the main deck. Broad visible deck planks, sturdy bulwarks, symmetrical cannon ports with short iron cannons on wheeled wooden carriages. Tapered masts, proper supported crow's nests, cross yards, connected rope rigging and ratlines; generous canvas sails with seams, patches and broad wind-filled folds. A large charcoal main sail carrying a simple cream skull-and-crossbones emblem, weathered warm ivory secondary canvas and a restrained crimson pennant. Bowsprit, anchor with cable, helm, capstan, deck hatch, belaying pins, rope coils and stern lanterns are installed where they make nautical sense. Matching timber steering rudder below the stern. Everything belongs to this one coherent ship.
+
+Materials and color: richly readable but simplified hand-painted texture; warm honey and chestnut planks with varied broad tones, dark plank seams, selective knots and grain strokes, worn bevel highlights; aged tan rope; matte charcoal forged iron bands and square rivets; restrained brass details; cream cloth and faded crimson accents drawn from the references. Strong material separation and broad cel-shaded light/shadow shapes. Polished stylized game asset look, full color.
+
+Composition: single large slightly elevated three-quarter view, show the near broadside and bow and enough deck to read the fittings and stern cabin. Entire ship from bowsprit tip to stern and keel to mastheads fully inside the frame, generous clean margins. Neutral light warm-gray studio backdrop with a subtle contact shadow. No ocean, no landscape, no people, no labels, no extra thumbnails or loose parts. The entire underwater hull must be visible. Large high-resolution landscape image.
+
+Avoid: modular kit presentation, exploded parts, wireframe, untextured blockout, generic beige polygon boat, straight rectangular hull, house-like tiled roof, plastic gloss, photoreal microtexture, excessive gold ornament, dozens of tiny unreadable ropes. Preserve stylization and clearly understandable construction.
