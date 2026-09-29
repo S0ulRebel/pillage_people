@@ -16,6 +16,7 @@ not a convenience that happens to exist on one machine. Half the comments in `pr
 | `prepare_game_model.py` | Scale a generated GLB to a real height and copy it into `art/models/`. |
 | `simplify_mesh.py` | Cut a vertex-coloured GLB down to a game-ready face count. |
 | `retexture_model.py` | Swap the texture inside a GLB, leaving the mesh, rig and pivot alone. |
+| `repair_rig.py` | Rebuild a rigged GLB whose bones lost their rest pose (Tripo's rigged export), and bake its height. |
 | `merge_animations.py` | Bake a character plus a folder of Mixamo clips into one GLB. |
 | `trim_clip.py` | Cut, pin, rename and drop clips on a rigged GLB. |
 | `inspect_clips.py` | Report what a rigged GLB's clips actually do — seams, length, motion. |
@@ -35,8 +36,9 @@ The Blender ones — `reorient_model.py`, `prepare_game_model.py`, `merge_animat
 from whatever the file they read declares, and a merge done at the wrong rate silently rescales
 every clip already in the file. `merge_animations.py` pins the rate at both ends because of it.
 
-`retexture_model.py` needs nothing at all - it is a binary patch on the glTF container,
-stdlib only, on whatever Python is to hand. Use it when a model is right but its texture is
+`retexture_model.py` and `repair_rig.py` need nothing at all - they are binary patches on the
+glTF container, stdlib only, on whatever Python is to hand. `repair_rig.py` imports the container
+helpers from `retexture_model.py`, so the two have to stay siblings. Use it when a model is right but its texture is
 not: re-exporting to carry one new image puts the mesh, the rig, the pivot and the import
 scale back in play, and those are usually the settled part.
 
