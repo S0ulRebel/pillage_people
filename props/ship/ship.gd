@@ -13,7 +13,7 @@ extends Node3D
 ## placeholder is built instead, so the ship never loses a part it needs.
 ##
 ## Axes and sizes are the kit's, in metres: X starboard, Y up, Z aft, keel at Y=0, bow at Z=0,
-## stern at Z=14, beam 6. The gunport sills are at Y=3.4, so the keel sits two metres under
+## stern at Z=14, beam 6. The gunport sills are at Y=2.82, so the keel sits two metres under
 ## the still waterline and the ports stay clear of the waves.
 ##
 ## This script runs in the editor so the mast, sail, guns and the other fittings — which are
@@ -75,8 +75,7 @@ const BOWSPRIT_AT := Vector3(0.0, DECK_Y + 0.15, -1.9)
 ## Hinge of the rudder, on the stern under the counter. The blade hangs aft of this
 ## point. A real F04_RUDDER drops in on this node.
 const RUDDER_AT := Vector3(0.0, 1.8, 14.9)
-## Gun deck the ports look out of. The carriage sits high enough for this model's barrel to
-## meet the openings: the sill is 0.8 m off the deck and the barrel axis is only 0.62 m up.
+## Gun deck the ports look out of. The guns stand on it, on their wheels.
 const GUN_DECK_Y := 2.6
 ## The straight run of the hull's side the gun deck's walls are built along, both sides, with a
 ## hole wherever a port is (tools/strip_game_gunports.py takes the kit's walls out). Ports are
@@ -88,8 +87,11 @@ const GUN_WALL_INNER_X := 2.8
 const GUN_PORT_MARGIN := 1.0
 ## The opening, the kit's: 1 m wide and 0.8 m tall.
 const GUN_PORT_SIZE := Vector2(1.0, 0.8)
-## Centre of each port's opening: the kit's sill is 0.8 m off the gun deck, the opening 0.8 m tall.
-const GUN_PORT_Y := GUN_DECK_Y + 1.2
+## Centre of each port's opening: level with the barrel of a gun standing on the deck, whose
+## axis is 0.62 m up at its resting elevation. The 0.8 m opening then runs from 0.22 m to
+## 1.02 m off the deck, room for the muzzle to rise to its full 14 degrees. (The kit's sill was
+## 0.8 m up, which left the guns hanging in the air to reach it.)
+const GUN_PORT_Y := GUN_DECK_Y + 0.62
 ## Deck contact of the capstan, on the gun deck under the cabin: the weather deck there is
 ## the cabin's floor now. Clear of the guns and under the beams; a real F02_CAPSTAN drops in
 ## on this node.
@@ -1566,9 +1568,10 @@ func _build_gun_ports() -> void:
 				var lid := port.find_child("lid", true, false) as Node3D
 				if lid != null:
 					lid.rotation_degrees.z = LID_OPEN_DEGREES
-		# Muzzle is 1 m along local -Z and 0.62 m up. -90° yaw sends -Z to starboard.
-		_gun(guns, Vector3(2.15, GUN_DECK_Y + 0.58, spots[k]), -PI * 0.5, "Starboard%d" % k)
-		_gun(guns, Vector3(-2.15, GUN_DECK_Y + 0.58, spots[k]), PI * 0.5, "Port%d" % k)
+		# On the deck: the model's origin is under its wheels. Muzzle 1 m along local -Z and
+		# 0.62 m up, level with the port. -90° yaw sends -Z to starboard.
+		_gun(guns, Vector3(2.15, GUN_DECK_Y, spots[k]), -PI * 0.5, "Starboard%d" % k)
+		_gun(guns, Vector3(-2.15, GUN_DECK_Y, spots[k]), PI * 0.5, "Port%d" % k)
 
 
 func _rebuild_gun_ports() -> void:

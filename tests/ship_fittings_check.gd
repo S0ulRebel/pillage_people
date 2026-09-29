@@ -175,10 +175,20 @@ func _check_port_holes(ship: Node3D, spots: Array[float]) -> void:
 			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(
 					ship.to_global(through + Vector3(side * 2.5, 0.0, 0.0)), ship.to_global(through + Vector3(side * 3.6, 0.0, 0.0))))
 			check(hit.is_empty(), "the port at z %.2f on the %s side is not open" % [z, "starboard" if side > 0.0 else "port"])
-			var gun := false
+			var gun: Node3D = null
 			for g in guns.get_children():
-				gun = gun or (absf((g as Node3D).position.z - z) < 0.01 and signf((g as Node3D).position.x) == side)
-			check(gun, "no gun behind the port at z %.2f" % z)
+				if absf((g as Node3D).position.z - z) < 0.01 and signf((g as Node3D).position.x) == side:
+					gun = g as Node3D
+			check(gun != null, "no gun behind the port at z %.2f" % z)
+			if gun == null:
+				continue
+			# On the deck, on its wheels, with its barrel level with the opening.
+			var box := _bounds(ship, gun)
+			check(absf(box.position.y - Ship.GUN_DECK_Y) <= TOLERANCE,
+					"the gun at z %.2f stands at %.2f, not on the gun deck at %.2f" % [z, box.position.y, Ship.GUN_DECK_Y])
+			var barrel := _bounds(ship, gun.call("barrel") as Node3D)
+			check(absf(barrel.get_center().y - Ship.GUN_PORT_Y) <= 0.05,
+					"the gun at z %.2f aims at %.2f, not through its port at %.2f" % [z, barrel.get_center().y, Ship.GUN_PORT_Y])
 		# Between ports, and past the ends: solid wall.
 		var solid: Array[float] = [Ship.GUN_WALL_FORE_Z + 0.2, Ship.GUN_WALL_AFT_Z - 0.2]
 		for i in spots.size() - 1:
