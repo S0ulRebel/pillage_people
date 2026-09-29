@@ -72,10 +72,20 @@ group_uniforms Transmission;
 // Beer-Lambert absorption per metre of water, per channel, pushed. Art-directed: red is lost
 // first, blue travels furthest, which is what makes the shallows turquoise and the depths
 // blue without a milky wash.
-uniform vec3 absorption = vec3(0.24, 0.075, 0.028);
-uniform float absorption_strength : hint_range(0.0, 3.0) = 0.78;
+//
+// Tuned against panel 10 of terrain-water-and-shore-transitions.jpg, whose sand under the
+// shallows reads (160, 175, 146) in the thinnest water, (127, 166, 142), then (70, 160, 150)
+// at about a metre: red lost fast, green kept. These were a quarter as strong while the
+// water measured its depth wrong (see `to_solid` in stage 1) and every path ran 52 m.
+uniform vec3 absorption = vec3(4.0, 0.35, 0.1);
+uniform float absorption_strength : hint_range(0.0, 3.0) = 1.0;
 // How much of the water's own colour is added back where the scene has been absorbed, pushed.
 uniform float scattering_strength : hint_range(0.0, 1.5) = 0.68;
+// And how much of it the water adds per metre looked through, in every channel alike - the
+// light it scatters toward the eye. Without it a channel the water barely absorbs (blue)
+// could never gain any of the water's colour, and the panels' shallows are bluer than the
+// sand under them. Pushed.
+uniform float inscatter : hint_range(0.0, 2.0) = 1.2;
 // How far the scene behind the water is shifted by the waves, in screen fraction, pushed;
 // and the depth over which that grows from nothing to full. Material-only.
 uniform float refraction_strength : hint_range(0.0, 0.05) = 0.008;
@@ -504,6 +514,18 @@ void fragment() {
     float surface_z = (VIEW_MATRIX * vec4(world_point, 1.0)).z;
     float ahead = surface_z - scene_z;
     float to_solid = max(ahead, 0.0);
+    // The depth buffer is not always there to read. In the Mobile renderer's test captures it
+    // came back empty over the whole sea, so every pixel "saw" the far plane behind it, the
+    // optical path ran to its cap, and the shallows were as opaque as the deep sea: flat teal
+    // right up to the sand, with the seabed, its caustics and the wet sand hidden under it.
+    // The water under this point is known anyway - the seabed is the terrain's height map -
+    // so where the buffer has nothing, the path is that column, along the eye's slant.
+    // (Anything else in the water, a hull or a rock, is then not seen through it; the
+    // seabed is what matters here.)
+    if (scene_z < -1.0e11) {
+        float slant = max(abs(normalize(CAMERA_POSITION_WORLD - world_point).y), 0.15);
+        to_solid = max(thickness, 0.0) / slant;
+    }
     // The two alpha edges. `contact` fades the water in against a thing standing in it -
     // a thing just BELOW the surface, that is; a thing in FRONT of the surface covers the
     // water by the depth test and the water stays whole beside it. It used to fade against
@@ -675,7 +697,8 @@ void fragment() {
         * absorption_strength * optical_depth);
     vec3 water_scatter = water * max(0.0,
         1.0 + (lambert - max(light_dir.y, 0.0)) * wave_shading);
-    vec3 scatter_amount = max(vec3(1.0) - transmittance, vec3(0.045));
+    vec3 scatter_amount = max(max(vec3(1.0) - transmittance,
+        vec3(1.0 - exp(-inscatter * optical_depth))), vec3(0.045));
     vec3 shaded_water = scene_colour * transmittance
         + water_scatter * scatter_amount * scattering_strength * sky_light
         * mix(1.0, sun_through, 0.6);

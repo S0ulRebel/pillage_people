@@ -11,6 +11,7 @@ extends SceneTree
 ## Writes to user://foam:
 ##   gameplay.png        the frame as the game draws it
 ##   gameplay_close.png  the same at 7 m of arm, where the captain is the panels' size
+##   seabed_close.png    the close view with the sea hidden: what the water is drawn over
 ##   compare.png         panel 9 | the game at 7 m | panel 10, each cropped to the same framing
 ##   compare_18m.png     the same at play's default 18 m
 ##   field.png           the shore distance field drawn over the 18 m view (step 1 of the plan)
@@ -117,6 +118,10 @@ func _run() -> void:
 	_aim(camera, beach, inland, ARM_CLOSE)
 	var close := await _capture("gameplay_close")
 	_compare(sheet, close, camera, beach, "compare")
+	# What the sea is drawn over, from the same place: the seabed and the sand, water hidden.
+	ocean.hide()
+	await _capture("seabed_close")
+	ocean.show()
 
 	# The run-up (step 3) from the close camera, at four moments through one: as drawn, and
 	# with runup_preview on, which shows where the water is, the foam's age and the drying.

@@ -175,11 +175,13 @@ extends MeshInstance3D
 
 @export_group("Optics")
 ## Per-metre RGB absorption. Warm light is removed first to create turquoise shallows.
-@export var absorption := Vector3(0.24, 0.075, 0.028):
+## Per metre of water looked through, per channel: tuned against panel 10's shallows (the
+## shader says how). They were a quarter of this while the sea measured its depth wrong.
+@export var absorption := Vector3(4.0, 0.35, 0.1):
 	set(value):
 		absorption = value.max(Vector3.ZERO)
 		_push("absorption", absorption)
-@export_range(0.0, 3.0) var absorption_strength := 0.78:
+@export_range(0.0, 3.0) var absorption_strength := 1.0:
 	set(value):
 		absorption_strength = value
 		_push("absorption_strength", value)
@@ -187,6 +189,11 @@ extends MeshInstance3D
 	set(value):
 		scattering_strength = value
 		_push("scattering_strength", value)
+## The water's own colour added per metre looked through, in every channel alike.
+@export_range(0.0, 2.0) var inscatter := 1.2:
+	set(value):
+		inscatter = value
+		_push("inscatter", value)
 @export_range(0.0, 0.05, 0.001) var refraction_strength := 0.008:
 	set(value):
 		refraction_strength = value
@@ -303,7 +310,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["sun_direction", sun_direction], ["daylight", daylight],
 			["depth_fade", depth_fade], ["absorption", absorption],
 			["absorption_strength", absorption_strength],
-			["scattering_strength", scattering_strength],
+			["scattering_strength", scattering_strength], ["inscatter", inscatter],
 			["refraction_strength", refraction_strength]]:
 		water.set_shader_parameter(entry[0], entry[1])
 	# The vertex shader fades displacement when an exponential ring becomes too coarse for
