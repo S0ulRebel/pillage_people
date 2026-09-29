@@ -460,6 +460,13 @@ void fragment() {
     // surface exactly here.
     float scene_z = scene_view_z(SCREEN_UV, INV_PROJECTION_MATRIX);
     float surface_z = (VIEW_MATRIX * vec4(world_point, 1.0)).z;
+    // The horizon band cannot trust the depth test. Its far vertices are a thousand million
+    // metres out along every bearing, behind the camera too, and where the rasteriser clips
+    // those triangles at the near plane the band's depth comes out near the eye: a line of
+    // far sea painted along the horizon row over whatever stood in front of it - a hill,
+    // the ship, the flag. Every point of the band is further than anything drawn, so where
+    // the depth buffer holds anything at all at this pixel, the band is behind it.
+    if (in_band && scene_z > surface_z) { discard; }
     float ahead = surface_z - scene_z;
     float to_solid = max(ahead, 0.0);
     // The two alpha edges. `contact` fades the water in against a thing standing in it -
