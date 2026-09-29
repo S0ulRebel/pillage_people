@@ -133,6 +133,7 @@ func _run() -> void:
 	_check_quarterdeck(ship)
 	_check_windows(ship)
 	_check_castle_trim(ship)
+	_check_pillars(ship)
 	_check_rail(ship)
 	_check_wale(ship)
 	_check_rigging(ship)
@@ -548,27 +549,11 @@ func _check_windows(ship: Node3D) -> void:
 			"the stern castle has not got its %d windows" % Ship.CASTLE_WINDOW_COUNT)
 	if windows == null:
 		return
-	var space := ship.get_world_3d().direct_space_state
 	var gaps: Array[float] = []
 	var last := Vector3.INF
 	for window in windows.get_children():
 		var w := window as Node3D
-		var box := _bounds(w, w.get_node_or_null("Model"))
-		var out := w.basis.z.normalized()
-		var across := w.basis.x.normalized()
-		# Where its back would be with no offset: the offset is the editor's to tune.
-		var back := w.position + out * box.position.z * Ship.WINDOW_SCALE + Vector3.UP * box.get_center().y * Ship.WINDOW_SCALE \
-				- out * (ship as Ship).window_offset
-		for side in [-1.0, 0.0, 1.0]:
-			var at: Vector3 = back + across * side * box.size.x * 0.5 * Ship.WINDOW_SCALE * 0.95
-			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at + out * 0.5), ship.to_global(at - out * 0.5)))
-			var gap: float = (at - ship.to_local(hit.position)).dot(out) if not hit.is_empty() else INF
-			if side == 0.0:
-				check(absf(gap) <= 0.005, "%s's back is %.3f m off the middle of its wall panel" % [w.name, gap])
-			else:
-				# The wall bends away past its panel: a window whose edges stand well off it is
-				# not on the panel it belongs to.
-				check(gap <= 0.04, "%s's edge stands %.2f m off the wall" % [w.name, gap])
+		_check_on_wall(ship, w, Ship.WINDOW_SCALE, (ship as Ship).window_offset)
 		if last != Vector3.INF:
 			gaps.append(Vector2(w.position.x, w.position.z).distance_to(Vector2(last.x, last.z)))
 		last = w.position
@@ -588,15 +573,86 @@ func _check_windows(ship: Node3D) -> void:
 		for g in gaps:
 			mean += g / gaps.size()
 		check(gaps.max() - gaps.min() < 0.25 * mean, "the windows are %.2f to %.2f m apart; they should be even" % [gaps.min(), gaps.max()])
-	# Its texture is shrunk to what a 1.1 m window needs (tools/shrink_glb_texture.py): Tripo's
-	# 4096 px atlas was 64 MB of video memory, five times over.
-	for node in windows.get_child(0).find_children("*", "MeshInstance3D", true, false):
-		var mesh_node := node as MeshInstance3D
+	_check_texture_size(windows.get_child(0), "window")
+
+
+## Tripo's models came with 4096 px atlases, 64 MB of video memory each, for parts a metre or
+## two across: each is shrunk to 1024 px (tools/shrink_glb_texture.py).
+func _check_texture_size(node: Node, label: String) -> void:
+	for found in node.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := found as MeshInstance3D
 		for surface in mesh_node.mesh.get_surface_count():
 			var material := mesh_node.get_active_material(surface) as BaseMaterial3D
 			var texture := null if material == null else material.albedo_texture
 			check(texture != null and maxi(texture.get_width(), texture.get_height()) <= 1024,
-					"the window's texture is %s; it should be textured and no more than 1024 px" % (texture.get_size() if texture != null else "missing"))
+					"the %s's texture is %s; it should be textured and no more than 1024 px" % [label, texture.get_size() if texture != null else "missing"])
+
+
+## Something flat-backed on the castle's wall, `node` scaled by `scale` and stood off by
+## `offset`: with no offset, its back is on the wall panel's middle to 5 mm, and its edges stand
+## no more than 4 cm off where the wall bends away past the panel.
+func _check_on_wall(ship: Node3D, node: Node3D, scale: float, offset: float) -> void:
+	var space := ship.get_world_3d().direct_space_state
+	var box := _bounds(node, node.get_node_or_null("Model"))
+	var out := node.basis.z.normalized()
+	var across := node.basis.x.normalized()
+	var back := node.position + out * box.position.z * scale + Vector3.UP * box.get_center().y * scale - out * offset
+	for side in [-1.0, 0.0, 1.0]:
+		var at: Vector3 = back + across * side * box.size.x * 0.5 * scale * 0.95
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at + out * 0.5), ship.to_global(at - out * 0.5)))
+		var gap: float = (at - ship.to_local(hit.position)).dot(out) if not hit.is_empty() else INF
+		if side == 0.0:
+			check(absf(gap) <= 0.005, "%s's back is %.3f m off the middle of its wall panel" % [node.name, gap])
+		else:
+			check(gap <= 0.04, "%s's edge stands %.2f m off the wall" % [node.name, gap])
+
+
+## The castle's carved pillars: two on the front wall and one between each pair of windows, each
+## on the deck with its back on the wall and its head just under the trim, clear of the windows,
+## the door, the stairs' rails and the weather deck rail's posts; pillar_offset moves them all.
+func _check_pillars(ship: Node3D) -> void:
+	var pillars := ship.get_node_or_null("Quarterdeck/Pillars")
+	var wanted := 2 + Ship.CASTLE_WINDOW_COUNT - 1
+	check(pillars != null and pillars.get_child_count() == wanted
+			and pillars.get_children().all(func(p: Node) -> bool: return p.get_node_or_null("Model") != null),
+			"the stern castle has not got its %d pillars" % wanted)
+	if pillars == null:
+		return
+	var trim := _bounds(ship, ship.get_node_or_null("Quarterdeck/Trim"))
+	var door := _bounds(ship, ship.get_node_or_null("Quarterdeck/Door"))
+	var windows := ship.get_node("Quarterdeck/Windows").get_children()
+	var window_half := _bounds(windows[0], windows[0].get_node("Model")).size.x * 0.5 * Ship.WINDOW_SCALE
+	var posts: Array = []
+	for line in ship.get_node("Rail").get_meta("post_lines"):
+		posts.append_array(line)
+	for node in pillars.get_children():
+		var p := node as Node3D
+		_check_on_wall(ship, p, Ship.PILLAR_SCALE, (ship as Ship).pillar_offset)
+		var box := _bounds(ship, p)
+		var half := _bounds(p, p.get_node("Model")).size.x * 0.5 * Ship.PILLAR_SCALE
+		check(absf(box.position.y - Ship.DECK_Y) <= TOLERANCE, "%s's foot is at %.3f, not on the deck" % [p.name, box.position.y])
+		check(box.end.y <= trim.position.y + 0.005 and box.end.y > trim.position.y - 0.05,
+				"%s's head is at %.2f; the trim's underside is at %.2f" % [p.name, box.end.y, trim.position.y])
+		var flat := Vector2(p.position.x, p.position.z)
+		for window in windows:
+			var gap := flat.distance_to(Vector2(window.position.x, window.position.z)) - half - window_half
+			check(gap > 0.05, "%s is %.2f m from %s" % [p.name, gap, window.name])
+		check(not box.intersects(door), "%s stands in the door" % p.name)
+		check(absf(p.position.x - Ship.QUARTERDECK_STAIRS_AT.x) > Ship.STAIR_RAIL_OUT + 0.12 + half or p.position.z > Ship.CASTLE_FRONT_Z + 0.5,
+				"%s stands in the stairs' rails" % p.name)
+		for post in posts:
+			var t := post as Transform3D
+			check(flat.distance_to(Vector2(t.origin.x, t.origin.z)) > half + 0.12 or absf(t.origin.y - Ship.DECK_Y) > 0.1,
+					"%s stands in the rail's post at %s" % [p.name, t.origin])
+	_check_texture_size(pillars.get_child(0), "pillar")
+	var typed := ship as Ship
+	var first := (pillars.get_child(0) as Node3D).position
+	var normal := (pillars.get_child(0) as Node3D).basis.z.normalized()
+	typed.pillar_offset = 0.05
+	var moved := ship.get_node("Quarterdeck/Pillars").get_child(0) as Node3D
+	check(absf((moved.position - first).dot(normal) - 0.05) <= 0.001 and ship.get_node("Quarterdeck/Pillars").get_child_count() == wanted,
+			"setting pillar_offset does not move the pillars along their normal")
+	typed.pillar_offset = 0.0
 
 
 ## The trim round the castle's top: swept from the wale's profile and textured, its top just
