@@ -368,3 +368,16 @@ project already rejects view-dependent outlines).
 - `tests/foam_view.gd` now also frames open water like the reference's water-type swatches
   (8 m up, 30 degrees down) and puts it beside the calm, small-waves and choppy swatches
   (`compare_water.png`). Open water from the gameplay camera: 1.5% white.
+
+### Step 8d: whitecaps as crest lace (done, replaces 8c's hairlines)
+
+- The references' whitecaps aren't lines: they are the shore foam's pattern - the walls of a net
+  of cells, zigzagging and branching like lightning, meeting in knots. So the whitecaps are now
+  the lace texture's cell walls (two sizes, 0.9 m and 0.45 m, the smaller only mid-strip),
+  squeezed across the crests and bent by the chop so most walls run along the waves, shown only
+  in a strip along one high level of the chop's height. Each cell's half of each wall comes and
+  goes with its own random number, so on a fair day the strip is broken zigzag chains; as
+  `crest_strength` rises the strip widens and the chains join into the net. Small beads where
+  walls meet; faded where a pixel spans more than a quarter metre.
+- Tried on the way: the whole crest band as lace came out as fat white patches with honeycomb in
+  them, and solid tufts as blobs; the strip and thin walls fixed it.

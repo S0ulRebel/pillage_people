@@ -171,13 +171,11 @@ uniform float chop_tone : hint_range(0.0, 0.5) = 0.24;
 
 // ---- Crest glints -----------------------------------------------------------------------
 group_uniforms Crests;
-// Whitecaps: a thin hairline along the crest of each small wave, on its front. (Tufts at the
-// tops were tried and came out as fat white ovals.) Sparse on a fair day, joining into a net as the
+// Whitecaps: the shore foam's lace along the crests of the small waves - a net of walls and
+// knots, zigzagging and branching, the way the water-type swatches draw them. Sparse on a fair day, joining into a net as the
 // sea gets up - the swatches go from about 1% white (calm) to 4% (choppy) and 6% (stormy).
 // 0 none, 0.3 a fair day, 1 a storm. Material-only.
 uniform float crest_strength : hint_range(0.0, 1.0) = 0.3;
-// Pixels wide a hairline is, whatever the distance. Material-only.
-uniform float crest_line_pixels : hint_range(0.5, 4.0) = 1.4;
 
 // ---- Object bands -----------------------------------------------------------------------
 group_uniforms Object_Bands;
@@ -711,16 +709,44 @@ void fragment() {
     vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
     float k1 = TAU / max(wave_1.w, 0.01);
     float swell_up = sin(k1 * dot(d1, crest_p) - sqrt(9.8 * k1) * clock * wave_speed);
-    // The hairline: one high level of the chop's height, on the FRONT of each small wave (where
-    // it falls away in the direction the waves run), a fixed number of pixels wide. Along a row
-    // of waves that level is an arc following the crest; as crest_strength lowers it the arcs
-    // lengthen and meet their neighbours, and the sea is a net of lines.
+    // The whitecaps are the shore foam's lace, not lines: the walls of a net of cells -
+    // zigzagging, branching, meeting in fat knots, like lightning or cracked glass - shown
+    // only where the chop runs high, so the net lies along each crest. The cells are squeezed
+    // across the crests and bent by the chop, so most walls run along the waves and stray
+    // branches shoot off other ways. Each cell's half of each wall comes and goes with its
+    // own random number, so on a fair day the net is broken fragments on the crests; as
+    // crest_strength rises the band along each crest widens, the fragments join, and the
+    // sea is the lightning net of the "choppy" swatch. Two sizes of cell at once, for
+    // branches within branches.
     float strength = clamp(crest_strength, 0.0, 1.0);
-    float level = mix(0.48, 0.18, strength) - swell_up * 0.12;
-    float front = smoothstep(0.0, 0.25, -dot(normalize(chop.yz + vec2(0.0001)), d1));
-    float px_height = max(fwidth(chop.x), 0.0001);
-    float crest = (1.0 - smoothstep(crest_line_pixels * 0.5, crest_line_pixels * 0.5 + 1.0,
-        abs(chop.x - level) / px_height)) * front;
+    float level = mix(0.5, 0.2, strength) - swell_up * 0.15;
+    // A strip along each crest - one level of the chop's height, some way either side of it -
+    // narrow on a fair day, so only the walls crossing it show: a zigzag chain along the
+    // crest, a branch or two off it. Wider as the sea gets up, so the chains of neighbouring
+    // crests reach each other and join into the net.
+    float strip = 1.0 - smoothstep(0.0, mix(0.13, 0.35, strength), abs(chop.x - level));
+    vec2 crest_side = vec2(-d1.y, d1.x);
+    vec2 net_p = vec2(dot(crest_p, crest_side), dot(crest_p, d1) * 1.8 + chop.x * 0.6);
+    float crest = 0.0;
+    for (int n = 0; n < 2; n++) {
+        vec3 lace = foam_lace_at(net_p, n == 0 ? 0.9 : 0.45, n == 1);
+        float aa_w = max(fwidth(lace.z), 0.004);
+        float aa_c = max(fwidth(lace.x), 0.004);
+        // The finer net only in the middle of the strip.
+        float here = n == 0 ? strip : smoothstep(0.5, 1.0, strip);
+        // Walls thin, thinning toward the strip's edges; broken cell by cell.
+        float w = (n == 0 ? 0.075 : 0.05) * here;
+        float wall = (1.0 - smoothstep(w - aa_w, w + aa_w, lace.z))
+            * step(lace.y, here * 1.7) * step(0.001, w);
+        // Small beads where walls meet, in the strip's middle.
+        float k = 0.74;
+        float knot = smoothstep(k - aa_c, k + aa_c, lace.x) * step(0.6, here);
+        crest = max(crest, max(wall, knot));
+    }
+    // The net's walls are a few centimetres: gone where a pixel spans more than a quarter
+    // metre of sea, before they can shimmer.
+    float metres_per_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
+    crest *= 1.0 - smoothstep(0.12, 0.3, metres_per_px);
     // Only offshore, where the shore foam is not already drawing the waves, only where the
     // chop is still bigger than the pixels, and near.
     crest *= smoothstep(1.5, 4.0, water_depth) * swell * smoothstep(0.35, 0.7, chop.w);
