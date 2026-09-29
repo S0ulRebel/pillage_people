@@ -32,6 +32,11 @@ const MODELS := {
 ## water he wades through is one he walks straight through - which reads as a bug, where
 ## walking through weed reads as weed. He swims past captain.gd's swim_depth, 1.3 m.
 const SHALLOWEST := 1.4
+## How a bed of them grows along the coast (reef.gd, fringe): a reef this many metres from its
+## middle to its rim, the heads this close together - nearer than they are wide, so they grow
+## into one another as one reef rather than standing apart as corals.
+const BED_RADIUS := 2.5
+const BED_SPACING := 0.45
 
 @export var kind: Kind = Kind.FINGERS:
 	set(value):

@@ -179,12 +179,68 @@ func _check_shallows(scene: Node3D, terrain: Node) -> void:
 	check(shallows != null, "there is no Shallows node - nothing grew along the coast")
 	if shallows == null:
 		return
+	# How loose a bed may be: its growths' average distance to their nearest neighbour, in
+	# multiples of the family's BED_SPACING. Measured, the loosest reef averages 0.76 m (of
+	# 1.13 allowed) and the loosest weed patch 0.63 m (of 0.75). Spread over 3.5 m the way grass
+	# clumps - most of a bed in its middle metre, the rest standing alone round it - a weed patch
+	# averaged 0.95 m, which is the look a bed is for avoiding.
+	const LOOSEST := 2.5
 	var ocean := scene.get_node("Ocean") as Ocean
 	var sea: float = terrain.sea_level()
+	# Beds, then what grew in each. A bed is named for its family - CoralBed3, SeaweedBed7 - and
+	# each growth for the family that planted it, from the same pick; the two must agree.
 	var growths: Array[Node3D] = []
-	for child in shallows.get_children():
-		if child is Node3D:
-			growths.append(child)
+	var bed_sizes: Array[int] = []
+	var bed_kinds := {}
+	var mixed := 0
+	var loosest := {}
+	var spacing_of := {}
+	var crowded := 0
+	for bed in shallows.get_children():
+		var kind := String(bed.name).get_slice("Bed", 0)
+		var family := load("res://props/%s/%s.gd" % [kind.to_lower(), kind.to_lower()]) as Script
+		bed_kinds[kind] = int(bed_kinds.get(kind, 0)) + 1
+		spacing_of[kind] = family.BED_SPACING
+		var members: Array[Node3D] = []
+		for child in bed.get_children():
+			members.append(child as Node3D)
+			if String(child.name).rstrip("0123456789") != kind:
+				mixed += 1
+		bed_sizes.append(members.size())
+		growths.append_array(members)
+		# How far the average growth in this bed is from its nearest neighbour. A patch is
+		# plants touching; a metre and more between them is plants dotted about.
+		var gaps := 0.0
+		for a in members:
+			var closest := 1e9
+			for b in members:
+				if a != b:
+					closest = minf(closest, Vector2(a.global_position.x - b.global_position.x,
+							a.global_position.z - b.global_position.z).length())
+			gaps += closest
+			if closest < family.BED_SPACING - 0.01:
+				crowded += 1
+		if members.size() > 1:
+			loosest[kind] = maxf(float(loosest.get(kind, 0.0)), gaps / members.size())
+	bed_sizes.sort()
+	print("shallows: %d beds %s, %d to %d growths each (median %d), loosest bed by family %s m"
+			% [bed_sizes.size(), str(bed_kinds), bed_sizes[0], bed_sizes[-1],
+			bed_sizes[bed_sizes.size() / 2], str(loosest)] + " between neighbours on average")
+	check(mixed == 0,
+			"%d growth(s) are in a bed of the other family. A bed is a coral reef or a patch of"
+			% mixed + " weed, never both")
+	check(bed_kinds.size() >= 2,
+			"the shallows are all one kind of bed (%s) - no reefs, or no weed" % str(bed_kinds))
+	check(bed_sizes[bed_sizes.size() / 2] >= 12,
+			"the median bed holds %d growths. Under a dozen it reads as a few plants, not a patch"
+			% bed_sizes[bed_sizes.size() / 2])
+	for kind in loosest:
+		check(loosest[kind] <= LOOSEST * spacing_of[kind],
+				"a %s bed's growths average %.2f m from their nearest neighbour - dotted about,"
+				% [kind, loosest[kind]] + " not a patch")
+	check(crowded == 0,
+			"%d growth(s) stand closer to another in their bed than their family's BED_SPACING"
+			% crowded)
 	check(growths.size() >= 150,
 			"only %d growths along the whole coast - under the beds that were asked for, so"
 			% growths.size() + " the band or the fit is refusing nearly everywhere")
@@ -232,7 +288,6 @@ func _check_shallows(scene: Node3D, terrain: Node) -> void:
 	var undrawn := 0
 	var near_start := 0
 	var under_hull := 0
-	var nearest := 1e9
 	var counted := {}
 	var sectors := {}
 	var start: Vector3 = (scene.get_node("Player") as Node3D).global_position
@@ -279,15 +334,11 @@ func _check_shallows(scene: Node3D, terrain: Node) -> void:
 		# Which twelfth of the way round the island. The map is centred on the origin.
 		var sector := int(floorf((atan2(at.z, at.x) + PI) / TAU * 12.0)) % 12
 		sectors[sector] = int(sectors.get(sector, 0)) + 1
-		for j in range(i + 1, growths.size()):
-			var there := growths[j].global_position
-			nearest = minf(nearest, Vector2(there.x - at.x, there.z - at.z).length())
 	print("shallows: %d growths %s, %d within %.0f m of the start, %d of 12 twelfths of the coast"
 			% [growths.size(), str(counted), near_start, scene.shallows_reach, sectors.size()])
 	var longest := float(longest_showing) / SAMPLES
 	print("shallows: %d of %d show a tip in some trough, the most exposed %.0f%% of the time;"
-			% [ever_showing, growths.size(), longest * 100.0] + " worst perch %.3f m," % worst_perch
-			+ " nearest pair %.2f m" % nearest)
+			% [ever_showing, growths.size(), longest * 100.0] + " worst perch %.3f m" % worst_perch)
 
 	check(breached == 0,
 			"%d growth(s) in the shallows reach within 0.1 m of the still level. They carry no"
@@ -324,9 +375,7 @@ func _check_shallows(scene: Node3D, terrain: Node) -> void:
 	check(under_hull == 0,
 			"%d growth(s) are under the moored hull, whose keel sits in the water they grow in"
 			% under_hull)
-	check(nearest >= shallows.spacing - 0.01,
-			"two growths in the shallows are %.2f m apart against a %.2f m spacing"
-			% [nearest, shallows.spacing])
+
 
 
 ## Every mesh under a node, merged, in that node's own space. The imported origin is arbitrary -

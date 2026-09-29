@@ -249,15 +249,25 @@ left nowhere to build.
 
 Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
 tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, 5 grunts, a reef of
-corals and weed on the dive crater's floor, and about 350 more in beds through the shallows.
+corals and weed on the dive crater's floor, and about 450 more through the shallows in some
+twenty coral reefs and weed patches.
 
 The shallows are `props/reef/reef.gd` again, told a band of water (0.9 to 2.8 m) instead of a
-crater, and it finds the coast by depth rather than from a list of beaches. Half the beds go
-along the beach he starts on (`shallows_beds_here`, within `shallows_reach` of the spawn) and
-half round the rest of the island (`shallows_beds_round`), because the coast is 1.5 km long and
-filling all of it at a beach's density would be over a thousand plants. Weed grows from the
-foam line out; corals only past 1.4 m, where he is swimming rather than wading, because they
-have no collider and walking through one reads as a bug. Nothing grows under the moored hull.
+crater, and it finds the coast by depth rather than from a list of beaches. They grow the way
+the real things do, **in beds of one kind**: a coral reef, or a patch of weed, 14 to 26 plants
+packed closer than they are wide, thinner and smaller toward the rim. How big a bed is and how
+tight it packs belongs to the family - `BED_RADIUS` and `BED_SPACING` in `coral.gd` and
+`seaweed.gd` - because weed is blades a handspan deep and needs a smaller, tighter patch than a
+reef to read as one. Each bed is a node (`CoralBed3`, `SeaweedBed7`) you can find, move or
+delete in the editor. Beds of the two kinds mixed, a metre apart, read as single plants dotted
+about.
+
+About half the beds go along the beach he starts on (`shallows_beds_here`, within
+`shallows_reach` of the spawn) and the rest round the island (`shallows_beds_round`), because
+the coast is 1.5 km long and filling all of it at a beach's density would be over a thousand
+plants. Weed grows from the foam line out; a reef only where all of it is past 1.4 m, where he
+is swimming rather than wading, because corals have no collider and walking through one reads
+as a bug. Nothing grows under the moored hull.
 
 **Near the beach the swell decides how big they can be.** The waves sum to 1.32 m and only
 flatten as the bed rises, so in 1.5 m of water the surface can fall to 0.64 m. Each growth is
@@ -485,8 +495,9 @@ breaks the surface — which is what makes it correct for a coral to be the one 
 stays off the ocean's layer 20. It then measures the shallows the same way, but reads the sea
 itself - `surface_y` at every growth over three quarters of a minute - rather than trusting the
 trough the reef planted against: no tip may be out of the water more than an eighth of the
-time. It also checks the corals stay out of wading depth, the beds reach round the island and
-thicken at the start, and nothing grows under the moored hull. `coastal_smoke` checks the island builds and the captain stands
+time. It also checks each bed is one kind and packed like a patch, the corals stay out of
+wading depth, the beds reach round the island and thicken at the start, and nothing grows under
+the moored hull. `coastal_smoke` checks the island builds and the captain stands
 on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below

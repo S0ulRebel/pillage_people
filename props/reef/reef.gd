@@ -12,7 +12,10 @@ extends Node3D
 ##              middle, so moving the crater in the editor moves the reef with it.
 ##   fringe()   beds in the shallows along the coast, found by their depth - so a different
 ##              height map, or a stamp that pushes the beach out, is followed without anyone
-##              writing down where the coast is. Near a point, or all the way round.
+##              writing down where the coast is. Near a point, or all the way round. Each bed is
+##              ONE family, packed tight: a coral reef, or a patch of weed. That is how they
+##              grow, and a bed that mixes the two a metre apart reads as single plants dotted
+##              about rather than as either.
 ##
 ## Both hand each spot to the same _plant(), which is where every rule about what may grow
 ## there lives. The two differ only in how they choose the spots.
@@ -25,7 +28,8 @@ extends Node3D
 ## nobody can grep for.
 
 ## The families it draws from. Each is a prop script with a MODELS dictionary, a SHALLOWEST
-## depth and a static dress(); adding a third is one line here and nothing else.
+## depth, the BED_RADIUS and BED_SPACING of a bed of them, and a static dress(); adding a third
+## is one line here and nothing else.
 const FAMILIES := [
 	preload("res://props/coral/coral.gd"),
 	preload("res://props/seaweed/seaweed.gd"),
@@ -68,7 +72,8 @@ const FAMILIES := [
 @export_range(0.0, 1.0) var trough_share := 1.0
 ## Nothing plants within this of another growth. Rocks do not bother - a boulder half inside
 ## another boulder still reads as rock - but two coral heads in the same place read as one
-## broken coral.
+## broken coral. scatter() only: a bed along the coast packs as tight as its family says
+## (BED_SPACING), because a reef is heads grown together.
 @export var spacing := 2.2
 ## Each one a little off its authored size. A handful of models across two dozen corals is
 ## repetition the eye finds at once without this.
@@ -82,14 +87,13 @@ const FAMILIES := [
 @export var sink := 0.06
 
 @export_group("Beds")
-## fringe() only. How many growths a bed tries for, fewest to most.
+## fringe() only. How many growths a bed tries for, fewest to most. How far a bed reaches and
+## how close its growths stand is the family's own (BED_RADIUS, BED_SPACING); thinner toward
+## the rim and smaller there too, so a bed has a shape rather than a fence round it.
 @export var bed_size := Vector2i(4, 9)
-## How far from its middle a bed reaches, in metres. Crowded toward the middle, like a grass
-## patch - an even sprinkle along a coast reads as a texture rather than as things growing.
-@export var bed_radius := 5.0
-## The least distance between two beds' middles. At least twice bed_radius plus spacing, so
-## two beds can never crowd each other - which is what lets a bed check its spacing against
-## its own growths only, rather than against the whole coast.
+## The least distance between two beds' middles. At least twice the widest family's BED_RADIUS
+## plus its BED_SPACING, so two beds can never crowd each other - which is what lets a bed
+## check its spacing against its own growths only, rather than against the whole coast.
 @export var bed_spacing := 14.0
 
 @export_group("Drawing")
@@ -131,7 +135,7 @@ func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator,
 			# sqrt, so they spread evenly over the area rather than crowding the middle.
 			var away: float = sqrt(rng.randf()) * spread
 			var at := Vector3(around.x + cos(angle) * away, 0.0, around.z + sin(angle) * away)
-			if _plant(terrain, at, rng, _planted):
+			if _plant(terrain, at, rng, _planted, spacing):
 				grown += 1
 				break
 	return grown
@@ -151,6 +155,9 @@ func fringe(terrain: Node, beds: int, rng: RandomNumberGenerator, ocean: Ocean =
 		return 0
 	var sea: float = terrain.sea_level()
 	var half: float = terrain.world_size * 0.5
+	var widest := 0.0
+	for family in FAMILIES:
+		widest = maxf(widest, family.BED_RADIUS)
 	var middles: Array[Vector3] = []
 	for i in beds:
 		for attempt in 60:
@@ -162,7 +169,7 @@ func fringe(terrain: Node, beds: int, rng: RandomNumberGenerator, ocean: Ocean =
 			else:
 				at = Vector3(rng.randf_range(-half, half), 0.0, rng.randf_range(-half, half))
 			var depth: float = sea - terrain.height_at(at.x, at.z)
-			if depth < min_depth or depth > max_depth or _kept_clear(at, bed_radius):
+			if depth < min_depth or depth > max_depth or _kept_clear(at, widest):
 				continue
 			var crowded := false
 			for other in _middles:
@@ -176,16 +183,34 @@ func fringe(terrain: Node, beds: int, rng: RandomNumberGenerator, ocean: Ocean =
 			break
 	var grown := 0
 	for middle in middles:
-		var bed: Array[Vector3] = []
+		var family := _bed_family(terrain, middle, rng)
+		if family == null:
+			continue
+		# A node per bed, named for what it is, so a reef can be found, moved or deleted in the
+		# editor as one thing - and so a check can ask which bed a growth belongs to.
+		var bed := Node3D.new()
+		bed.name = "%sBed%d" % [_family_name(family), get_child_count()]
+		add_child(bed)
+		bed.global_position = Vector3(middle.x, terrain.height_at(middle.x, middle.z), middle.z)
+		var spots: Array[Vector3] = []
 		for i in rng.randi_range(bed_size.x, bed_size.y):
 			for attempt in 8:
 				var angle := rng.randf() * TAU
-				# Two randoms multiplied: dense in the middle, ragged at the edge. grass.gd's clump.
-				var away: float = rng.randf() * rng.randf() * bed_radius
+				# Even in distance from the middle, so thinning toward the rim: a plant's share of
+				# the ground grows with how far out it is. Not grass.gd's two randoms multiplied,
+				# which packs most of a bed into its middle metre and leaves the rest as single
+				# plants standing on their own round it - the look a bed exists to avoid.
+				var out: float = rng.randf()
+				var away: float = out * family.BED_RADIUS
 				var at := Vector3(middle.x + cos(angle) * away, 0.0, middle.z + sin(angle) * away)
-				if _plant(terrain, at, rng, bed):
+				# Down to 60% of full size at the rim, so a bed has a shape - a mound of coral,
+				# a clump of weed thickest in the middle.
+				if _plant(terrain, at, rng, spots, family.BED_SPACING, bed, family,
+						lerpf(1.0, 0.6, out)):
 					grown += 1
 					break
+		if spots.is_empty():
+			bed.free()
 	return grown
 
 
@@ -193,6 +218,28 @@ func fringe(terrain: Node, beds: int, rng: RandomNumberGenerator, ocean: Ocean =
 ## record and a test that walks children is measuring the tree rather than the decision.
 func planted() -> Array[Vector3]:
 	return _planted
+
+
+## Which family a bed at `middle` belongs to: one of those that can grow across all of it, at
+## even odds, or null if none can.
+##
+## ACROSS ALL OF IT, not just at the middle. The shelf rises toward the beach by about a tenth
+## of a metre for every metre out (see max_depth), so a bed's shoreward rim is up to a tenth of
+## its BED_RADIUS shallower than its middle; a coral reef whose middle only just cleared
+## Coral.SHALLOWEST would be cut off in a straight line along that side.
+func _bed_family(terrain: Node, middle: Vector3, rng: RandomNumberGenerator) -> Script:
+	var depth: float = terrain.sea_level() - terrain.height_at(middle.x, middle.z)
+	var able: Array[Script] = []
+	for family in FAMILIES:
+		if depth - family.BED_RADIUS * 0.1 < family.SHALLOWEST:
+			continue
+		for entry in _pool:
+			if entry["family"] == family:
+				able.append(family)
+				break
+	if able.is_empty():
+		return null
+	return able[rng.randi() % able.size()]
 
 
 ## Loads and measures every model once, and takes the ocean. False if there is nothing to plant.
@@ -226,16 +273,18 @@ func _prepare(ocean: Ocean) -> bool:
 
 
 ## Plants one growth at `at` if the water there allows one, and says whether it did. `near` is
-## what it must keep `spacing` from, and it is added to that list too.
-func _plant(terrain: Node, at: Vector3, rng: RandomNumberGenerator,
-		near: Array[Vector3]) -> bool:
+## what it must keep `apart` metres from, and it is added to that list too. It goes under
+## `into`, or this node; `only` limits it to one family; `taper` scales down the largest size it
+## may take.
+func _plant(terrain: Node, at: Vector3, rng: RandomNumberGenerator, near: Array[Vector3],
+		apart: float, into: Node3D = null, only: Script = null, taper := 1.0) -> bool:
 	var sea: float = terrain.sea_level()
 	var ground: float = terrain.height_at(at.x, at.z)
 	var depth := sea - ground
 	if depth < min_depth or depth > max_depth or _kept_clear(at, 1.0):
 		return false
 	for other in near:
-		if Vector2(other.x - at.x, other.z - at.z).length() < spacing:
+		if Vector2(other.x - at.x, other.z - at.z).length() < apart:
 			return false
 	# The tallest thing that stays under here with the swell as low as trough_share allows for.
 	var trough := _ocean.deepest_trough(depth) * trough_share if _ocean != null else 0.0
@@ -245,21 +294,23 @@ func _plant(terrain: Node, at: Vector3, rng: RandomNumberGenerator,
 	# with the short weeds instead of coming up empty after eight tries at a tall coral.
 	var fits: Array[Dictionary] = []
 	for entry in _pool:
+		if only != null and entry["family"] != only:
+			continue
 		if depth >= entry["family"].SHALLOWEST and entry["tall"] * size_jitter.x <= room:
 			fits.append(entry)
 	if fits.is_empty():
 		return false
 	var pick: Dictionary = fits[rng.randi() % fits.size()]
-	var size := rng.randf_range(size_jitter.x, minf(size_jitter.y, room / pick["tall"]))
+	var size := rng.randf_range(size_jitter.x,
+			minf(size_jitter.y * taper, room / pick["tall"]))
 	var growth := (pick["scene"] as PackedScene).instantiate() as Node3D
 	# Named for the family that planted it. Not decoration: it is the only honest record of
 	# which branch the pick took. A check tried to read that off the material instead - seaweed
 	# forces two-sided shading and coral does not - and it was measuring the asset rather than
 	# the code, because two of the four corals come out of Tripo doubleSided already and two do
 	# not.
-	growth.name = "%s%d" % [(pick["family"] as Script).resource_path.get_file()
-			.get_basename().capitalize(), _planted.size()]
-	add_child(growth)
+	growth.name = "%s%d" % [_family_name(pick["family"]), _planted.size()]
+	(into if into != null else self).add_child(growth)
 	growth.global_position = Vector3(at.x, ground, at.z)
 	# Ground puts the model's BOTTOM on the bed rather than its node origin. For these that is
 	# the same thing to within 5 mm, but it is the same call the hand placed ones make, so a
@@ -280,6 +331,11 @@ func _plant(terrain: Node, at: Vector3, rng: RandomNumberGenerator,
 	if not is_same(near, _planted):
 		_planted.append(growth.global_position)
 	return true
+
+
+## "Coral" or "Seaweed": the family's script name, which is what growths and beds are named for.
+static func _family_name(family: Script) -> String:
+	return family.resource_path.get_file().get_basename().capitalize()
 
 
 ## Whether `at` is within `margin` of the footprint of anything in keep_clear.

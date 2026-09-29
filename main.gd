@@ -74,15 +74,16 @@ const WATER_FOR_FISH := 3.2
 ## Corals, grown on the floor of whatever dive crater the scene has. Per crater, not in total -
 ## see _grow_reef, which finds them rather than being told where they are.
 @export var coral_count := 26
-## Beds of weed and coral in the shallows - see Reef.fringe. Seven to fourteen growths a bed.
+## Beds in the shallows, each a coral reef or a patch of weed - see Reef.fringe. Fourteen to
+## twenty-six growths a bed, so these are few and full rather than many and thin.
 ##
 ## Two counts, because the coast is 1.5 km round and the player starts on one beach of it: at
 ## the density a beach needs to look grown rather than sprinkled, the whole coast would be over
 ## a thousand plants. So most of them go along the beach he starts on, within
 ## shallows_reach of the spawn, and the rest are spread thinner round the island so that
 ## sailing anywhere else still finds some. Zero turns either off.
-@export var shallows_beds_here := 18
-@export var shallows_beds_round := 18
+@export var shallows_beds_here := 10
+@export var shallows_beds_round := 12
 @export var shallows_reach := 110.0
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
@@ -505,11 +506,10 @@ func _grow_shallows(around: Vector3) -> void:
 	# about 40 m from the sand. See max_depth in reef.gd.
 	shallows.min_depth = 0.9
 	shallows.max_depth = 2.8
-	# Smaller than the crater's, because what fits under this little water is smaller: a
-	# 0.4 m weed with 2.2 m of empty sand round it is a sprinkle, not a bed.
-	shallows.spacing = 0.8
-	shallows.bed_size = Vector2i(7, 14)
-	shallows.bed_radius = 4.0
+	# Few, full beds rather than many thin ones: a reef or a weed patch each, as big and as
+	# tightly packed as coral.gd and seaweed.gd say. At the old 0.8 m apart, beds of seven to
+	# fourteen, the same plants read as singles dotted about.
+	shallows.bed_size = Vector2i(14, 26)
 	shallows.size_jitter = Vector2(0.4, 1.1)
 	shallows.sink = 0.05
 	shallows.visible_within = 110.0
