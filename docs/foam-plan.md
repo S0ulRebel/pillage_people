@@ -186,3 +186,27 @@ project already rejects view-dependent outlines).
   the captain on a real beach, the gameplay camera's pitch and lens, captures at the panels'
   scale (7 m of arm, where the captain is the panels' size - play's default 18 m shows him at a
   third of that) and at 18 m, each side by side with panels 9 and 10.
+
+### Step 2: shore waves (done)
+
+- Near the island the swell hands over to shore waves (`world/waves.gdshaderinc`): their crests
+  are lines of equal distance to the shore, so they come in parallel to every beach and wrap
+  round the island. They take over from 40 m out (`shore_wave_reach`) and are the only big
+  waves within the last third of that (`shore_wave_calm` 0.9 of the swell handed over).
+- They keep the long swell's period. Each stretch of coast gets its own timing and height from
+  smooth sines of its nearest shore point, so neighbouring stretches differ without a seam, and
+  a slow swell of height gives a bigger wave every fourth or so (sets).
+- They keep full height down to 0.6 m of water (`shore_wave_shoal`), where the swell flattens
+  over 2.5 m: otherwise they were gone before they reached the beach.
+- One sum, three places, kept identical: the sea's mesh and its per-pixel slopes
+  (`ocean.gdshader`), the underwater view's copy of the surface (`underwater.gd` mirrors the new
+  uniforms), and the CPU surface things float on (`ocean.gd`, which reads the shore field at the
+  same half precision the GPU filters). `tests/underwater_view.gd` measures the shader and the
+  CPU agreeing to 0.1 mm; its 9 mm shader-to-mesh difference in the shallows was 8 mm before
+  and is not from this.
+- Tunable on the Ocean node, "Shore Waves" group. `wave_preview` on the ocean material draws the
+  surface's height, for seeing them; `tests/foam_view.gd` captures it over the coast at three
+  moments.
+- On their own they barely show from the gameplay camera: the toon shading hides small slopes,
+  and a wave reads top-down by its foam. They are what the run-up (step 3) and the foam (step 4)
+  ride.

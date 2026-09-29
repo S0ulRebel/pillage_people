@@ -29,6 +29,8 @@ const FAR := 1.0e9
 ## Metres from the shore within which the field is refined to the true nearest crossing point
 ## (pass 3). Foam, shore waves and wet sand all live well inside it.
 const REFINE_METRES := 45.0
+## What a point with no shore anywhere reads as: far, and inside what a half float can hold.
+const FAR_HALF := 60000.0
 
 ## The texture, and where it lies: (x, z) of texel 0's centre in world metres, the metres
 ## between texel centres, and the texels per side. What the shaders need to find a point in it.
@@ -65,6 +67,24 @@ func distance_at(world_x: float, world_z: float) -> float:
 	var i := z0 * _cells + x0
 	return lerpf(lerpf(_signed[i], _signed[i + 1], fx),
 		lerpf(_signed[i + _cells], _signed[i + _cells + 1], fx), fz)
+
+
+## (signed metres to the shore, nearest shore point x, z) at a world point, filtered the way
+## the shaders filter it (shore_field_at in world/shore_field.gdshaderinc). The sea's surface
+## on the CPU (ocean.gd) reads this so floating things ride the same shore waves the mesh draws.
+func sample(world_x: float, world_z: float) -> Vector3:
+	var gx := clampf((world_x - rect.x) / rect.z, 0.0, float(_cells - 1))
+	var gz := clampf((world_z - rect.y) / rect.z, 0.0, float(_cells - 1))
+	var x0 := mini(int(gx), _cells - 2)
+	var z0 := mini(int(gz), _cells - 2)
+	var fx := gx - float(x0)
+	var fz := gz - float(z0)
+	var i := z0 * _cells + x0
+	var j := i + _cells
+	return Vector3(
+		lerpf(lerpf(_signed[i], _signed[i + 1], fx), lerpf(_signed[j], _signed[j + 1], fx), fz),
+		lerpf(lerpf(_near_x[i], _near_x[i + 1], fx), lerpf(_near_x[j], _near_x[j + 1], fx), fz),
+		lerpf(lerpf(_near_z[i], _near_z[i + 1], fx), lerpf(_near_z[j], _near_z[j + 1], fx), fz))
 
 
 ## The nearest waterline point to a texel, in world metres. For tests.
@@ -221,20 +241,29 @@ func _bake(heights: PackedFloat32Array, size: int, world_size: float, height_sca
 					best[i] = d
 					nearest[i] = seed
 
+	# Written as half floats, and read back from them: the CPU copies (distance_at, sample)
+	# then hold exactly what the GPU filters, so the sea's surface computed here for things that
+	# float agrees with the one the mesh draws.
 	_signed.resize(count)
 	_near_x.resize(count)
 	_near_z.resize(count)
-	var image := Image.create_empty(n, n, false, Image.FORMAT_RGBAH)
+	var bytes := PackedByteArray()
+	bytes.resize(count * 8)
 	for i in count:
 		var x := i % n
 		var z := i / n
 		var seed := nearest[i]
 		var point := Vector2(float(x), float(z)) if seed < 0 else Vector2(seed_x[seed], seed_z[seed])
 		var world := origin + point * spacing
-		_signed[i] = (-1.0 if above[i] > 0.0 else 1.0) * (FAR if seed < 0 else best[i] * spacing)
-		_near_x[i] = world.x
-		_near_z[i] = world.y
-		image.set_pixel(x, z, Color(_signed[i], world.x, world.y, 0.0))
+		var o := i * 8
+		bytes.encode_half(o, (-1.0 if above[i] > 0.0 else 1.0) * (FAR_HALF if seed < 0 else best[i] * spacing))
+		bytes.encode_half(o + 2, world.x)
+		bytes.encode_half(o + 4, world.y)
+		bytes.encode_half(o + 6, 0.0)
+		_signed[i] = bytes.decode_half(o)
+		_near_x[i] = bytes.decode_half(o + 2)
+		_near_z[i] = bytes.decode_half(o + 4)
+	var image := Image.create_from_data(n, n, false, Image.FORMAT_RGBAH, bytes)
 	texture = ImageTexture.create_from_image(image)
 	bake_msec = Time.get_ticks_msec() - started
 

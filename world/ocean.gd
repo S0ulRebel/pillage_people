@@ -104,6 +104,37 @@ extends MeshInstance3D
 		shoal_depth = value
 		_push("shoal_depth", value)
 
+@export_group("Shore Waves")
+## Near the island the swell hands over to waves that come straight in to the beach, their
+## crests running parallel to it (waves.gdshaderinc has the whole story). Metres between their
+## crests as they come in.
+@export_range(2.0, 40.0) var shore_wave_length := 11.0:
+	set(value):
+		shore_wave_length = value
+		_push("shore_wave_length", value)
+## Their steepness, like a swell wave's. 0 switches them off.
+@export_range(0.0, 1.0) var shore_wave_steepness := 0.55:
+	set(value):
+		shore_wave_steepness = value
+		_push("shore_wave_steepness", value)
+## Metres out from the waterline where they begin to take over; full height within the nearest
+## third of it.
+@export_range(5.0, 120.0) var shore_wave_reach := 40.0:
+	set(value):
+		shore_wave_reach = value
+		_push("shore_wave_reach", value)
+## How much of the swell they take over from by the beach: 1 all of it, 0 none.
+@export_range(0.0, 1.0) var shore_wave_calm := 0.9:
+	set(value):
+		shore_wave_calm = value
+		_push("shore_wave_calm", value)
+## Metres of water they keep their full height down to - much less than the swell's
+## shoal_depth, or they are gone before they reach the beach.
+@export_range(0.05, 5.0) var shore_wave_shoal := 0.6:
+	set(value):
+		shore_wave_shoal = value
+		_push("shore_wave_shoal", value)
+
 @export_group("Optics")
 ## Per-metre RGB absorption. Warm light is removed first to create turquoise shallows.
 @export var absorption := Vector3(0.24, 0.075, 0.028):
@@ -138,6 +169,8 @@ var _band_viewport: SubViewport
 var _band_camera: Camera3D
 var _sea_level := 0.0
 var _terrain: Node3D
+## The terrain's shore field (world/shore_field.gd), which the shore waves are drawn from.
+var _shore_field: RefCounted = null
 ## The water clock, advanced here and pushed to the shader, rather than the shader reading its
 ## own TIME.
 ##
@@ -200,6 +233,9 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			["wave_1", wave_1], ["wave_2", wave_2], ["wave_3", wave_3], ["wave_4", wave_4],
 			["choppiness", choppiness],
 			["wave_speed", wave_speed], ["shoal_depth", shoal_depth],
+			["shore_wave_length", shore_wave_length], ["shore_wave_steepness", shore_wave_steepness],
+			["shore_wave_reach", shore_wave_reach], ["shore_wave_calm", shore_wave_calm],
+			["shore_wave_shoal", shore_wave_shoal],
 			["sun_direction", sun_direction], ["daylight", daylight],
 			["depth_fade", depth_fade], ["absorption", absorption],
 			["absorption_strength", absorption_strength],
@@ -220,6 +256,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 		water.set_shader_parameter("terrain_base_y", terrain.global_position.y)
 		if terrain.has_method("apply_shore_field"):
 			terrain.apply_shore_field(water)
+			_shore_field = terrain.shore_field()
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
@@ -352,10 +389,43 @@ func surface_y(x: float, z: float) -> float:
 	var source := at
 	var offset := Vector3.ZERO
 	for i in 8:
-		offset = _displacement(source, _shoal_at(source) * wave_height, q)
+		offset = _displacement(source, wave_height, q)
 		source = at - Vector2(offset.x, offset.z)
-	offset = _displacement(source, _shoal_at(source) * wave_height, q)
+	offset = _displacement(source, wave_height, q)
 	return _sea_level + offset.y
+
+
+## The shore field under a point, read the way the shaders read it: (signed metres to the
+## shore, nearest shore point x, z), or null before there is one.
+func _shore_at(p: Vector2) -> Vector3:
+	if _shore_field == null:
+		return Vector3(1.0e4, p.x, p.y)
+	return _shore_field.sample(p.x, p.y)
+
+
+## shore_blend() in waves.gdshaderinc.
+func _shore_blend(d: float) -> float:
+	return 1.0 - smoothstep(shore_wave_reach * 0.35, maxf(shore_wave_reach, 0.01), d)
+
+
+## The shore wave's displacement at `p` - shore_wave() in waves.gdshaderinc, on the same clock.
+func _shore_displacement(p: Vector2, field: Vector3, scale: float, q: float) -> Vector3:
+	var blend := _shore_blend(field.x)
+	if blend <= 0.0 or shore_wave_steepness <= 0.0:
+		return Vector3.ZERO
+	var to_shore := Vector2(field.y, field.z) - p
+	var reach := to_shore.length()
+	var toward := to_shore / reach if reach > 1.0e-3 else Vector2.ZERO
+	var k := TAU / maxf(shore_wave_length, 0.01)
+	var omega := sqrt(9.8 * TAU / maxf(wave_1.w, 0.01)) * wave_speed
+	var n := Vector2(field.y, field.z)
+	var stagger := 2.1 * sin(n.x * 0.047 + n.y * 0.013 + 1.3) + 1.6 * sin(n.y * 0.061 - n.x * 0.029 + 4.1)
+	var stretch := 0.75 + 0.25 * sin(n.x * 0.031 - n.y * 0.043 + 2.0)
+	var phase := -k * field.x - omega * _clock + stagger
+	var set_height := 0.72 + 0.28 * cos(phase * 0.25 + stagger * 0.5)
+	var a := shore_wave_steepness / k * scale * blend * stretch * set_height
+	var sideways := a * q * 0.5 * cos(phase)
+	return Vector3(sideways * toward.x, a * sin(phase), sideways * toward.y)
 
 
 ## Waves flatten as the seabed rises. This one is real rather than a rendering concession,
@@ -398,10 +468,21 @@ func _prepare_wave(i: int, wave: Vector4) -> void:
 
 ## Where the four waves move the water that starts at `p`: x and z sideways, y up. The same
 ## sum as gerstner() in waves.gdshaderinc, on the same clock.
-func _displacement(p: Vector2, scale: float, q: float) -> Vector3:
-	var moved := Vector3.ZERO
+func _displacement(p: Vector2, height: float, q: float) -> Vector3:
+	# Each shoaled by the depth here: the swell by shoal_depth, the shore wave by its own
+	# shore_wave_shoal - gerstner_all() in the shader. And near the island the swell gives way
+	# to the shore wave (swell_share).
+	var depth := 1.0e4
+	if _terrain != null:
+		depth = _sea_level - _terrain.height_at(p.x, p.y)
+	var field := _shore_at(p)
+	var swell := height * smoothstep(0.0, maxf(shoal_depth, 0.001), depth)
+	if shore_wave_steepness > 0.0001:
+		swell *= 1.0 - shore_wave_calm * _shore_blend(field.x)
+	var moved := _shore_displacement(p, field,
+			height * smoothstep(0.0, maxf(shore_wave_shoal, 0.001), depth), q)
 	for i in 4:
-		var a: float = _wave_amp[i] * scale
+		var a: float = _wave_amp[i] * swell
 		if a == 0.0:
 			continue
 		var d: Vector2 = _wave_dir[i]

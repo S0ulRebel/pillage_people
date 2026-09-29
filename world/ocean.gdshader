@@ -38,7 +38,6 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 
 #include "res://world/waves.gdshaderinc"
 #include "res://world/cloud_shadow.gdshaderinc"
-#include "res://world/shore_field.gdshaderinc"
 
 // ---- Engine inputs ----------------------------------------------------------------------
 // The opaque pass's depth and colour, as drawn before the water. They are what the water
@@ -62,6 +61,10 @@ uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.12;
 // Opaque, unshaded colour ramp for checking colours against your swatches. Material-only.
 uniform bool palette_preview = false;
+// Draws the surface's height instead of the water - crests light, troughs dark, a band every
+// 10 cm - for seeing the waves themselves, the shore waves coming in above all, which the toon
+// shading and the foam otherwise hide. Material-only.
+uniform bool wave_preview = false;
 
 // ---- Transmission -----------------------------------------------------------------------
 group_uniforms Transmission;
@@ -293,6 +296,18 @@ vec2 wave_slope(vec4 wave, vec2 p) {
     return d * max(wave.z, 0.0) * cos(phase) * visible;
 }
 
+// The shore wave's slope, the same way (waves.gdshaderinc). Its phase falls by k for every
+// metre out from the shore, so it climbs toward the shore and its gradient points there.
+vec2 shore_wave_slope(vec2 p, vec4 field) {
+    float blend = shore_blend(field.x);
+    if (blend <= 0.0 || shore_wave_steepness <= 0.0) {
+        return vec2(0.0);
+    }
+    vec2 ph = shore_wave_phase(field);
+    float visible = 1.0 - smoothstep(0.5, 2.0, fwidth(ph.x));
+    return shore_direction(p, field) * shore_wave_steepness * blend * ph.y * cos(ph.x) * visible;
+}
+
 // How much of the waves this pixel keeps, three ways:
 //   x = shoal x distance fade for the two BROAD waves (gone by three quarters of detail_far)
 //   y = shoal x distance fade for the two SHORT waves (gone by detail_far)
@@ -345,6 +360,25 @@ float geometry_envelope(vec2 p, vec3 eye, float wavelength) {
     return shoal * sampled * wave_height;
 }
 
+// The same for the shore wave, shoaled its own way (shore_shoal in waves.gdshaderinc).
+float shore_geometry_envelope(vec2 p, vec3 eye) {
+    float depth = sea_y - bed_height(p);
+    float range = length(p - eye.xz);
+    float radial_spacing = range * max(radial_growth - 1.0, 0.001);
+    float angular_spacing = range * TAU / max(radial_segments, 3.0);
+    float spacing = max(radial_spacing, angular_spacing);
+    float sampled = 1.0 - smoothstep(shore_wave_length * 0.24, shore_wave_length * 0.48, spacing);
+    return shore_shoal(depth) * sampled * wave_height;
+}
+
+// And for its slope per pixel: its own shoal, and the broad waves' fade with distance.
+float shore_envelope(vec2 p, vec3 eye) {
+    float depth = sea_y - bed_height(p);
+    float range = length(vec3(p.x, sea_y, p.y) - eye);
+    float broad = 1.0 - smoothstep(detail_near, max(detail_far * 0.75, detail_near + 1.0), range);
+    return shore_shoal(depth) * broad;
+}
+
 // ---- Vertex: displace the grid with the waves, and send the far rings to the horizon ----
 void vertex() {
     vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -376,10 +410,14 @@ void vertex() {
         float q = horizontal_ratio();
         vec3 offset = vec3(0.0);
         float reach = 0.0;
-        gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w), q, offset, reach);
-        gerstner(wave_2, p, geometry_envelope(p, eye, wave_2.w), q, offset, reach);
-        gerstner(wave_3, p, geometry_envelope(p, eye, wave_3.w), q, offset, reach);
-        gerstner(wave_4, p, geometry_envelope(p, eye, wave_4.w), q, offset, reach);
+        // Near the island the swell gives way to the shore waves (waves.gdshaderinc).
+        vec4 field = shore_field_at(p);
+        float swell = swell_share(field);
+        gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w) * swell, q, offset, reach);
+        gerstner(wave_2, p, geometry_envelope(p, eye, wave_2.w) * swell, q, offset, reach);
+        gerstner(wave_3, p, geometry_envelope(p, eye, wave_3.w) * swell, q, offset, reach);
+        gerstner(wave_4, p, geometry_envelope(p, eye, wave_4.w) * swell, q, offset, reach);
+        shore_wave(p, field, shore_geometry_envelope(p, eye), q, offset, reach);
         world += offset;
         wave_activity = smoothstep(0.02, 0.18, reach);
     }
@@ -502,13 +540,18 @@ void fragment() {
     // once shoaled only, for the sun.
     float clock = water_time();
     vec3 env = envelopes(world_point.xz, CAMERA_POSITION_WORLD);
-    vec2 broad_slope = wave_slope(wave_1, world_point.xz)
-        + wave_slope(wave_2, world_point.xz);
-    vec2 fine_slope = wave_slope(wave_3, world_point.xz)
-        + wave_slope(wave_4, world_point.xz);
+    // By the island the swell gives way to the shore waves.
+    vec4 shore_here = shore_field_at(world_point.xz);
+    float swell = swell_share(shore_here);
+    vec2 broad_slope = (wave_slope(wave_1, world_point.xz)
+        + wave_slope(wave_2, world_point.xz)) * swell;
+    vec2 fine_slope = (wave_slope(wave_3, world_point.xz)
+        + wave_slope(wave_4, world_point.xz)) * swell;
+    vec2 shore_slope = shore_wave_slope(world_point.xz, shore_here)
+        * shore_envelope(world_point.xz, CAMERA_POSITION_WORLD);
     // `n`: the shading normal, fully faded by distance. Refraction and fresnel read this;
     // letting it ripple at distance is what the fade protects them from.
-    vec2 slope = (broad_slope * env.x + fine_slope * env.y) * wave_height;
+    vec2 slope = (broad_slope * env.x + fine_slope * env.y + shore_slope) * wave_height;
     vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
     // `lit_slope`: the slope the SUN sees - the two short waves, shoaled but not faded with
     // distance; the streak fades its flecks by pixel size itself (stage 10). It is the
@@ -824,6 +867,13 @@ void fragment() {
     }
     if (shore_field_preview) {
         ALBEDO = shore_field_preview_colour(world_point.xz);
+        ALPHA = 1.0;
+    }
+    if (wave_preview) {
+        float rise = world_position.y - sea_y;
+        float step_up = floor(rise / 0.1);
+        ALBEDO = mix(vec3(0.05, 0.12, 0.30), vec3(0.85, 0.95, 1.0),
+            clamp(0.5 + step_up * 0.1, 0.0, 1.0));
         ALPHA = 1.0;
     }
 }

@@ -14,6 +14,8 @@ extends SceneTree
 ##   compare.png         panel 9 | the game at 7 m | panel 10, each cropped to the same framing
 ##   compare_18m.png     the same at play's default 18 m
 ##   field.png           the shore distance field drawn over the 18 m view (step 1 of the plan)
+##   waves_0..2.png      the sea's height from 110 m up over the coast, 2 s apart (step 2)
+##   overview.png        the same view as the game draws it
 ## Not headless - no renderer there.
 
 const SHOTS := "user://foam"
@@ -113,6 +115,19 @@ func _run() -> void:
 	_aim(camera, beach, inland, ARM_CLOSE)
 	var close := await _capture("gameplay_close")
 	_compare(sheet, close, camera, beach, "compare")
+
+	# The waves, seen from high over the coast: the surface's height drawn in bands, at three
+	# moments two seconds apart, so the shore waves can be seen coming in parallel to the beach
+	# and wrapping round it. And the same view as the game draws it.
+	camera.global_position = shore - inland * 25.0 + Vector3.UP * 110.0
+	camera.look_at(shore - inland * 25.0, inland)
+	ocean.material.set_shader_parameter("wave_preview", true)
+	for k in 3:
+		ocean.hold_clock = MOMENT + 2.0 * float(k)
+		await _capture("waves_%d" % k)
+	ocean.material.set_shader_parameter("wave_preview", false)
+	ocean.hold_clock = MOMENT
+	await _capture("overview")
 	print("foam views: %s" % ("PASS" if _failures == 0 else "FAIL"))
 	quit(0 if _failures == 0 else 1)
 

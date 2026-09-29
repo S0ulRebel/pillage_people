@@ -8,6 +8,10 @@
 //
 // Until the field arrives (rect.w is 0) every point reads as far out at sea, so nothing that
 // hangs off it draws.
+//
+// Guarded: waves.gdshaderinc includes this for the shore waves, and the ocean includes both.
+#ifndef SHORE_FIELD_INCLUDED
+#define SHORE_FIELD_INCLUDED
 
 uniform sampler2D shore_field : filter_linear, repeat_disable;
 // (x, z) of texel 0's centre in world metres, metres between texel centres, texels per side.
@@ -42,3 +46,5 @@ vec3 shore_field_preview_colour(vec2 xz) {
 	vec3 colour = mix(base, vec3(1.0), five * 0.8);
 	return mix(colour, vec3(1.0, 0.1, 0.1), shore);
 }
+
+#endif
