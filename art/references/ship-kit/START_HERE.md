@@ -66,11 +66,12 @@ Done so far:
 - STAIRS_260 (copied to `art/models/ship/deck/stairs_260.glb`) climbs to the quarterdeck on the port side, from just aft of the stair opening. A rail runs up each side, laid from the same parts as every other rail. Tripo's sheared stair rail (`deck/rail_stair.glb`) is no longer placed.
 - Tripo's door leaf is on the front wall, shut. Tripo's arched window (`cabin/cabin_window.glb`, used as delivered, scaled to 1.1 m) is repeated along the castle's wall, the way the rail follows its path. ship.gd reads the wall's outline off the castle model, spreads CASTLE_WINDOW_COUNT windows (5) evenly round it from front corner to front corner, and centres each on the wall panel it falls on, facing out. The Ship node's `window_offset` (inspector, metres along each window's normal, negative into the wall) moves them all in or out while you look.
   - Its 4096 px texture was 64 MB of video memory for a 1.1 m window. `python tools/shrink_glb_texture.py art/models/ship/cabin/cabin_window.glb` shrank it to 1024 px, in the model and in the copy Godot extracted from it, without touching the geometry. Godot's own size limit would live in the `.import` file, which is not kept in git.
-- **Pillars:** Tripo's carved pillar (`cabin/cabin_pillar.glb`, texture shrunk to 1024 px), scaled to 2.35 m so it stands from the deck to just under the trim. There are six:
-  - two on the front wall, in from its corners and clear of the weather deck rail's last post;
-  - one between each pair of windows round the stern, centred on its wall panel the way the windows are.
+- **Pillars:** Tripo's carved pillar (`cabin/cabin_pillar.glb`, texture shrunk to 1024 px), scaled to 2.35 m. Each stands on the deck line with the bottom rim running into its base, and its capital carries the trim. They frame the castle the way the corner posts of a stern castle do:
+  - one at each corner of the front wall, its outer side 2 cm proud of the castle's side. The weather deck's rail runs into it and ends inside it, so the pillar stands for the rail's last post;
+  - round the stern, one between each pair of windows, except that the two nearest the stern window stand on the panels either side of it, framing it.
 
   The Ship node's `pillar_offset` moves them in or out along the wall's normal, like `window_offset`.
+- **Bottom rim:** the trim's profile again, swept round the castle's outside walls with its foot on the deck line, covering the joint with the hull. It is left off the front wall, where it would be a step in the walkway: it turns each front corner and ends inside the corner pillar's base.
 - **Trim:** the wale's profile is swept round the castle's walls with its top just under the quarterdeck's edge, where the rail's base overhangs them. It runs round the stern and across the front wall, stopping either side of the stairs. At both ends it turns into the wall, so the stairs see a returned end, not an open one.
 - The castle, stairs and hull collide as their exact meshes.
 - The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
@@ -118,7 +119,8 @@ Done so far:
 - the course hangs inside the castle or through the mizzen;
 - the castle's trim is off the wall, into the stairs' rails, or over a window or the door;
 - the mizzen stands in a fitting, its boom comes down into the helmsman's head room, or the spanker's luff comes off the mast;
-- a pillar is off the wall, not under the trim, or in a window, the door, the stairs' rails or a rail post;
+- a pillar is off the wall, not under the trim, or in a window, the door or the stairs' rails; a corner pillar is off its corner or has a rail post in it; or the stern window is not framed;
+- the bottom rim is off the deck line or the wall, or runs across the front wall's walkway;
 - the window's or pillar's texture is over 1024 px;
 - a rail post is off the hull's edge or unevenly spaced, the rail's collision has a gap, or a wall still stands above the deck.
 
