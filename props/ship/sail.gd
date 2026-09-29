@@ -33,10 +33,11 @@ var _belly := Vector3(0.0, 0.0, 0.45)
 var _rigged := false
 ## The course leaves this false: only the head is laced. Topsail and jib lace both edges.
 var _pin_foot := true
-## The spanker sets this: its luff, the edge from head_from to foot_from, is laced to the mast.
-var _pin_luff := false
 ## Boxes in ship space the cloth stays out of, such as the stern cabin under the course.
 var _keep_out: Array[AABB] = []
+## The canvas painted on the cloth, laid out with U across the head (from head_from to head_to)
+## and V down from the head to the foot (tools/bake_sail_canvas.py). Plain cloth without one.
+var _canvas: Texture2D
 
 
 ## Call before the node enters the tree. False hangs the foot free.
@@ -44,15 +45,15 @@ func pin_foot(on: bool) -> void:
 	_pin_foot = on
 
 
-## Call before the node enters the tree. True laces the edge from head_from to foot_from too.
-func pin_luff(on: bool) -> void:
-	_pin_luff = on
-
-
 ## Call before the node enters the tree. The cloth collides with nothing else, so a free foot
 ## blown aft would otherwise hang straight through whatever stands there.
 func keep_out(box: AABB) -> void:
 	_keep_out.append(box)
+
+
+## Call before the node enters the tree: the canvas to paint the cloth with.
+func use_canvas(texture: Texture2D) -> void:
+	_canvas = texture
 
 
 ## Call before the node enters the tree. Head and foot are the two laced edges.
@@ -97,6 +98,11 @@ func _ready() -> void:
 	_mesh_node.name = "Cloth"
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.86, 0.82, 0.70)
+	if _canvas != null:
+		material.albedo_texture = _canvas
+		# A warm tint: under the full sun the toon light washes the canvas out to white, where
+		# the reference's sails stay cream.
+		material.albedo_color = Color(0.93, 0.86, 0.74)
 	material.roughness = 1.0
 	material.metallic = 0.0
 	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
@@ -107,6 +113,12 @@ func _ready() -> void:
 	_mesh_node.mesh = ArrayMesh.new()
 	add_child(_mesh_node)
 	_arrays.resize(Mesh.ARRAY_MAX)
+	# The grid never changes its layout, only its shape: its texture coordinates are set once.
+	var uvs := PackedVector2Array()
+	for row in ROWS:
+		for col in COLS:
+			uvs.append(Vector2(float(col) / float(COLS - 1), float(row) / float(ROWS - 1)))
+	_arrays[Mesh.ARRAY_TEX_UV] = uvs
 	_rebuild()
 
 
@@ -178,7 +190,7 @@ func _push_out() -> void:
 
 func _pinned(index: int) -> bool:
 	var row := index / COLS
-	return row == 0 or (_pin_foot and row == ROWS - 1) or (_pin_luff and index % COLS == 0)
+	return row == 0 or (_pin_foot and row == ROWS - 1)
 
 
 func _index(col: int, row: int) -> int:

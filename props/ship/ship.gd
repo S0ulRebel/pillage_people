@@ -102,17 +102,6 @@ const FOREMAST_GIRTH := 1.15
 const FORE_YARD := Vector2(4.3, 6.4)
 const FORE_TOPSAIL_YARD := Vector2(6.3, 4.2)
 const FORE_COURSE_DROP := 2.3
-## Deck contact of the mizzen, on the quarterdeck between its front edge and the binnacle, aft
-## of where the course's foot drapes when the wind is astern. The foremast's model again, 4.2 m.
-const MIZZEN_AT := Vector3(0.0, QUARTERDECK_Y, 11.5)
-const MIZZEN_HEIGHT := 4.2
-## The spanker's spars, mizzen-local: the boom from its jaw on the mast aft to past the stern,
-## high over the binnacle, the wheel and the helmsman's head; the gaff from higher up the mast,
-## peaking aft above the mast head.
-const BOOM_FROM := Vector3(0.0, 2.5, 0.2)
-const BOOM_TO := Vector3(0.0, 2.5, 5.2)
-const GAFF_FROM := Vector3(0.0, 3.85, 0.2)
-const GAFF_TO := Vector3(0.0, 4.55, 3.8)
 ## Heel of the bowsprit, resting on the deck just inboard of the stem. The spar's own length
 ## runs forward from here, over the stem head between the two knightheads the rail ends on. A
 ## real F03_BOWSPRIT drops in on this node; its heel is 0.3 m across.
@@ -356,7 +345,6 @@ func _ready() -> void:
 	_build_top_rail()
 	_build_shrouds()
 	_build_foremast()
-	_build_mizzen()
 	_build_bowsprit()
 	_build_bobstay()
 	_build_rudder()
@@ -914,68 +902,6 @@ func _yard(mast: Node3D, yard_name: String, at: Vector2, path: String, model_len
 	_spar(yard, half * 0.5, thick, thick * 0.5, half, timber)
 
 
-## A short mast on the quarterdeck, carrying the spanker: a fore-and-aft sail laced between
-## a boom and a gaff that reach aft from it. Two shrouds a side hold it, set up to the
-## quarterdeck's rail with deadeyes like the main's; the topping lift holds the boom's end up,
-## and the peak halyard the gaff's.
-func _build_mizzen() -> void:
-	if get_node_or_null("Mizzen") != null:
-		return
-	var mast := Node3D.new()
-	mast.name = "Mizzen"
-	mast.position = MIZZEN_AT
-	add_child(mast)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	var rope := _flat(Color(0.45, 0.34, 0.22))
-	# The foremast's model is the same 4.2 m from its deck contact.
-	if not _fit_model(mast, RIGGING + "foremast.glb"):
-		_spar(mast, MIZZEN_HEIGHT * 0.5, 0.2, 0.12, MIZZEN_HEIGHT, timber)
-		_spar(mast, 1.1, 0.24, 0.24, 0.08, iron)
-	var body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var col := CylinderShape3D.new()
-	col.radius = 0.22
-	col.height = MIZZEN_HEIGHT
-	shape.shape = col
-	shape.position = Vector3(0.0, MIZZEN_HEIGHT * 0.5, 0.0)
-	body.add_child(shape)
-	mast.add_child(body)
-	_boom(mast, "Boom", BOOM_FROM, BOOM_TO, timber)
-	_boom(mast, "Gaff", GAFF_FROM, GAFF_TO, timber)
-	var head := Vector3(0.0, MIZZEN_HEIGHT - 0.1, 0.0)
-	_rope(mast, head + Vector3(0.0, 0.0, 0.15), BOOM_TO - Vector3(0.0, 0.0, 0.15), 0.015, rope)
-	_rope(mast, head + Vector3(0.0, 0.0, 0.15), GAFF_FROM.lerp(GAFF_TO, 0.6), 0.015, rope)
-
-	# Two shrouds a side, set up to channels along the quarterdeck's rail.
-	var shrouds := _rigging_node(mast, "Shrouds")
-	for side in [-1.0, 1.0]:
-		var tops: Array[Vector3] = []
-		var hull: Array[Vector3] = []
-		for dz in [-0.6, -0.15]:
-			tops.append(MIZZEN_AT + Vector3(side * 0.16, GAFF_FROM.y - 0.25, 0.0))
-			hull.append(Vector3(side * 3.0, QUARTERDECK_Y, MIZZEN_AT.z + dz))
-		_shroud_side(shrouds, tops, hull, Vector3(side, 0.0, 0.0), true)
-
-
-## A spar from `from` to `to` under `parent`: the topsail yard's model (5.2 m along X, tapering
-## to both ends from its sling) stretched to the length, or a plain tapered pole.
-func _boom(parent: Node3D, spar_name: String, from: Vector3, to: Vector3, timber: Material) -> void:
-	var spar := Node3D.new()
-	spar.name = spar_name
-	var along := (to - from).normalized()
-	var up := (Vector3.UP - along * along.dot(Vector3.UP)).normalized()
-	var length := from.distance_to(to)
-	spar.transform = Transform3D(Basis(along * (length / 5.2), up, along.cross(up)), (from + to) * 0.5)
-	parent.add_child(spar)
-	if _fit_model(spar, RIGGING + "topsail_yard.glb"):
-		return
-	# The placeholder runs along its local Y.
-	var across := along.cross(up)
-	spar.basis = Basis(across, along, across.cross(along))
-	_spar(spar, 0.0, 0.09, 0.07, length, timber)
-
-
 ## The bowsprit, BOWSPRIT_LENGTH out over the stem, rising BOWSPRIT_RISE as it goes forward.
 ## The node is named Bowsprit and its origin is the mount, so the swap keeps this place.
 func _build_bowsprit() -> void:
@@ -1124,7 +1050,7 @@ func _build_deck_fittings() -> void:
 		binnacle.add_child(body)
 
 	# The collar's hole is 0.52 m across, for the mainmast's 0.5 m foot; the foremast is thinner.
-	for spot in [["MastCollar", MAST_AT], ["ForemastCollar", FOREMAST_AT], ["MizzenCollar", MIZZEN_AT]]:
+	for spot in [["MastCollar", MAST_AT], ["ForemastCollar", FOREMAST_AT]]:
 		var collar := Node3D.new()
 		collar.name = spot[0]
 		collar.position = spot[1]
@@ -1803,6 +1729,7 @@ func _build_sail() -> void:
 	var sail := SailScript.new() as Node3D
 	sail.name = "Sail"
 	sail.call("pin_foot", false)
+	_canvas(sail, "course")
 	# The foot hangs free, and a breeze from astern swings it back over the quarterdeck's
 	# forward edge. The cloth drapes on the cabin instead of hanging through it.
 	var cabin := get_node_or_null("Quarterdeck/Cabin") as Node3D
@@ -1810,10 +1737,7 @@ func _build_sail() -> void:
 		var box := _mesh_bounds(cabin)
 		box.position += cabin.position
 		sail.call("keep_out", box.grow(0.05))
-	# Nor round the mizzen's foot, forward of the spanker.
-	sail.call("keep_out", AABB(MIZZEN_AT - Vector3(0.3, 0.0, 0.3), Vector3(0.6, MIZZEN_HEIGHT, 0.6)))
 	add_child(sail)
-	_build_spanker()
 	if get_node_or_null("Foremast") == null or get_node_or_null("Bowsprit") == null:
 		return
 	var old_jib := get_node_or_null("Jib")
@@ -1828,6 +1752,7 @@ func _build_sail() -> void:
 	var head_to := FOREMAST_AT + Vector3(0.0, FOREMAST_HEIGHT * 0.99, 0.0) + ahead
 	var jib := SailScript.new() as Node3D
 	jib.name = "Jib"
+	_canvas(jib, "jib")
 	jib.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.35, 0.0, 0.0))
 	add_child(jib)
 	_build_fore_sails()
@@ -1847,6 +1772,7 @@ func _build_fore_sails() -> void:
 	var course := SailScript.new() as Node3D
 	course.name = "ForeCourse"
 	course.call("pin_foot", false)
+	_canvas(course, "course")
 	course.call("rig_between", Vector3(-course_half, course_y, z), Vector3(course_half, course_y, z),
 			Vector3(-course_half, course_y - FORE_COURSE_DROP, z), Vector3(course_half, course_y - FORE_COURSE_DROP, z), Vector3(0.0, 0.0, 0.4))
 	add_child(course)
@@ -1854,29 +1780,18 @@ func _build_fore_sails() -> void:
 	var top_half := FORE_TOPSAIL_YARD.y * 0.5 - 0.2
 	var topsail := SailScript.new() as Node3D
 	topsail.name = "ForeTopsail"
+	_canvas(topsail, "topsail")
 	topsail.call("rig_between", Vector3(-top_half, top_y, z), Vector3(top_half, top_y, z),
 			Vector3(-course_half, course_y + 0.1, z), Vector3(course_half, course_y + 0.1, z), Vector3(0.0, 0.0, 0.3))
 	add_child(topsail)
 
 
-## The spanker, laced to the mizzen's gaff, boom and mast: its head just under the gaff, its
-## foot just over the boom, both from just aft of the mast to a little short of the spars'
-## ends, and its luff down the mast between them. Only the leech is free.
-func _build_spanker() -> void:
-	if get_node_or_null("Mizzen") == null:
-		return
-	var old := get_node_or_null("Spanker")
-	if old != null:
-		old.free()
-	var head_from := MIZZEN_AT + GAFF_FROM.lerp(GAFF_TO, 0.04) - Vector3(0.0, 0.1, 0.0)
-	var head_to := MIZZEN_AT + GAFF_FROM.lerp(GAFF_TO, 0.94) - Vector3(0.0, 0.1, 0.0)
-	var foot_from := MIZZEN_AT + BOOM_FROM.lerp(BOOM_TO, 0.03) + Vector3(0.0, 0.1, 0.0)
-	var foot_to := MIZZEN_AT + BOOM_FROM.lerp(BOOM_TO, 0.9) + Vector3(0.0, 0.1, 0.0)
-	var spanker := SailScript.new() as Node3D
-	spanker.name = "Spanker"
-	spanker.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.3, 0.0, 0.0))
-	spanker.call("pin_luff", true)
-	add_child(spanker)
+## Paints `sail` with Tripo's canvas for its kind (art/models/ship/rigging/canvas_<kind>.png,
+## from tools/bake_sail_canvas.py): seams, patches and hem. Left plain if the file is missing.
+func _canvas(sail: Node3D, kind: String) -> void:
+	var path := RIGGING + "canvas_%s.png" % kind
+	if ResourceLoader.exists(path):
+		sail.call("use_canvas", load(path))
 
 
 ## A shorter course above the lookout. The topmast was a bare pole past the platform.
@@ -1897,6 +1812,7 @@ func _build_topsail() -> void:
 	var half := 2.3
 	var sail := SailScript.new() as Node3D
 	sail.name = "Topsail"
+	_canvas(sail, "topsail")
 	sail.call("rig_between", Vector3(-half, head_y, z), Vector3(half, head_y, z), Vector3(-half, foot_y, z), Vector3(half, foot_y, z), Vector3(0.0, 0.0, 0.3))
 	add_child(sail)
 

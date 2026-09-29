@@ -48,7 +48,7 @@ func _run() -> void:
 			"Mast/Lower", "Mast/Topmast", "Mast/Top", "Mast/Yard", "Mast/TopsailYard",
 			"Mast/TopsailFoot", "DeckFittings/Binnacle", "DeckFittings/MastCollar",
 			"DeckFittings/ForemastCollar", "DeckFittings/SternLantern", "Quarterdeck/Cabin",
-			"Quarterdeck/Stairs", "Mizzen", "Mizzen/Boom", "Mizzen/Gaff", "DeckFittings/MizzenCollar"]:
+			"Quarterdeck/Stairs"]:
 		var slot := ship.get_node_or_null(path)
 		check(slot != null and slot.get_node_or_null("Model") != null,
 				"%s has no model - its .glb is missing and the placeholder was built instead" % path)
@@ -57,8 +57,7 @@ func _run() -> void:
 	# binnacle are up on the quarterdeck, the capstan down on the gun deck.
 	var decks := {"Helm": Ship.QUARTERDECK_Y, "Capstan": Ship.GUN_DECK_Y,
 			"DeckFittings/Binnacle": Ship.QUARTERDECK_Y, "DeckFittings/MastCollar": Ship.DECK_Y,
-			"Quarterdeck/Cabin": Ship.DECK_Y, "Quarterdeck/Stairs": Ship.DECK_Y,
-			"Mizzen/Model": Ship.QUARTERDECK_Y, "DeckFittings/MizzenCollar": Ship.QUARTERDECK_Y}
+			"Quarterdeck/Cabin": Ship.DECK_Y, "Quarterdeck/Stairs": Ship.DECK_Y}
 	for path in decks:
 		var box := _bounds(ship, ship.get_node_or_null(path))
 		check(absf(box.position.y - decks[path]) <= TOLERANCE,
@@ -145,8 +144,8 @@ func _run() -> void:
 	_check_rail(ship)
 	_check_wale(ship)
 	_check_rigging(ship)
+	_check_canvas(ship)
 	_check_flag_rings(ship)
-	await _check_mizzen(ship)
 	await _check_course_clears_cabin(ship)
 	await _check_flag_flies_downwind(ship)
 
@@ -941,7 +940,7 @@ func _check_rigging(ship: Node3D) -> void:
 func _check_shrouds(ship: Node3D) -> void:
 	var space := ship.get_world_3d().direct_space_state
 	var sets := [["Mast/Shrouds", 6, "Mast/Top"], ["Foremast/Shrouds", 6, "Foremast/Model"],
-			["Mizzen/Shrouds", 4, "Mizzen/Model"], ["Mast/Backstays", 2, "Mast/Topmast"]]
+			["Mast/Backstays", 2, "Mast/Topmast"]]
 	var catheads: Array[Vector3] = []
 	for name in ["CatheadStarboard", "CatheadPort"]:
 		var cathead := ship.get_node("DeckFittings/" + name) as Node3D
@@ -1036,6 +1035,24 @@ func _check_shrouds(ship: Node3D) -> void:
 				check(top.z <= Ship.FOREMAST_AT.z + 0.01 and foot.z < top.z, "%s is not forward of the foremast, clear of its sails" % label)
 
 
+## Every sail is painted with Tripo's canvas (tools/bake_sail_canvas.py) and has the texture
+## coordinates to show it: seams, patches and hem, not plain cloth. And the ship has two masts,
+## as the reference has: no mizzen on the quarterdeck.
+func _check_canvas(ship: Node3D) -> void:
+	for name in ["Sail", "Topsail", "ForeCourse", "ForeTopsail", "Jib"]:
+		var cloth := ship.get_node_or_null(name + "/Cloth") as MeshInstance3D
+		var material := null if cloth == null else cloth.material_override as BaseMaterial3D
+		check(material != null and material.albedo_texture != null, "the %s has no canvas texture" % name)
+		if cloth == null or cloth.mesh == null or cloth.mesh.get_surface_count() == 0:
+			check(false, "the %s has no cloth" % name)
+			continue
+		var uvs = cloth.mesh.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV]
+		check(uvs != null and (uvs as PackedVector2Array).size() == Sail.COLS * Sail.ROWS,
+				"the %s's cloth has no texture coordinates for its canvas" % name)
+	check(ship.get_node_or_null("Mizzen") == null and ship.get_node_or_null("Spanker") == null,
+			"there is a mizzen on the quarterdeck; the reference has two masts")
+
+
 ## The flag hangs on its staff by its three rings: the staff's axis passes through each ring's
 ## hole, clear of the ring and of the cloth.
 func _check_flag_rings(ship: Node3D) -> void:
@@ -1086,59 +1103,6 @@ func _check_flag_flies_downwind(ship: Node3D) -> void:
 			"the flag flies toward %s with the wind blowing toward %s" % [fly, blows])
 
 
-## The mizzen stands on the quarterdeck clear of everything there; its boom and gaff reach aft
-## from it over the binnacle and the wheel, the boom well above the helmsman's head; its
-## shrouds are set up with deadeyes just above the rail; and the spanker, blown abeam, stays
-## laced along its luff and foot and never comes down onto the deck.
-func _check_mizzen(ship: Node3D) -> void:
-	var mizzen := ship.get_node_or_null("Mizzen") as Node3D
-	var spanker := ship.get_node_or_null("Spanker")
-	if mizzen == null or spanker == null:
-		check(false, "the mizzen or its spanker is missing")
-		return
-	var mast := _bounds(ship, mizzen.get_node_or_null("Model"))
-	check(absf(mast.size.y - Ship.MIZZEN_HEIGHT) <= TOLERANCE, "the mizzen is %.2f m, not %.1f" % [mast.size.y, Ship.MIZZEN_HEIGHT])
-	check(mast.position.z > Ship.CASTLE_FRONT_Z + 0.4, "the mizzen stands at the quarterdeck's front edge, in the rail")
-	for path in ["Helm", "DeckFittings/Binnacle", "DeckFittings/CoilQuarterdeck", "Quarterdeck/Stairs"]:
-		check(not mast.intersects(_bounds(ship, ship.get_node_or_null(path))), "the mizzen stands in %s" % path)
-	var helm := _bounds(ship, ship.get_node_or_null("Helm"))
-	var boom := _bounds(ship, mizzen.get_node_or_null("Boom"))
-	var gaff := _bounds(ship, mizzen.get_node_or_null("Gaff"))
-	check(boom.position.y > Ship.HELM_FEET.y + 2.2 and boom.position.y > helm.end.y + 0.5,
-			"the boom comes down to %.2f, into the helmsman's head room" % boom.position.y)
-	check(boom.end.z > Ship.HELM_FEET.z and gaff.end.z > Ship.HELM_AT.z,
-			"the boom and gaff do not reach aft over the wheel (to %.2f and %.2f)" % [boom.end.z, gaff.end.z])
-	check(boom.position.z < mast.end.z + 0.1 and gaff.position.z < mast.end.z + 0.1,
-			"the boom or gaff does not start at the mast")
-	check(gaff.position.y > boom.end.y + 1.0, "the gaff is not above the boom")
-
-	var wind := ship.get_tree().get_first_node_in_group("wind")
-	if wind == null:
-		check(false, "no wind to blow the spanker")
-		return
-	# From either beam in turn: the spanker is a fore-and-aft sail and fills on either tack.
-	for side in [1.0, -1.0]:
-		var abeam: Vector3 = ship.global_basis.x * side
-		for i in 120:
-			wind.set("_angle", atan2(abeam.x, abeam.z))
-			await physics_frame
-		var blows := ship.global_basis.inverse() * (wind.get("direction") as Vector3)
-		var points := spanker.get("_pos") as PackedVector3Array
-		var lowest := INF
-		var off_luff := 0.0
-		var belly := 0.0
-		for i in points.size():
-			lowest = minf(lowest, points[i].y)
-			if absf(points[i].x) > absf(belly):
-				belly = points[i].x
-			if i % Sail.COLS == 0:
-				off_luff = maxf(off_luff, absf(points[i].x))
-		check(lowest >= boom.position.y, "the spanker comes down to %.2f, under the boom (%.2f)" % [lowest, boom.position.y])
-		check(off_luff < 0.01, "the spanker's luff has blown %.2f m off the mast" % off_luff)
-		check(absf(belly) > 0.2 and signf(belly) == signf(blows.x),
-				"with the wind blowing toward x %.1f the spanker bellies %.2f m across" % [blows.x, belly])
-
-
 ## The course's foot hangs free. With the breeze from dead astern it swings back over the
 ## quarterdeck; the cloth must drape on the cabin, never hang inside it.
 func _check_course_clears_cabin(ship: Node3D) -> void:
@@ -1153,19 +1117,14 @@ func _check_course_clears_cabin(ship: Node3D) -> void:
 		wind.set("_angle", atan2(aft.x, aft.z))
 		await physics_frame
 	var cabin := _bounds(ship, cabin_node).grow(-0.01)
-	var mizzen := _bounds(ship, ship.get_node_or_null("Mizzen/Model")).grow(-0.01)
-	var in_mizzen := 0
 	var inside := 0
 	var reach := -INF
 	for p in sail.get("_pos") as PackedVector3Array:
 		reach = maxf(reach, p.z)
 		if cabin.has_point(p):
 			inside += 1
-		if mizzen.has_point(p):
-			in_mizzen += 1
 	check(reach > cabin.position.z, "the test wind never swung the course back to the cabin (reached z %.2f)" % reach)
 	check(inside == 0, "%d points of the course hang inside the stern cabin" % inside)
-	check(in_mizzen == 0, "%d points of the course hang through the mizzen" % in_mizzen)
 
 
 ## A ray straight down in ship space from `from`, `length` long.
