@@ -731,24 +731,37 @@ void fragment() {
     // narrow on a fair day, so only the walls crossing it show: a zigzag chain along the
     // crest, a branch or two off it. Wider as the sea gets up, so the chains of neighbouring
     // crests reach each other and join into the net.
-    float strip = 1.0 - smoothstep(0.0, mix(0.13, 0.35, strength), abs(chop.x - level));
+    float strip = 1.0 - smoothstep(0.0, mix(0.09, 0.3, strength), abs(chop.x - level));
     vec2 crest_side = vec2(-d1.y, d1.x);
-    vec2 net_p = vec2(dot(crest_p, crest_side), dot(crest_p, d1) * 1.8 + chop.x * 0.6);
+    vec2 net_p = vec2(dot(crest_p, crest_side), dot(crest_p, d1) * 1.4 + chop.x * 0.6);
     float crest = 0.0;
-    for (int n = 0; n < 2; n++) {
-        vec3 lace = foam_lace_at(net_p, n == 0 ? 0.9 : 0.45, n == 1);
+    // A pale glow round the white, as the swatches paint it: the same walls, wider, in the
+    // foam's mid tone under the white core.
+    float crest_glow = 0.0;
+    for (int n = 0; n < 1; n++) {
+        vec3 lace = foam_lace_at(net_p, 1.2, false);
         float aa_w = max(fwidth(lace.z), 0.004);
         float aa_c = max(fwidth(lace.x), 0.004);
-        // The finer net only in the middle of the strip.
-        float here = n == 0 ? strip : smoothstep(0.5, 1.0, strip);
-        // Walls thin, thinning toward the strip's edges; broken cell by cell.
-        float w = (n == 0 ? 0.075 : 0.05) * here;
-        float wall = (1.0 - smoothstep(w - aa_w, w + aa_w, lace.z))
-            * step(lace.y, here * 1.7) * step(0.001, w);
-        // Small beads where walls meet, in the strip's middle.
-        float k = 0.74;
-        float knot = smoothstep(k - aa_c, k + aa_c, lace.x) * step(0.6, here);
+        // (A second, finer net was tried for branches within branches: it put a spike on every
+        // chain and closed cells inside the strip, and is left out.)
+        float here = strip;
+        // Walls fullest on the crest line, tapering to nothing at the strip's edges - each
+        // chain a brush stroke - and a little wider or narrower cell by cell.
+        float w = 0.085 * pow(here, 0.7) * mix(0.75, 1.25, lace.y);
+        float kept = step(lace.y, here * 2.2);
+        float wall = (1.0 - smoothstep(w - aa_w, w + aa_w, lace.z)) * kept * step(0.001, w);
+        float glow = (1.0 - smoothstep(w * 2.4 - aa_w, w * 2.4 + aa_w, lace.z)) * kept
+            * step(0.001, w);
+        // Knots where walls meet, growing toward the crest line into the bright beads the
+        // swatches have at every junction.
+        float k = mix(0.7, 0.6, smoothstep(0.4, 1.0, here));
+        // Measured as distance from the centre less a share of the distance off the wall, so a
+        // knot is a round bead where walls meet, not a star with a spike up each wall.
+        float bead = lace.x - lace.z * 0.9;
+        float knot = smoothstep(k - aa_c, k + aa_c, bead) * step(0.35, here);
+        float knot_glow = smoothstep(k - 0.07 - aa_c, k - 0.07 + aa_c, bead) * step(0.35, here);
         crest = max(crest, max(wall, knot));
+        crest_glow = max(crest_glow, max(glow, knot_glow));
     }
     // The net's walls are a few centimetres: gone where a pixel spans more than a quarter
     // metre of sea, before they can shimmer.
@@ -758,6 +771,8 @@ void fragment() {
     // chop is still bigger than the pixels, and near.
     crest *= smoothstep(1.5, 4.0, water_depth) * swell * smoothstep(0.35, 0.7, chop.w);
     crest *= 1.0 - smoothstep(55.0, 150.0, range_here);
+    crest_glow *= (1.0 - smoothstep(0.12, 0.3, metres_per_px)) * smoothstep(1.5, 4.0, water_depth)
+        * swell * smoothstep(0.35, 0.7, chop.w) * (1.0 - smoothstep(55.0, 150.0, range_here));
     // Everything white on the water, foam and crests together.
     float white = clamp(max(crest, surf), 0.0, 1.0);
 
@@ -883,6 +898,7 @@ void fragment() {
     // at its two edges; foam and the band stay visible right up to those.
     // The contact line is foam too, in the foam's lit tone.
     vec3 banded_water = mix(shaded_water, foam_lit * sky_light, object_band);
+    banded_water = mix(banded_water, mix(shaded_water, foam_mid, 0.55) * sky_light, crest_glow * 0.8);
     vec3 white_colour = surf >= crest ? shore_white.rgb : foam_colour;
     ALBEDO = mix(banded_water, white_colour * sky_light, white);
     ALPHA = edge * max(contact, max(white, object_band));

@@ -381,3 +381,15 @@ project already rejects view-dependent outlines).
   walls meet; faded where a pixel spans more than a quarter metre.
 - Tried on the way: the whole crest band as lace came out as fat white patches with honeycomb in
   them, and solid tufts as blobs; the strip and thin walls fixed it.
+
+### Step 8e: whitecaps tuned
+
+- One net of larger cells (1.2 m, squeezed 1.4x across the crests), a narrower strip on a fair
+  day: mostly one branching chain per crest rather than closed cells. The finer second net put a
+  spike on every chain and is out.
+- Walls taper from full on the crest line to nothing at the strip's edges, a little wider or
+  narrower cell by cell; knots are round beads (distance from the cell centre less a share of the
+  distance off the wall), not stars.
+- A pale glow round the white, the swatches' way: the same walls and beads, wider, in the foam's
+  mid tone.
+- Open water from the gameplay camera: 1.5% white.
