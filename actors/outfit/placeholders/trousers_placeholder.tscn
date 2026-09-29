@@ -1,0 +1,34 @@
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="StandardMaterial3D" id="brown"]
+albedo_color = Color(0.24, 0.2, 0.19, 1)
+
+[sub_resource type="CylinderMesh" id="seat"]
+material = SubResource("brown")
+top_radius = 0.2
+bottom_radius = 0.21
+height = 0.14
+radial_segments = 18
+rings = 2
+
+[sub_resource type="CylinderMesh" id="leg"]
+material = SubResource("brown")
+top_radius = 0.12
+bottom_radius = 0.09
+height = 0.9
+radial_segments = 12
+rings = 12
+
+[node name="TrousersPlaceholder" type="Node3D"]
+
+[node name="Seat" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, 0)
+mesh = SubResource("seat")
+
+[node name="LegLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.45, 0)
+mesh = SubResource("leg")
+
+[node name="LegRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 0.45, 0)
+mesh = SubResource("leg")
