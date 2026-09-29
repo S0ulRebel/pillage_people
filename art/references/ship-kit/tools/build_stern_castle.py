@@ -7,8 +7,10 @@ over its last four metres, and a box either stands clear of the sides or goes th
 So the castle is the hull carried up one more tier. Its walls stand on the outer edge of the
 hull's wall top, measured off art/models/ship/double_deck.glb after
 strip_game_bulwarks.py has taken the old bulwark off. They run from FRONT_Z round the stern,
-TIER high, facet for facet with the hull below. A front wall closes it across the deck, and
-the roof over the whole outline is the quarterdeck.
+TIER high, facet for facet with the hull below, except at the stern's point, which is cut
+square into a flat transom (about 1.2 m across, 10 cm in from the hull's tip) so a window can
+stand flat on it. A front wall closes it across the deck, and the roof over the whole outline
+is the quarterdeck.
 
 Same plank texture and UV rule as the hull (texture_game_hull.textured), and the tiers are
 the kit's 2.6 m, so the planking runs on up the castle's sides. Positions are in ship space:
@@ -86,8 +88,12 @@ def outline(half):
     t = (FRONT_Z - ahead[1]) / (after[1] - ahead[1])
     corner = ahead + (after - ahead) * t
     starboard = np.vstack([corner, aft])
+    # The stern's point is cut square: a flat transom between the last two corners, so a window
+    # can stand flat on the stern. It steps in from the hull's tip by a few centimetres.
+    if abs(starboard[-1, 0]) < 1e-6:
+        starboard = starboard[:-1]
     port = starboard[::-1] * [-1.0, 1.0]
-    ring = np.vstack([starboard, port[1:] if abs(starboard[-1, 0]) < 1e-6 else port])
+    ring = np.vstack([starboard, port])
     area = 0.5 * np.sum(ring[:, 0] * np.roll(ring[:, 1], -1) - np.roll(ring[:, 0], -1) * ring[:, 1])
     return ring if area > 0 else ring[::-1]
 

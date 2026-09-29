@@ -43,16 +43,15 @@ const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 7.9)
 ## the quarterdeck, and the cabin is under it.
 const CASTLE_FRONT_Z := 10.4
 ## Tripo's arched window (art/models/ship/cabin/cabin_window.glb, used as delivered): 1 m tall,
-## facing +Z, its back 0.105 m behind its origin. Scaled to 1.1 m. Each is [where its back
-## meets the castle wall, the way it faces]: one on each side forward, one on each quarter,
-## one on the stern. The stern one spans the stern's point, so it sits 8 cm into the wall to
-## close the gap at its edges.
+## facing +Z, its back 0.105 m behind its origin. Scaled to 1.1 m.
 const WINDOW_SCALE := 1.1
-const CASTLE_WINDOWS := [
-	[Vector3(3.0, DECK_Y + 0.9, 11.2), 90.0], [Vector3(-3.0, DECK_Y + 0.9, 11.2), -90.0],
-	[Vector3(2.63, DECK_Y + 0.9, 13.91), 69.8], [Vector3(-2.63, DECK_Y + 0.9, 13.91), -69.8],
-	[Vector3(0.0, DECK_Y + 0.9, 16.35), 0.0],
-]
+## The castle's windows are spread evenly along its wall, round the stern from the starboard
+## front corner to the port one, the first and last this far along from those corners. An odd
+## count puts one on the stern's centreline. Each faces out from the wall where it stands.
+const CASTLE_WINDOW_COUNT := 5
+const CASTLE_WINDOW_MARGIN := 0.8
+## How high the windows' sills are above the weather deck.
+const CASTLE_WINDOW_SILL := 0.9
 ## The quarterdeck's walking surface, the castle's roof: one kit tier (2.6 m) above the
 ## weather deck, which is exactly where STAIRS_260 lands.
 const QUARTERDECK_Y := DECK_Y + 2.6
@@ -472,18 +471,7 @@ func _build_quarterdeck() -> void:
 		var length := STERN_Z - 0.3 - CASTLE_FRONT_Z
 		_box(cabin, Vector3(0.0, QUARTERDECK_Y - 1.3, CASTLE_FRONT_Z + length * 0.5), Vector3(5.6, 2.6, length), timber)
 		_solid(cabin)
-	var windows := Node3D.new()
-	windows.name = "Windows"
-	quarterdeck.add_child(windows)
-	for spot in CASTLE_WINDOWS:
-		var window := Node3D.new()
-		var facing := deg_to_rad(spot[1])
-		# Stood out from the wall by the depth behind its origin, so its back is on the wall.
-		window.position = spot[0] + Vector3(sin(facing), 0.0, cos(facing)) * 0.105 * WINDOW_SCALE
-		window.rotation.y = facing
-		window.scale = Vector3.ONE * WINDOW_SCALE
-		windows.add_child(window)
-		_fit_model(window, CABIN_PARTS + "cabin_window.glb")
+	_build_windows(quarterdeck, cabin)
 	# Starboard of the stairs, its back against the front wall. The model's origin is the foot
 	# of its leaf, halfway through its depth.
 	var door := Node3D.new()
@@ -1002,6 +990,80 @@ func _build_rail() -> void:
 		node.mesh = sweep.commit()
 		node.material_override = profile["material"]
 		rail.add_child(node)
+
+
+## CASTLE_WINDOW_COUNT windows spread evenly along the castle's wall (_castle_wall), each
+## centred on the wall panel its even spacing falls on and facing out from it. A window wider
+## than its panel overhangs onto the next ones, which bend away; it is pushed in until both its
+## back edges touch the wall, which is a centimetre or two, short of its recessed glass.
+func _build_windows(quarterdeck: Node3D, cabin: Node3D) -> void:
+	var windows := Node3D.new()
+	windows.name = "Windows"
+	quarterdeck.add_child(windows)
+	var wall := _castle_wall(cabin)
+	if wall.size() < 2 or CASTLE_WINDOW_COUNT < 1:
+		return
+	var reach: PackedFloat32Array = [0.0]
+	for i in wall.size() - 1:
+		reach.append(reach[i] + wall[i].distance_to(wall[i + 1]))
+	var length := reach[reach.size() - 1]
+	var width := 0.83 * WINDOW_SCALE
+	for k in CASTLE_WINDOW_COUNT:
+		var t := 0.5 if CASTLE_WINDOW_COUNT == 1 else float(k) / (CASTLE_WINDOW_COUNT - 1)
+		var s := lerpf(CASTLE_WINDOW_MARGIN, length - CASTLE_WINDOW_MARGIN, t)
+		# Centred on the wall panel it falls on, so its flat back lies on a flat wall.
+		var panel := 0
+		while panel < wall.size() - 2 and reach[panel + 1] <= s:
+			panel += 1
+		s = (reach[panel] + reach[panel + 1]) * 0.5
+		var at := _rail_at(wall, reach, s)
+		# Outward: the wall runs with the castle on its right, so out is -Z of the rail's frame.
+		var out := -at.basis.z
+		var sink := 0.0
+		for edge in [s - width * 0.5, s + width * 0.5]:
+			sink = maxf(sink, -(_rail_at(wall, reach, clampf(edge, 0.0, length)).origin - at.origin).dot(out))
+		var back := at.origin - out * sink
+		var window := Node3D.new()
+		window.name = "Window%d" % k
+		var facing := atan2(out.x, out.z)
+		# Stood out by the depth behind the model's origin, so its back is on the wall.
+		window.position = back + Vector3.UP * CASTLE_WINDOW_SILL + out * 0.105 * WINDOW_SCALE
+		window.rotation.y = facing
+		window.scale = Vector3.ONE * WINDOW_SCALE
+		windows.add_child(window)
+		_fit_model(window, CABIN_PARTS + "cabin_window.glb")
+
+
+## The castle's wall round the stern, at the deck, as a line from its starboard front corner to
+## its port front corner: the foot of its model's walls, less the front wall. Read off the
+## model, so the windows follow the castle whatever shape it is built to.
+func _castle_wall(cabin: Node3D) -> Array[Vector3]:
+	var feet: Array[Vector3] = []
+	var to_ship := global_transform.affine_inverse()
+	for child in _descendants(cabin):
+		if not (child is MeshInstance3D) or (child as MeshInstance3D).mesh == null:
+			continue
+		var mesh_node := child as MeshInstance3D
+		for surface in mesh_node.mesh.get_surface_count():
+			for v in mesh_node.mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]:
+				var p: Vector3 = to_ship * mesh_node.global_transform * v
+				if absf(p.y - DECK_Y) < 0.01 and feet.all(func(q: Vector3) -> bool: return q.distance_to(p) > 0.001):
+					feet.append(Vector3(p.x, DECK_Y, p.z))
+	if feet.size() < 3:
+		return []
+	var centre := Vector3.ZERO
+	for p in feet:
+		centre += p
+	centre /= feet.size()
+	# Round the outline, starting at the starboard front corner: the front wall is left out.
+	var corner := feet[0]
+	for p in feet:
+		if p.z < corner.z - 0.001 or (absf(p.z - corner.z) <= 0.001 and p.x > corner.x):
+			corner = p
+	var start := atan2(corner.z - centre.z, corner.x - centre.x) - 0.001
+	var angle := func(p: Vector3) -> float: return fposmod(atan2(p.z - centre.z, p.x - centre.x) - start, TAU)
+	feet.sort_custom(func(a: Vector3, b: Vector3) -> bool: return angle.call(a) < angle.call(b))
+	return feet
 
 
 ## One leg of rail along `line`: posts spaced evenly from end to end and balusters spread

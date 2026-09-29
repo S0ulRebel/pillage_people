@@ -128,10 +128,7 @@ func _run() -> void:
 	_check_catheads(ship)
 	_check_beams(ship)
 	_check_quarterdeck(ship)
-	var windows := ship.get_node_or_null("Quarterdeck/Windows")
-	check(windows != null and windows.get_child_count() == Ship.CASTLE_WINDOWS.size()
-			and windows.get_children().all(func(w: Node) -> bool: return w.get_node_or_null("Model") != null),
-			"the stern castle's windows are missing")
+	_check_windows(ship)
 	_check_rail(ship)
 	await _check_course_clears_cabin(ship)
 
@@ -472,6 +469,44 @@ func _check_rail(ship: Node3D) -> void:
 		for at in balusters.get_meta("placed", []):
 			var box := (at as Transform3D) * shape
 			check(not box.intersects(cathead), "a baluster at (%.2f, %.2f) stands in %s" % [box.get_center().x, box.get_center().z, side])
+
+
+## The castle's windows: as many as asked, each with its model, spaced evenly along the wall,
+## and each flat on the wall - both back edges touching it, the middle not sunk over its glass.
+func _check_windows(ship: Node3D) -> void:
+	var windows := ship.get_node_or_null("Quarterdeck/Windows")
+	check(windows != null and windows.get_child_count() == Ship.CASTLE_WINDOW_COUNT
+			and windows.get_children().all(func(w: Node) -> bool: return w.get_node_or_null("Model") != null),
+			"the stern castle has not got its %d windows" % Ship.CASTLE_WINDOW_COUNT)
+	if windows == null:
+		return
+	var space := ship.get_world_3d().direct_space_state
+	var gaps: Array[float] = []
+	var last := Vector3.INF
+	for window in windows.get_children():
+		var w := window as Node3D
+		var box := _bounds(w, w.get_node_or_null("Model"))
+		var out := w.basis.z.normalized()
+		var across := w.basis.x.normalized()
+		var back := w.position + out * box.position.z * Ship.WINDOW_SCALE + Vector3.UP * box.get_center().y * Ship.WINDOW_SCALE
+		for side in [-1.0, 0.0, 1.0]:
+			var at: Vector3 = back + across * side * box.size.x * 0.5 * Ship.WINDOW_SCALE * 0.95
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at + out * 0.5), ship.to_global(at - out * 0.5)))
+			var gap: float = (at - ship.to_local(hit.position)).dot(out) if not hit.is_empty() else INF
+			if side == 0.0:
+				# Its glass is recessed only a few centimetres in front of its back.
+				check(gap > -0.015, "%s is sunk %.3f m into the wall, over its glass" % [w.name, -gap])
+			else:
+				check(gap <= 0.01, "%s's edge stands %.2f m off the wall" % [w.name, gap])
+		if last != Vector3.INF:
+			gaps.append(Vector2(w.position.x, w.position.z).distance_to(Vector2(last.x, last.z)))
+		last = w.position
+	if not gaps.is_empty():
+		# Each is centred on its wall panel, so the spacing varies by up to a panel's length.
+		var mean := 0.0
+		for g in gaps:
+			mean += g / gaps.size()
+		check(gaps.max() - gaps.min() < 0.25 * mean, "the windows are %.2f to %.2f m apart; they should be even" % [gaps.min(), gaps.max()])
 
 
 ## The course's foot hangs free. With the breeze from dead astern it swings back over the
