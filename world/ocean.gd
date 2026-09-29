@@ -147,6 +147,11 @@ var _terrain: Node3D
 ## the right rate at the wrong moment, sitting in the trough while the crest goes past it. One
 ## number, set here and read by both, cannot drift.
 var _clock := 0.0
+## Holds the water clock at this many seconds when zero or more: the waves, the foam and
+## everything that floats stop where they are. For captures that are compared with each other
+## or with the art - setting preview_time on the material did nothing, _process overwrote it
+## the next frame.
+var hold_clock := -1.0
 ## The fog colour last handed to the shader as its haze, so it is pushed when it changes.
 var _haze_colour := Color(-1.0, -1.0, -1.0)
 ## The wave directions as authored. Wind leans them toward itself and back; without a
@@ -213,6 +218,8 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 		water.set_shader_parameter("sea_y", sea_level)
 		water.set_shader_parameter("terrain_center", Vector2(terrain.global_position.x, terrain.global_position.z))
 		water.set_shader_parameter("terrain_base_y", terrain.global_position.y)
+		if terrain.has_method("apply_shore_field"):
+			terrain.apply_shore_field(water)
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
@@ -270,7 +277,7 @@ func _notification(what: int) -> void:
 
 
 func _process(delta: float) -> void:
-	_clock += delta
+	_clock = hold_clock if hold_clock >= 0.0 else _clock + delta
 	_push("preview_time", _clock)
 	# The wave preview above runs in the editor too - that is what @tool is for here, and it
 	# is how the sea is judged without pressing play. The overhead band camera below is not:

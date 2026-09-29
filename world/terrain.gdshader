@@ -87,6 +87,7 @@ uniform float rim_strength : hint_range(0.0, 1.0) = 0.06;
 group_uniforms;
 
 #include "res://world/cloud_shadow.gdshaderinc"
+#include "res://world/shore_field.gdshaderinc"
 
 varying vec3 world_normal;
 varying vec3 world_position;
@@ -338,6 +339,10 @@ void fragment() {
     SPECULAR = 0.0;
     EMISSION = colour * ground_fill();
     if (palette_preview) { ALBEDO = ground; EMISSION = ground; }
+    if (shore_field_preview) {
+        ALBEDO = shore_field_preview_colour(world_position.xz);
+        EMISSION = ALBEDO;
+    }
 }
 
 // Keep banding on face lighting; retain the filtered silhouette of the shadow map.

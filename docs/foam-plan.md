@@ -164,3 +164,25 @@ project already rejects view-dependent outlines).
 - The Python mockups made during the research did not look like the reference (the best was
   judged about half-way). The shapes are the hard part, which is why every step is judged
   against the reference in-engine rather than trusted from a sketch.
+
+## Progress
+
+### Step 1: the shore distance field (done)
+
+- `world/shore_field.gd` bakes it from the height map when the terrain first needs it: 513 x 513
+  texels, 1.2 m apart, about 0.4 s. The waterline is found between height samples; an exact
+  distance transform finds each texel's nearest waterline point, and a refinement pass near the
+  shore (within 45 m) makes sure it is the truly nearest one, so the contours don't kink.
+- Each texel holds the signed distance (+ sea, - land) and the nearest waterline point, so the
+  direction to the shore and "which stretch of beach" both come from it.
+- `terrain.gd` owns it (`shore_field()`, rebaked after any restamp) and hands it to the sand's
+  and the sea's materials (`apply_shore_field()`). Both shaders read it through
+  `world/shore_field.gdshaderinc`. Nothing draws from it yet.
+- `shore_field_preview` on either material draws the field: metre bands, a white line every
+  5 m, red on the waterline.
+- `tests/shore_field_check.gd` (headless) checks it against the ground at 600 points: sign,
+  nearest point on the waterline, no closer shore missed. Worst distance error 0.56 m.
+- `tests/foam_view.gd` is the judging harness: the water clock held (new `Ocean.hold_clock`),
+  the captain on a real beach, the gameplay camera's pitch and lens, captures at the panels'
+  scale (7 m of arm, where the captain is the panels' size - play's default 18 m shows him at a
+  third of that) and at 18 m, each side by side with panels 9 and 10.

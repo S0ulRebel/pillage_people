@@ -1,5 +1,7 @@
 @tool
 extends StaticBody3D
+
+const ShoreField = preload("res://world/shore_field.gd")
 ## Builds a terrain mesh + collision from a 16-bit height map PNG.
 ##
 ## The image is read at runtime with Image.load_from_file, so Godot's texture importer
@@ -199,6 +201,9 @@ var _heights: PackedFloat32Array
 ## that moves or goes away can be undone without reading the file again.
 var _base_heights: PackedFloat32Array
 var _size := 0
+## The distance to the shore, baked from the heights the first time something asks for it
+## and dropped whenever the heights change (see shore_field()).
+var _shore_field: ShoreField = null
 ## The hand-painted overrides, always a real image even when biome_path has nothing on disk
 ## yet, so the shader uniform is never left unset. The paint tool holds this same Image (via
 ## biome_image()) and mutates it directly; set_biome_image() is how it hands back a repainted
@@ -354,6 +359,7 @@ func _stamps() -> Array[TerrainStamp]:
 ## and redone without touching the rest. The stamps are applied one sample at a time, so doing
 ## a block of them again gives exactly what the whole map would have there.
 func _restamp(x0: int, x1: int, z0: int, z1: int) -> void:
+	_shore_field = null
 	if x0 == 0 and z0 == 0 and x1 == _size - 1 and z1 == _size - 1:
 		_heights = _base_heights.duplicate()   # one copy, not a million assignments
 	else:
@@ -926,6 +932,28 @@ func height_texture() -> ImageTexture:
 		bytes.encode_float(i * 4, _heights[i])
 	var image := Image.create_from_data(_size, _size, false, Image.FORMAT_RF, bytes)
 	return ImageTexture.create_from_image(image)
+
+
+## The distance to the shore everywhere on the map, and the nearest point of the waterline
+## (world/shore_field.gd). Baked on first use from the heights as they are then, stamps
+## included, and again after any restamp. The sea's and the sand's foam both read it.
+func shore_field() -> ShoreField:
+	if _shore_field == null and not _heights.is_empty():
+		_shore_field = ShoreField.new().bake(_heights, _size, world_size, height_scale,
+				global_position.y, sea_level(),
+				Vector2(global_position.x, global_position.z))
+		print("shore field: %d x %d texels, %.2f m apart, baked in %d ms" % [int(_shore_field.rect.w),
+				int(_shore_field.rect.w), _shore_field.rect.z, _shore_field.bake_msec])
+	return _shore_field
+
+
+## Hands the shore field to a material that includes world/shore_field.gdshaderinc.
+func apply_shore_field(target: ShaderMaterial) -> void:
+	var field := shore_field()
+	if field == null or target == null:
+		return
+	target.set_shader_parameter("shore_field", field.texture)
+	target.set_shader_parameter("shore_field_rect", field.rect)
 
 
 ## World-space height under a point, for dropping things onto the ground.
@@ -1520,6 +1548,7 @@ func _setup_material() -> void:
 	# script reload has forgotten the texture, same as it has forgotten every colour above).
 	set_biome_image(biome_image())
 	set_biome_palette_image(biome_palette_image())
+	apply_shore_field(material)
 
 
 ## Terrain point in world space, height sampled from the map.

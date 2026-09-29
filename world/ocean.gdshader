@@ -38,6 +38,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 
 #include "res://world/waves.gdshaderinc"
 #include "res://world/cloud_shadow.gdshaderinc"
+#include "res://world/shore_field.gdshaderinc"
 
 // ---- Engine inputs ----------------------------------------------------------------------
 // The opaque pass's depth and colour, as drawn before the water. They are what the water
@@ -819,6 +820,10 @@ void fragment() {
     ALBEDO = mix(ALBEDO, haze_colour, haze);
     if (palette_preview) {
         ALBEDO = water;
+        ALPHA = 1.0;
+    }
+    if (shore_field_preview) {
+        ALBEDO = shore_field_preview_colour(world_point.xz);
         ALPHA = 1.0;
     }
 }
