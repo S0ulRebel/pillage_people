@@ -107,6 +107,7 @@ func _run() -> void:
 	check(sprit.end.y > Ship.BOWSPRIT_AT.y + 0.4, "the bowsprit does not rise toward its tip")
 	_check_bowsprit_clears_knightheads(ship)
 	_check_jib(ship)
+	_check_fore_yards(ship)
 
 	# The rudder blade hangs aft of its hinge; the strip is forward of it.
 	var blade := _bounds(ship, ship.get_node_or_null("Rudder/Model"))
@@ -159,6 +160,43 @@ func _run() -> void:
 				textured = true
 	check(textured, "the hull has no plank texture")
 	_finish()
+
+
+## The foremast's two yards: each its model, athwartships at its length, at its height on the
+## mast, below the mast's head and not in the jib's head; a block under each arm; the fore
+## course laced to the fore yard with its foot hanging above head height over the foredeck, and
+## the fore topsail laced between the fore topsail yard and the fore yard.
+func _check_fore_yards(ship: Node3D) -> void:
+	var fore := _bounds(ship, ship.get_node_or_null("Foremast/Model"))
+	for spec in [["Yard", Ship.FORE_YARD], ["TopsailYard", Ship.FORE_TOPSAIL_YARD]]:
+		var node := ship.get_node_or_null("Foremast/" + spec[0])
+		check(node != null and node.get_node_or_null("Model") != null, "the foremast's %s has no model" % spec[0])
+		if node == null:
+			continue
+		var box := _bounds(ship, node)
+		var want: Vector2 = spec[1]
+		check(absf(box.size.x - want.y) <= 0.05 and box.size.z < 0.4,
+				"the foremast's %s is %.2f m across and %.2f deep; it should run %.1f m athwartships" % [spec[0], box.size.x, box.size.z, want.y])
+		check(absf(box.get_center().y - (Ship.FOREMAST_AT.y + want.x)) <= 0.05 and box.end.y < fore.end.y,
+				"the foremast's %s is at %.2f, not %.2f up the mast and under its head" % [spec[0], box.get_center().y, Ship.FOREMAST_AT.y + want.x])
+	var blocks := ship.get_node_or_null("Foremast/Blocks")
+	check(blocks != null and blocks.get_child_count() == 4
+			and blocks.get_children().all(func(b: Node) -> bool: return b.get_node_or_null("Model") != null),
+			"there should be a block with its model under each of the foremast's four yard arms")
+	var course := ship.get_node_or_null("ForeCourse")
+	var topsail := ship.get_node_or_null("ForeTopsail")
+	check(course != null and topsail != null, "the foremast's sails are missing")
+	if course == null or topsail == null:
+		return
+	var yard_y := Ship.FOREMAST_AT.y + Ship.FORE_YARD.x
+	var lowest := INF
+	for p in course.get("_pos") as PackedVector3Array:
+		lowest = minf(lowest, p.y)
+	check(lowest >= Ship.DECK_Y + 1.9, "the fore course hangs down to %.2f, %.2f m over the foredeck: into the heads of anyone there" % [lowest, lowest - Ship.DECK_Y])
+	check(absf((course.get("_head_from") as Vector3).y - yard_y) <= 0.05, "the fore course is not laced to the fore yard")
+	check(absf((topsail.get("_head_from") as Vector3).y - (Ship.FOREMAST_AT.y + Ship.FORE_TOPSAIL_YARD.x)) <= 0.05
+			and absf((topsail.get("_foot_from") as Vector3).y - yard_y) <= 0.15,
+			"the fore topsail is not laced between the fore topsail yard and the fore yard")
 
 
 ## The bowsprit passes between the knightheads, the rail's first posts either side of it at the
