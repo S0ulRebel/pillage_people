@@ -236,9 +236,25 @@ const WALE_PORT := [
 	Vector2(-2.086, 14.845), Vector2(-1.641, 15.388), Vector2(-1.164, 15.786), Vector2(-1.075, 15.835),
 	Vector2(-0.607, 16.062), Vector2(-0.507, 16.086), Vector2(0.0, 16.167),
 ]
-## How far up its shroud each deadeye's strop is from the rail: the deadeye model hangs 0.35 m
-## below its strop, so this leaves it just clear of the handrail.
-const DEADEYE_ABOVE_RAIL := 0.42
+## The shrouds and backstays are set up as a ship's are. Each rope ends in an upper deadeye, a
+## lanyard DEADEYE_LANYARD long joins that to a lower deadeye, and the lower deadeye stands on
+## the outer edge of a channel: a plank CHANNEL_OUT wide along the outside of the rail, its
+## underside just above the rail's top, so the deadeyes and the rope above them are all clear
+## of the rail. (At the deck, the ropes lean in so far toward their masts that they would pass
+## through the open rail unless the channel stood out most of a metre.) An iron chain plate
+## holds each lower deadeye down to the hull's side: to just above the wale, or on the castle to
+## the top of its trim. The deadeye model hangs 0.35 m from its strop and is 0.2 m across.
+const CHANNEL_OUT := 0.3
+const CHANNEL_THICK := 0.1
+const DEADEYE_LANYARD := 0.25
+## Mast-local: where the foremast's shrouds leave it, between its two yards, on its sides; and
+## how far forward of the mast their feet stand. Forward, as the main's are, clear of the fore
+## sails, which hang aft of the mast; and forward of the catheads and the anchors under them.
+const FORE_SHROUD_Y := 5.4
+const FORE_SHROUD_FEET := [-2.1, -1.75, -1.4]
+## Where each backstay's foot stands along the castle's side: on the wall panel nearest this z,
+## at the stern quarter, well aft of the mast it holds.
+const BACKSTAY_Z := 13.9
 ## A single block under each end of both yards, where the braces and sheets would be led.
 ## Mast-local: [yard's height, how far out, how far aft]. The block's origin is its strop.
 const YARD_BLOCKS := [[4.47, 3.8, 0.0], [8.07, 2.45, 0.12]]
@@ -865,6 +881,19 @@ func _build_foremast() -> void:
 			block.position = Vector3(side * (yard.y * 0.5 - 0.2), yard.x - 0.13, 0.1)
 			blocks.add_child(block)
 			_fit_model(block, RIGGING + "block_single.glb")
+	# Three shrouds a side from the mast's sides between its yards, down to channels on the bow.
+	var shrouds := _rigging_node(mast, "Shrouds")
+	var radius := 0.15 * FOREMAST_GIRTH
+	for side in [-1.0, 1.0]:
+		var tops: Array[Vector3] = []
+		var hull: Array[Vector3] = []
+		for i in FORE_SHROUD_FEET.size():
+			# Round the mast's surface from its side toward its front, the foremost rope foremost.
+			var round := deg_to_rad(20.0 * (FORE_SHROUD_FEET.size() - 1 - i))
+			tops.append(FOREMAST_AT + Vector3(side * radius * cos(round), FORE_SHROUD_Y, -radius * sin(round)))
+			hull.append(_hull_edge(FOREMAST_AT.z + FORE_SHROUD_FEET[i], side))
+		var mid: float = FOREMAST_AT.z + (FORE_SHROUD_FEET[0] + FORE_SHROUD_FEET[FORE_SHROUD_FEET.size() - 1]) * 0.5
+		_ratlines(shrouds, tops, _shroud_side(shrouds, tops, hull, _hull_out(mid, side), false))
 
 
 ## A yard across `mast` at `at` (mast-local height, length), just aft of the mast's axis: the
@@ -918,22 +947,15 @@ func _build_mizzen() -> void:
 	_rope(mast, head + Vector3(0.0, 0.0, 0.15), BOOM_TO - Vector3(0.0, 0.0, 0.15), 0.015, rope)
 	_rope(mast, head + Vector3(0.0, 0.0, 0.15), GAFF_FROM.lerp(GAFF_TO, 0.6), 0.015, rope)
 
-	var shrouds := Node3D.new()
-	shrouds.name = "Shrouds"
-	mast.add_child(shrouds)
+	# Two shrouds a side, set up to channels along the quarterdeck's rail.
+	var shrouds := _rigging_node(mast, "Shrouds")
 	for side in [-1.0, 1.0]:
-		for i in 2:
-			var top := Vector3(side * 0.16, GAFF_FROM.y - 0.25, 0.0)
-			var foot := Vector3(side * 2.95, 0.8, [-0.7, -0.2][i])
-			_rope(shrouds, top, foot, 0.02, rope)
-			var up := (top - foot).normalized()
-			var deadeye := Node3D.new()
-			deadeye.name = "Deadeye%s%d" % ["Starboard" if side > 0.0 else "Port", i]
-			var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
-			deadeye.basis = Basis(along, up, along.cross(up))
-			deadeye.position = foot + up * DEADEYE_ABOVE_RAIL
-			shrouds.add_child(deadeye)
-			_fit_model(deadeye, RIGGING + "deadeye.glb")
+		var tops: Array[Vector3] = []
+		var hull: Array[Vector3] = []
+		for dz in [-0.6, -0.15]:
+			tops.append(MIZZEN_AT + Vector3(side * 0.16, GAFF_FROM.y - 0.25, 0.0))
+			hull.append(Vector3(side * 3.0, QUARTERDECK_Y, MIZZEN_AT.z + dz))
+		_shroud_side(shrouds, tops, hull, Vector3(side, 0.0, 0.0), true)
 
 
 ## A spar from `from` to `to` under `parent`: the topsail yard's model (5.2 m along X, tapering
@@ -1895,27 +1917,38 @@ func _crossyard(mast: Node3D, yard_name: String, y: float, half: float, thick: f
 	_spar(yard, 0.0, thick + 0.04, thick + 0.04, 0.1, iron)
 
 
-## One rope a side from the topmast head down to the stern quarters. The shrouds hold the
-## mast sideways; these hold it aft. No collision, same as the shrouds.
+## One rope a side from the topmast head down to the stern quarters, set up to a channel of its
+## own on the castle's side (_shroud_side). The shrouds hold the mast sideways; these hold it aft.
+## No collision, same as the shrouds.
 func _build_backstays() -> void:
-	if get_node_or_null("Mast") == null or get_node_or_null("Backstays") != null:
+	var mast := get_node_or_null("Mast") as Node3D
+	var cabin := get_node_or_null("Quarterdeck/Cabin") as Node3D
+	if mast == null or cabin == null or mast.get_node_or_null("Backstays") != null:
 		return
-	var stays := Node3D.new()
-	stays.name = "Backstays"
-	add_child(stays)
-	var rope := _flat(Color(0.45, 0.34, 0.22))
-	# Just above the topsail yard and a little aft of it, so the rope clears the cloth.
-	var head_y := MAST_AT.y + 8.4
-	var head_z := MAST_AT.z + 0.35
+	var stays := _rigging_node(mast, "Backstays")
+	var wall := _castle_wall(cabin)
 	for side in [-1.0, 1.0]:
-		var head := Vector3(side * 0.22, head_y, head_z)
-		# On the quarterdeck's rail at the stern quarter.
-		var foot := Vector3(side * 2.41, QUARTERDECK_Y + RAIL_HEIGHT, 14.165)
-		_rope(stays, head, foot, 0.02, rope)
+		# On the aft side of the topmast just above the topsail yard, so the rope clears its cloth.
+		var head := MAST_AT + Vector3(side * 0.1, 8.4, 0.12)
+		var nearest := 0
+		for i in wall.size() - 1:
+			var mid := (wall[i] + wall[i + 1]) * 0.5
+			var best := (wall[nearest] + wall[nearest + 1]) * 0.5
+			if mid.x * side > 0.0 and (best.x * side <= 0.0 or absf(mid.z - BACKSTAY_Z) < absf(best.z - BACKSTAY_Z)):
+				nearest = i
+		var at := (wall[nearest] + wall[nearest + 1]) * 0.5
+		var out := (wall[nearest + 1] - wall[nearest]).cross(Vector3.UP).normalized()
+		if out.x * side < 0.0:
+			out = -out
+		var tops: Array[Vector3] = [head]
+		var hull: Array[Vector3] = [at]
+		_shroud_side(stays, tops, hull, out, true)
 
 
-## Three ropes a side, from just under the lookout to the rail, and the ratlines across them.
-## No collision: a solid cage here would close the deck. A real rope mesh can replace this node.
+## Three ropes a side, from the top's collar under the lookout down to the channels on
+## the hull's sides (_shroud_side), and the ratlines across them. All forward of the mast, clear of
+## the sails, which hang aft of it. No collision: a solid cage here would close the deck. A real
+## rope mesh can replace this node.
 func _build_shrouds() -> void:
 	var mast := get_node_or_null("Mast") as Node3D
 	if mast == null:
@@ -1923,38 +1956,152 @@ func _build_shrouds() -> void:
 	var old := mast.get_node_or_null("Shrouds")
 	if old != null:
 		old.free()
-	var shrouds := Node3D.new()
-	shrouds.name = "Shrouds"
-	mast.add_child(shrouds)
-	var rope := _flat(Color(0.45, 0.34, 0.22))
-	# Mast-local, and all of them forward of the sail. Port stays on the port side, starboard
-	# on the starboard side, so a rope never crosses the spar or the cloth.
-	var upper_z: Array[float] = [-0.55, -0.4, -0.25]
+	var shrouds := _rigging_node(mast, "Shrouds")
+	# Ship space. The tops are on the top's collar, under its platform and above the course yard,
+	# and far enough forward that no rope touches the yard on its way down.
+	var upper_z: Array[float] = [-0.4, -0.33, -0.26]
 	var lower_z: Array[float] = [-1.15, -0.55, -0.2]
 	for side in [-1.0, 1.0]:
 		var tops: Array[Vector3] = []
-		var feet: Array[Vector3] = []
+		var hull: Array[Vector3] = []
 		for i in 3:
-			var top := Vector3(side * 0.42, 5.25, upper_z[i])
-			var foot := Vector3(side * 2.95, 0.8, lower_z[i])
-			tops.append(top)
-			feet.append(foot)
-			_rope(shrouds, top, foot, 0.02, rope)
-			# A deadeye on the shroud's foot, where it is set up to the rail: hung on the rope
-			# just above the rail and lying along it.
-			var up := (top - foot).normalized()
-			var deadeye := Node3D.new()
-			deadeye.name = "Deadeye%s%d" % ["Starboard" if side > 0.0 else "Port", i]
-			var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
-			deadeye.basis = Basis(along, up, along.cross(up))
-			deadeye.position = foot + up * DEADEYE_ABOVE_RAIL
-			shrouds.add_child(deadeye)
-			_fit_model(deadeye, RIGGING + "deadeye.glb")
-		var steps := int(tops[0].distance_to(feet[0]) / 0.42)
-		for s in range(1, steps):
-			var t := float(s) / float(steps)
-			for i in 2:
-				_rope(shrouds, tops[i].lerp(feet[i], t), tops[i + 1].lerp(feet[i + 1], t), 0.012, rope)
+			tops.append(MAST_AT + Vector3(side * 0.25, 5.05, upper_z[i]))
+			hull.append(_hull_edge(MAST_AT.z + lower_z[i], side))
+		_ratlines(shrouds, tops, _shroud_side(shrouds, tops, hull, Vector3(side, 0.0, 0.0), false))
+
+
+## A node under `mast` whose own space is the ship's, for rigging laid out in ship space.
+func _rigging_node(mast: Node3D, node_name: String) -> Node3D:
+	var node := Node3D.new()
+	node.name = node_name
+	node.position = -mast.position
+	node.set_meta("set_up", [])
+	mast.add_child(node)
+	return node
+
+
+## Ratlines across three shrouds, every 0.42 m down from `tops` to `ends`.
+func _ratlines(parent: Node3D, tops: Array[Vector3], ends: Array[Vector3]) -> void:
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	var steps := int(tops[0].distance_to(ends[0]) / 0.42)
+	for s in range(1, steps):
+		var t := float(s) / float(steps)
+		for i in tops.size() - 1:
+			_rope(parent, tops[i].lerp(ends[i], t), tops[i + 1].lerp(ends[i + 1], t), 0.012, rope)
+
+
+## Where the hull's outer face is at the deck's edge, `z` along the ship on `side` (+1 starboard),
+## and which way is out from it: off the rail's line (RAIL_PATH, the middle of the hull's 0.2 m
+## wall top), 0.1 m outboard. Its y is the weather deck's.
+func _hull_edge(z: float, side: float) -> Vector3:
+	var edge := _outline_at(RAIL_PATH, z)
+	var at: Vector2 = edge[0] + (edge[1] as Vector2) * 0.1
+	return Vector3(side * at.x, DECK_Y, at.y)
+
+
+## Which way is out from the hull at `z` on `side`, flat.
+func _hull_out(z: float, side: float) -> Vector3:
+	var out: Vector2 = _outline_at(RAIL_PATH, z)[1]
+	return Vector3(side * out.x, 0.0, out.y)
+
+
+## The point `z` along a starboard outline of (x, z) points, and its outward normal there.
+func _outline_at(outline: Array, z: float) -> Array:
+	for i in outline.size() - 1:
+		var a: Vector2 = outline[i]
+		var b: Vector2 = outline[i + 1]
+		if (z >= a.y and z <= b.y) or i == outline.size() - 2:
+			var t := clampf((z - a.y) / (b.y - a.y), 0.0, 1.0) if absf(b.y - a.y) > 0.0001 else 0.0
+			var normal := Vector2(b.y - a.y, a.x - b.x).normalized()
+			if normal.x < 0.0:
+				normal = -normal
+			return [a.lerp(b, t), normal]
+	return [outline[0], Vector2.RIGHT]
+
+
+## One side's ropes set up to a single channel: rope `i` from `tops[i]` down to a foot standing
+## out along `out` from `hull[i]`, a point on the hull's outer face at the edge of the deck whose
+## rail the channel stands above (the weather deck, or on the castle, `on_castle`, the
+## quarterdeck). The channel runs along the hull through the first and last of them. Returns
+## where each rope meets its upper deadeye, and lists every rope on `parent`'s "set_up" meta, in
+## ship space.
+func _shroud_side(parent: Node3D, tops: Array[Vector3], hull: Array[Vector3], out: Vector3, on_castle: bool) -> Array[Vector3]:
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	var timber := _rail_profile("wale", _flat(Color(0.45, 0.28, 0.14)))["material"] as Material
+	var side := signf(out.x)
+	var deck_y := (QUARTERDECK_Y if on_castle else DECK_Y) + RAIL_HEIGHT + 0.02 + CHANNEL_THICK
+	var first := Vector3(hull[0].x, deck_y, hull[0].z)
+	var last := Vector3(hull[hull.size() - 1].x, deck_y, hull[hull.size() - 1].z)
+	_channel(parent, first, last, out, CHANNEL_OUT, timber, "Channel%s" % ("Starboard" if side > 0.0 else "Port"))
+	var ends: Array[Vector3] = []
+	var listed: Array = parent.get_meta("set_up")
+	for i in tops.size():
+		var foot := Vector3(hull[i].x, deck_y, hull[i].z) + out * (CHANNEL_OUT - 0.08)
+		var plate_end: Vector3
+		if on_castle:
+			# On the trim's top, near its outer edge.
+			plate_end = Vector3(hull[i].x, CASTLE_TRIM_Y + 0.1, hull[i].z) + out * 0.15
+		else:
+			var wale: Vector2 = _outline_at(WALE_STARBOARD if side > 0.0 else _mirrored(WALE_PORT), hull[i].z)[0]
+			plate_end = Vector3(side * absf(wale.x), WALE_Y + 0.15, wale.y) + out * 0.03
+		var label := "%s%d" % ["Starboard" if side > 0.0 else "Port", i]
+		var strop := _set_up(parent, tops[i], foot, plate_end, label, rope, iron)
+		ends.append(strop)
+		listed.append({"top": tops[i], "strop": strop, "foot": foot, "plate_end": plate_end, "out": out,
+				"hull": Vector3(hull[i].x, deck_y, hull[i].z), "on_castle": on_castle})
+	return ends
+
+
+## The port wale outline as a starboard one: x made positive.
+func _mirrored(outline: Array) -> Array:
+	var flipped := []
+	for p in outline:
+		flipped.append(Vector2(absf((p as Vector2).x), (p as Vector2).y))
+	return flipped
+
+
+## A channel: a plank `width` wide standing out from the hull's side along `out`, from `a` to `b`
+## (points on the hull's outer face at its top), and 0.25 m past each.
+func _channel(parent: Node3D, a: Vector3, b: Vector3, out: Vector3, width: float, material: Material, channel_name: String) -> void:
+	var run := (b - a).normalized() if a.distance_to(b) > 0.01 else out.cross(Vector3.UP).normalized()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(a.distance_to(b) + 0.5, CHANNEL_THICK, width)
+	var node := MeshInstance3D.new()
+	node.name = channel_name
+	node.mesh = mesh
+	node.material_override = material
+	node.basis = Basis(run, Vector3.UP, run.cross(Vector3.UP))
+	node.position = (a + b) * 0.5 + out * width * 0.5 - Vector3.UP * CHANNEL_THICK * 0.5
+	parent.add_child(node)
+
+
+## One rope set up to a channel, in `parent`'s space: from `top` down to its upper deadeye, a
+## lanyard to the lower deadeye standing on the channel at `foot`, and an iron chain plate from
+## that down to `plate_end` on the hull. The deadeyes lie in the rope's line, faces fore and aft.
+## Returns the upper deadeye's strop, where the rope ends.
+func _set_up(parent: Node3D, top: Vector3, foot: Vector3, plate_end: Vector3, label: String, rope: Material, iron: Material) -> Vector3:
+	var up := (top - foot).normalized()
+	var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
+	var lower := Node3D.new()
+	lower.name = "LowerDeadeye" + label
+	# Upside down: its strop on the chain plate, its body up the rope.
+	lower.basis = Basis(along, -up, along.cross(-up))
+	lower.position = foot
+	parent.add_child(lower)
+	_fit_model(lower, RIGGING + "deadeye.glb")
+	var lanyard := foot + up * 0.35
+	var strop := lanyard + up * (DEADEYE_LANYARD + 0.35)
+	var upper := Node3D.new()
+	upper.name = "Deadeye" + label
+	upper.basis = Basis(along, up, along.cross(up))
+	upper.position = strop
+	parent.add_child(upper)
+	_fit_model(upper, RIGGING + "deadeye.glb")
+	_rope(parent, lanyard, lanyard + up * DEADEYE_LANYARD, 0.012, rope)
+	_rope(parent, strop, top, 0.02, rope)
+	_rope(parent, foot, plate_end, 0.018, iron)
+	return strop
 
 
 ## A single block under each end of the course yard and the topsail yard (YARD_BLOCKS).
