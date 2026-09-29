@@ -94,7 +94,7 @@ group_uniforms;
 
 #include "res://world/cloud_shadow.gdshaderinc"
 #include "res://world/shore_field.gdshaderinc"
-#include "res://world/runup.gdshaderinc"
+#include "res://world/foam.gdshaderinc"
 
 varying vec3 world_normal;
 varying vec3 world_position;
@@ -310,11 +310,16 @@ void fragment() {
     vec4 run = vec4(-1.0e4, 1.0e4, 1.0e4, 0.0);
     float swash = 0.0;
     if (height > -3.0 && height < runup_height + 1.0) {
-        run = runup_at(world_position.xz, height, clock);
+        float last_reach;
+        run = runup_at_reach(world_position.xz, height, clock, last_reach);
         float run_px = max(fwidth(run.x), 0.001);
-        swash = smoothstep(-run_px, run_px, run.x) * smoothstep(-0.03, 0.01, height)
-            * (1.0 - vegetation);
+        float above = smoothstep(-0.03, 0.01, height) * (1.0 - vegetation);
+        swash = smoothstep(-run_px, run_px, run.x) * above;
         colour = mix(colour, colour * swash_tint, swash * swash_strength);
+        // The shore foam on the sand's side of the waterline (world/foam.gdshaderinc): the
+        // front and its lace as the water runs up, what they leave behind as it drains.
+        vec4 foam = shore_foam(world_position.xz, run, last_reach, 1.0e4, true);
+        colour = mix(colour, foam.rgb, foam.a * above);
     }
 
     // A restrained wet-sand sheen, lit by the same sun as the cast shadows.

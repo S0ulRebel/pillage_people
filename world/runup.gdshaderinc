@@ -25,6 +25,11 @@
 
 #include "res://world/shore_field.gdshaderinc"
 
+// The foam's lace (world/foam_lace.gd): its round cells also shape the run-up's tongues.
+// Declared here, where it is first needed; foam.gdshaderinc cuts the lace from it.
+uniform sampler2D foam_lace : filter_linear_mipmap, repeat_enable;
+uniform bool foam_lace_ready = false;
+
 group_uniforms Run_Up;
 // Seconds between two shore waves: the long swell's period. ocean.gd pushes it.
 uniform float runup_wave_period = 3.7;
@@ -68,9 +73,16 @@ float runup_extent(float i, vec2 n, float slope) {
 	float wave = 0.55 + 0.45 * (0.5 + 0.5 * sin(i * 2.39 + n.x * 0.047 + n.y * 0.031));
 	// Sets: every fourth run-up the biggest.
 	float set = 0.8 + 0.2 * cos(i * 1.5708);
-	// Tongues along the shore, a new pattern every wave.
-	float tongue = 1.0 + runup_tongues
-		* (runup_noise(n / max(runup_tongue_spacing, 0.1) + vec2(i * 3.1, i * 1.7)) * 2.0 - 1.0);
+	// Tongues along the shore, a new pattern every wave: round lobes with sharp cusps between,
+	// from the lace's cells at tongue size - furthest at a cell's centre, least at its walls.
+	float tongue = 1.0;
+	if (foam_lace_ready) {
+		vec2 cells = n / (max(runup_tongue_spacing, 0.1) * 8.0) + vec2(i * 0.37, i * 0.21);
+		float centre = textureLod(foam_lace, cells, 0.0).r * 0.75;
+		// Squared, so each tongue's tip is round, not a point; the cusps between stay sharp.
+		float lobe = 1.0 - min(centre * centre / 0.36, 1.0);
+		tongue = 1.0 + runup_tongues * (lobe - 0.55) * 1.6;
+	}
 	float reach = min(runup_reach, runup_height / max(slope, 0.005));
 	return reach * shore_stretch(n) * wave * set * tongue;
 }
@@ -93,7 +105,8 @@ float runup_edge(float f, float r) {
 vec2 runup_crossings(float u, float r) {
 	float dd = runup_drawdown;
 	float v = (u + dd) / max(r + dd, 0.0001);
-	if (v > 1.0) {
+	// Out past the drawdown the water never leaves, and the edge never crosses: no crossing.
+	if (v > 1.0 || v <= 0.0) {
 		return vec2(2.0);
 	}
 	float up = runup_rise * (1.0 - sqrt(max(1.0 - max(v, 0.0), 0.0)));
@@ -107,7 +120,9 @@ vec2 runup_crossings(float u, float r) {
 //   y  seconds since the edge last ran up over this point - the foam's age (1e4: long ago)
 //   z  seconds since this point last came out of the water - 0 while it is under (1e4: long)
 //   w  where the edge is, metres up the beach from the still waterline
-vec4 runup_at(vec2 xz, float above_sea, float t) {
+// runup_at, and also how far up the beach the last run-up to have finished climbing reached
+// here: where it left its wash line.
+vec4 runup_at_reach(vec2 xz, float above_sea, float t, out float last_reach) {
 	vec4 field = shore_field_at(xz);
 	float u = -field.x;
 	vec2 n = field.yz;
@@ -123,7 +138,9 @@ vec4 runup_at(vec2 xz, float above_sea, float t) {
 	float r = runup_extent(i, n, slope);
 	float edge = runup_edge(f, r);
 	vec2 now = runup_crossings(u, r);
-	vec2 before = runup_crossings(u, runup_extent(i - 1.0, n, slope));
+	float r_before = runup_extent(i - 1.0, n, slope);
+	vec2 before = runup_crossings(u, r_before);
+	last_reach = f >= runup_rise ? r : r_before;
 	float age = 1.0e4;
 	if (f >= now.x) {
 		age = (f - now.x) * period;
@@ -139,6 +156,11 @@ vec4 runup_at(vec2 xz, float above_sea, float t) {
 		dried = (f + 1.0 - before.y) * period;
 	}
 	return vec4(edge - u, age, dried, edge);
+}
+
+vec4 runup_at(vec2 xz, float above_sea, float t) {
+	float last_reach;
+	return runup_at_reach(xz, above_sea, t, last_reach);
 }
 
 // The run-up drawn for checking: blue under water now, white fading with the foam's age over

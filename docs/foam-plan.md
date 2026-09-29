@@ -233,3 +233,32 @@ project already rejects view-dependent outlines).
 - With the defaults it reaches about 2 m up this beach - the captain's feet - where p9's lace
   and wash line sit 1.5-2.7 m up. On its own it shows only as a darker sheet over sand that is
   already dark; the foam (step 4) and the wet sand (step 5) are what make it read.
+
+### Step 4: the front and the lace (first pass, done)
+
+- `world/foam.gdshaderinc`, drawn by the sea on its side of the still waterline and by the
+  sand on the other, from the same inputs, so it crosses the waterline without a seam. The old
+  noise ribbon and its dashes in `ocean.gdshader` are gone (and its `foam_depth`/`foam_speed`).
+- Foam is born at the front and ages: its age is the run-up's (how long since the edge ran over
+  the point), and out past the swash, how long since the last shore wave's crest went over
+  (a much shorter life, `foam_surf_life`, within `foam_surf_width` of the shore).
+- The lace is cut from one texture of round cells made at load (`world/foam_lace.gd`, 256 x 256,
+  eight cells a side): each texel holds the distance to its cell's centre, the distance to the
+  nearest wall, and a random number for the cell. Two measures at once make panel 9's lace: WALLS
+  (foam near the line between cells - even hairlines) and KNOTS (foam far from every centre - the
+  fat junctions). Fresh foam is solid with a few windows; the walls thin to hairlines; each cell's
+  half of each wall breaks at its own moment; the knots shrink to beads and go. Two sizes of cell
+  at once, holes from both, so the cells are uneven and there is no seam between sizes.
+- The front's leading edge is pushed out round small bubbles; the run-up's reach is shaped along
+  the shore by the same cells at tongue size (squared, so the tongues have round tips and sharp
+  cusps between). While a run-up drains a thinner line rides its edge, thick and thin by turns.
+- The sand keeps what the last run-up left: fainter, creamier lace that pops as it dries, and a
+  beaded wash line at the highest reach, faded where it would be thinner than a pixel (from far
+  off it traced the whole coast).
+- Three tones measured off panel 9: lit on the fresh foam, mid as it ages, the darker
+  see-through tone on the holes' rims. Settings: the Shore_Foam group on either material.
+- Against the panels at their scale, the foam now has their grammar: scalloped front, lace with
+  thin walls and fat knots, tongues, wash line. Still off: the front at its thickest is thinner
+  and less white than p9's; the wet sand is one dark band with a hard edge where the water
+  starts (step 5); the water past the foam is flat opaque teal, where the panels' is clear
+  (step 6); the object halos are still the old mint discs (step 7). Not measured on an iPad.

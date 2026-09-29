@@ -232,6 +232,9 @@ var _sea_level := 0.0
 var _terrain: Node3D
 ## The terrain's shore field (world/shore_field.gd), which the shore waves are drawn from.
 var _shore_field: RefCounted = null
+## The foam's lace texture (world/foam_lace.gd), made once.
+var _foam_lace: ImageTexture = null
+const FoamLace = preload("res://world/foam_lace.gd")
 ## The water clock, advanced here and pushed to the shader, rather than the shader reading its
 ## own TIME.
 ##
@@ -319,6 +322,11 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 			terrain.apply_shore_field(water)
 			_shore_field = terrain.shore_field()
 		_push_run_up()
+	# The lace all the shore foam is cut from (foam_lace.gd), for the sea and the sand both.
+	if _foam_lace == null:
+		_foam_lace = FoamLace.make()
+	_push_both("foam_lace", _foam_lace)
+	_push_both("foam_lace_ready", true)
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
