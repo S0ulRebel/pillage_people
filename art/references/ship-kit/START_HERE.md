@@ -76,6 +76,8 @@ Done so far:
 - The castle, stairs and hull collide as their exact meshes.
 - The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
 - **Mizzen:** the foremast's model again (4.2 m), on the quarterdeck between its front edge and the binnacle. It carries the spanker, a fore-and-aft sail laced to the mast, a boom and a gaff. Both spars are the topsail yard's model stretched to length, and they reach aft over the wheel, the boom 2.5 m up, clear of the helmsman's head. The spanker's luff is laced down the mast (`Sail.pin_luff`), so only its leech is free and it fills on either tack. Two shrouds a side hold the mast, with deadeyes just above the quarterdeck's rail. A topping lift holds up the boom's end and a peak halyard the gaff's.
+- **Foremast and bowsprit:** the foremast is the M01 model stretched to 6.8 m (four fifths of the main) and thickened; the bowsprit is M07 stretched to 5.2 m and thickened as far as the knightheads allow. The jib and bobstay follow them.
+- **Fore yards:** the foremast carries the main's two yard models at about four fifths of their size: the fore yard at 4.3 m (6.4 m across) with the fore course, its foot free 2 m above the foredeck, and the fore topsail yard at 6.3 m (4.2 m across) with the fore topsail laced down to the fore yard. There is a block under each arm.
 - The course's foot hangs free, so a following wind swings it back toward the castle. The cloth is kept out of the castle's box and away from the mizzen's foot.
 
 **The rail:** the solid wall round the weather deck is gone, bow to stern, and a rail stands in its place.

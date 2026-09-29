@@ -1,0 +1,34 @@
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="StandardMaterial3D" id="teal"]
+albedo_color = Color(0.17, 0.35, 0.37, 1)
+
+[sub_resource type="CylinderMesh" id="body"]
+material = SubResource("teal")
+top_radius = 0.13
+bottom_radius = 0.2
+height = 0.62
+radial_segments = 18
+rings = 8
+
+[sub_resource type="CylinderMesh" id="sleeve"]
+material = SubResource("teal")
+top_radius = 0.06
+bottom_radius = 0.05
+height = 0.4
+radial_segments = 12
+rings = 12
+
+[node name="CoatPlaceholder" type="Node3D"]
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.31, 0)
+mesh = SubResource("body")
+
+[node name="SleeveLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.3, 0.575, 0)
+mesh = SubResource("sleeve")
+
+[node name="SleeveRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, -0.3, 0.575, 0)
+mesh = SubResource("sleeve")

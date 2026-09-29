@@ -89,6 +89,19 @@ const HELM_REACH := 1.6
 const MAST_AT := Vector3(0.0, DECK_Y, 9.0)
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
+## The foremast: the M01 model (4.2 m, 0.4 m across at the deck) stretched to four fifths of the
+## main's 8.5 m and thickened to 0.46 m across, next to the main's 0.5. As modelled it stood
+## barely half the main's height, a stub on the bow.
+const FOREMAST_HEIGHT := 6.8
+const FOREMAST_GIRTH := 1.15
+## The foremast's yards, mast-local, as (height, length): the main's two yard models at about
+## four fifths of their size, as the mast is. The fore yard carries the fore course, its foot
+## hanging free FORE_COURSE_DROP below, above the head of anyone on the foredeck. The fore
+## topsail yard carries the fore topsail, laced below to the fore yard. Both yards are just
+## under the jib's head, which is on the mast's forward side.
+const FORE_YARD := Vector2(4.3, 6.4)
+const FORE_TOPSAIL_YARD := Vector2(6.3, 4.2)
+const FORE_COURSE_DROP := 2.3
 ## Deck contact of the mizzen, on the quarterdeck between its front edge and the binnacle, aft
 ## of where the course's foot drapes when the wind is astern. The foremast's model again, 4.2 m.
 const MIZZEN_AT := Vector3(0.0, QUARTERDECK_Y, 11.5)
@@ -104,6 +117,13 @@ const GAFF_TO := Vector3(0.0, 4.55, 3.8)
 ## runs forward from here, over the stem head between the two knightheads the rail ends on. A
 ## real F03_BOWSPRIT drops in on this node; its heel is 0.3 m across.
 const BOWSPRIT_AT := Vector3(0.0, DECK_Y + 0.15, -1.9)
+## The bowsprit: the M07 model (3 m) lengthened to 5.2 m, reaching well out past the stem for
+## the taller foremast's jib, and thickened by a tenth: about as thick as it can be and still
+## pass between the knightheads, whose posts' inner faces are 0.37 m apart.
+const BOWSPRIT_LENGTH := 5.2
+const BOWSPRIT_GIRTH := 1.1
+## The bowsprit rises this far above the horizontal as it goes forward.
+const BOWSPRIT_RISE := 13.0
 ## Hinge of the rudder, on the stern under the counter. The blade hangs aft of this
 ## point. A real F04_RUDDER drops in on this node.
 const RUDDER_AT := Vector3(0.0, 1.8, 14.9)
@@ -814,22 +834,55 @@ func _build_foremast() -> void:
 	mast.name = "Foremast"
 	mast.position = FOREMAST_AT
 	add_child(mast)
-	# The M01 model is the same 4.2 m from its deck contact.
-	if not _fit_model(mast, RIGGING + "foremast.glb"):
+	# The M01 model is 4.2 m from its deck contact: stretched to FOREMAST_HEIGHT.
+	if _fit_model(mast, RIGGING + "foremast.glb"):
+		(mast.get_node("Model") as Node3D).scale = Vector3(FOREMAST_GIRTH, FOREMAST_HEIGHT / 4.2, FOREMAST_GIRTH)
+	else:
 		var timber := _flat(Color(0.55, 0.36, 0.18))
 		var iron := _flat(Color(0.22, 0.22, 0.24))
-		_spar(mast, 2.1, 0.2, 0.12, 4.2, timber)
-		_spar(mast, 1.1, 0.24, 0.24, 0.08, iron)
-		_spar(mast, 3.3, 0.16, 0.16, 0.08, iron)
+		_spar(mast, FOREMAST_HEIGHT * 0.5, 0.23, 0.14, FOREMAST_HEIGHT, timber)
+		_spar(mast, 1.8, 0.27, 0.27, 0.08, iron)
+		_spar(mast, 5.3, 0.19, 0.19, 0.08, iron)
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
-	col.radius = 0.22
-	col.height = 4.2
+	col.radius = 0.2 * FOREMAST_GIRTH + 0.02
+	col.height = FOREMAST_HEIGHT
 	shape.shape = col
-	shape.position = Vector3(0.0, 2.1, 0.0)
+	shape.position = Vector3(0.0, FOREMAST_HEIGHT * 0.5, 0.0)
 	body.add_child(shape)
 	mast.add_child(body)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	_yard(mast, "Yard", FORE_YARD, RIGGING + "lower_yard.glb", 8.0, 0.12, timber)
+	_yard(mast, "TopsailYard", FORE_TOPSAIL_YARD, RIGGING + "topsail_yard.glb", 5.2, 0.09, timber)
+	# A single block under each arm of both yards, as on the main.
+	var blocks := Node3D.new()
+	blocks.name = "Blocks"
+	mast.add_child(blocks)
+	for yard in [FORE_YARD, FORE_TOPSAIL_YARD]:
+		for side in [1.0, -1.0]:
+			var block := Node3D.new()
+			block.position = Vector3(side * (yard.y * 0.5 - 0.2), yard.x - 0.13, 0.1)
+			blocks.add_child(block)
+			_fit_model(block, RIGGING + "block_single.glb")
+
+
+## A yard across `mast` at `at` (mast-local height, length), just aft of the mast's axis: the
+## yard model at `path`, `model_length` long along X from its sling, stretched to the length and
+## thinned with it; or a plain spar `thick` at the sling, tapering to both arms.
+func _yard(mast: Node3D, yard_name: String, at: Vector2, path: String, model_length: float, thick: float, timber: Material) -> void:
+	var yard := Node3D.new()
+	yard.name = yard_name
+	yard.position = Vector3(0.0, at.x, 0.1)
+	mast.add_child(yard)
+	var scale := at.y / model_length
+	if _fit_model(yard, path):
+		(yard.get_node("Model") as Node3D).scale = Vector3(scale, lerpf(scale, 1.0, 0.5), lerpf(scale, 1.0, 0.5))
+		return
+	yard.rotation_degrees.z = -90.0
+	var half := at.y * 0.5
+	_spar(yard, -half * 0.5, thick * 0.5, thick, half, timber)
+	_spar(yard, half * 0.5, thick, thick * 0.5, half, timber)
 
 
 ## A short mast on the quarterdeck, carrying the spanker: a fore-and-aft sail laced between
@@ -901,7 +954,7 @@ func _boom(parent: Node3D, spar_name: String, from: Vector3, to: Vector3, timber
 	_spar(spar, 0.0, 0.09, 0.07, length, timber)
 
 
-## A 3 m spar out of the stem, rising a little as it goes forward, until a real bowsprit replaces it.
+## The bowsprit, BOWSPRIT_LENGTH out over the stem, rising BOWSPRIT_RISE as it goes forward.
 ## The node is named Bowsprit and its origin is the mount, so the swap keeps this place.
 func _build_bowsprit() -> void:
 	if get_node_or_null("Bowsprit") != null:
@@ -910,22 +963,25 @@ func _build_bowsprit() -> void:
 	sprit.name = "Bowsprit"
 	sprit.position = BOWSPRIT_AT
 	# Local up is turned to point forward (-Z) and a little above the horizontal.
-	sprit.rotation_degrees.x = -77.0
+	sprit.rotation_degrees.x = BOWSPRIT_RISE - 90.0
 	add_child(sprit)
-	# The M07 model reaches along its own -Z from the heel at its origin; turning it 90 degrees
-	# about X lays that along this node's +Y, the direction the placeholder spar runs.
-	if not _fit_model(sprit, RIGGING + "bowsprit.glb", Vector3.ZERO, Vector3(90.0, 0.0, 0.0)):
+	# The M07 model reaches 3 m along its own -Z from the heel at its origin; turning it 90
+	# degrees about X lays that along this node's +Y, the direction the placeholder spar runs.
+	# Stretched along its length to BOWSPRIT_LENGTH, and thickened.
+	if _fit_model(sprit, RIGGING + "bowsprit.glb", Vector3.ZERO, Vector3(90.0, 0.0, 0.0)):
+		(sprit.get_node("Model") as Node3D).scale = Vector3(BOWSPRIT_GIRTH, BOWSPRIT_GIRTH, BOWSPRIT_LENGTH / 3.0)
+	else:
 		var timber := _flat(Color(0.55, 0.36, 0.18))
 		var iron := _flat(Color(0.22, 0.22, 0.24))
-		_spar(sprit, 1.5, 0.15, 0.08, 3.0, timber)
-		_spar(sprit, 0.35, 0.2, 0.2, 0.12, iron)
+		_spar(sprit, BOWSPRIT_LENGTH * 0.5, 0.19, 0.1, BOWSPRIT_LENGTH, timber)
+		_spar(sprit, 0.45, 0.23, 0.23, 0.12, iron)
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
-	col.radius = 0.16
-	col.height = 3.0
+	col.radius = 0.16 * BOWSPRIT_GIRTH
+	col.height = BOWSPRIT_LENGTH
 	shape.shape = col
-	shape.position = Vector3(0.0, 1.5, 0.0)
+	shape.position = Vector3(0.0, BOWSPRIT_LENGTH * 0.5, 0.0)
 	body.add_child(shape)
 	sprit.add_child(body)
 
@@ -937,9 +993,13 @@ func _build_bobstay() -> void:
 	var stay := Node3D.new()
 	stay.name = "Bobstay"
 	add_child(stay)
-	var sprit := Basis(Vector3.RIGHT, deg_to_rad(-77.0))
-	var tip: Vector3 = BOWSPRIT_AT + sprit * Vector3(0.0, 2.9, 0.0)
+	var tip := _along_bowsprit(BOWSPRIT_LENGTH - 0.1)
 	_rope(stay, tip, Vector3(0.0, 2.6, -0.6), 0.02, _flat(Color(0.45, 0.34, 0.22)))
+
+
+## The point `metres` out along the bowsprit's axis from its heel, in ship space.
+func _along_bowsprit(metres: float) -> Vector3:
+	return BOWSPRIT_AT + Basis(Vector3.RIGHT, deg_to_rad(BOWSPRIT_RISE - 90.0)) * Vector3(0.0, metres, 0.0)
 
 
 ## The F06 blade and its sternpost hinge strip, or a placeholder blade on an iron post.
@@ -1737,16 +1797,44 @@ func _build_sail() -> void:
 	var old_jib := get_node_or_null("Jib")
 	if old_jib != null:
 		old_jib.free()
-	var sprit := Basis(Vector3.RIGHT, deg_to_rad(-77.0))
-	var foot_from: Vector3 = BOWSPRIT_AT + sprit * Vector3(0.0, 0.4, 0.0)
-	var foot_to: Vector3 = BOWSPRIT_AT + sprit * Vector3(0.0, 2.85, 0.0)
-	# A short span on the forward side of the foremast head.
-	var head_from := FOREMAST_AT + Vector3(0.0, 3.5, -0.22)
-	var head_to := FOREMAST_AT + Vector3(0.0, 4.15, -0.22)
+	# Along the bowsprit from just clear of the knightheads to just short of its tip.
+	var foot_from := _along_bowsprit(BOWSPRIT_LENGTH * 0.13)
+	var foot_to := _along_bowsprit(BOWSPRIT_LENGTH * 0.95)
+	# A short span on the forward side of the foremast head, in its top sixth.
+	var ahead := Vector3(0.0, 0.0, -0.2 * FOREMAST_GIRTH - 0.02)
+	var head_from := FOREMAST_AT + Vector3(0.0, FOREMAST_HEIGHT * 0.83, 0.0) + ahead
+	var head_to := FOREMAST_AT + Vector3(0.0, FOREMAST_HEIGHT * 0.99, 0.0) + ahead
 	var jib := SailScript.new() as Node3D
 	jib.name = "Jib"
 	jib.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.35, 0.0, 0.0))
 	add_child(jib)
+	_build_fore_sails()
+
+
+## The fore course, laced to the fore yard with its foot hanging free, and above it the fore
+## topsail, laced to the fore topsail yard and down to the fore yard's arms. Both just aft of
+## the foremast, as the main's are.
+func _build_fore_sails() -> void:
+	for old_name in ["ForeCourse", "ForeTopsail"]:
+		var old := get_node_or_null(old_name)
+		if old != null:
+			old.free()
+	var z := FOREMAST_AT.z + 0.12
+	var course_y := FOREMAST_AT.y + FORE_YARD.x
+	var course_half := FORE_YARD.y * 0.5 - 0.3
+	var course := SailScript.new() as Node3D
+	course.name = "ForeCourse"
+	course.call("pin_foot", false)
+	course.call("rig_between", Vector3(-course_half, course_y, z), Vector3(course_half, course_y, z),
+			Vector3(-course_half, course_y - FORE_COURSE_DROP, z), Vector3(course_half, course_y - FORE_COURSE_DROP, z), Vector3(0.0, 0.0, 0.4))
+	add_child(course)
+	var top_y := FOREMAST_AT.y + FORE_TOPSAIL_YARD.x
+	var top_half := FORE_TOPSAIL_YARD.y * 0.5 - 0.2
+	var topsail := SailScript.new() as Node3D
+	topsail.name = "ForeTopsail"
+	topsail.call("rig_between", Vector3(-top_half, top_y, z), Vector3(top_half, top_y, z),
+			Vector3(-course_half, course_y + 0.1, z), Vector3(course_half, course_y + 0.1, z), Vector3(0.0, 0.0, 0.3))
+	add_child(topsail)
 
 
 ## The spanker, laced to the mizzen's gaff, boom and mast: its head just under the gaff, its

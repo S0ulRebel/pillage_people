@@ -37,6 +37,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `actors/captain/` | The captain. `CharacterBody3D`: camera-relative movement, jumping, swimming, swinging a cutlass, taking hits, dying. |
 | `actors/grunt/` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
 | `actors/parts/` | Shared by both: the blade (hung off a hand bone with a hitbox along it) and the hit spark. |
+| `actors/outfit/` | Modular characters: a rigged body plus swappable pieces (heads, hats, coats, boots), and the workshop scene they are tried on in. See Modular characters below. |
 | `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, corals and seaweed (`reef/` grows them in the dive crater and through the shallows), fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
 | `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
@@ -48,6 +49,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
 | `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |
 | `art/` | Data only — imported models, generated audio, reference images. Nothing here is loaded as code. |
+| `art/models/characters/` | Bodies and pieces for the modular characters, named `<slot>_<name>.glb`. See the README there. |
 | `terrain/*.r16` | Height maps from `tools\make_heightmap.py` in `D:\code\gan`. |
 
 ## The fight
@@ -200,6 +202,52 @@ clip's length, root drift and foot contact: the lengths have to round-trip exact
 A held clip must also loop, or it freezes into its last frame — which looks like nothing at
 all until you hold the pistol up for longer than the aim clip's 4.03 s. `clips_check` asserts
 both that and the stance itself.
+
+## Modular characters
+
+A character can be built from parts instead of one solid model: a rigged **body**, and
+**pieces** worn on it - head, jaw, hair, face, hat, shirt, coat, trousers, waist, boots and an
+accessory. Six heads, six hats, five coats and four skin colours is hundreds of different
+pirates from twenty-one models. The captain and grunts are still single models; the zombie is
+the first body built this way.
+
+**The workshop** is `actors/outfit/workshop.tscn` - open it and run it with F6. You pick a body
+and one piece per slot, press R for a random outfit, play any clip to watch the pieces move, and
+nudge whichever piece is selected in the Fit section. **Save piece** keeps its fit and **Save
+outfit** keeps the whole character. It finds bodies and pieces by file name in
+`art/models/characters/` (see the README there), plus the primitive placeholders in
+`actors/outfit/placeholders/`, so a new part from Tripo is a file dropped in a folder.
+
+Pieces are worn in one of two ways:
+
+- **Skinned** pieces bend with the body. Tripo delivers them as unrigged statues, so
+  `skin_copy.gd` gives each vertex the skin weights of the body nearest to it, blending the
+  four nearest body points so loose cloth does not tear between the legs. This is Blender's
+  "copy weights from the nearest surface", done in Godot so fitting a piece and seeing it walk
+  is one step.
+- **Pinned** pieces are rigid and ride one bone - a hat on the head - the same way the cutlass
+  rides the hand.
+
+Everything is placed in **fit space** (`rig_space.gd`): metres, the T-pose, feet on the floor,
+Y up, facing +Z. The rigs themselves disagree about all of it. The captain's and grunt's
+skeletons work in centimetres and lie face down at rest, and each clip's hip track stands
+them up. The zombie's stands upright in metres. Fit space is read off where the bones actually
+are, so a hat moved up two centimetres means two centimetres on every rig.
+
+**Clips are shared, not re-downloaded.** `retarget.gd` copies the captain's twelve Mixamo clips
+onto any body with the same bone names. It copies how far each bone has turned from its T-pose,
+not the raw rotation, so the captain's lying-down rest does not lay the zombie flat. The hips
+travel in proportion to hip height, so a longer-legged body takes a longer stride.
+
+**The zombie body** came from Tripo's auto-rig with every bone at the origin, and the mesh tore
+apart on import. The joints survive only in the skin's inverse bind matrices, which were built
+in Blender's axes - Z up, facing +X, origin halfway up the body. `tools/repair_rig.py` finds the turn and shift that
+put every joint inside its own limb (on the 1 m export, the median bone sits 7 mm from its limb's
+centre, against 49 mm for the next-best candidate), writes the joints back, and bakes the height - 1.8 m - into the file.
+
+Not done yet: nothing in the game spawns a dressed character; the zombie is only in the
+workshop so far. Body skin still exists under clothes, so a sleeve can show an elbow through it
+in an extreme pose. The zombie's jaw has no hinge.
 
 ## Sound
 
@@ -483,6 +531,7 @@ Godot.exe --headless --path . --script res://tests/coastal_smoke.gd
 Godot.exe --headless --path . --script res://tests/ambience_check.gd
 Godot.exe --headless --path . --script res://tests/coral_check.gd
 Godot.exe --headless --path . --script res://tests/placement_check.gd
+Godot.exe --headless --path . --script res://tests/outfit_check.gd
 Godot.exe --headless --path . -- --deathtest
 ```
 
@@ -503,6 +552,13 @@ him from the sea to the hilltop and prints what every sound bed is doing, and ch
 assumption underneath the mix — that on this island low ground *is* the shore (ground below
 3.5 m is 12 m from water on average, ground above 34 m is 74 m). `--deathtest` kills him and
 checks the island comes back.
+
+`outfit_check` covers the modular characters: fit space on both kinds of rig, the T-pose, a
+coat landing on its fit to the tenth of a millimetre and its cuff staying on the wrist through a
+swing, a hat staying on the head bone, the captain's walk on the zombie keeping his feet on the
+floor, skin tint, and an outfit surviving save and load. It also fails if a body in
+`art/models/characters/` still has every bone at the origin. `tests/outfit_view.gd` (not
+headless) photographs the workshop in the T-pose and mid-walk.
 
 `items_check` confirms every held thing hangs where its resource says. `clips_check` drives
 both characters through their states and reads back which clip is playing, because a character
