@@ -210,3 +210,26 @@ project already rejects view-dependent outlines).
 - On their own they barely show from the gameplay camera: the toon shading hides small slopes,
   and a wave reads top-down by its foam. They are what the run-up (step 3) and the foam (step 4)
   ride.
+
+### Step 3: the run-up (done)
+
+- `world/runup.gdshaderinc`: every shore wave that reaches the waterline (two, by default,
+  make one run-up - `runup_waves`) sends a sheet of water up the beach, fast then slowing, and
+  drains back slower, past the still waterline down to `runup_drawdown`. How far each reaches
+  is the lesser of `runup_reach` and what `runup_height` of climb allows on the slope there, so
+  flat beaches get long run-ups and rock almost none; it changes wave to wave, is biggest every
+  fourth, and bulges into tongues along the shore.
+- Being a formula, it knows its own history at every point: how long since the edge last ran
+  up over it (the foam's age, for step 4) and how long since it came out of the water (the
+  sand's drying, for step 5).
+- One clock: `ocean.gd` now pushes its water clock into the sand's material too, and the
+  run-up's settings to both (Ocean node, "Run-Up" group). Each run-up starts as its stretch's
+  shore wave reaches the waterline.
+- The sand draws the sheet of water over itself (cooler, darker: `swash_tint` on the terrain
+  material); the sea thins to a film where the backwash has pulled back below the still
+  waterline. `runup_preview` on either material shows the water (blue), the foam's age (white)
+  and the drying (orange); `tests/foam_view.gd` captures four moments through one run-up, as
+  drawn and in the preview.
+- With the defaults it reaches about 2 m up this beach - the captain's feet - where p9's lace
+  and wash line sit 1.5-2.7 m up. On its own it shows only as a darker sheet over sand that is
+  already dark; the foam (step 4) and the wet sand (step 5) are what make it read.

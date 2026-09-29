@@ -162,10 +162,9 @@ vec2 shore_wave_phase(vec4 field) {
     float k = TAU / max(shore_wave_length, 0.01);
     float k_swell = TAU / max(wave_1.w, 0.01);
     float omega = sqrt(9.8 * k_swell) * wave_speed;
-    vec2 n = field.yz;
     // Each stretch of shore its own timing (up to about a wave either way) and height.
-    float stagger = 2.1 * sin(n.x * 0.047 + n.y * 0.013 + 1.3) + 1.6 * sin(n.y * 0.061 - n.x * 0.029 + 4.1);
-    float stretch = 0.75 + 0.25 * sin(n.x * 0.031 - n.y * 0.043 + 2.0);
+    float stagger = shore_stagger(field.yz);
+    float stretch = shore_stretch(field.yz);
     float phase = -k * field.x - omega * water_time() + stagger;
     // Sets: a slow swell of height over about four waves, riding in with them.
     float set = 0.72 + 0.28 * cos(phase * 0.25 + stagger * 0.5);

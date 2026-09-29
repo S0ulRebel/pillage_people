@@ -35,6 +35,19 @@ vec2 shore_direction(vec2 xz, vec4 field) {
 	return len > 1.0e-3 ? to_shore / len : vec2(0.0);
 }
 
+// Each stretch of coast has its own beat: how far behind (in radians of wave) its waves arrive,
+// and how big they are there, from smooth sines of its nearest shore point `n` - so
+// neighbouring stretches differ without a seam. The shore waves (waves.gdshaderinc) and the
+// run-up (runup.gdshaderinc) both read these, so each run-up follows its own wave in; ocean.gd
+// repeats them on the CPU.
+float shore_stagger(vec2 n) {
+	return 2.1 * sin(n.x * 0.047 + n.y * 0.013 + 1.3) + 1.6 * sin(n.y * 0.061 - n.x * 0.029 + 4.1);
+}
+
+float shore_stretch(vec2 n) {
+	return 0.75 + 0.25 * sin(n.x * 0.031 - n.y * 0.043 + 2.0);
+}
+
 vec3 shore_field_preview_colour(vec2 xz) {
 	float d = shore_field_at(xz).x;
 	float px = max(fwidth(d), 1.0e-4);

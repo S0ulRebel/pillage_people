@@ -38,6 +38,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 
 #include "res://world/waves.gdshaderinc"
 #include "res://world/cloud_shadow.gdshaderinc"
+#include "res://world/runup.gdshaderinc"
 
 // ---- Engine inputs ----------------------------------------------------------------------
 // The opaque pass's depth and colour, as drawn before the water. They are what the water
@@ -491,6 +492,12 @@ void fragment() {
     // Taken BEFORE the discard: derivatives are gathered from neighbouring pixels, and a
     // neighbour that has discarded leaves them undefined.
     float pixel_span = fwidth(thickness);
+    // The run-up (runup.gdshaderinc): where the backwash has pulled the water's edge back down
+    // past the still waterline, the sea here thins to a film over the wet sand. Before the
+    // discard, for its derivative.
+    vec4 run = runup_at(world_point.xz, bed - sea_y, water_time());
+    float run_px = max(fwidth(run.x), 0.001);
+    float drawn_back = (1.0 - smoothstep(-run_px, run_px, run.x)) * step(0.0, run.w + runup_drawdown);
     if (thickness <= 0.0) { discard; }
     float water_depth = max(sea_y - bed, 0.0);
     // The opaque scene behind this pixel. `to_solid` is the view-space distance from the
@@ -797,6 +804,7 @@ void fragment() {
     ALBEDO = mix(banded_water, foam_colour * sky_light, white);
     float band_opacity = object_band * object_band_strength;
     ALPHA = edge * max(contact, max(white, band_opacity * 0.82));
+    ALPHA *= 1.0 - drawn_back * 0.85;
 
     // ---- 12. The underside --------------------------------------------------------------
     // Seen from below. Not FRONT_FACING, which depends on which way the radial grid is
@@ -867,6 +875,10 @@ void fragment() {
     }
     if (shore_field_preview) {
         ALBEDO = shore_field_preview_colour(world_point.xz);
+        ALPHA = 1.0;
+    }
+    if (runup_preview) {
+        ALBEDO = runup_preview_colour(run, vec3(0.10, 0.30, 0.55));
         ALPHA = 1.0;
     }
     if (wave_preview) {

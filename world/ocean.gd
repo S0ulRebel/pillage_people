@@ -135,6 +135,44 @@ extends MeshInstance3D
 		shore_wave_shoal = value
 		_push("shore_wave_shoal", value)
 
+@export_group("Run-Up")
+## Each shore wave that reaches the beach sends a sheet of water up the sand and drains back
+## (runup.gdshaderinc, read by the sand and the sea alike, so everything here goes to both).
+## How many shore waves make one run-up: waves merge in the surf.
+@export_range(1.0, 4.0) var runup_waves := 2.0:
+	set(value):
+		runup_waves = value
+		_push_both("runup_waves", value)
+## Metres up a flat beach the biggest run-up reaches.
+@export_range(0.5, 20.0) var runup_reach := 5.5:
+	set(value):
+		runup_reach = value
+		_push_both("runup_reach", value)
+## Metres above sea level any run-up can climb: what stops it on a steep shore.
+@export_range(0.05, 2.0) var runup_height := 0.6:
+	set(value):
+		runup_height = value
+		_push_both("runup_height", value)
+## Metres below the still waterline the backwash pulls the edge back.
+@export_range(0.0, 5.0) var runup_drawdown := 1.0:
+	set(value):
+		runup_drawdown = value
+		_push_both("runup_drawdown", value)
+## The share of each run-up spent running up; the rest drains, slower.
+@export_range(0.1, 0.9) var runup_rise := 0.3:
+	set(value):
+		runup_rise = value
+		_push_both("runup_rise", value)
+## How strongly the edge bulges into tongues along the shore, and how far apart they are.
+@export_range(0.0, 1.0) var runup_tongues := 0.55:
+	set(value):
+		runup_tongues = value
+		_push_both("runup_tongues", value)
+@export_range(1.0, 20.0) var runup_tongue_spacing := 4.5:
+	set(value):
+		runup_tongue_spacing = value
+		_push_both("runup_tongue_spacing", value)
+
 @export_group("Optics")
 ## Per-metre RGB absorption. Warm light is removed first to create turquoise shallows.
 @export var absorption := Vector3(0.24, 0.075, 0.028):
@@ -163,6 +201,29 @@ extends MeshInstance3D
 func _push(name: StringName, value: Variant) -> void:
 	if material != null:
 		material.set_shader_parameter(name, value)
+
+
+## The run-up's settings go to the sea and the sand alike: each draws its side of the waterline.
+func _push_both(name: StringName, value: Variant) -> void:
+	_push(name, value)
+	_push_terrain(name, value)
+
+
+func _push_terrain(name: StringName, value: Variant) -> void:
+	if _terrain != null and "material" in _terrain and _terrain.material is ShaderMaterial:
+		(_terrain.material as ShaderMaterial).set_shader_parameter(name, value)
+
+
+## Everything the run-up needs, to both materials: its settings, and the time between shore
+## waves - the long swell's period, the same sqrt(g k) the waves move at.
+func _push_run_up() -> void:
+	for entry in [["runup_waves", runup_waves], ["runup_reach", runup_reach],
+			["runup_height", runup_height], ["runup_drawdown", runup_drawdown],
+			["runup_rise", runup_rise], ["runup_tongues", runup_tongues],
+			["runup_tongue_spacing", runup_tongue_spacing]]:
+		_push_both(entry[0], entry[1])
+	var k := TAU / maxf(wave_1.w, 0.01)
+	_push_both("runup_wave_period", TAU / maxf(sqrt(9.8 * k) * wave_speed, 0.001))
 
 var _camera: Camera3D
 var _band_viewport: SubViewport
@@ -257,6 +318,7 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 		if terrain.has_method("apply_shore_field"):
 			terrain.apply_shore_field(water)
 			_shore_field = terrain.shore_field()
+		_push_run_up()
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())
@@ -316,6 +378,8 @@ func _notification(what: int) -> void:
 func _process(delta: float) -> void:
 	_clock = hold_clock if hold_clock >= 0.0 else _clock + delta
 	_push("preview_time", _clock)
+	# The sand draws the run-up above the waterline, so it keeps the water's time too.
+	_push_terrain("preview_time", _clock)
 	# The wave preview above runs in the editor too - that is what @tool is for here, and it
 	# is how the sea is judged without pressing play. The overhead band camera below is not:
 	# it is a SubViewport rendering the whole shore every frame to feed a runtime shader mask,

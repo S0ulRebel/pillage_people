@@ -57,6 +57,12 @@ uniform float seabed_patch_scale : hint_range(0.01, 1.0) = 0.16;
 uniform float vegetation_blend : hint_range(0.05, 6.0) = 0.42;
 uniform float jungle_coverage : hint_range(0.0, 1.0) = 0.55;
 
+group_uniforms Run_Up_Sand;
+// The sheet of water a run-up sends over the sand (runup.gdshaderinc): the sand under it,
+// tinted this and by this much. Cooler and darker, never a colour of its own - it is clear.
+uniform vec3 swash_tint : source_color = vec3(0.70, 0.80, 0.88);
+uniform float swash_strength : hint_range(0.0, 1.0) = 0.85;
+
 group_uniforms Caustics;
 uniform vec3 caustic_colour : source_color = vec3(0.84, 1.0, 0.92);
 uniform float caustic_scale : hint_range(0.02, 4.0) = 0.90;
@@ -88,6 +94,7 @@ group_uniforms;
 
 #include "res://world/cloud_shadow.gdshaderinc"
 #include "res://world/shore_field.gdshaderinc"
+#include "res://world/runup.gdshaderinc"
 
 varying vec3 world_normal;
 varying vec3 world_position;
@@ -298,6 +305,18 @@ void fragment() {
         colour = mix(colour, painted, biome_raw.g);
     }
 
+    // The run-up: the thin sheet of water each wave sends up the beach, drawn over the sand -
+    // the sea itself stops at the still waterline. Only near the sea, where it can reach.
+    vec4 run = vec4(-1.0e4, 1.0e4, 1.0e4, 0.0);
+    float swash = 0.0;
+    if (height > -3.0 && height < runup_height + 1.0) {
+        run = runup_at(world_position.xz, height, clock);
+        float run_px = max(fwidth(run.x), 0.001);
+        swash = smoothstep(-run_px, run_px, run.x) * smoothstep(-0.03, 0.01, height)
+            * (1.0 - vegetation);
+        colour = mix(colour, colour * swash_tint, swash * swash_strength);
+    }
+
     // A restrained wet-sand sheen, lit by the same sun as the cast shadows.
     float wet = (1.0 - dry) * smoothstep(-0.04, 0.02, height) * (1.0 - rock) * (1.0 - vegetation);
     vec3 half_sum = light_dir + view_dir;
@@ -341,6 +360,10 @@ void fragment() {
     if (palette_preview) { ALBEDO = ground; EMISSION = ground; }
     if (shore_field_preview) {
         ALBEDO = shore_field_preview_colour(world_position.xz);
+        EMISSION = ALBEDO;
+    }
+    if (runup_preview) {
+        ALBEDO = runup_preview_colour(run, ground);
         EMISSION = ALBEDO;
     }
 }

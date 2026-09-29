@@ -14,6 +14,8 @@ extends SceneTree
 ##   compare.png         panel 9 | the game at 7 m | panel 10, each cropped to the same framing
 ##   compare_18m.png     the same at play's default 18 m
 ##   field.png           the shore distance field drawn over the 18 m view (step 1 of the plan)
+##   runup_0..3.png      the close view at four moments through one run-up (step 3)
+##   runup_debug_0..3    the same with runup_preview: water blue, foam age white, drying orange
 ##   waves_0..2.png      the sea's height from 110 m up over the coast, 2 s apart (step 2)
 ##   overview.png        the same view as the game draws it
 ## Not headless - no renderer there.
@@ -115,6 +117,21 @@ func _run() -> void:
 	_aim(camera, beach, inland, ARM_CLOSE)
 	var close := await _capture("gameplay_close")
 	_compare(sheet, close, camera, beach, "compare")
+
+	# The run-up (step 3) from the close camera, at four moments through one: as drawn, and
+	# with runup_preview on, which shows where the water is, the foam's age and the drying.
+	var cycle := 2.0 * TAU / sqrt(9.8 * TAU / (ocean.wave_1 as Vector4).w)
+	for k in 4:
+		ocean.hold_clock = MOMENT + cycle * float(k) / 4.0
+		await _capture("runup_%d" % k)
+	terrain.material.set_shader_parameter("runup_preview", true)
+	ocean.material.set_shader_parameter("runup_preview", true)
+	for k in 4:
+		ocean.hold_clock = MOMENT + cycle * float(k) / 4.0
+		await _capture("runup_debug_%d" % k)
+	terrain.material.set_shader_parameter("runup_preview", false)
+	ocean.material.set_shader_parameter("runup_preview", false)
+	ocean.hold_clock = MOMENT
 
 	# The waves, seen from high over the coast: the surface's height drawn in bands, at three
 	# moments two seconds apart, so the shore waves can be seen coming in parallel to the beach
