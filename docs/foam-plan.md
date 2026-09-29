@@ -298,3 +298,18 @@ project already rejects view-dependent outlines).
   before step 2. `sun_view` fails its horizon check (a step of 0.087 between rows) - and fails
   it with the files from before this step too (0.081), so it is not from this.
 - `tests/foam_view.gd` also captures the close view with the sea hidden (`seabed_close.png`).
+
+### Step 7: rocks and crates (done)
+
+- The filled mint discs are gone. The overhead mask (`band_mask`, 28 cm a texel) is filtered,
+  so across a silhouette's edge it ramps from one to nought over about a texel; its value over
+  its slope is the distance to the edge, to a few centimetres. A thin contact line
+  (`object_line_width`, 7 cm) is drawn there, thickest on the side the waves come from and a
+  third as thick away from them, broken into pieces by the lace cells (`object_line_gaps`),
+  and faded wherever it would be thinner than a pixel so that from far off it is no outline.
+- The darker water hugging panel 10's rocks is the rock under the water, which the clear
+  shallows (step 6) now show by themselves.
+- Lace caught round rocks in the surf was tried (eight taps round each pixel, aged outward
+  from the object): at the mask's resolution it came out as grey smudges, not lace, and was
+  taken out. Splashes on rocks in heavy surf remain for later.
+- The old `object_band_*` settings went with the discs.

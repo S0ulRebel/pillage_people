@@ -156,22 +156,26 @@ uniform float crest_strength : hint_range(0.0, 1.0) = 0.28;
 
 // ---- Object bands -----------------------------------------------------------------------
 group_uniforms Object_Bands;
-// A bright ring on the water round anything standing in it - hull, rock, captain. It comes
-// from a separate overhead camera in ocean.gd that photographs the silhouettes of everything
-// crossing the surface into band_mask; all of that is pushed.
+// Where anything standing in the water meets it - rock, hull, crate, captain. It comes from a
+// separate overhead camera in ocean.gd that photographs the silhouettes of everything crossing
+// the surface into band_mask; all of that is pushed.
+//
+// Drawn the way panel 10 draws it: never a filled halo, a thin broken contact line hugging the
+// object, thickest on the side the waves come from. The darker water right against a rock in
+// that panel is the rock under the water, which the clear shallows show by themselves. (Lace
+// caught round rocks in the surf was tried, from eight taps round each pixel: at the mask's
+// 28 cm it came out as grey smudges, not lace, so it is not drawn.)
 uniform sampler2D band_mask : filter_linear, repeat_disable;
 uniform vec2 band_mask_center = vec2(0.0);
 uniform float band_mask_size = 144.0;
 uniform vec2 band_mask_texel = vec2(0.001953125);
 uniform bool band_mask_ready = false;
-// The ring's colour, how far out from the silhouette it sits, how wide it is, how strong,
-// how much the noise bends it, and how fast it breathes. Material-only.
-uniform vec3 object_band_colour : source_color = vec3(0.84, 1.0, 0.94);
-uniform float object_band_distance : hint_range(0.1, 3.0) = 0.22;
-uniform float object_band_width : hint_range(0.05, 0.6) = 0.07;
-uniform float object_band_strength : hint_range(0.0, 1.0) = 0.68;
-uniform float object_band_distortion : hint_range(0.0, 0.5) = 0.24;
-uniform float object_band_speed : hint_range(0.0, 3.0) = 0.8;
+// Metres wide the contact line is, at its thickest; it thins to a third on the side away from
+// the waves. Faded out wherever it would be thinner than a pixel, so from far off it is not an
+// outline. Material-only.
+uniform float object_line_width : hint_range(0.01, 0.3) = 0.07;
+// How much of the line is missing, in pieces. Material-only.
+uniform float object_line_gaps : hint_range(0.0, 0.9) = 0.35;
 
 // ---- Sun --------------------------------------------------------------------------------
 group_uniforms Sun;
@@ -598,33 +602,41 @@ void fragment() {
     // ---- 5. Object bands ----------------------------------------------------------------
     // Only the dedicated overhead camera supplies object silhouettes. Gameplay-camera depth
     // must never create outlines: that would rim dry objects merely seen against the ocean.
-    // The band is where the mask is empty at this point but set within radius_metres of it -
-    // eight taps round a circle - so it hugs each silhouette from the outside.
+    //
+    // How far this pixel is outside the nearest silhouette, to a few centimetres although the
+    // mask is 28 cm a texel: the mask is filtered, so across a silhouette's edge it ramps from
+    // one to nought over about a texel, and its value over its slope is the distance to where
+    // it crosses a half. That is the contact line.
     vec2 band_uv = (world_point.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
     float capture_edge = smoothstep(0.0, 0.035, min(min(band_uv.x, band_uv.y),
         min(1.0 - band_uv.x, 1.0 - band_uv.y)));
-    float moving_noise = noise(world_point.xz * 0.82
-        + vec2(clock * object_band_speed * 0.19, -clock * object_band_speed * 0.14));
-    float object_band = 0.0;
+    float object_line = 0.0;
     if (band_mask_ready && capture_edge > 0.0) {
-        float centre_mask = textureLod(band_mask, band_uv, 0.0).a;
         float metres_per_texel = band_mask_size * band_mask_texel.x;
-        float radius_metres = object_band_distance + object_band_width
-            + (moving_noise - 0.5) * object_band_distortion * 0.35
-            + sin(clock * object_band_speed * 1.7) * 0.035;
-        float radius_texels = max(radius_metres / max(metres_per_texel, 0.001), 1.0);
-        float nearby_mask = 0.0;
-        for (int i = 0; i < 8; i++) {
-            float angle = TAU * float(i) / 8.0 + moving_noise * 0.12;
-            vec2 offset = vec2(cos(angle), sin(angle))
-                * band_mask_texel * radius_texels;
-            nearby_mask = max(nearby_mask,
-                textureLod(band_mask, clamp(band_uv + offset, vec2(0.0), vec2(1.0)), 0.0).a);
-        }
-        object_band = smoothstep(0.04, 0.45, nearby_mask - centre_mask)
-            * capture_edge * smoothstep(0.12, 0.45, water_depth);
-        object_band *= mix(0.72, 1.0, moving_noise);
+        vec2 tx = vec2(band_mask_texel.x, 0.0);
+        vec2 tz = vec2(0.0, band_mask_texel.y);
+        float centre_mask = textureLod(band_mask, band_uv, 0.0).a;
+        vec2 gradient = vec2(textureLod(band_mask, band_uv + tx, 0.0).a - textureLod(band_mask, band_uv - tx, 0.0).a,
+            textureLod(band_mask, band_uv + tz, 0.0).a - textureLod(band_mask, band_uv - tz, 0.0).a)
+            / (2.0 * metres_per_texel);
+        float slope = length(gradient);
+        // Metres outside the silhouette; only meaningful on the ramp.
+        float outside = (0.5 - centre_mask) / max(slope, 0.5 / metres_per_texel);
+        bool on_ramp = centre_mask > 0.01 && centre_mask < 0.99 && slope > 0.2 / metres_per_texel;
+        // Thickest facing the waves: the outward direction (down the mask's slope) against the
+        // direction the shore waves come from (away from the shore).
+        vec2 outward = -gradient / max(slope, 0.0001);
+        float facing = clamp(dot(outward, -shore_direction(world_point.xz, shore_here)) * 0.5 + 0.5, 0.0, 1.0);
+        float width = object_line_width * mix(0.33, 1.0, facing);
+        float metres_per_pixel = length(vec2(fwidth(world_point.x), fwidth(world_point.z)));
+        float line_aa = max(metres_per_pixel, 0.004);
+        float gaps = step(object_line_gaps, foam_lace_at(world_point.xz, 0.3, true).y);
+        float resolved = clamp(width * 2.0 / max(metres_per_pixel, 0.0001), 0.0, 1.0);
+        object_line = on_ramp ? (1.0 - smoothstep(width - line_aa, width + line_aa, outside))
+            * step(-0.02, outside) * gaps * resolved * resolved : 0.0;
+        object_line *= capture_edge * smoothstep(0.05, 0.25, water_depth);
     }
+    float object_band = object_line;
 
     // ---- 6. Crest glints ----------------------------------------------------------------
     // White strokes along the dominant swell's crests, offshore. Crossing waves and slow noise
@@ -760,12 +772,11 @@ void fragment() {
     // The band rides on the shaded water; the foam and crests go on top in foam_colour. The
     // shader already contains the transmitted scene colour, so it composites opaquely except
     // at its two edges; foam and the band stay visible right up to those.
-    vec3 banded_water = mix(shaded_water, object_band_colour * sky_light,
-        object_band * object_band_strength);
+    // The contact line is foam too, in the foam's lit tone.
+    vec3 banded_water = mix(shaded_water, foam_lit * sky_light, object_band);
     vec3 white_colour = surf >= crest ? shore_white.rgb : foam_colour;
     ALBEDO = mix(banded_water, white_colour * sky_light, white);
-    float band_opacity = object_band * object_band_strength;
-    ALPHA = edge * max(contact, max(white, band_opacity * 0.82));
+    ALPHA = edge * max(contact, max(white, object_band));
     ALPHA *= 1.0 - drawn_back * 0.85;
 
     // ---- 12. The underside --------------------------------------------------------------
