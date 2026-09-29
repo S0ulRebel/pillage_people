@@ -1,4 +1,4 @@
-"""Cut the rail's handrail and base down to profiles, for ship.gd to sweep along any path.
+"""Cut the rail's handrail and base, and the hull's wale, down to profiles for ship.gd to sweep.
 
     python tools/rail_profiles.py
 
@@ -32,6 +32,10 @@ import glb_io  # noqa: E402
 REPO = Path(__file__).resolve().parents[4]
 SOURCE = REPO / 'art' / 'models' / 'ship' / 'deck' / 'rail_parts.glb'
 OUT = SOURCE.with_name('rail_sweep.glb')
+# The hull's wale (tools/extract_tripo_sheet.py, tripo/hull.json): one 2 m bay running along Z
+# from its origin, its inner face at X=0 against the hull and its outer face out along +X.
+WALE = REPO / 'art' / 'models' / 'ship' / 'hull' / 'wale.glb'
+WALE_BAY = 2.0
 PROFILE_POINTS = 24
 TILE = 1.0
 BAKE = (512, 128)
@@ -45,7 +49,8 @@ def load(path):
     for node in gltf['nodes']:
         prim = gltf['meshes'][node['mesh']]['primitives'][0]
         get = lambda i, w: np.frombuffer(glb_io.accessor_bytes(gltf, binary, i), dtype=np.float32).reshape(-1, w)
-        index = np.frombuffer(glb_io.accessor_bytes(gltf, binary, prim['indices']), dtype=np.uint32).reshape(-1, 3)
+        kind = {5125: np.uint32, 5123: np.uint16}[gltf['accessors'][prim['indices']]['componentType']]
+        index = np.frombuffer(glb_io.accessor_bytes(gltf, binary, prim['indices']), dtype=kind).reshape(-1, 3).astype(np.int64)
         pieces[node['name']] = (get(prim['attributes']['POSITION'], 3).astype(np.float64),
                                 get(prim['attributes']['TEXCOORD_0'], 2).astype(np.float64), index)
     return pieces, np.asarray(atlas, dtype=np.float64)
@@ -225,14 +230,20 @@ def main():
     gltf = {'asset': {'version': '2.0', 'generator': 'ship-kit tools/rail_profiles.py'},
             'scene': 0, 'scenes': [{'nodes': []}], 'nodes': [], 'meshes': [], 'images': [], 'textures': [],
             'materials': [], 'samplers': [{'magFilter': 9729, 'minFilter': 9987, 'wrapS': 10497, 'wrapT': 10497}]}
-    for name in ('handrail', 'base'):
+    # Laid the way the rail's pieces lie - its length along X about its middle, its outer face
+    # toward +Z - so it is sliced and baked the same way.
+    wale, wale_atlas = load(WALE)
+    positions, uvs, index = wale['wale']
+    pieces['wale'] = (np.column_stack([positions[:, 2] - WALE_BAY / 2, positions[:, 1], positions[:, 0]]), uvs, index)
+    atlases = {'handrail': atlas, 'base': atlas, 'wale': wale_atlas}
+    for name in ('handrail', 'base', 'wale'):
         positions, uvs, index = pieces[name]
         points, normals, around = resample(slice_at_middle(positions, index), PROFILE_POINTS)
         if name == 'base':
             # Tripo's base sags a little off the deck along its middle: sit the profile on it.
             positions = positions - [0.0, points[:, 1].min(), 0.0]
             points = points - [0.0, points[:, 1].min()]
-        image = bake(positions, uvs, index, atlas, points, normals)
+        image = bake(positions, uvs, index, atlases[name], points, normals)
         sweep_node(writer, gltf, name, points, normals, around, image)
         perimeter = np.linalg.norm(np.diff(np.vstack([points, points[:1]]), axis=0), axis=1).sum()
         print(f'{name:9s} profile {np.ptp(points[:, 0]):.3f} deep, y {points[:, 1].min():.3f} to '

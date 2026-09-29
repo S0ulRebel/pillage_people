@@ -161,6 +161,37 @@ const RAIL_CORNER := 30.0
 const BALUSTER_PITCH := 0.45
 ## Height of the rail's collision: the handrail's top.
 const RAIL_HEIGHT := 0.81
+## The wale: the thick strake round the hull, swept from Tripo's wale (rail_sweep.glb, see
+## tools/rail_profiles.py) along the hull's outer face at WALE_Y, between the gunport frames
+## and the weather deck, above the open lids. Each side's outline is measured off
+## double_deck.glb on its own, as (x, z) from the stem round to the stern's centreline, with the
+## gun deck's rebuilt walls at x = 3: the kit's bow is not quite symmetrical, and a mirrored
+## outline stood 2 cm off the port bow. The wale closes round both ends.
+const WALE_Y := 4.4
+const WALE_STARBOARD := [
+	Vector2(0.0, -2.347), Vector2(0.294, -1.933), Vector2(1.164, -0.792), Vector2(1.22, -0.71),
+	Vector2(1.417, -0.376), Vector2(2.193, 0.846), Vector2(2.36, 1.528), Vector2(3.0, 4.0),
+	Vector2(3.0, 12.0), Vector2(2.945, 12.674), Vector2(2.901, 12.887), Vector2(2.775, 13.414),
+	Vector2(2.722, 13.564), Vector2(2.503, 14.12), Vector2(2.377, 14.356), Vector2(2.141, 14.766),
+	Vector2(2.087, 14.847), Vector2(1.711, 15.312), Vector2(1.641, 15.389), Vector2(1.164, 15.787),
+	Vector2(1.075, 15.838), Vector2(0.607, 16.063), Vector2(0.507, 16.087), Vector2(0.0, 16.167),
+]
+const WALE_PORT := [
+	Vector2(0.0, -2.347), Vector2(-0.919, -1.14), Vector2(-1.165, -0.794), Vector2(-1.996, 0.508),
+	Vector2(-2.194, 0.846), Vector2(-2.754, 2.996), Vector2(-3.0, 4.0), Vector2(-3.0, 12.0),
+	Vector2(-2.945, 12.674), Vector2(-2.775, 13.413), Vector2(-2.503, 14.12), Vector2(-2.141, 14.765),
+	Vector2(-2.086, 14.845), Vector2(-1.641, 15.388), Vector2(-1.164, 15.786), Vector2(-1.075, 15.835),
+	Vector2(-0.607, 16.062), Vector2(-0.507, 16.086), Vector2(0.0, 16.167),
+]
+## How far up its shroud each deadeye's strop is from the rail: the deadeye model hangs 0.35 m
+## below its strop, so this leaves it just clear of the handrail.
+const DEADEYE_ABOVE_RAIL := 0.42
+## A single block under each end of both yards, where the braces and sheets would be led.
+## Mast-local: [yard's height, how far out, how far aft]. The block's origin is its strop.
+const YARD_BLOCKS := [[4.47, 3.8, 0.0], [8.07, 2.45, 0.12]]
+## The flag's staff stands on the topmast head (8.5 m up the mast) and its flag flies from the
+## staff's top, above the topsail yard and the backstays' heads.
+const FLAGSTAFF_HEIGHT := 1.05
 ## The mast top's platform floor stands 1.06 m above the model's lowest point; this puts that
 ## floor just above the placeholder's, and the model's collar clear of the course yard at 4.6.
 const MAST_TOP_Y := 4.72
@@ -249,8 +280,11 @@ func _ready() -> void:
 	_build_sail()
 	_build_topsail()
 	_build_backstays()
+	_build_blocks()
+	_build_flag()
 	_build_deck_fittings()
 	_build_rail()
+	_build_wale()
 
 
 ## Floats broadside to the beach the coastal study picked, close enough to swim to.
@@ -340,7 +374,10 @@ func drive(delta: float, throttle: float, yaw: float) -> void:
 func _physics_process(delta: float) -> void:
 	# The fittings are built in the editor so the mast and guns are visible there. The float
 	# is not: running it would walk the saved pose off the mooring.
-	if Engine.is_editor_hint() or _terrain == null:
+	if Engine.is_editor_hint():
+		return
+	_fly_flag()
+	if _terrain == null:
 		return
 	var before := global_transform
 	var held := Vector3.ZERO
@@ -1250,7 +1287,7 @@ func _rail_profile(key: String, timber: Material) -> Dictionary:
 			mesh = found.mesh
 		scene.free()
 	if mesh == null:
-		var low := 0.62 if key == "handrail" else 0.0
+		var low := {"handrail": 0.62, "base": 0.0, "wale": -0.06}.get(key, 0.0) as float
 		for corner in [Vector2(0.06, low), Vector2(0.06, low + 0.12), Vector2(-0.06, low + 0.12), Vector2(-0.06, low), Vector2(0.06, low)]:
 			profile["points"].append(corner)
 			profile["normals"].append(Vector2(signf(corner.x), 0.0))
@@ -1279,11 +1316,35 @@ func _rail_profile(key: String, timber: Material) -> Dictionary:
 	return profile
 
 
+## The wale, one mesh round the whole hull: its two outlines closed into a loop, stem, down the port
+## side, round the stern, up the starboard side and back, with the hull on its right so its
+## profile stands out from the hull.
+func _build_wale() -> void:
+	if get_node_or_null("Wale") != null:
+		return
+	var loop: Array[Vector3] = []
+	for p in WALE_PORT:
+		loop.append(Vector3(p.x, WALE_Y, p.y))
+	for i in range(WALE_STARBOARD.size() - 2, -1, -1):
+		loop.append(Vector3(WALE_STARBOARD[i].x, WALE_Y, WALE_STARBOARD[i].y))
+	var profile := _rail_profile("wale", _flat(Color(0.45, 0.28, 0.14)))
+	var sweep := SurfaceTool.new()
+	sweep.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_sweep(sweep, loop, profile, true)
+	var wale := MeshInstance3D.new()
+	wale.name = "Wale"
+	wale.mesh = sweep.commit()
+	wale.material_override = profile["material"]
+	wale.layers = 1 | (1 << 19)
+	add_child(wale)
+
+
 ## `profile` swept along `line` into `into`: a ring of it at every point of the line, upright,
 ## turned to face along the line and mitred at every corner so it keeps its thickness round
-## the turn. Up a slope the ring stays upright, so the rail is sheared, like the balusters.
+## the turn. Up a slope the ring stays upright, so the rail is sheared, like the balusters. A
+## `closed` line ends where it began, and that corner is mitred too.
 ## U runs with the metres along the line, so the grain is the same density everywhere.
-func _sweep(into: SurfaceTool, line: Array[Vector3], profile: Dictionary) -> void:
+func _sweep(into: SurfaceTool, line: Array[Vector3], profile: Dictionary, closed := false) -> void:
 	var points: PackedVector2Array = profile["points"]
 	var normals: PackedVector2Array = profile["normals"]
 	var v: PackedFloat32Array = profile["v"]
@@ -1293,9 +1354,14 @@ func _sweep(into: SurfaceTool, line: Array[Vector3], profile: Dictionary) -> voi
 	var rings: Array[PackedVector3Array] = []
 	var ring_normals: Array[PackedVector3Array] = []
 	var us: Array[float] = []
+	var last := line.size() - 1
 	for i in line.size():
-		var into_dir := line[i] - line[maxi(i - 1, 0)] if i > 0 else line[1] - line[0]
-		var out_dir := line[mini(i + 1, line.size() - 1)] - line[i] if i < line.size() - 1 else into_dir
+		var into_dir := line[i] - line[i - 1] if i > 0 else line[1] - line[0]
+		var out_dir := line[i + 1] - line[i] if i < last else into_dir
+		# A closed line's first and last points are the same corner: turn it like any other.
+		if closed and (i == 0 or i == last):
+			into_dir = line[last] - line[last - 1]
+			out_dir = line[1] - line[0]
 		var flat_in := Vector3(into_dir.x, 0.0, into_dir.z).normalized()
 		var flat_out := Vector3(out_dir.x, 0.0, out_dir.z).normalized()
 		var across := (flat_in + flat_out).normalized()
@@ -1501,11 +1567,66 @@ func _build_shrouds() -> void:
 			tops.append(top)
 			feet.append(foot)
 			_rope(shrouds, top, foot, 0.02, rope)
+			# A deadeye on the shroud's foot, where it is set up to the rail: hung on the rope
+			# just above the rail and lying along it.
+			var up := (top - foot).normalized()
+			var deadeye := Node3D.new()
+			deadeye.name = "Deadeye%s%d" % ["Starboard" if side > 0.0 else "Port", i]
+			var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
+			deadeye.basis = Basis(along, up, along.cross(up))
+			deadeye.position = foot + up * DEADEYE_ABOVE_RAIL
+			shrouds.add_child(deadeye)
+			_fit_model(deadeye, RIGGING + "deadeye.glb")
 		var steps := int(tops[0].distance_to(feet[0]) / 0.42)
 		for s in range(1, steps):
 			var t := float(s) / float(steps)
 			for i in 2:
 				_rope(shrouds, tops[i].lerp(feet[i], t), tops[i + 1].lerp(feet[i + 1], t), 0.012, rope)
+
+
+## A single block under each end of the course yard and the topsail yard (YARD_BLOCKS).
+func _build_blocks() -> void:
+	var mast := get_node_or_null("Mast") as Node3D
+	if mast == null or mast.get_node_or_null("Blocks") != null:
+		return
+	var blocks := Node3D.new()
+	blocks.name = "Blocks"
+	mast.add_child(blocks)
+	for yard in YARD_BLOCKS:
+		for side in [1.0, -1.0]:
+			var block := Node3D.new()
+			block.position = Vector3(side * yard[1], yard[0], yard[2])
+			blocks.add_child(block)
+			_fit_model(block, RIGGING + "block_single.glb")
+
+
+## The flag on a short staff above the topmast. Its model's hoist is at its origin and its fly
+## runs toward -X; _fly_flag turns it downwind.
+func _build_flag() -> void:
+	var mast := get_node_or_null("Mast") as Node3D
+	if mast == null or mast.get_node_or_null("Flag") != null:
+		return
+	var head := 8.5
+	_spar(mast, head + FLAGSTAFF_HEIGHT * 0.5, 0.035, 0.025, FLAGSTAFF_HEIGHT, _flat(Color(0.55, 0.36, 0.18)))
+	var flag := Node3D.new()
+	flag.name = "Flag"
+	flag.position = Vector3(0.0, head + FLAGSTAFF_HEIGHT - 0.03, 0.0)
+	mast.add_child(flag)
+	_fit_model(flag, RIGGING + "flag.glb")
+	_fly_flag()
+
+
+## Turns the flag's fly downwind, with the breeze the sails are blown by.
+func _fly_flag() -> void:
+	var flag := get_node_or_null("Mast/Flag") as Node3D
+	var wind := get_tree().get_first_node_in_group("wind") if is_inside_tree() else null
+	if flag == null or wind == null:
+		return
+	var down: Vector3 = flag.get_parent_node_3d().global_basis.inverse() * (wind.get("direction") as Vector3)
+	if Vector2(down.x, down.z).length_squared() < 0.0001:
+		return
+	# Turning by a about Y sends the fly's -X to (-cos a, 0, sin a).
+	flag.rotation.y = atan2(down.z, -down.x)
 
 
 func _rope(parent: Node3D, a: Vector3, b: Vector3, radius: float, material: Material) -> void:

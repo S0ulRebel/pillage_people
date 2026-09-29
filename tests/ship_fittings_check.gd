@@ -132,7 +132,10 @@ func _run() -> void:
 	_check_quarterdeck(ship)
 	_check_windows(ship)
 	_check_rail(ship)
+	_check_wale(ship)
+	_check_rigging(ship)
 	await _check_course_clears_cabin(ship)
+	await _check_flag_flies_downwind(ship)
 
 	# The hull carries the plank texture: its wood material has a texture, not a flat colour.
 	var textured := false
@@ -576,6 +579,74 @@ func _check_windows(ship: Node3D) -> void:
 		for g in gaps:
 			mean += g / gaps.size()
 		check(gaps.max() - gaps.min() < 0.25 * mean, "the windows are %.2f to %.2f m apart; they should be even" % [gaps.min(), gaps.max()])
+
+
+## The wale: swept from its profile and textured, closed round the hull, and lying on the hull's
+## face all the way - at every panel's middle the hull is within 1.5 cm of the path it follows.
+func _check_wale(ship: Node3D) -> void:
+	var wale := ship.get_node_or_null("Wale") as MeshInstance3D
+	var material := null if wale == null else wale.material_override as BaseMaterial3D
+	check(wale != null and wale.mesh != null and material != null and material.albedo_texture != null,
+			"the wale is missing or not swept from its profile")
+	if wale == null:
+		return
+	var box := _bounds(ship, wale)
+	check(box.position.z < -2.2 and box.end.z > 16.0 and box.position.x < -2.9 and box.end.x > 2.9,
+			"the wale does not run round the whole hull (%s)" % box)
+	var space := ship.get_world_3d().direct_space_state
+	for outline in [Ship.WALE_STARBOARD, Ship.WALE_PORT]:
+		for i in outline.size() - 1:
+			var a: Vector2 = outline[i]
+			var b: Vector2 = outline[i + 1]
+			var mid := (a + b) * 0.5
+			var out := Vector2(b.y - a.y, a.x - b.x).normalized()
+			if out.dot(mid - Vector2(0.0, 7.0)) < 0.0:
+				out = -out
+			var at := Vector3(mid.x, Ship.WALE_Y, mid.y)
+			var dir := Vector3(out.x, 0.0, out.y)
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at + dir * 0.5), ship.to_global(at - dir * 0.5)))
+			var gap: float = (ship.to_local(hit.position) - at).dot(dir) if not hit.is_empty() else INF
+			check(absf(gap) <= 0.015, "the wale at (%.2f, %.2f) is %.3f m off the hull" % [mid.x, mid.y, gap])
+
+
+## The small rigging: a deadeye on every shroud's foot, hung on the rope just above the rail, a
+## block under each yard arm, and the flag above everything on the topmast.
+func _check_rigging(ship: Node3D) -> void:
+	var shrouds := ship.get_node_or_null("Mast/Shrouds")
+	var deadeyes: Array = [] if shrouds == null else shrouds.find_children("Deadeye*", "", false, false)
+	check(deadeyes.size() == 6 and deadeyes.all(func(d: Node) -> bool: return d.get_node_or_null("Model") != null),
+			"%d deadeyes with models; there should be one on each of the six shrouds" % deadeyes.size())
+	for node in deadeyes:
+		var d := node as Node3D
+		var box := _bounds(ship, d)
+		# Above the handrail's top (5.95), and no higher than a hand's reach up the shroud.
+		check(box.position.y > Ship.DECK_Y + 0.74 and box.position.y < Ship.DECK_Y + 1.1,
+				"%s hangs from %.2f to %.2f, not just above the rail" % [d.name, box.position.y, box.end.y])
+	var blocks := ship.get_node_or_null("Mast/Blocks")
+	check(blocks != null and blocks.get_child_count() == 4
+			and blocks.get_children().all(func(b: Node) -> bool: return b.get_node_or_null("Model") != null),
+			"there should be a block with its model under each of the four yard arms")
+	var yard := _bounds(ship, ship.get_node_or_null("Mast/TopsailYard"))
+	var flag := _bounds(ship, ship.get_node_or_null("Mast/Flag"))
+	check(ship.get_node_or_null("Mast/Flag/Model") != null and flag.position.y > yard.end.y,
+			"the flag is missing or hangs down to %.2f, into the topsail yard (top %.2f)" % [flag.position.y, yard.end.y])
+
+
+## The flag streams downwind: with the breeze from abeam, its fly points the way it blows.
+func _check_flag_flies_downwind(ship: Node3D) -> void:
+	var wind := ship.get_tree().get_first_node_in_group("wind")
+	var flag := ship.get_node_or_null("Mast/Flag") as Node3D
+	if wind == null or flag == null:
+		check(false, "no wind or no flag to test the flag against")
+		return
+	var abeam := ship.global_basis.x
+	for i in 5:
+		wind.set("_angle", atan2(abeam.x, abeam.z))
+		await physics_frame
+	var fly := _bounds(ship, flag.get_node("Model")).get_center() - ship.to_local(flag.global_position)
+	var blows := ship.global_basis.inverse() * (wind.get("direction") as Vector3)
+	check(Vector2(fly.x, fly.z).normalized().dot(Vector2(blows.x, blows.z).normalized()) > 0.9,
+			"the flag flies toward %s with the wind blowing toward %s" % [fly, blows])
 
 
 ## The course's foot hangs free. With the breeze from dead astern it swings back over the

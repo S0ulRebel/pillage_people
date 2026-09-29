@@ -56,7 +56,7 @@ Done so far:
 
 - **Rigging** (tripo/rigging.json) into `art/models/ship/rigging/`, 18 files, sized to what ship.gd already builds. Tripo drew every spar squat: its mainmast was about 4.4 times as tall as it is wide, where the game's is 22 times. Each spar is scaled by its thickness, and only the plain timber between the iron bands is lengthened, so the bands, heels, jaws and sling bands keep their shape. The mast top is sized by its hole, so it clears the 0.18 m mast head. The sails are mainly texture and shape references, because sail.gd simulates the cloth. The fixed shroud and stay ropes were dropped, because ship.gd draws ropes to fit each hull. A rope coil fused to the stays was kept as a prop.
 
-- **Hull extras** (tripo/hull.json) into `art/models/ship/hull/`: the gunport lid (H11) and one bay of wale (H12). Tripo's hull shells were dropped; they copied the old painted sheet's errors, and the textured canonical shells replace them. The frame's opening is sized to the kit's 1.0 m gunport. The lid is exported closed, re-hung on its own hinge node, so the engine opens it by turning that one node. The wale is one 2 m bay with straight butt ends.
+- **Hull extras** (tripo/hull.json) into `art/models/ship/hull/`: the gunport lid (H11) and one bay of wale (H12). Tripo's hull shells were dropped; they copied the old painted sheet's errors, and the textured canonical shells replace them. The frame's opening is sized to the kit's 1.0 m gunport. The lid is exported closed, re-hung on its own hinge node, so the engine opens it by turning that one node. The wale is one 2 m bay with straight butt ends; the ship sweeps its profile rather than laying bays.
 
 **On the ship:** props/ship/ship.gd loads these into the slots its placeholders used: the helm, capstan, rudder with its hinge strip, mainmast, topmast, mast top, both yard sizes, foremast and bowsprit. It adds a binnacle, two mast collars, the stern lantern, and a frame and open lid on every gunport. On the weather deck there are the bitts, the anchor cable and rope coils, the hatch with its grating, cleats and belaying racks. A cathead sits on each bow with its anchor, and deck beams run under the weather deck. Where a model file is missing, the placeholder is built instead.
 
@@ -89,6 +89,12 @@ Done so far:
 - the walls, the frames with their open lids, and the cannons are all built from that one list, so changing the count moves them together;
 - `gun_port_offset` moves the frames in or out along the hull's normal;
 - the new walls are planked with the hull's own material and UV rule, and collide exactly.
+
+**The wale and the small rigging:**
+- **Wale:** swept round the whole hull at 4.4 m, between the gunport frames and the weather deck, closed round the stem and the stern. `tools/rail_profiles.py` slices and bakes the wale bay like the rail's pieces (`deck/rail_sweep.glb`). Each side follows its own outline measured off the hull, because the kit's bow is not quite symmetrical.
+- **Deadeyes:** one on each shroud's foot, just above the rail, lying along the rope.
+- **Blocks:** a single block under each end of the course yard and the topsail yard. The double blocks are not placed.
+- **Flag:** on a short staff above the topmast, turned each physics frame to stream downwind with the breeze the sails feel.
 
 `python tools/texture_game_hull.py` gives the game's own hull (art/models/ship/double_deck.glb, with its raked bow and bulged stern) the kit's plank texture without moving a vertex. tests/ship_fittings_check.gd fails in any of these cases:
 - a slot falls back to its placeholder;
