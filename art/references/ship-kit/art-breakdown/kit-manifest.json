@@ -1,0 +1,1019 @@
+{
+  "schema_version": "1.0.0",
+  "name": "Finished pirate ship modular art breakdown v3",
+  "purpose": "Model and texture one corrected assembled ship, then derive coherent reusable parts from that master.",
+  "status": "modeling_specification_with_textured_construction_templates",
+  "source": {
+    "structural_contract_path": "../canonical/contract.json",
+    "structural_guide_path": "../START_HERE.md",
+    "art_reference_path": "00-corrected-ship.webp",
+    "structural_contract_parts": 18,
+    "canonical_kit_modified": false,
+    "art_reference_role": "Corrected appearance and composition master, not measured geometry. Numbered part sheets elaborate the separately modelable parts.",
+    "images_note": "00 and 02-04 are the .webp copies uploaded from the working folder, not the original PNGs; swap the originals in under the same names if the quality matters. 01 is rendered here by tools/render_textured.py.",
+    "sheets_not_in_repo": [
+      "05-working-fittings.png"
+    ]
+  },
+  "fit_status": {
+    "this_manifest_validates_geometry": false,
+    "new_art_geometry_modeled": false,
+    "new_art_geometry_fit_checked": false,
+    "authority": "Exact dimensions and boundary coordinates remain authoritative only for unchanged original canonical shell/floor interfaces. Read full socket boundaries from the source contract; this summary does not replace them.",
+    "inherited_validation": "Existing canonical validation applies only to its original construction geometry. It does not establish fit for this finished art breakdown.",
+    "new_design_status": "All new geometry, styling, cabin supports, rail replacements, apertures, rigging, accessories and their connections are proposed until modeled and checked.",
+    "checks_required_after_modeling": [
+      "Canonical socket and protected join-band preservation",
+      "Assembled seam, silhouette and texture continuity",
+      "Open longitudinal interiors and valid exterior closures",
+      "Floor apertures, stairs, landings and support clearance",
+      "Rail post ownership and replacement-envelope fit",
+      "Cabin, gallery, mast, rudder and fitting attachments",
+      "Rigging endpoint connectivity and sail clearance"
+    ],
+    "textured_construction_templates": {
+      "scope": "All 18 canonical parts, geometry byte-identical to canonical/meshes; UVs and a flat plank albedo added. No reshaping, bevels, trim or hardware.",
+      "meshes": "../textured/meshes/<PART>.glb",
+      "assemblies": [
+        "../textured/assemblies/SINGLE_DECK.glb",
+        "../textured/assemblies/DOUBLE_DECK.glb",
+        "../textured/assemblies/TRIPLE_DECK.glb"
+      ],
+      "textures": [
+        "../textured/textures/hull_planks.jpg",
+        "../textured/textures/deck_planks.jpg"
+      ],
+      "texture_recipe": "../textured/texture-recipe.json",
+      "validation": "../textured/validation.json",
+      "reference_sheet": "01-hull-modules.png",
+      "assembly_reference": "01b-hull-assembly.png",
+      "builders": [
+        "../tools/texture_kit.py",
+        "../tools/check_textured_kit.py",
+        "../tools/render_textured.py"
+      ],
+      "excluded": "Finished decorative geometry, H11/H12, rails, cabin, apertures, rigging, hardware, collision and gameplay behaviour remain outside this proof."
+    }
+  },
+  "art_master": {
+    "workflow": "Correct the whole ship first; derive every sheet and module from that same assembled design.",
+    "sails": "Plain ivory cloth, subtle wear and repairs; no giant skull artwork on sails.",
+    "flag": "Small separate black Jolly Roger flag, detached from sail and mast hardware.",
+    "mast_order": "Shorter foremast forward; taller mainmast aft.",
+    "shown_sail_configuration": "Two masts, two lower square sails, two topsails and one jib. M08 and S04 are optional aft-sail components, omitted from the assembled reduced-sail view. Their attachment is to M02, not a third mast.",
+    "mast_tops": "Supported shallow mast tops with visible trestletrees, not unsupported deep baskets.",
+    "stern_lantern": "Exterior stern lantern on a defined supporting bracket.",
+    "hull": "Broad warm wooden planks and wooden wales; restrained local iron straps, fasteners and fittings; no giant iron hull cage.",
+    "coherence": "Preserve one wood palette, bevel language, trim profile, plank scale and hardware scale across the whole ship."
+  },
+  "coordinates": {
+    "units": "metres",
+    "axes": {
+      "X": "starboard",
+      "Y": "up",
+      "Z": "aft"
+    },
+    "blender_conversion": "(X,Y,Z) -> (X,-Z,Y)",
+    "glb_up_axis": "Y",
+    "canonical_origin": "Local fore station at tier base or floor top; X=0 centreline.",
+    "new_object_origins": "Declare an attachment datum and local orientation for each separately modelable object before export."
+  },
+  "canonical_interface_summary": {
+    "authority_scope": "Unchanged original shell/floor interfaces only; not new parts or a dimensioned reconstruction of the artwork.",
+    "beam_m": 6.0,
+    "centre_bay_length_m": 2.0,
+    "bow_length_m": 4.0,
+    "stern_length_m": 2.0,
+    "bottom_height_m": 2.6,
+    "middle_height_m": 2.6,
+    "top_height_m": 0.8,
+    "floor_thickness_m": 0.18,
+    "centre_floor_width_m": 5.6,
+    "floor_top_local_y_m": 0.0,
+    "clear_room_height_m": 2.42,
+    "locked_join_band_m": 0.1,
+    "socket_tolerance_m": 0.001,
+    "boundary_source": "Use exact outer/inner outlines and complete socket point sets from the source contract."
+  },
+  "assembly_rules": [
+    "BOTTOM once at Y=0; zero, one or two complete MIDDLE tiers at 2.6 m pitch; TOP once. Do not stack another structural tier above TOP.",
+    "Extend length only by whole 2 m centre columns through every shell tier and floor level; keep bow/centre/stern plan outlines aligned per column.",
+    "Floors remain independent 0.18 m slabs. No posts, rails, curbs, wall remnants or fittings are baked into deck tiles.",
+    "The visible inner bottom planking of H02 is the once-only bilge hull skin, not an extra walkable deck. Keep it closed below; separate D-series deck slabs install above it.",
+    "Bow AFT and stern FORE longitudinal interfaces remain open across the ship interior; terminate the hull closed only at the actual prow and exterior stern. Do not add a full cut-face bulkhead across a mating opening.",
+    "Thin thickness caps belonging to individual canonical panel solids are not full interior bulkheads; preserve canonical boundaries when handling these during final assembly.",
+    "Keep all original socket points and the 0.10 m join bands unchanged; put bevels, plank relief and decorative trim outside those protected regions.",
+    "H05 gunports remain actual openings. H11 is a separate hinged lid, never a plug or permanent infill.",
+    "Railing assemblies replace the corresponding TOP envelope where used; never duplicate a full TOP wall with a complete railing assembly. Replacement connections and any changed envelope require new fit checks.",
+    "R02 owns railing posts. Place each seam post once; rail infill and shaped rails terminate at shared post sockets and do not duplicate posts.",
+    "Cabin, quarterdeck and galleries require continuous supported load paths into modeled beams or frames. Do not float or stack them on decorative rails.",
+    "Floor opening variants replace solid floor tiles; never overlay them. Keep matching apertures in every floor crossed by a mast or stair.",
+    "Mast shafts, supports, yards, rigging hardware, sails and flags remain separate objects. Cloth is never welded to mast hardware.",
+    "Every rope has named start and end attachments. Recompute or select rope lengths for each hull length and mast layout; do not universally stretch a completed rig.",
+    "Rotate or mirror only geometrically compatible parts, update attachment orientation and handedness, and correct UV orientation, grain, asymmetric wear and flag markings."
+  ],
+  "object_policy": {
+    "components_within_one_id": "Separately modelable objects, not welded together. Sets and variants describe grouping, not a fused mesh.",
+    "variant_policy": "Retain a shared interface only when modeled boundaries match; visual similarity does not prove interchangeability.",
+    "part_fit_status_values": {
+      "canonical_interface_inherited_art_unverified": "Source interface dimensions are retained; finished geometry and materials remain unmodeled and unverified.",
+      "proposed_unmodeled": "New design or connection, with no fit claim.",
+      "canonical_opening_pair_art_unverified": "Original START/END floor interfaces are retained; styling and any added clearance requirements need checking.",
+      "tripo_extracted_unfitted": "Cut from a Tripo sheet model: upright, real size, own texture. Not yet placed on the hull or checked for clearance."
+    }
+  },
+  "materials": {
+    "families": [
+      {
+        "id": "MAT_WOOD_HULL",
+        "use": "Hull planks and wooden wales",
+        "appearance": "Warm oak, broad plank courses, restrained wear"
+      },
+      {
+        "id": "MAT_WOOD_DECK",
+        "use": "Decks, stairs and quarterdeck",
+        "appearance": "Matching wood family, lighter worn walking surfaces"
+      },
+      {
+        "id": "MAT_WOOD_TRIM",
+        "use": "Rails, cabin trim, mast timber and fittings",
+        "appearance": "Shared warm timber palette and bevel treatment"
+      },
+      {
+        "id": "MAT_IRON",
+        "use": "Local straps, hinges, cannon, anchor and hardware",
+        "appearance": "Restrained dark iron; no enclosing hull cage"
+      },
+      {
+        "id": "MAT_ROPE",
+        "use": "Rigging, lashings and anchor cable",
+        "appearance": "Consistent natural rope colour and fibre scale"
+      },
+      {
+        "id": "MAT_SAIL_IVORY",
+        "use": "All working sails",
+        "appearance": "Plain ivory cloth, subtle seams and repairs"
+      },
+      {
+        "id": "MAT_FLAG_BLACK",
+        "use": "Separate small Jolly Roger flag",
+        "appearance": "Black cloth with correctly oriented marking"
+      },
+      {
+        "id": "MAT_GLASS",
+        "use": "Cabin windows, lantern and binnacle",
+        "appearance": "Consistent glass treatment"
+      },
+      {
+        "id": "MAT_LANTERN_LIGHT",
+        "use": "Lantern light source",
+        "appearance": "Restrained warm emission"
+      },
+      {
+        "id": "MAT_BRASS",
+        "use": "Small helm, binnacle and lantern details",
+        "appearance": "Restrained warm brass from corrected master"
+      }
+    ],
+    "texel_density": "Choose and record one project texel-density target before UV work; apply consistently across families. No numerical target is asserted here.",
+    "grain": "Use one real-world grain scale. Align deck grain longitudinally, hull grain along plank courses, and timber grain along each structural member.",
+    "seams": "Maintain matching plank course heights, wale profiles, UV phase and trim direction at repeatable boundaries.",
+    "variation": "Use compatible material or UV variants for wear without changing interface geometry or plank scale.",
+    "mirror_caveat": "Mirroring geometry does not authorize mirrored grain, lettering, flag art or baked directional shading; inspect and correct UVs and tangents."
+  },
+  "families": [
+    {
+      "id": "H",
+      "name": "Hull and hull trim",
+      "parts": [
+        {
+          "id": "H01",
+          "name": "BOTTOM_BOW",
+          "canonical_ids": [
+            "BOTTOM_BOW"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "H02",
+          "name": "BOTTOM_CENTRE",
+          "canonical_ids": [
+            "BOTTOM_CENTRE"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "H03",
+          "name": "BOTTOM_STERN",
+          "canonical_ids": [
+            "BOTTOM_STERN"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "H04",
+          "name": "MIDDLE_BOW",
+          "canonical_ids": [
+            "MIDDLE_BOW"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "H05",
+          "name": "MIDDLE_CENTRE_GUN",
+          "canonical_ids": [
+            "MIDDLE_CENTRE_GUN"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified",
+          "notes": "One open gunport per side; lids and cannon are separate."
+        },
+        {
+          "id": "H06",
+          "name": "MIDDLE_STERN",
+          "canonical_ids": [
+            "MIDDLE_STERN"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "H07",
+          "name": "MIDDLE_CENTRE solid",
+          "canonical_ids": [
+            "MIDDLE_CENTRE"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified",
+          "notes": "Solid substitute for H05 with unchanged canonical footprint and sockets."
+        },
+        {
+          "id": "H08",
+          "name": "TOP_BOW",
+          "canonical_ids": [
+            "TOP_BOW"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified",
+          "rail_replacement": "R03 with R02, subject to new fit checks; do not duplicate this full wall."
+        },
+        {
+          "id": "H09",
+          "name": "TOP_CENTRE",
+          "canonical_ids": [
+            "TOP_CENTRE"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified",
+          "rail_replacement": "R01 with R02, subject to new fit checks; do not duplicate this full wall."
+        },
+        {
+          "id": "H10",
+          "name": "TOP_STERN",
+          "canonical_ids": [
+            "TOP_STERN"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified",
+          "rail_replacement": "R04 with R02, subject to new fit checks; do not duplicate this full wall."
+        },
+        {
+          "id": "H11",
+          "name": "Separate gunport lid",
+          "components": [
+            "wooden lid",
+            "hinges"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "attachment": "H05.gunport.hinge_axis",
+          "notes": "Separate operable lid; no permanent plug in opening.",
+          "models": [
+            "../../../models/ship/hull/gunport_lid.glb"
+          ]
+        },
+        {
+          "id": "H12",
+          "name": "Wooden wale trim",
+          "variants": [
+            "centre repeat",
+            "shaped bow",
+            "shaped stern"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Matching wooden profiles, endpoints and course heights; no large iron cage.",
+          "models": [
+            "../../../models/ship/hull/wale.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "01-hull-modules.png"
+    },
+    {
+      "id": "D",
+      "name": "Floors and deck supports",
+      "parts": [
+        {
+          "id": "D01",
+          "name": "FLOOR_BOW",
+          "canonical_ids": [
+            "FLOOR_BOW"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "D02",
+          "name": "FLOOR_CENTRE",
+          "canonical_ids": [
+            "FLOOR_CENTRE"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "D03",
+          "name": "FLOOR_STERN",
+          "canonical_ids": [
+            "FLOOR_STERN"
+          ],
+          "fit_status": "canonical_interface_inherited_art_unverified"
+        },
+        {
+          "id": "D04",
+          "name": "Mast-aperture floor variant",
+          "interface_reference": "FLOOR_CENTRE",
+          "variants": [
+            "foremast aperture",
+            "mainmast aperture"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Retain original exterior floor interface; size and align the new aperture to the modeled mast and support system.",
+          "models": [
+            "../../../models/ship/deck/mast_collar.glb"
+          ]
+        },
+        {
+          "id": "D05",
+          "name": "Hatch-aperture floor variant",
+          "interface_reference": "FLOOR_CENTRE",
+          "fit_status": "tripo_extracted_unfitted",
+          "attachment": "F09.hatch_opening",
+          "notes": "Cut an actual opening; replace the solid tile.",
+          "models": [
+            "../../../models/ship/deck/hatch_coaming.glb"
+          ]
+        },
+        {
+          "id": "D06",
+          "name": "Stair-opening pair START+END",
+          "canonical_ids": [
+            "STAIR_PORT_START",
+            "STAIR_PORT_END",
+            "STAIR_STARBOARD_START",
+            "STAIR_STARBOARD_END"
+          ],
+          "variants": [
+            {
+              "side": "port",
+              "sequence": [
+                "STAIR_PORT_START",
+                "STAIR_PORT_END"
+              ]
+            },
+            {
+              "side": "starboard",
+              "sequence": [
+                "STAIR_STARBOARD_START",
+                "STAIR_STARBOARD_END"
+              ]
+            }
+          ],
+          "fit_status": "canonical_opening_pair_art_unverified",
+          "notes": "Use START then END in consecutive bays, replacing solid floor tiles; do not overlay them."
+        },
+        {
+          "id": "D07",
+          "name": "Deck beam+support knees",
+          "components": [
+            "deck beam",
+            "port support knee",
+            "starboard support knee"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Expose coherent load paths; maintain headroom, apertures and walkways.",
+          "models": [
+            "../../../models/ship/deck/deck_beam.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "02-decks-railings.webp"
+    },
+    {
+      "id": "R",
+      "name": "Independent railings",
+      "parts": [
+        {
+          "id": "R01",
+          "name": "Straight railing infill",
+          "fit_status": "tripo_extracted_unfitted",
+          "interface_reference": "2 m canonical centre-bay envelope",
+          "components": [
+            "top rail",
+            "lower rail",
+            "infill balusters"
+          ],
+          "notes": "Ends connect to separate shared R02 posts; no terminal posts included.",
+          "models": [
+            "../../../models/ship/deck/rail_straight.glb"
+          ]
+        },
+        {
+          "id": "R02",
+          "name": "Separate shared post",
+          "fit_status": "tripo_extracted_unfitted",
+          "variants": [
+            "straight junction",
+            "corner junction",
+            "end termination"
+          ],
+          "notes": "Own each seam post once. Never bake it into a deck tile or adjacent rail infill.",
+          "models": [
+            "../../../models/ship/deck/rail_post.glb"
+          ]
+        },
+        {
+          "id": "R03",
+          "name": "Shaped bow rail pair",
+          "components": [
+            "port bow rail",
+            "starboard bow rail"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "interface_reference": "TOP_BOW replacement envelope and DOWN boundary",
+          "notes": "Separate R02 junction posts; coherent closed prow junction without closing the AFT interior.",
+          "models": [
+            "../../../models/ship/deck/rail_bow_pair.glb"
+          ]
+        },
+        {
+          "id": "R04",
+          "name": "Shaped stern rail",
+          "fit_status": "tripo_extracted_unfitted",
+          "interface_reference": "TOP_STERN replacement envelope and DOWN boundary",
+          "notes": "Segment only where shared R02 posts and matching profiles support the split.",
+          "models": [
+            "../../../models/ship/deck/rail_stern.glb"
+          ]
+        },
+        {
+          "id": "R05",
+          "name": "Sloped stair rail",
+          "components": [
+            "port stair rail",
+            "starboard stair rail"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "attachment": "C06.stair_edge",
+          "notes": "Match actual stair rise, run and landing; posts are R02 instances.",
+          "models": [
+            "../../../models/ship/deck/rail_stair.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "02-decks-railings.webp"
+    },
+    {
+      "id": "C",
+      "name": "Supported cabin and quarterdeck",
+      "parts": [
+        {
+          "id": "C01",
+          "name": "Cabin door wall",
+          "components": [
+            "wall frame",
+            "door leaf",
+            "door hardware"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/cabin/cabin_door_wall.glb",
+            "../../../models/ship/cabin/cabin_door.glb"
+          ]
+        },
+        {
+          "id": "C02",
+          "name": "Repeatable window wall",
+          "components": [
+            "wall frame",
+            "window frame",
+            "glazing"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Repeat only after wall ends, course heights and supports match.",
+          "models": [
+            "../../../models/ship/cabin/cabin_window_wall.glb"
+          ]
+        },
+        {
+          "id": "C03",
+          "name": "Rounded corner wall pair",
+          "components": [
+            "port corner wall",
+            "starboard corner wall"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Shaped for the same cabin master and stern outline; mirroring requires UV inspection.",
+          "models": [
+            "../../../models/ship/cabin/cabin_corners.glb"
+          ]
+        },
+        {
+          "id": "C04",
+          "name": "Shaped transom window wall",
+          "components": [
+            "transom wall",
+            "window frames",
+            "glazing"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/cabin/cabin_transom.glb"
+          ]
+        },
+        {
+          "id": "C05",
+          "name": "Supported quarterdeck/roof panel set",
+          "components": [
+            "quarterdeck panels",
+            "support beams",
+            "edge fascia"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Cabin roof and walking deck require explicit beam and wall support; no unsupported stacking on rails.",
+          "models": [
+            "../../../models/ship/cabin/quarterdeck_panels.glb"
+          ]
+        },
+        {
+          "id": "C06",
+          "name": "Exterior stairs with matching rise/opening",
+          "canonical_reference_ids": [
+            "STAIRS_260"
+          ],
+          "components": [
+            "stair flight",
+            "lower landing",
+            "upper landing"
+          ],
+          "fit_status": "proposed_unmodeled",
+          "canonical_reference_dimensions_m": {
+            "rise": 2.6,
+            "run": 3.25,
+            "width": 1.0,
+            "shaft_width": 1.1,
+            "shaft_length": 3.25,
+            "approach_and_exit_clearance_min": 1.0
+          },
+          "notes": "These are source stair reference dimensions, not a validated exterior stair fit. Reuse STAIRS_260 only at a matching rise and opening; otherwise propose and check a new matched stair/opening/landing set."
+        },
+        {
+          "id": "C07",
+          "name": "Gallery brackets",
+          "components": [
+            "bracket timber",
+            "local fastening hardware"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Attach to modeled framing and support the actual gallery; do not terminate in decorative planking alone.",
+          "models": [
+            "../../../models/ship/cabin/gallery_brackets.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "03-cabin-quarterdeck.webp"
+    },
+    {
+      "id": "M",
+      "name": "Masts and spars",
+      "parts": [
+        {
+          "id": "M01",
+          "name": "Foremast lower shaft",
+          "components": [
+            "shaft",
+            "local collars"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Forward mast, shorter than the aft mainmast; align with D04 and modeled supports.",
+          "models": [
+            "../../../models/ship/rigging/foremast.glb"
+          ]
+        },
+        {
+          "id": "M02",
+          "name": "Mainmast lower shaft",
+          "components": [
+            "shaft",
+            "local collars"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Aft mast, taller than the foremast; align with D04 and modeled supports.",
+          "models": [
+            "../../../models/ship/rigging/mainmast.glb"
+          ]
+        },
+        {
+          "id": "M03",
+          "name": "Topmast variant",
+          "variants": [
+            "fore",
+            "main"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/rigging/topmast.glb"
+          ]
+        },
+        {
+          "id": "M04",
+          "name": "Supported shallow mast top+trestletrees",
+          "components": [
+            "shallow mast top platform",
+            "trestletrees",
+            "crosstrees",
+            "support hardware"
+          ],
+          "variants": [
+            "fore",
+            "main"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Visible supported platform; avoid unsupported deep basket forms.",
+          "models": [
+            "../../../models/ship/rigging/mast_top.glb"
+          ]
+        },
+        {
+          "id": "M05",
+          "name": "Lower yard variants",
+          "components": [
+            "yard timber",
+            "suspension hardware"
+          ],
+          "variants": [
+            "fore",
+            "main"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/rigging/lower_yard.glb"
+          ]
+        },
+        {
+          "id": "M06",
+          "name": "Topsail yard variants",
+          "components": [
+            "yard timber",
+            "suspension hardware"
+          ],
+          "variants": [
+            "fore",
+            "main"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/rigging/topsail_yard.glb"
+          ]
+        },
+        {
+          "id": "M07",
+          "name": "Bowsprit",
+          "components": [
+            "bowsprit timber",
+            "support fittings"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Define a supported hull attachment and named jib/stay endpoints.",
+          "models": [
+            "../../../models/ship/rigging/bowsprit.glb"
+          ]
+        },
+        {
+          "id": "M08",
+          "name": "Gaff+boom",
+          "components": [
+            "gaff",
+            "boom",
+            "mast connection hardware"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Optional gaff with open jaws/parrel and boom with articulated gooseneck attach to aft mainmast M02. No additional standing mast. Check clearance above helm, cabin and lantern.",
+          "optional": true,
+          "models": [
+            "../../../models/ship/rigging/gaff.glb",
+            "../../../models/ship/rigging/boom.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "04-masts-sails-rigging.webp"
+    },
+    {
+      "id": "S",
+      "name": "Detached sail and flag cloth",
+      "parts": [
+        {
+          "id": "S01",
+          "name": "Lower square sail fore/main variants",
+          "variants": [
+            "fore",
+            "main"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "material": "MAT_SAIL_IVORY",
+          "attachment": "Matching M05 yard cloth attachment points",
+          "models": [
+            "../../../models/ship/rigging/sail_course.glb"
+          ]
+        },
+        {
+          "id": "S02",
+          "name": "Topsail fore/main variants",
+          "variants": [
+            "fore",
+            "main"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "material": "MAT_SAIL_IVORY",
+          "attachment": "Matching M06 yard cloth attachment points",
+          "models": [
+            "../../../models/ship/rigging/sail_topsail.glb"
+          ]
+        },
+        {
+          "id": "S03",
+          "name": "Triangular jib",
+          "fit_status": "tripo_extracted_unfitted",
+          "material": "MAT_SAIL_IVORY",
+          "attachment": "Named head, tack and clew points on matched stays and sheets",
+          "models": [
+            "../../../models/ship/rigging/sail_jib.glb"
+          ]
+        },
+        {
+          "id": "S04",
+          "name": "Gaff spanker",
+          "fit_status": "tripo_extracted_unfitted",
+          "material": "MAT_SAIL_IVORY",
+          "attachment": "Matched M08 gaff/boom cloth attachment points",
+          "optional": true,
+          "notes": "Four-sided gaff sail with separate tack, throat, peak and clew; not a second triangular jib.",
+          "models": [
+            "../../../models/ship/rigging/sail_spanker.glb"
+          ]
+        },
+        {
+          "id": "S05",
+          "name": "Separate Jolly Roger flag",
+          "fit_status": "tripo_extracted_unfitted",
+          "material": "MAT_FLAG_BLACK",
+          "notes": "Small separate flag; no skull emblem on working sails; cloth detached from mast hardware.",
+          "models": [
+            "../../../models/ship/rigging/flag.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "04-masts-sails-rigging.webp"
+    },
+    {
+      "id": "G",
+      "name": "Rigging and rigging hardware",
+      "parts": [
+        {
+          "id": "G01",
+          "name": "Shrouds+ratlines",
+          "components": [
+            "individual shrouds",
+            "individual ratlines"
+          ],
+          "variants": [
+            "fore port",
+            "fore starboard",
+            "main port",
+            "main starboard"
+          ],
+          "fit_status": "proposed_unmodeled",
+          "notes": "Use named mast and hull attachment points; derive each ladder from its final anchor geometry."
+        },
+        {
+          "id": "G02",
+          "name": "Stays/sheets",
+          "components": [
+            "individual stays",
+            "individual sheets"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Every rope records named start/end attachments and routing guides; re-length per assembled hull and rig layout.",
+          "models": [
+            "../../../models/ship/rigging/rope_coil.glb"
+          ]
+        },
+        {
+          "id": "G03",
+          "name": "Blocks/deadeyes",
+          "components": [
+            "blocks",
+            "deadeyes",
+            "local fastening hardware"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Size to the same rope family and anchor to actual modeled structure.",
+          "models": [
+            "../../../models/ship/rigging/block_single.glb",
+            "../../../models/ship/rigging/block_double.glb",
+            "../../../models/ship/rigging/deadeye.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "04-masts-sails-rigging.webp"
+    },
+    {
+      "id": "F",
+      "name": "Independent ship fittings",
+      "parts": [
+        {
+          "id": "F01",
+          "name": "Cannon barrel",
+          "fit_status": "tripo_extracted_unfitted",
+          "attachment": "F02.trunnion_axis",
+          "notes": "Exactly two opposite lateral trunnions on one axis. Check muzzle and barrel clearance through H05.",
+          "models": [
+            "../../../models/ship/fittings/cannon_barrel.glb"
+          ]
+        },
+        {
+          "id": "F02",
+          "name": "Gun carriage",
+          "components": [
+            "carriage frame",
+            "wheels",
+            "axles",
+            "paired trunnion bearings",
+            "removable iron caps",
+            "elevating wedge",
+            "breeching attachment eyes"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Rest on the actual gun-deck floor; align trunnions with F01 and port clearance.",
+          "models": [
+            "../../../models/ship/fittings/gun_carriage.glb",
+            "../../../models/ship/fittings/trunnion_caps.glb"
+          ]
+        },
+        {
+          "id": "F03",
+          "name": "Helm wheel+pedestal",
+          "components": [
+            "wheel",
+            "pedestal",
+            "wheel axle"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Place on a supported accessible deck with operation clearance.",
+          "models": [
+            "../../../models/ship/fittings/helm.glb"
+          ]
+        },
+        {
+          "id": "F04",
+          "name": "Binnacle",
+          "components": [
+            "housing",
+            "instrument",
+            "glazing"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "models": [
+            "../../../models/ship/fittings/binnacle.glb"
+          ]
+        },
+        {
+          "id": "F05",
+          "name": "Capstan",
+          "components": [
+            "drum",
+            "base",
+            "removable bars"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Reserve actual bar-sweep clearance.",
+          "models": [
+            "../../../models/ship/fittings/capstan.glb"
+          ]
+        },
+        {
+          "id": "F06",
+          "name": "Rudder+hinges",
+          "components": [
+            "rudder blade and stock",
+            "rudder-side pintles with straps",
+            "sternpost-side gudgeons",
+            "tiller connection",
+            "fastening hardware"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Both mating hinge halves must be modeled on one vertical axis. The illustration separates blade and sternpost; supply complete pintles/straps on the blade and matching gudgeons on the sternpost. Rudder stock extends to tiller above. Check full swing clearance.",
+          "models": [
+            "../../../models/ship/fittings/rudder.glb",
+            "../../../models/ship/fittings/rudder_hinges.glb"
+          ]
+        },
+        {
+          "id": "F07",
+          "name": "Anchor+cathead+cable",
+          "components": [
+            "anchor",
+            "cathead",
+            "anchor cable",
+            "support hardware"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Stocked anchor with stock perpendicular to the fluke plane. Independently model supported cathead and its lifting tackle. Anchor cable attaches to ring and routes through hawse to the cable-handling system. Avoid gun and walking clearances.",
+          "models": [
+            "../../../models/ship/fittings/anchor.glb",
+            "../../../models/ship/fittings/cathead.glb",
+            "../../../models/ship/fittings/anchor_cable.glb"
+          ]
+        },
+        {
+          "id": "F08",
+          "name": "Exterior stern lantern+bracket",
+          "components": [
+            "lantern housing",
+            "glass",
+            "light source",
+            "exterior bracket"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Mount outside the stern on a visible supported bracket with rig and rudder clearance.",
+          "models": [
+            "../../../models/ship/fittings/stern_lantern.glb"
+          ]
+        },
+        {
+          "id": "F09",
+          "name": "Hatch grating+coaming",
+          "components": [
+            "grating",
+            "coaming"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "attachment": "D05.hatch_opening",
+          "notes": "Actual opening below; no solid deck tile beneath the grating.",
+          "models": [
+            "../../../models/ship/fittings/hatch_grating.glb",
+            "../../../models/ship/fittings/hatch_coaming_sides.glb"
+          ]
+        },
+        {
+          "id": "F10",
+          "name": "Cleat+bollard+belaying rack",
+          "components": [
+            "cleat",
+            "bollard",
+            "belaying rack",
+            "belaying pins"
+          ],
+          "fit_status": "tripo_extracted_unfitted",
+          "notes": "Independent fittings with named rope attachments; maintain passage clearance.",
+          "models": [
+            "../../../models/ship/fittings/belaying_rack.glb",
+            "../../../models/ship/fittings/cleat.glb",
+            "../../../models/ship/fittings/bollard.glb"
+          ]
+        }
+      ],
+      "reference_sheet": "05-working-fittings.png"
+    }
+  ],
+  "attachment_naming": {
+    "status": "proposed_convention_not_existing_verified_sockets",
+    "pattern": "<assembly_instance>.<part_id>.<variant_or_side>.<attachment_role>",
+    "required_for_new_connections": [
+      "owner object",
+      "local position",
+      "local orientation or axis",
+      "mating object or rope endpoint",
+      "fit status"
+    ],
+    "rope_required_fields": [
+      "rope_id",
+      "start_attachment",
+      "end_attachment",
+      "routing_attachments",
+      "assembled_length_m",
+      "hull_configuration_id"
+    ],
+    "rope_values": "Populate only after final assembled geometry exists; do not invent measured coordinates or lengths."
+  },
+  "reference_reading_rules": [
+    "Sheets are visual modeling/material references. Individual cells are framed independently and are not to one common pixel scale.",
+    "Measure inherited interfaces from canonical-contract.json, not from perspective art or decorative bevels.",
+    "The corrected assembled image shows appearance, not a verified assembly of these future meshes.",
+    "Part IDs group variants and removable objects; 57 IDs do not mean 57 fused meshes.",
+    "New accessories, deck holes, cabin, railings and rig require actual modeling and assembled clearance validation before use.",
+    "Optional M08/S04 are supplied as separate design options and are omitted in the assembled reduced-sail view.",
+    "01-hull-modules.png supersedes the painted hull sheet (kept as drafts/01-hull-modules-painted.webp): it renders the exact construction meshes with their albedo. The painted sheet remains the only picture of H11 and H12, which stay separate unmodelled fittings. Other sheets guide styling, not measured geometry."
+  ]
+}

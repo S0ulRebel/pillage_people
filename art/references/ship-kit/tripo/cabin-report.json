@@ -1,0 +1,305 @@
+{
+  "source": "cabin.glb",
+  "source_triangles": 17438,
+  "parts": [
+    {
+      "file": "cabin_door_wall.glb",
+      "id": "C01",
+      "name": "Cabin door wall",
+      "nodes": [
+        "wall"
+      ],
+      "triangles": 1486,
+      "bounds_min_m": [
+        -1.219,
+        0.0,
+        -0.3149
+      ],
+      "bounds_max_m": [
+        1.219,
+        2.42,
+        0.3149
+      ],
+      "size_m": [
+        2.438,
+        2.42,
+        0.6298
+      ],
+      "scale_from_sheet": 15.0238,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 178.1,
+      "uv_in_unit_square": true,
+      "notes": "2.42 m tall, the kit's clear room height, so a 0.18 m roof lands at 2.6 m like the kit stairs. The doorway is 0.75 m wide and arches to about 1.95 m: the captain's 0.70 x 1.9 m capsule fits with little to spare."
+    },
+    {
+      "file": "cabin_door.glb",
+      "id": "C01",
+      "name": "Cabin door leaf",
+      "nodes": [
+        "door"
+      ],
+      "triangles": 1252,
+      "bounds_min_m": [
+        -0.415,
+        0.0,
+        -0.1565
+      ],
+      "bounds_max_m": [
+        0.415,
+        1.9515,
+        0.1565
+      ],
+      "size_m": [
+        0.83,
+        1.9515,
+        0.3131
+      ],
+      "scale_from_sheet": 13.7789,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 194.6,
+      "uv_in_unit_square": true,
+      "notes": "Sized to the door wall's opening (0.75 m wide, arched to about 1.95 m) plus a 4 cm lap each side."
+    },
+    {
+      "file": "cabin_window_wall.glb",
+      "id": "C02",
+      "name": "Cabin window wall",
+      "nodes": [
+        "wall"
+      ],
+      "triangles": 974,
+      "bounds_min_m": [
+        -1.3931,
+        0.0,
+        -0.2801
+      ],
+      "bounds_max_m": [
+        1.3931,
+        2.42,
+        0.2801
+      ],
+      "size_m": [
+        2.7862,
+        2.42,
+        0.5602
+      ],
+      "scale_from_sheet": 14.1983,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 189.2,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "cabin_corners.glb",
+      "id": "C03",
+      "name": "Cabin aft corner pair",
+      "nodes": [
+        "corner_a",
+        "corner_b"
+      ],
+      "triangles": 1861,
+      "bounds_min_m": [
+        -2.2029,
+        0.0,
+        -1.9055
+      ],
+      "bounds_max_m": [
+        2.2029,
+        2.42,
+        1.9055
+      ],
+      "size_m": [
+        4.4058,
+        2.42,
+        3.8109
+      ],
+      "scale_from_sheet": 17.3048,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 155.9,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "cabin_transom.glb",
+      "id": "C04",
+      "name": "Cabin transom wall",
+      "nodes": [
+        "transom"
+      ],
+      "triangles": 2440,
+      "bounds_min_m": [
+        -2.2324,
+        0.0,
+        -0.7002
+      ],
+      "bounds_max_m": [
+        2.2324,
+        2.42,
+        0.7002
+      ],
+      "size_m": [
+        4.4647,
+        2.42,
+        1.4004
+      ],
+      "scale_from_sheet": 18.0852,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 147.1,
+      "uv_in_unit_square": true,
+      "notes": "2.42 m tall and about 4.5 m wide with 1.4 m of curve; the hull's stern is 5.6 m wide inside, so it stands inboard of the bulwark rather than on it. Windows face aft."
+    },
+    {
+      "file": "quarterdeck_panels.glb",
+      "id": "C05",
+      "name": "Quarterdeck panels and support",
+      "nodes": [
+        "panels",
+        "support"
+      ],
+      "triangles": 410,
+      "bounds_min_m": [
+        -1.5526,
+        0.0,
+        -2.7057
+      ],
+      "bounds_max_m": [
+        1.5526,
+        2.6,
+        2.7057
+      ],
+      "size_m": [
+        3.1052,
+        2.6,
+        5.4114
+      ],
+      "scale_from_sheet": 22.6234,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 124.1,
+      "uv_in_unit_square": true,
+      "notes": "The support frame stands 2.42 m, like the walls; the panels, which Tripo drew about 0.45 m thick, are flattened to the kit's 0.18 m slab and rest on it, so the walking surface is at 2.6 m. Rounded end aft (+Z)."
+    },
+    {
+      "file": "gallery_brackets.glb",
+      "id": "C07",
+      "name": "Gallery bracket pair",
+      "nodes": [
+        "bracket_a",
+        "bracket_b"
+      ],
+      "triangles": 1120,
+      "bounds_min_m": [
+        -0.5342,
+        0.0,
+        -0.4257
+      ],
+      "bounds_max_m": [
+        0.5342,
+        0.9,
+        0.4257
+      ],
+      "size_m": [
+        1.0684,
+        0.9,
+        0.8513
+      ],
+      "scale_from_sheet": 7.3379,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 373.7,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "cabin_house.glb",
+      "id": "C00",
+      "name": "Stern cabin, whole (roof is the quarterdeck)",
+      "nodes": [
+        "cabin"
+      ],
+      "triangles": 6725,
+      "bounds_min_m": [
+        -1.8979,
+        0.0,
+        -2.6877
+      ],
+      "bounds_max_m": [
+        1.8979,
+        3.482,
+        2.6877
+      ],
+      "size_m": [
+        3.7958,
+        3.482,
+        5.3754
+      ],
+      "scale_from_sheet": 21.5863,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 4096,
+      "texel_density_px_per_m": 128.0,
+      "uv_in_unit_square": true,
+      "notes": "Tripo's own assembled cabin, used whole because the separate wall parts do not close a cabin: their widths (door wall 2.44, window wall 2.79, transom 4.46 m) have no common bay. Turned so its door faces the bow (-Z), and scaled so its roof - the walkable quarterdeck, inside a rail - is exactly 2.6 m up, the kit's deck pitch, where STAIRS_260 arrives. Its steep built-in stairs are cut away."
+    }
+  ],
+  "discarded": [
+    {
+      "what": "C06 quarterdeck stairs",
+      "reason": "About 8 steps; the kit needs 13 rises of 0.2 m to climb 2.6 m. Use canonical STAIRS_260 (textured/meshes/STAIRS_260.glb).",
+      "triangles": 632
+    },
+    {
+      "what": "debris",
+      "reason": "Two 2 mm fragments inside the assembled cabin; not geometry anyone drew.",
+      "triangles": 102
+    },
+    {
+      "what": "door-wall threshold block",
+      "reason": "Sits across the bottom of the doorway 0.47 m high, so nobody could walk through; the frame already has its own sill.",
+      "triangles": 284
+    },
+    {
+      "what": "cabin_house.glb: built-in stairs",
+      "reason": "Tripo's stairs climb about 2.6 m in 1.1 m (roughly 65 degrees), too steep to walk. The kit's STAIRS_260 (38.7 degrees) replaces them in front of the cabin.",
+      "triangles": 152
+    }
+  ],
+  "passed": true,
+  "problems": []
+}

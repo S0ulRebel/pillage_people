@@ -1,0 +1,84 @@
+{
+  "source": "hull.glb",
+  "source_triangles": 18578,
+  "parts": [
+    {
+      "file": "gunport_lid.glb",
+      "id": "H11",
+      "name": "Gunport frame and hinged lid",
+      "nodes": [
+        "frame",
+        "lid"
+      ],
+      "triangles": 951,
+      "bounds_min_m": [
+        0.0,
+        -0.5206,
+        -0.6375
+      ],
+      "bounds_max_m": [
+        0.6159,
+        0.632,
+        0.6375
+      ],
+      "size_m": [
+        0.6159,
+        1.1526,
+        1.275
+      ],
+      "scale_from_sheet": 9.5998,
+      "origin": {
+        "x": "min",
+        "y": "mark:frame",
+        "z": "mark:frame"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 213.4,
+      "uv_in_unit_square": true,
+      "notes": "Fits the kit's MIDDLE_CENTRE_GUN port (1.0 m wide, 0.8 m tall). The frame's opening is 1.0 m wide and about 0.74 m tall, so the frame laps the hull opening by about 3 cm top and bottom. Stands on the starboard side: the frame faces +X with its back face at X=0, centred on the origin; rotate 180 degrees about Y for port. The lid is exported CLOSED, its plank panel centred over the opening and flush on the frame's face, with its own node origin on the hinge line at the top of its knuckles: rotate that node about +Z to swing it open outward. Tripo modelled it propped open and off-centre, so it is re-hung rather than trusted. Its panel is only about 2 cm taller than the opening, so closed it covers 98.6% of it, leaving a thin sliver along the bottom edge."
+    },
+    {
+      "file": "wale.glb",
+      "id": "H12",
+      "name": "Wooden wale (one bay)",
+      "nodes": [
+        "wale"
+      ],
+      "triangles": 278,
+      "bounds_min_m": [
+        0.0,
+        -0.1224,
+        0.0
+      ],
+      "bounds_max_m": [
+        0.2094,
+        0.1224,
+        2.0
+      ],
+      "size_m": [
+        0.2094,
+        0.2449,
+        2.0
+      ],
+      "scale_from_sheet": 4.2779,
+      "origin": {
+        "x": "min",
+        "y": "mid",
+        "z": "min"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 479.9,
+      "uv_in_unit_square": true,
+      "notes": "One 2 m bay of wale, with straight butt ends, so it repeats along the kit's 2 m centre bays. Runs along Z from the origin, its inner face at X=0 against the hull; turn 180 degrees about Y for the port side. The kit's bow and stern need shaped wale ends, which Tripo did not make."
+    }
+  ],
+  "discarded": [
+    {
+      "what": "H01-H10 hull shells, with their clips and rivets",
+      "reason": "Tripo modelled the old painted sheet, errors included: H02 has a rocker and a wall across its join, H03 is a canoe. None of it can meet the contract's 1 mm joins. The textured canonical shells (textured/meshes/) replace all of them.",
+      "triangles": 17349
+    }
+  ],
+  "passed": true,
+  "problems": []
+}

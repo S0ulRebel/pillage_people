@@ -1,0 +1,179 @@
+{
+  "passed": true,
+  "failure_count": 0,
+  "failures": [],
+  "checks_run": 700,
+  "checks": [
+    "POSITION and NORMAL bytes identical to the canonical GLB, per primitive and material",
+    "every vertex within 1e-06 m of an OBJ vertex; oriented triangles and materials equal the OBJ faces",
+    "every contract socket point still a vertex within the contract tolerance",
+    "UVs present, one per vertex, finite",
+    "embedded JPEG images decode; samplers REPEAT; every material textured",
+    "assemblies place the part meshes byte-for-byte at the contract translations, translation only",
+    "every joined placement sits on a whole texture period (x 2 m, y 2.6 m, z 2 m)"
+  ],
+  "exempt_from_period_check": {
+    "STAIRS_260": "free-standing; meets no textured neighbour"
+  },
+  "parts": {
+    "BOTTOM_BOW": {
+      "vertex_to_obj_max_m": 1.3039081871904216e-07,
+      "socket_point_max_m": 1.3039081871904216e-07,
+      "triangles": 240
+    },
+    "MIDDLE_BOW": {
+      "vertex_to_obj_max_m": 1.3039081871904216e-07,
+      "socket_point_max_m": 1.3039081871904216e-07,
+      "triangles": 216
+    },
+    "TOP_BOW": {
+      "vertex_to_obj_max_m": 8.971581308579552e-08,
+      "socket_point_max_m": 8.892029336182023e-08,
+      "triangles": 72
+    },
+    "FLOOR_BOW": {
+      "vertex_to_obj_max_m": 8.920749771528281e-08,
+      "socket_point_max_m": 0.0,
+      "triangles": 24
+    },
+    "BOTTOM_CENTRE": {
+      "vertex_to_obj_max_m": 1.066240299940009e-07,
+      "socket_point_max_m": 1.066240299940009e-07,
+      "triangles": 84
+    },
+    "TOP_CENTRE": {
+      "vertex_to_obj_max_m": 4.9151249054168403e-08,
+      "socket_point_max_m": 4.9151249054168403e-08,
+      "triangles": 24
+    },
+    "FLOOR_CENTRE": {
+      "vertex_to_obj_max_m": 4.8217173440193275e-08,
+      "socket_point_max_m": 0.0,
+      "triangles": 12
+    },
+    "BOTTOM_STERN": {
+      "vertex_to_obj_max_m": 1.4793250345061536e-07,
+      "socket_point_max_m": 1.4793250345061536e-07,
+      "triangles": 640
+    },
+    "MIDDLE_STERN": {
+      "vertex_to_obj_max_m": 1.4793250345061536e-07,
+      "socket_point_max_m": 1.4793250345061536e-07,
+      "triangles": 576
+    },
+    "TOP_STERN": {
+      "vertex_to_obj_max_m": 1.1371537753791092e-07,
+      "socket_point_max_m": 1.1308880821061114e-07,
+      "triangles": 192
+    },
+    "FLOOR_STERN": {
+      "vertex_to_obj_max_m": 1.1331477229190555e-07,
+      "socket_point_max_m": 0.0,
+      "triangles": 64
+    },
+    "MIDDLE_CENTRE_GUN": {
+      "vertex_to_obj_max_m": 1.066240299940009e-07,
+      "socket_point_max_m": 1.066240299940009e-07,
+      "triangles": 96
+    },
+    "MIDDLE_CENTRE": {
+      "vertex_to_obj_max_m": 1.066240299940009e-07,
+      "socket_point_max_m": 1.066240299940009e-07,
+      "triangles": 72
+    },
+    "STAIR_PORT_START": {
+      "vertex_to_obj_max_m": 4.8217173440193275e-08,
+      "socket_point_max_m": 0.0,
+      "triangles": 24
+    },
+    "STAIR_PORT_END": {
+      "vertex_to_obj_max_m": 4.8217173440193275e-08,
+      "socket_point_max_m": 0.0,
+      "triangles": 36
+    },
+    "STAIR_STARBOARD_START": {
+      "vertex_to_obj_max_m": 4.8217173440193275e-08,
+      "socket_point_max_m": 0.0,
+      "triangles": 24
+    },
+    "STAIR_STARBOARD_END": {
+      "vertex_to_obj_max_m": 4.8217173440193275e-08,
+      "socket_point_max_m": 0.0,
+      "triangles": 36
+    },
+    "STAIRS_260": {
+      "vertex_to_obj_max_m": 1.1444091807533141e-07,
+      "socket_point_max_m": 0.0,
+      "triangles": 180
+    }
+  },
+  "assemblies": [
+    "SINGLE_DECK",
+    "DOUBLE_DECK",
+    "TRIPLE_DECK"
+  ],
+  "not_checked": "Visual continuity of grain across joins, engine import, collision, and any new art geometry. This proves the construction geometry is unchanged, nothing more.",
+  "sha256": {
+    "canonical/contract.json": "013a30c83aa267d0b15a0e0b0d89ab25bb274999fa9d4d8f873238eb2447e68d",
+    "canonical/meshes/BOTTOM_BOW.glb": "55f78d70ac7a73da984a080f1ecf7b7368a5cc55086737ce52caa5c8e88e221b",
+    "canonical/meshes/BOTTOM_BOW.obj": "38cf1ccd6fd17e733520f6ca3dee18a7b04037ae9836a5adf29b35eecc1a3135",
+    "canonical/meshes/BOTTOM_CENTRE.glb": "e2954f1a535bc3124a6029d688a0418bd1a63b495dd95554c53976563cc5fb9d",
+    "canonical/meshes/BOTTOM_CENTRE.obj": "7774e68863ab1eb069793f02f6136c2cfcb9e1816505ce54edb44f9c0be2891a",
+    "canonical/meshes/BOTTOM_STERN.glb": "e3cc800e46a4b2d1eef832c03668981ad3513d87610bc4756750238f7e8fd9b5",
+    "canonical/meshes/BOTTOM_STERN.obj": "96fab75a21d2d90107e7e984bb329b151931f5852862c8bd23f487b382d1ae83",
+    "canonical/meshes/FLOOR_BOW.glb": "70bc9d57bbd182e50ec346e843394fb501001692fcdc73b64c42ce9836aef7e6",
+    "canonical/meshes/FLOOR_BOW.obj": "e94b87477e0dca6bc8863c0cf524e20304a7b812c1a019c225ac9adcd5288e89",
+    "canonical/meshes/FLOOR_CENTRE.glb": "16e88195488481c8c0ff2419bd1a5e06e66371eb199b1bf4b09e151f61db8160",
+    "canonical/meshes/FLOOR_CENTRE.obj": "b28df63c72219a89bbb3685c45d2fa944d4de01dd26fd45bd47cb81e9849146d",
+    "canonical/meshes/FLOOR_STERN.glb": "6c2124b5b978780be0f8026d76ac3532371b4eeb5cfe5733e705618decb098b2",
+    "canonical/meshes/FLOOR_STERN.obj": "60256ff7a181785db617e0256ff6ad1e17f18af860c50c3d1aa9de5b856257ca",
+    "canonical/meshes/MIDDLE_BOW.glb": "8f8935152ca26f86fbaaf919bdf337819e827c54dc4dc8ba08a0728be229ed9c",
+    "canonical/meshes/MIDDLE_BOW.obj": "6180a9542c59d87c37233bcbf47de23ff0767090e5d1a22bcea53e2879262129",
+    "canonical/meshes/MIDDLE_CENTRE.glb": "541382cd120e633a3062557086b8bde61473a924ae009f4d65753d12da5fccfa",
+    "canonical/meshes/MIDDLE_CENTRE.obj": "d9d3b82a415b7b566a2b4482209327f40aecc9247b47696aec112588e92d8001",
+    "canonical/meshes/MIDDLE_CENTRE_GUN.glb": "f6e367b1cef4bb1be772048869ade31b26010651b19ff6ac82c1e4e4aed640e2",
+    "canonical/meshes/MIDDLE_CENTRE_GUN.obj": "020b63eb1a428c8ca3e2aff71b41737b94c52e51dfdead3aa1b3c9c308427faf",
+    "canonical/meshes/MIDDLE_STERN.glb": "812f556db60762fc1ab3294372f37162ef41eccfe683735cb263bdce0bf0bf67",
+    "canonical/meshes/MIDDLE_STERN.obj": "98e06f6aad00a68faf514498a34048c9081ba3516806dde30f5d047132e5321e",
+    "canonical/meshes/STAIRS_260.glb": "4b6e1b64a91a527d59075c213b737a088ba4fce74428a1c9ab7c2038983ceaaa",
+    "canonical/meshes/STAIRS_260.obj": "3fd7142a196b21933971d68f4e3429cf562b4cb902685e3d3fd4b6da3fb0e174",
+    "canonical/meshes/STAIR_PORT_END.glb": "634f36d7e7320287f8cc5d5c4b7b162364778700c527c068709067b01cf6d38d",
+    "canonical/meshes/STAIR_PORT_END.obj": "7a116d5091c8f12d78b2239c68d922d995b675de1e897eb0fc5a70c6ea4898dd",
+    "canonical/meshes/STAIR_PORT_START.glb": "6d97a8aef98c7adf1379fd60023d7f4042bcbe3e6095ddc034adaa70f4e9d0e8",
+    "canonical/meshes/STAIR_PORT_START.obj": "f27e38efefc0b643793e1fc7eab25be44fcc8af3c57af0ac350354b4a790262c",
+    "canonical/meshes/STAIR_STARBOARD_END.glb": "bec854dc9a66062a1ac5a542eda21719a346d44ac3f9a0b7cd48d9e35cd8d8d6",
+    "canonical/meshes/STAIR_STARBOARD_END.obj": "2122215b171b63b350c23817863366135ee87fb08633bc1767c61e6baa5ce4cd",
+    "canonical/meshes/STAIR_STARBOARD_START.glb": "160373229279271cd133c74c7a4f596ea466b70e8c8459da728fa881d1d38fd1",
+    "canonical/meshes/STAIR_STARBOARD_START.obj": "c96f15038c4704bb83af7db4ea5398308b4648d173ca472c149dab84a2fc7981",
+    "canonical/meshes/TOP_BOW.glb": "27fa23266c2cf68324881bdd73470ff9ad694ae3efc9cdc15a9f6a7589ab512b",
+    "canonical/meshes/TOP_BOW.obj": "daf0f0409ef3c0aa191228d985ee5504e1fab20c3d0d88df87c3e4525cb586dc",
+    "canonical/meshes/TOP_CENTRE.glb": "5ee72a229a34f14fe91c73e3c409ce353b61206b0a2af00f3de807d4ddcac3a4",
+    "canonical/meshes/TOP_CENTRE.obj": "5a507bb75e6132909c7d0b43b31336252cdffba5eaf2d184a2ec4f696dc4c853",
+    "canonical/meshes/TOP_STERN.glb": "f5e32fd1dfa4f8927ea6331bfe76d7da56904ed1c097a6130b54581bc8b327f3",
+    "canonical/meshes/TOP_STERN.obj": "6e1538da75d496b2f510c2e4a9963f9ef2028029f7c42d8b8f95a8a60af1214f",
+    "textured/assemblies/DOUBLE_DECK.glb": "3369512910d2cf4649f830d95c5789ff4edadbcec18b043d6ea529265ee1ccce",
+    "textured/assemblies/SINGLE_DECK.glb": "1ceeff4d0332f38096dd3131bce2767934c554d74284ef8cfa5c006f7908e75d",
+    "textured/assemblies/TRIPLE_DECK.glb": "4c5e3ff2f2bff92b8a0ec0b998a70fa5da99b5a6d7da2ea4978bd19d610fb09e",
+    "textured/meshes/BOTTOM_BOW.glb": "6de3e379453bfd680da88e60fbf94827ff092c59821bd314f5d0017728f30553",
+    "textured/meshes/BOTTOM_CENTRE.glb": "0550c77972e9a4c0e6bc00507c59b3c5c66435d60009c1f88d62f81e2aa61354",
+    "textured/meshes/BOTTOM_STERN.glb": "1e8ab90fb64d4ea303a7faa2756c9bd5d3cf8d098dd5e99c9dcd1961200c2f85",
+    "textured/meshes/FLOOR_BOW.glb": "b4b2e3c55df85b495507e3ecedc1740d2f94e880326d076c6c32c558b6a1d7f4",
+    "textured/meshes/FLOOR_CENTRE.glb": "f85e9dbeedffa855bca19d2bb7562afd6495dc31b327ef3162b453eb1ce40eea",
+    "textured/meshes/FLOOR_STERN.glb": "1b9460a45f755f85c89bc05ba6cc9be46f74558bfe18902f0b032ddf7197aab9",
+    "textured/meshes/MIDDLE_BOW.glb": "ac8b0a521f6deda3910c2b6119900893a06da3d065d606974c57b50ca621ca08",
+    "textured/meshes/MIDDLE_CENTRE.glb": "d78eec4bddbf0fdfe66c34b4370cb1bc0e357ad63dd569dab08df9708a724ecf",
+    "textured/meshes/MIDDLE_CENTRE_GUN.glb": "321943f4b469993539ae98494fd2f9bd8f4b46e4093faabadb4413475947f8b3",
+    "textured/meshes/MIDDLE_STERN.glb": "00cab67e559eda0b7461988871ae7cbb9289941f64c951b27d7f4be26e91731e",
+    "textured/meshes/STAIRS_260.glb": "5e67fcabad355e52ea4e7c798917c601fca1ec7148c656914adeeaf8ae40c0d5",
+    "textured/meshes/STAIR_PORT_END.glb": "7d211022a5905db1c4eb9d7b2e77593da350af65043939471c71b0432cef82e8",
+    "textured/meshes/STAIR_PORT_START.glb": "20c1659977e4ae44e0dfa431e6c8ed36ab0f1bd9bee03c8c3aaffcf50b4e0986",
+    "textured/meshes/STAIR_STARBOARD_END.glb": "d962c55a140a74a67cdcf8d71d01d7edc72474c4ad6715ba22607b983e91e3f4",
+    "textured/meshes/STAIR_STARBOARD_START.glb": "15c5c56e9877e8291ad40ce6a1c438ace614efa5b554e78ab49913a4ff5d23d4",
+    "textured/meshes/TOP_BOW.glb": "dc0706f0edbbcc2337f9b3d39f438f9d1f735d92203e131a176a470a405f0844",
+    "textured/meshes/TOP_CENTRE.glb": "7169a83ff65388b55e1c9a91423612f93c29ebcce8660b837ebe3fa62185d1a6",
+    "textured/meshes/TOP_STERN.glb": "e315c8e312d5af64db85039dd8d5bc300baf8cc40e2b857e211d4294d8a98295",
+    "textured/texture-recipe.json": "82b01614f2d4b10e6bc9a208ec71aeda2a5dbdebd24224ac96b17be4ccdc5fee",
+    "textured/textures/deck_planks.jpg": "b6092af1d9e87965831388da83990d6713c60742a375f468645bdd3abe22d11c",
+    "textured/textures/hull_planks.jpg": "b5f3fe59512be32fc252edc133f688f1e8c0fe600951dc5c1c9a369979c44252"
+  }
+}

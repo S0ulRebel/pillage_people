@@ -1,0 +1,297 @@
+{
+  "source": "deck.glb",
+  "source_triangles": 19717,
+  "parts": [
+    {
+      "file": "mast_collar.glb",
+      "id": "D04",
+      "name": "Mast collar",
+      "nodes": [
+        "collar"
+      ],
+      "triangles": 2840,
+      "bounds_min_m": [
+        -0.48,
+        0.0,
+        -0.453
+      ],
+      "bounds_max_m": [
+        0.48,
+        0.5551,
+        0.453
+      ],
+      "size_m": [
+        0.96,
+        0.5551,
+        0.9059
+      ],
+      "scale_from_sheet": 16.6671,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 226.6,
+      "uv_in_unit_square": true,
+      "notes": "Hole about 0.52 m across, for the kit mast's 0.5 m foot."
+    },
+    {
+      "file": "hatch_coaming.glb",
+      "id": "D05",
+      "name": "Hatch coaming frame",
+      "nodes": [
+        "coaming"
+      ],
+      "triangles": 289,
+      "bounds_min_m": [
+        -0.5197,
+        0.0,
+        -0.75
+      ],
+      "bounds_max_m": [
+        0.5197,
+        0.5285,
+        0.75
+      ],
+      "size_m": [
+        1.0395,
+        0.5285,
+        1.5
+      ],
+      "scale_from_sheet": 16.8124,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 227.3,
+      "uv_in_unit_square": true,
+      "notes": "1.5 m long; opening about 0.5 x 0.9 m. The F09 grating (0.97 x 1.2 m) rests on top and covers it."
+    },
+    {
+      "file": "deck_beam.glb",
+      "id": "D07",
+      "name": "Deck beam and knees",
+      "nodes": [
+        "beam"
+      ],
+      "triangles": 879,
+      "bounds_min_m": [
+        -2.8,
+        -0.9,
+        -0.2851
+      ],
+      "bounds_max_m": [
+        2.8,
+        0.0,
+        0.2851
+      ],
+      "size_m": [
+        5.6,
+        0.9,
+        0.5702
+      ],
+      "scale_from_sheet": 9.0013,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 255.6,
+      "uv_in_unit_square": true,
+      "notes": "Spans the 5.6 m inner beam. Tripo drew a short beam, so it is scaled by its 0.9 m knees and only the middle is stretched; 0.68 m at each end, knees included, keeps its shape. The beam's grain stretches with it. Origin at the top centre: it hangs under a floor slab."
+    },
+    {
+      "file": "rail_straight.glb",
+      "id": "R01",
+      "name": "Straight rail infill",
+      "nodes": [
+        "rail"
+      ],
+      "triangles": 2236,
+      "bounds_min_m": [
+        -0.9,
+        0.0,
+        -0.126
+      ],
+      "bounds_max_m": [
+        0.9,
+        0.805,
+        0.126
+      ],
+      "size_m": [
+        1.8,
+        0.805,
+        0.252
+      ],
+      "scale_from_sheet": 9.3278,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 406.0,
+      "uv_in_unit_square": true,
+      "notes": "1.8 m long, filling a 2 m centre bay between two posts; that makes it 0.81 m tall, the kit's 0.8 m bulwark."
+    },
+    {
+      "file": "rail_post.glb",
+      "id": "R02",
+      "name": "Shared rail post",
+      "nodes": [
+        "post"
+      ],
+      "triangles": 456,
+      "bounds_min_m": [
+        -0.1551,
+        0.0,
+        -0.153
+      ],
+      "bounds_max_m": [
+        0.1551,
+        0.95,
+        0.153
+      ],
+      "size_m": [
+        0.3102,
+        0.95,
+        0.3061
+      ],
+      "scale_from_sheet": 5.8491,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 644.1,
+      "uv_in_unit_square": true,
+      "notes": "0.95 m, standing above the 0.81 m rails it joins."
+    },
+    {
+      "file": "rail_bow_pair.glb",
+      "id": "R03",
+      "name": "Bow rail pair",
+      "nodes": [
+        "rail_a",
+        "rail_b"
+      ],
+      "triangles": 5150,
+      "bounds_min_m": [
+        -0.6679,
+        0.0,
+        -0.6641
+      ],
+      "bounds_max_m": [
+        0.6679,
+        0.805,
+        0.6641
+      ],
+      "size_m": [
+        1.3359,
+        0.805,
+        1.3282
+      ],
+      "scale_from_sheet": 8.0295,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 472.8,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "rail_stern.glb",
+      "id": "R04",
+      "name": "Stern rail",
+      "nodes": [
+        "rail"
+      ],
+      "triangles": 4324,
+      "bounds_min_m": [
+        -1.2261,
+        0.0,
+        -0.4373
+      ],
+      "bounds_max_m": [
+        1.2261,
+        0.805,
+        0.4373
+      ],
+      "size_m": [
+        2.4523,
+        0.805,
+        0.8746
+      ],
+      "scale_from_sheet": 11.4324,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 333.0,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "rail_stair.glb",
+      "id": "R05",
+      "name": "Stair rail",
+      "nodes": [
+        "rail"
+      ],
+      "triangles": 2092,
+      "bounds_min_m": [
+        -0.2899,
+        0.0,
+        0.0
+      ],
+      "bounds_max_m": [
+        0.2899,
+        3.5752,
+        3.25
+      ],
+      "size_m": [
+        0.5799,
+        3.5752,
+        3.25
+      ],
+      "scale_from_sheet": 20.9126,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "min"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 188.6,
+      "uv_in_unit_square": true,
+      "notes": "Tripo drew it about 22 degrees steep and 1.2 m tall. Squashed to about 0.9 m of rail, then sheared (not rotated, so the balusters stay vertical) to the kit stairs' 38.7 degrees: 3.25 m run, 2.6 m rise, like STAIRS_260. Climbs toward +Z from the origin at its foot, the same way STAIRS_260 does.",
+      "slope_deg_before_after": [
+        16.5,
+        38.6
+      ]
+    }
+  ],
+  "discarded": [
+    {
+      "what": "D01-D06 floor slabs",
+      "reason": "Floors must match the contract outlines to 1 mm; use canonical FLOOR_* and STAIR_* (textured/meshes/). Tripo also centred the stair opening, which the kit puts to port or starboard.",
+      "triangles": 1132
+    },
+    {
+      "what": "artifact on the centre slab",
+      "reason": "A block Tripo invented sticking out of D02; nothing on the sheet.",
+      "triangles": 319
+    }
+  ],
+  "passed": true,
+  "problems": []
+}

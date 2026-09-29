@@ -1,0 +1,598 @@
+{
+  "source": "fittings.glb",
+  "source_triangles": 19516,
+  "parts": [
+    {
+      "file": "helm.glb",
+      "id": "F03",
+      "name": "Helm wheel and pedestal",
+      "nodes": [
+        "helm"
+      ],
+      "triangles": 3320,
+      "bounds_min_m": [
+        -0.7078,
+        0.0,
+        -0.468
+      ],
+      "bounds_max_m": [
+        0.7078,
+        1.5,
+        0.468
+      ],
+      "size_m": [
+        1.4157,
+        1.5,
+        0.9359
+      ],
+      "scale_from_sheet": 7.1189,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 387.9,
+      "uv_in_unit_square": true,
+      "notes": "1.5 m tall, the kit's F01_HELM height. About 1.4 m wide, over the envelope's 1.1 m but inside the +/-0.8 m access clearance it reserves. ship.gd HELM_AT is the deck contact."
+    },
+    {
+      "file": "capstan.glb",
+      "id": "F05",
+      "name": "Capstan with bars",
+      "nodes": [
+        "capstan"
+      ],
+      "triangles": 1770,
+      "bounds_min_m": [
+        -0.8219,
+        0.0,
+        -0.7151
+      ],
+      "bounds_max_m": [
+        0.8219,
+        1.1,
+        0.7151
+      ],
+      "size_m": [
+        1.6438,
+        1.1,
+        1.4301
+      ],
+      "scale_from_sheet": 7.3384,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 380.6,
+      "uv_in_unit_square": true,
+      "notes": "Kit F02_CAPSTAN height, 1.1 m. Tripo drew the bars short for the drum, so they span about 1.65 m, inside the kit's 2.8 m box."
+    },
+    {
+      "file": "cannon_barrel.glb",
+      "id": "F01",
+      "name": "Cannon barrel",
+      "nodes": [
+        "barrel"
+      ],
+      "triangles": 1536,
+      "bounds_min_m": [
+        -0.3395,
+        -0.2166,
+        -0.9886
+      ],
+      "bounds_max_m": [
+        0.3379,
+        0.2264,
+        0.9114
+      ],
+      "size_m": [
+        0.6775,
+        0.443,
+        1.9
+      ],
+      "scale_from_sheet": 6.3993,
+      "origin": {
+        "x": "mark:trunnions",
+        "y": "mark:trunnions",
+        "z": "mark:trunnions"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 427.1,
+      "uv_in_unit_square": true,
+      "notes": "Origin on the trunnion axis, muzzle toward -Z, trunnions along X."
+    },
+    {
+      "file": "gun_carriage.glb",
+      "id": "F02",
+      "name": "Gun carriage",
+      "nodes": [
+        "carriage"
+      ],
+      "triangles": 1790,
+      "bounds_min_m": [
+        -0.5471,
+        0.0,
+        -0.55
+      ],
+      "bounds_max_m": [
+        0.5471,
+        0.7656,
+        0.55
+      ],
+      "size_m": [
+        1.0942,
+        0.7656,
+        1.1
+      ],
+      "scale_from_sheet": 6.2455,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 449.2,
+      "uv_in_unit_square": true,
+      "notes": "Muzzle end toward -Z. The cheeks' inner gap takes the 0.44 m barrel and the trunnions (0.68 m tip to tip) rest across them. Tripo's trunnion caps did not sit on the seats; they are in trunnion_caps.glb."
+    },
+    {
+      "file": "trunnion_caps.glb",
+      "id": "F02",
+      "name": "Trunnion caps and straps (loose)",
+      "nodes": [
+        "cap_a",
+        "cap_b",
+        "strap_a",
+        "strap_b"
+      ],
+      "triangles": 368,
+      "bounds_min_m": [
+        -0.171,
+        0.0,
+        -0.4588
+      ],
+      "bounds_max_m": [
+        0.171,
+        0.4294,
+        0.4588
+      ],
+      "size_m": [
+        0.3421,
+        0.4294,
+        0.9176
+      ],
+      "scale_from_sheet": 6.2455,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 512,
+      "texel_density_px_per_m": 435.6,
+      "uv_in_unit_square": true,
+      "notes": "Loose in the Tripo model, floating above the carriage rather than on its seats. Same scale as the carriage; place them by hand if wanted."
+    },
+    {
+      "file": "binnacle.glb",
+      "id": "F04",
+      "name": "Binnacle",
+      "nodes": [
+        "binnacle"
+      ],
+      "triangles": 1941,
+      "bounds_min_m": [
+        -0.3057,
+        0.0,
+        -0.3049
+      ],
+      "bounds_max_m": [
+        0.3057,
+        1.1,
+        0.3049
+      ],
+      "size_m": [
+        0.6115,
+        1.1,
+        0.6098
+      ],
+      "scale_from_sheet": 6.0911,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 455.1,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "rudder.glb",
+      "id": "F06",
+      "name": "Rudder blade",
+      "nodes": [
+        "blade"
+      ],
+      "triangles": 160,
+      "bounds_min_m": [
+        -0.1068,
+        -1.5,
+        0.0
+      ],
+      "bounds_max_m": [
+        0.1068,
+        0.5,
+        1.0979
+      ],
+      "size_m": [
+        0.2136,
+        2.0,
+        1.0979
+      ],
+      "scale_from_sheet": 8.6667,
+      "origin": {
+        "x": "mid",
+        "y": [
+          "max",
+          -0.5
+        ],
+        "z": "min"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 323.4,
+      "uv_in_unit_square": true,
+      "notes": "Kit F04_RUDDER envelope: the straight hinge edge is snapped exactly vertical and sits on the origin; the blade hangs to Y=-1.5 and reaches aft (+Z)."
+    },
+    {
+      "file": "rudder_hinges.glb",
+      "id": "F06",
+      "name": "Sternpost hinge strip",
+      "nodes": [
+        "hinge_strip"
+      ],
+      "triangles": 290,
+      "bounds_min_m": [
+        -0.124,
+        -1.7292,
+        -0.5055
+      ],
+      "bounds_max_m": [
+        0.124,
+        0.5,
+        0.0
+      ],
+      "size_m": [
+        0.2481,
+        2.2292,
+        0.5055
+      ],
+      "scale_from_sheet": 8.6667,
+      "origin": {
+        "x": "mid",
+        "y": [
+          "max",
+          -0.5
+        ],
+        "z": "max"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 321.4,
+      "uv_in_unit_square": true,
+      "notes": "Same scale as the blade (same sheet cell). Mates the blade's hinge edge; pintles and gudgeons were drawn apart, so fit them together in the engine."
+    },
+    {
+      "file": "anchor.glb",
+      "id": "F07",
+      "name": "Stocked anchor",
+      "nodes": [
+        "anchor",
+        "stock"
+      ],
+      "triangles": 958,
+      "bounds_min_m": [
+        -0.4511,
+        -1.8,
+        -0.4372
+      ],
+      "bounds_max_m": [
+        0.4511,
+        0.0,
+        0.4372
+      ],
+      "size_m": [
+        0.9022,
+        1.8,
+        0.8743
+      ],
+      "scale_from_sheet": 7.589,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 359.4,
+      "uv_in_unit_square": true,
+      "notes": "Tripo put the stock in the plane of the flukes; it is turned 90 degrees so it crosses them, as the manifest requires. Origin at the ring: it hangs from the cathead."
+    },
+    {
+      "file": "cathead.glb",
+      "id": "F07",
+      "name": "Cathead with block and fall",
+      "nodes": [
+        "cathead"
+      ],
+      "triangles": 1244,
+      "bounds_min_m": [
+        0.0,
+        -1.384,
+        -0.1537
+      ],
+      "bounds_max_m": [
+        1.6,
+        0.0,
+        0.1537
+      ],
+      "size_m": [
+        1.6,
+        1.384,
+        0.3073
+      ],
+      "scale_from_sheet": 10.3262,
+      "origin": {
+        "x": "min",
+        "y": "max",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 271.3,
+      "uv_in_unit_square": true,
+      "notes": "Projects outboard along +X from the origin, which is the top of its inboard end. Mirror the node (scale X -1) for the port side."
+    },
+    {
+      "file": "anchor_cable.glb",
+      "id": "F07",
+      "name": "Coiled anchor cable",
+      "nodes": [
+        "cable"
+      ],
+      "triangles": 1056,
+      "bounds_min_m": [
+        -0.45,
+        0.0,
+        -0.4334
+      ],
+      "bounds_max_m": [
+        0.45,
+        0.3739,
+        0.4334
+      ],
+      "size_m": [
+        0.9,
+        0.3739,
+        0.8667
+      ],
+      "scale_from_sheet": 8.0246,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 340.0,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "stern_lantern.glb",
+      "id": "F08",
+      "name": "Stern lantern on bracket",
+      "nodes": [
+        "lantern"
+      ],
+      "triangles": 1442,
+      "bounds_min_m": [
+        -0.1858,
+        -0.9,
+        0.0
+      ],
+      "bounds_max_m": [
+        0.1858,
+        0.0,
+        0.7006
+      ],
+      "size_m": [
+        0.3715,
+        0.9,
+        0.7006
+      ],
+      "scale_from_sheet": 4.7449,
+      "origin": {
+        "x": "mid",
+        "y": "max",
+        "z": "min"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 577.0,
+      "uv_in_unit_square": true,
+      "notes": "Wall plate at Z=0 against the transom, lantern hanging aft (+Z). Origin at the top of the plate."
+    },
+    {
+      "file": "hatch_grating.glb",
+      "id": "F09",
+      "name": "Hatch grating",
+      "nodes": [
+        "grating"
+      ],
+      "triangles": 695,
+      "bounds_min_m": [
+        -0.4827,
+        0.0,
+        -0.6
+      ],
+      "bounds_max_m": [
+        0.4827,
+        0.1102,
+        0.6
+      ],
+      "size_m": [
+        0.9654,
+        0.1102,
+        1.2
+      ],
+      "scale_from_sheet": 7.3306,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 385.7,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "hatch_coaming_sides.glb",
+      "id": "F09",
+      "name": "Hatch coaming sides",
+      "nodes": [
+        "side_a",
+        "side_b"
+      ],
+      "triangles": 464,
+      "bounds_min_m": [
+        -0.6168,
+        0.0,
+        -0.5289
+      ],
+      "bounds_max_m": [
+        0.6168,
+        0.3232,
+        0.5289
+      ],
+      "size_m": [
+        1.2335,
+        0.3232,
+        1.0577
+      ],
+      "scale_from_sheet": 7.3306,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 379.2,
+      "uv_in_unit_square": true,
+      "notes": "Two side beams only, as Tripo made them; the full frame is the deck sheet's D05 (models/ship/deck/hatch_coaming.glb)."
+    },
+    {
+      "file": "belaying_rack.glb",
+      "id": "F10",
+      "name": "Belaying-pin rack",
+      "nodes": [
+        "rack"
+      ],
+      "triangles": 1308,
+      "bounds_min_m": [
+        -0.6,
+        0.0,
+        -0.0974
+      ],
+      "bounds_max_m": [
+        0.6,
+        0.56,
+        0.0974
+      ],
+      "size_m": [
+        1.2,
+        0.56,
+        0.1947
+      ],
+      "scale_from_sheet": 5.9329,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 2048,
+      "texel_density_px_per_m": 468.1,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "cleat.glb",
+      "id": "F10",
+      "name": "Cleat on its block",
+      "nodes": [
+        "cleat"
+      ],
+      "triangles": 450,
+      "bounds_min_m": [
+        -0.4279,
+        0.0,
+        -0.097
+      ],
+      "bounds_max_m": [
+        0.4279,
+        0.3505,
+        0.097
+      ],
+      "size_m": [
+        0.8557,
+        0.3505,
+        0.1939
+      ],
+      "scale_from_sheet": 5.9329,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 471.3,
+      "uv_in_unit_square": true,
+      "notes": ""
+    },
+    {
+      "file": "bollard.glb",
+      "id": "F10",
+      "name": "Paired bitts",
+      "nodes": [
+        "bitts"
+      ],
+      "triangles": 724,
+      "bounds_min_m": [
+        -0.3376,
+        0.0,
+        -0.1296
+      ],
+      "bounds_max_m": [
+        0.3376,
+        0.5654,
+        0.1296
+      ],
+      "size_m": [
+        0.6753,
+        0.5654,
+        0.2592
+      ],
+      "scale_from_sheet": 5.9329,
+      "origin": {
+        "x": "mid",
+        "y": "min",
+        "z": "mid"
+      },
+      "texture_px": 1024,
+      "texel_density_px_per_m": 468.1,
+      "uv_in_unit_square": true,
+      "notes": ""
+    }
+  ],
+  "discarded": [],
+  "passed": true,
+  "problems": []
+}

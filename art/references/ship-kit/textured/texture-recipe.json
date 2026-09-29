@@ -1,0 +1,133 @@
+{
+  "generator": "tools/texture_kit.py",
+  "pixels_per_metre": 256,
+  "flat_normal_y_threshold": 0.7071,
+  "uv_rule": {
+    "wood_walls": "u = z/2 (x/2 when the face points fore/aft), v = -y/2.6",
+    "wood_flat": "u = z/2, v = x/2.6 (|normal.y| >= threshold)",
+    "deck": "flat: u = x/2, v = z/2; side edges: u = -y/2, v = z/2; fore/aft edges: u = x/2, v = -y/2",
+    "joining_periods_m": {
+      "along_hull": 2.0,
+      "tier": 2.6
+    }
+  },
+  "lighting": "None baked. Flat painted albedo; shading comes from the engine.",
+  "materials": {
+    "wood": {
+      "file": "hull_planks.jpg",
+      "seed": 1701,
+      "tile_m": [
+        2.0,
+        2.6
+      ],
+      "courses": 10,
+      "butts_per_tile": 2,
+      "orientation": "courses horizontal",
+      "palette": [
+        [
+          170,
+          98,
+          48
+        ],
+        [
+          184,
+          110,
+          54
+        ],
+        [
+          158,
+          88,
+          42
+        ],
+        [
+          192,
+          120,
+          62
+        ],
+        [
+          176,
+          104,
+          50
+        ]
+      ],
+      "seam": [
+        74,
+        40,
+        20
+      ],
+      "knot": [
+        118,
+        62,
+        28
+      ]
+    },
+    "deck": {
+      "file": "deck_planks.jpg",
+      "seed": 2603,
+      "tile_m": [
+        2.0,
+        2.0
+      ],
+      "courses": 10,
+      "butts_per_tile": 1,
+      "orientation": "planks vertical (fore-aft)",
+      "palette": [
+        [
+          206,
+          150,
+          90
+        ],
+        [
+          196,
+          140,
+          82
+        ],
+        [
+          214,
+          160,
+          98
+        ],
+        [
+          200,
+          146,
+          86
+        ]
+      ],
+      "seam": [
+        96,
+        58,
+        30
+      ],
+      "knot": [
+        150,
+        96,
+        52
+      ]
+    }
+  },
+  "parts": [
+    "BOTTOM_BOW",
+    "MIDDLE_BOW",
+    "TOP_BOW",
+    "FLOOR_BOW",
+    "BOTTOM_CENTRE",
+    "TOP_CENTRE",
+    "FLOOR_CENTRE",
+    "BOTTOM_STERN",
+    "MIDDLE_STERN",
+    "TOP_STERN",
+    "FLOOR_STERN",
+    "MIDDLE_CENTRE_GUN",
+    "MIDDLE_CENTRE",
+    "STAIR_PORT_START",
+    "STAIR_PORT_END",
+    "STAIR_STARBOARD_START",
+    "STAIR_STARBOARD_END",
+    "STAIRS_260"
+  ],
+  "assemblies": [
+    "SINGLE_DECK",
+    "DOUBLE_DECK",
+    "TRIPLE_DECK"
+  ]
+}

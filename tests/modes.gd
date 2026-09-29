@@ -147,7 +147,7 @@ func _ship_view() -> void:
 	# Drop the captain on the weather deck, clear of the stair opening around Z=4.
 	# The print from the screenshot says whether the hull actually holds him.
 	_player.velocity = Vector3.ZERO
-	_player.global_position = ship.to_global(Vector3(0.0, 7.0, 10.0))
+	_player.global_position = ship.to_global(Ship.BOARD_SPOT)
 	print("ship at ", ship.global_position)
 	_screenshot_and_quit()
 
@@ -178,7 +178,8 @@ func _board_test() -> void:
 		push_error("board test: still offering a climb once he is up")
 		get_tree().quit(1)
 		return
-	_player.global_position = ship.to_global(Vector3(0.0, 5.4, 13.2))
+	# Up on the quarterdeck, where the wheel is, just above the roof so he settles onto it.
+	_player.global_position = ship.to_global(Ship.HELM_FEET + Vector3(0.0, 0.2, 0.0))
 	_player.velocity = Vector3.ZERO
 	if not _player.try_helm():
 		push_error("board test: at the wheel should take the helm")

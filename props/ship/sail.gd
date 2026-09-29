@@ -33,11 +33,19 @@ var _belly := Vector3(0.0, 0.0, 0.45)
 var _rigged := false
 ## The course leaves this false: only the head is laced. Topsail and jib lace both edges.
 var _pin_foot := true
+## Boxes in ship space the cloth stays out of, such as the stern cabin under the course.
+var _keep_out: Array[AABB] = []
 
 
 ## Call before the node enters the tree. False hangs the foot free.
 func pin_foot(on: bool) -> void:
 	_pin_foot = on
+
+
+## Call before the node enters the tree. The cloth collides with nothing else, so a free foot
+## blown aft would otherwise hang straight through whatever stands there.
+func keep_out(box: AABB) -> void:
+	_keep_out.append(box)
 
 
 ## Call before the node enters the tree. Head and foot are the two laced edges.
@@ -138,7 +146,27 @@ func _physics_process(delta: float) -> void:
 			else:
 				_pos[a] += correction * 0.5
 				_pos[b] -= correction * 0.5
+		_push_out()
 	_rebuild()
+
+
+## Moves every free point that has gone into a keep-out box back to its nearest face, and
+## stops it there. Never out through the bottom: the boxes stand on the deck.
+func _push_out() -> void:
+	for box in _keep_out:
+		var end := box.end
+		for i in _pos.size():
+			var p := _pos[i]
+			if _pinned(i) or not box.has_point(p):
+				continue
+			var faces: Array[Vector3] = [Vector3(box.position.x, p.y, p.z), Vector3(end.x, p.y, p.z),
+					Vector3(p.x, end.y, p.z), Vector3(p.x, p.y, box.position.z), Vector3(p.x, p.y, end.z)]
+			var nearest := faces[0]
+			for face in faces:
+				if p.distance_squared_to(face) < p.distance_squared_to(nearest):
+					nearest = face
+			_pos[i] = nearest
+			_prev[i] = nearest
 
 
 func _pinned(index: int) -> bool:
