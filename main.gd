@@ -74,6 +74,16 @@ const WATER_FOR_FISH := 3.2
 ## Corals, grown on the floor of whatever dive crater the scene has. Per crater, not in total -
 ## see _grow_reef, which finds them rather than being told where they are.
 @export var coral_count := 26
+## Beds of weed and coral in the shallows - see Reef.fringe. Seven to fourteen growths a bed.
+##
+## Two counts, because the coast is 1.5 km round and the player starts on one beach of it: at
+## the density a beach needs to look grown rather than sprinkled, the whole coast would be over
+## a thousand plants. So most of them go along the beach he starts on, within
+## shallows_reach of the spawn, and the rest are spread thinner round the island so that
+## sailing anywhere else still finds some. Zero turns either off.
+@export var shallows_beds_here := 18
+@export var shallows_beds_round := 18
+@export var shallows_reach := 110.0
 ## How long the captain lies there before the island resets. His death clip runs 2.63 s, so
 ## this lets it finish and land before anything moves.
 @export var restart_delay := 3.4
@@ -474,8 +484,47 @@ func _grow_reef() -> void:
 	rng.seed = hash("corals") + randi()
 	var grown := 0
 	for centre in craters:
-		grown += reef.scatter(_terrain, centre, rng)
+		grown += reef.scatter(_terrain, centre, rng, _ocean as Ocean)
 	print("reef: %d corals of %d in %d crater(s)" % [grown, coral_count * craters.size(), craters.size()])
+
+
+## Grows beds of weed and coral in the shallows: thickest along the beach he starts on at
+## `around`, thinner round the rest of the coast.
+##
+## A second Reef rather than more of the first: the same plants under the same rule about what
+## fits beneath the swell, given a band of depth instead of a crater and left to find the coast
+## for itself - so it follows the height map and the stamps rather than a list of beaches.
+func _grow_shallows(around: Vector3) -> void:
+	if "--noassets" in OS.get_cmdline_user_args() \
+			or shallows_beds_here + shallows_beds_round <= 0:
+		return
+	var shallows: Node3D = Reef.new()
+	shallows.name = "Shallows"
+	# From just inside the breaking foam, which is white to 0.48 m of water and gone at 0.92 -
+	# a bed under the white is a bed nobody sees - out to where the shelf flattens into lagoon,
+	# about 40 m from the sand. See max_depth in reef.gd.
+	shallows.min_depth = 0.9
+	shallows.max_depth = 2.8
+	# Smaller than the crater's, because what fits under this little water is smaller: a
+	# 0.4 m weed with 2.2 m of empty sand round it is a sprinkle, not a bed.
+	shallows.spacing = 0.8
+	shallows.bed_size = Vector2i(7, 14)
+	shallows.bed_radius = 4.0
+	shallows.size_jitter = Vector2(0.4, 1.1)
+	shallows.sink = 0.05
+	shallows.visible_within = 110.0
+	# The hull moors in exactly the water the beds want - see keep_clear.
+	var ship := get_node_or_null("Ship") as Node3D
+	if ship != null:
+		shallows.keep_clear.append(ship.global_transform * Ground.mesh_box(ship))
+	add_child(shallows)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("shallows") + randi()
+	# The beach first, so the round-the-island beds keep clear of its beds rather than it of theirs.
+	var here: int = shallows.fringe(_terrain, shallows_beds_here, rng, _ocean as Ocean,
+			around, shallows_reach)
+	var elsewhere: int = shallows.fringe(_terrain, shallows_beds_round, rng, _ocean as Ocean)
+	print("shallows: %d growths along the start beach, %d round the island" % [here, elsewhere])
 
 
 ## One grunt's noises. Split out because the lambdas need to capture this grunt, not the last
@@ -895,6 +944,9 @@ func _ready() -> void:
 	_loose_shark(spawn)
 	_stock_fish(spawn)
 	_spawn_enemies(spawn)
+	# Last of the fields, because each takes one draw from the global generator for its seed:
+	# anywhere earlier and growing the shallows would have moved every grunt.
+	_grow_shallows(spawn)
 	# After the ship: its guns join the group when they enter the tree.
 	_watch_cannons.call_deferred()
 	_start_ambience(spawn)

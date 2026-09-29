@@ -368,6 +368,25 @@ func surface_motion(x: float, z: float) -> Vector3:
 			(after - 2.0 * here + before) / (STEP * STEP))
 
 
+## How far below sea level the surface can fall over water `depth` metres deep: every wave in
+## its trough at once, flattened by the shoal the way surface_y flattens them.
+##
+## For planting things that must stay under the sea. The still level is the wrong line to keep
+## them under: the four waves sum to 1.32 m, the long swell alone is 0.77 of it, and in open
+## water the surface spends 5% of its time more than 0.97 m down - so a coral that clears the
+## still water by a hand stands in the air every few seconds. Taken by depth, not position, so it
+## answers before setup() has handed over the terrain; wind only turns the waves, never their
+## size, so the answer holds for the whole game.
+func deepest_trough(depth: float) -> float:
+	var reach := 0.0
+	for wave: Vector4 in [wave_1, wave_2, wave_3, wave_4]:
+		if Vector2(wave.x, wave.y).length() < 0.0001 or wave.z <= 0.0:
+			continue
+		# Steepness over wave number, as _prepare_wave has it.
+		reach += wave.z * maxf(wave.w, 0.01) / TAU
+	return reach * wave_height * smoothstep(0.0, maxf(shoal_depth, 0.001), depth)
+
+
 ## Waves flatten as the seabed rises. This one is real rather than a rendering concession,
 ## so it stays: without it cargo in the shallows bobs as hard as cargo in open water.
 func _shoal_at(p: Vector2) -> float:

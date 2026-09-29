@@ -26,6 +26,10 @@ const MODELS := {
 	Kind.ARCHING: "res://art/models/props/seaweed_arching.glb",
 }
 
+## The least water the reef plants one in, in metres. None: a weed is something he may wade
+## through, so it grows right up to where the water stops - see SHALLOWEST in coral.gd.
+const SHALLOWEST := 0.0
+
 @export var kind: Kind = Kind.LEAFY:
 	set(value):
 		kind = value

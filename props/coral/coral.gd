@@ -28,6 +28,11 @@ const MODELS := {
 	Kind.TUBES: "res://art/models/props/coral_tubes.glb",
 }
 
+## The least water the reef plants one in, in metres. A coral has no collider, so one in
+## water he wades through is one he walks straight through - which reads as a bug, where
+## walking through weed reads as weed. He swims past captain.gd's swim_depth, 1.3 m.
+const SHALLOWEST := 1.4
+
 @export var kind: Kind = Kind.FINGERS:
 	set(value):
 		kind = value

@@ -37,7 +37,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `actors/captain/` | The captain. `CharacterBody3D`: camera-relative movement, jumping, swimming, swinging a cutlass, taking hits, dying. |
 | `actors/grunt/` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
 | `actors/parts/` | Shared by both: the blade (hung off a hand bone with a hitbox along it) and the hit spark. |
-| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
+| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, corals and seaweed (`reef/` grows them in the dive crater and through the shallows), fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
 | `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
 | `world/sky.*` | The sky, day, golden hour and night: the dome's gradients, sun, moon and stars, and the clouds - see Clouds and weather below. `world/cloud_shadow.gdshaderinc` lays the clouds' shadows on the ground and the sea. |
@@ -248,7 +248,22 @@ mesas, about 78% of it near-level. Deliberate — the first map was ridges edge 
 left nowhere to build.
 
 Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
-tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, and 5 grunts.
+tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, 5 grunts, a reef of
+corals and weed on the dive crater's floor, and about 350 more in beds through the shallows.
+
+The shallows are `props/reef/reef.gd` again, told a band of water (0.9 to 2.8 m) instead of a
+crater, and it finds the coast by depth rather than from a list of beaches. Half the beds go
+along the beach he starts on (`shallows_beds_here`, within `shallows_reach` of the spawn) and
+half round the rest of the island (`shallows_beds_round`), because the coast is 1.5 km long and
+filling all of it at a beach's density would be over a thousand plants. Weed grows from the
+foam line out; corals only past 1.4 m, where he is swimming rather than wading, because they
+have no collider and walking through one reads as a bug. Nothing grows under the moored hull.
+
+**Near the beach everything is small, and that is the swell, not a setting.** The waves sum to
+1.32 m and only flatten as the bed rises, so in 1.5 m of water the surface can fall to 0.64 m.
+Each growth is sized to stay under the lowest the water gets where it stands
+(`Ocean.deepest_trough`), not under the still level: at most 0.4 m tall in a metre of water,
+up to 1.2 m by 2.8 m. Beyond 110 m from the camera they are not drawn (`visible_within`).
 
 Grass grows in **patches, not a scatter** — the patch centres are chosen first and each is
 filled with tufts crowded toward its middle, with the rocks handed in as extra centres so
@@ -463,7 +478,10 @@ and a rock field up the beach with nothing between them but a signed water band.
 `coral_check` measures the reef on the crater floor: that the corals carry their size in the
 `.glb` rather than a gitignored `.import`, that every one sits on the seabed, and that none
 breaks the surface — which is what makes it correct for a coral to be the one prop here that
-stays off the ocean's layer 20. `coastal_smoke` checks the island builds and the captain stands
+stays off the ocean's layer 20. It then measures the shallows the same way, but reads the sea
+itself - `surface_y` at every growth over three quarters of a minute - rather than trusting the
+trough the reef planted against, and checks the corals stay out of wading depth, the beds reach
+round the island and thicken at the start, and nothing grows under the moored hull. `coastal_smoke` checks the island builds and the captain stands
 on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below
