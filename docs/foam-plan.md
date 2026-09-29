@@ -262,3 +262,19 @@ project already rejects view-dependent outlines).
   and less white than p9's; the wet sand is one dark band with a hard edge where the water
   starts (step 5); the water past the foam is flat opaque teal, where the panels' is clear
   (step 6); the object halos are still the old mint discs (step 7). Not measured on an iPad.
+
+### Step 5: the sand (done)
+
+- Three steps, as panels 9 and 10 paint them, replacing the fixed height band: DRY; DAMP where
+  run-ups can reach (1.6 x a full run-up's reach on the slope there, `damp_sand_reach`), fading
+  softly into dry along an edge that wanders in and out; WET wherever a run-up has been in the
+  last `wet_sand_hold` (7) seconds - a sharp edge that moves with every wave, carrying the wash
+  line.
+- Colours worked back from the panels through the ground's lighting (terrain.gd exports
+  `dry_sand_colour`, the new `damp_sand_colour`, `wet_sand_colour`). Island-wide: the sand is
+  paler and much less orange. Rendered on the test beach against panel 9:
+  dry (212, 172, 124) against (226, 181, 127); damp and wet were 0.73 and 0.60 of dry
+  against the panel's 0.76 and 0.63, and were brightened by 8% to match. The dry sand stays a
+  little darker than the panels': the sun lights it at about 0.84, and a colour can't be
+  brighter than white.
+- `tests/ground_check.gd` and `tests/material_views.gd` pass.

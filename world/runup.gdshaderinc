@@ -87,6 +87,16 @@ float runup_extent(float i, vec2 n, float slope) {
 	return reach * shore_stretch(n) * wave * set * tongue;
 }
 
+// How far up the beach a full-sized run-up reaches here, and how far up the beach this point
+// is: (metres of reach, metres up from the still waterline). What the damp sand is drawn
+// from - the band the run-ups can reach, whichever has just been.
+vec2 runup_reach_here(vec2 xz, float above_sea) {
+	vec4 field = shore_field_at(xz);
+	float u = -field.x;
+	float slope = max(abs(above_sea) / max(abs(u), 0.5), 0.005);
+	return vec2(min(runup_reach, runup_height / max(slope, 0.005)) * shore_stretch(field.yz), u);
+}
+
 // Where the edge is, metres up the beach, a fraction `f` through a run-up that reaches `r`:
 // from the drawdown up to r, fast then slowing, over runup_rise of the cycle; then back down
 // to the drawdown, slowly at first.

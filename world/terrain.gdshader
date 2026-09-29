@@ -41,8 +41,14 @@ uniform vec3 seabed_colour : source_color = vec3(0.780, 0.700, 0.500);
 uniform vec3 deep_seabed_colour : source_color = vec3(0.180, 0.360, 0.330);
 uniform vec3 seabed_weed : source_color = vec3(0.180, 0.400, 0.290);
 uniform vec3 seabed_rock_colour : source_color = vec3(0.270, 0.390, 0.390);
-uniform vec3 wet_sand_colour : source_color = vec3(0.600, 0.420, 0.285);
-uniform vec3 dry_sand_colour : source_color = vec3(0.930, 0.735, 0.430);
+// The sand in three steps, as panels 9 and 10 of terrain-water-and-shore-transitions.jpg paint
+// it: dry, then a damp band where run-ups can reach (0.76 of dry's brightness, soft-edged),
+// then wet where one has just been (0.63, greyer, sharp-edged, carrying the wash line). Worked
+// back through the ground's lighting from the panels' measured sand, so it renders as the
+// panels read: dry (226, 181, 127), damp (177, 132, 97), wet (140, 109, 88).
+uniform vec3 dry_sand_colour : source_color = vec3(0.970, 0.805, 0.610);
+uniform vec3 damp_sand_colour : source_color = vec3(0.810, 0.620, 0.485);
+uniform vec3 wet_sand_colour : source_color = vec3(0.640, 0.510, 0.440);
 uniform vec3 grass_colour : source_color = vec3(0.390, 0.555, 0.145);
 uniform vec3 jungle_colour : source_color = vec3(0.155, 0.215, 0.105);
 uniform float sea_y = 18.0;
@@ -62,6 +68,12 @@ group_uniforms Run_Up_Sand;
 // tinted this and by this much. Cooler and darker, never a colour of its own - it is clear.
 uniform vec3 swash_tint : source_color = vec3(0.70, 0.80, 0.88);
 uniform float swash_strength : hint_range(0.0, 1.0) = 0.85;
+// Seconds the sand stays wet after the water leaves it, before it is only damp.
+uniform float wet_sand_hold : hint_range(0.5, 30.0) = 7.0;
+// How far past a full run-up's reach the damp sand goes, as a multiple of the reach, and over
+// how many metres it fades into dry.
+uniform float damp_sand_reach : hint_range(1.0, 4.0) = 1.6;
+uniform float damp_sand_soft : hint_range(0.05, 3.0) = 1.1;
 
 group_uniforms Caustics;
 uniform vec3 caustic_colour : source_color = vec3(0.84, 1.0, 0.92);
@@ -241,9 +253,30 @@ void fragment() {
 
     // Waterline transitions use real height, never noisy vegetation height.
     float submerged = 1.0 - smoothstep(-0.45, 0.0, height);
-    float wet_edge = wet_sand_top + coast_offset * 0.16;
-    float dry = smoothstep(wet_edge - 0.18, wet_edge + 0.20, height);
-    vec3 sand = mix(wet_sand_colour, dry_sand_colour, dry);
+    // The run-up (runup.gdshaderinc), near the sea only: the water it sends up the sand, the
+    // foam, and which sand is wet and which damp all come from it.
+    vec4 run = vec4(-1.0e4, 1.0e4, 1.0e4, 0.0);
+    float last_reach = 0.0;
+    float damp = 0.0;
+    float soaked = 0.0;
+    bool near_sea = height > -3.0 && height < runup_height + 2.5;
+    if (near_sea) {
+        run = runup_at_reach(world_position.xz, height, clock, last_reach);
+        // Damp: the band the run-ups can reach, and a little past it, fading softly into dry.
+        vec2 reach = runup_reach_here(world_position.xz, height);
+        // Wandering in and out along the shore by up to most of a reach, so its top is a
+        // soft irregular edge like the panels', never a level line.
+        float damp_edge = reach.x * damp_sand_reach
+            + (macro - 0.5) * reach.x * 1.4 + (edge_patches - 0.5) * 0.6;
+        damp = 1.0 - smoothstep(damp_edge - damp_sand_soft * 0.5, damp_edge + damp_sand_soft * 0.5, reach.y);
+        // Wet: where a run-up has been within the last wet_sand_hold seconds - a sharp edge,
+        // which moves with every wave.
+        float hold_aa = clamp(fwidth(run.z), 0.05, 0.6);
+        soaked = 1.0 - smoothstep(wet_sand_hold - hold_aa, wet_sand_hold + hold_aa, run.z);
+    }
+    vec3 sand = mix(dry_sand_colour, damp_sand_colour, damp);
+    sand = mix(sand, wet_sand_colour, soaked);
+    float dry = 1.0 - max(damp * 0.5, soaked);
     float sand_marks = smoothstep(0.58, 0.72, patches) * (1.0 - smoothstep(0.0, 0.75, abs(height - 1.8)));
     sand *= 1.0 - sand_marks * 0.055;
     float weed = smoothstep(0.48, 0.72, fbm(world_position.xz * seabed_patch_scale));
@@ -307,11 +340,8 @@ void fragment() {
 
     // The run-up: the thin sheet of water each wave sends up the beach, drawn over the sand -
     // the sea itself stops at the still waterline. Only near the sea, where it can reach.
-    vec4 run = vec4(-1.0e4, 1.0e4, 1.0e4, 0.0);
     float swash = 0.0;
-    if (height > -3.0 && height < runup_height + 1.0) {
-        float last_reach;
-        run = runup_at_reach(world_position.xz, height, clock, last_reach);
+    if (near_sea) {
         float run_px = max(fwidth(run.x), 0.001);
         float above = smoothstep(-0.03, 0.01, height) * (1.0 - vegetation);
         swash = smoothstep(-run_px, run_px, run.x) * above;

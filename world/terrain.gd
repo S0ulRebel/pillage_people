@@ -93,11 +93,18 @@ const ShoreField = preload("res://world/shore_field.gd")
 	set(value):
 		seabed_rock_colour = value
 		_push_colour("seabed_rock_colour", value)
-@export var dry_sand_colour := Color(0.93, 0.735, 0.43):
+## The sand in three steps - dry, damp where run-ups can reach, wet where one just has - worked
+## back from panels 9 and 10 of art/references/terrain-water-and-shore-transitions.jpg through
+## the ground's lighting (the shader says how). Paler and less orange than it was.
+@export var dry_sand_colour := Color(0.97, 0.805, 0.61):
 	set(value):
 		dry_sand_colour = value
 		_push_colour("dry_sand_colour", value)
-@export var wet_sand_colour := Color(0.60, 0.42, 0.285):
+@export var damp_sand_colour := Color(0.81, 0.62, 0.485):
+	set(value):
+		damp_sand_colour = value
+		_push_colour("damp_sand_colour", value)
+@export var wet_sand_colour := Color(0.64, 0.51, 0.44):
 	set(value):
 		wet_sand_colour = value
 		_push_colour("wet_sand_colour", value)
@@ -1533,7 +1540,7 @@ func _setup_material() -> void:
 	for entry in [["caustic_colour", caustic_colour], ["seabed_colour", seabed_colour],
 			["deep_seabed_colour", deep_seabed_colour], ["seabed_weed", seabed_weed],
 			["seabed_rock_colour", seabed_rock_colour], ["dry_sand_colour", dry_sand_colour],
-			["wet_sand_colour", wet_sand_colour], ["grass_colour", grass_colour],
+			["damp_sand_colour", damp_sand_colour], ["wet_sand_colour", wet_sand_colour], ["grass_colour", grass_colour],
 			["jungle_colour", jungle_colour], ["rock_colour", rock_colour],
 			["caustic_scale", caustic_scale], ["caustic_width", caustic_width],
 			["caustic_strength", caustic_strength], ["caustic_reach", caustic_reach],
