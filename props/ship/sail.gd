@@ -33,6 +33,8 @@ var _belly := Vector3(0.0, 0.0, 0.45)
 var _rigged := false
 ## The course leaves this false: only the head is laced. Topsail and jib lace both edges.
 var _pin_foot := true
+## The spanker sets this: its luff, the edge from head_from to foot_from, is laced to the mast.
+var _pin_luff := false
 ## Boxes in ship space the cloth stays out of, such as the stern cabin under the course.
 var _keep_out: Array[AABB] = []
 
@@ -40,6 +42,11 @@ var _keep_out: Array[AABB] = []
 ## Call before the node enters the tree. False hangs the foot free.
 func pin_foot(on: bool) -> void:
 	_pin_foot = on
+
+
+## Call before the node enters the tree. True laces the edge from head_from to foot_from too.
+func pin_luff(on: bool) -> void:
+	_pin_luff = on
 
 
 ## Call before the node enters the tree. The cloth collides with nothing else, so a free foot
@@ -171,7 +178,7 @@ func _push_out() -> void:
 
 func _pinned(index: int) -> bool:
 	var row := index / COLS
-	return row == 0 or (_pin_foot and row == ROWS - 1)
+	return row == 0 or (_pin_foot and row == ROWS - 1) or (_pin_luff and index % COLS == 0)
 
 
 func _index(col: int, row: int) -> int:

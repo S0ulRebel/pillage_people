@@ -48,7 +48,7 @@ func _run() -> void:
 			"Mast/Lower", "Mast/Topmast", "Mast/Top", "Mast/Yard", "Mast/TopsailYard",
 			"Mast/TopsailFoot", "DeckFittings/Binnacle", "DeckFittings/MastCollar",
 			"DeckFittings/ForemastCollar", "DeckFittings/SternLantern", "Quarterdeck/Cabin",
-			"Quarterdeck/Stairs"]:
+			"Quarterdeck/Stairs", "Mizzen", "Mizzen/Boom", "Mizzen/Gaff", "DeckFittings/MizzenCollar"]:
 		var slot := ship.get_node_or_null(path)
 		check(slot != null and slot.get_node_or_null("Model") != null,
 				"%s has no model - its .glb is missing and the placeholder was built instead" % path)
@@ -57,7 +57,8 @@ func _run() -> void:
 	# binnacle are up on the quarterdeck, the capstan down on the gun deck.
 	var decks := {"Helm": Ship.QUARTERDECK_Y, "Capstan": Ship.GUN_DECK_Y,
 			"DeckFittings/Binnacle": Ship.QUARTERDECK_Y, "DeckFittings/MastCollar": Ship.DECK_Y,
-			"Quarterdeck/Cabin": Ship.DECK_Y, "Quarterdeck/Stairs": Ship.DECK_Y}
+			"Quarterdeck/Cabin": Ship.DECK_Y, "Quarterdeck/Stairs": Ship.DECK_Y,
+			"Mizzen": Ship.QUARTERDECK_Y, "DeckFittings/MizzenCollar": Ship.QUARTERDECK_Y}
 	for path in decks:
 		var box := _bounds(ship, ship.get_node_or_null(path))
 		check(absf(box.position.y - decks[path]) <= TOLERANCE,
@@ -131,10 +132,12 @@ func _run() -> void:
 	_check_beams(ship)
 	_check_quarterdeck(ship)
 	_check_windows(ship)
+	_check_castle_trim(ship)
 	_check_rail(ship)
 	_check_wale(ship)
 	_check_rigging(ship)
 	_check_flag_rings(ship)
+	await _check_mizzen(ship)
 	await _check_course_clears_cabin(ship)
 	await _check_flag_flies_downwind(ship)
 
@@ -585,6 +588,62 @@ func _check_windows(ship: Node3D) -> void:
 		for g in gaps:
 			mean += g / gaps.size()
 		check(gaps.max() - gaps.min() < 0.25 * mean, "the windows are %.2f to %.2f m apart; they should be even" % [gaps.min(), gaps.max()])
+	# Its texture is shrunk to what a 1.1 m window needs (tools/shrink_glb_texture.py): Tripo's
+	# 4096 px atlas was 64 MB of video memory, five times over.
+	for node in windows.get_child(0).find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := node as MeshInstance3D
+		for surface in mesh_node.mesh.get_surface_count():
+			var material := mesh_node.get_active_material(surface) as BaseMaterial3D
+			var texture := null if material == null else material.albedo_texture
+			check(texture != null and maxi(texture.get_width(), texture.get_height()) <= 1024,
+					"the window's texture is %s; it should be textured and no more than 1024 px" % (texture.get_size() if texture != null else "missing"))
+
+
+## The trim round the castle's top: swept from the wale's profile and textured, its top just
+## under the quarterdeck's edge, lying on the castle's walls all round and across the front,
+## above the windows and the door, and clear of the stairs and their rails.
+func _check_castle_trim(ship: Node3D) -> void:
+	var trim := ship.get_node_or_null("Quarterdeck/Trim") as MeshInstance3D
+	var material := null if trim == null else trim.material_override as BaseMaterial3D
+	check(trim != null and trim.mesh != null and material != null and material.albedo_texture != null,
+			"the castle's trim is missing or not swept from its profile")
+	if trim == null:
+		return
+	var box := _bounds(ship, trim)
+	check(box.end.y <= Ship.QUARTERDECK_Y + 0.001 and box.end.y > Ship.QUARTERDECK_Y - 0.03,
+			"the trim's top is at %.3f, not just under the quarterdeck's edge (%.2f)" % [box.end.y, Ship.QUARTERDECK_Y])
+	for path in ["Quarterdeck/Windows", "Quarterdeck/Door"]:
+		var under := _bounds(ship, ship.get_node_or_null(path))
+		check(under.end.y < box.position.y, "%s reaches %.2f, up into the trim (from %.2f)" % [path, under.end.y, box.position.y])
+	var cabin := _bounds(ship, ship.get_node_or_null("Quarterdeck/Cabin"))
+	check(box.end.z > cabin.end.z and box.position.x < cabin.position.x and box.end.x > cabin.end.x,
+			"the trim does not run round the whole castle (%s)" % box)
+	var landing := Ship.QUARTERDECK_STAIRS_AT.x
+	var near := INF
+	for v in trim.mesh.get_faces():
+		if v.z < Ship.CASTLE_FRONT_Z + 0.5:
+			near = minf(near, absf(v.x - landing))
+	check(near > Ship.STAIR_RAIL_OUT + 0.12, "the trim comes to %.2f m from the stairs' centre line, into the stair rails' posts" % near)
+
+	# On the wall: at every panel's middle round the castle, and across the front either side of
+	# the stairs, the wall is within 1.5 cm of the trim's inner face.
+	var space := ship.get_world_3d().direct_space_state
+	var wall: Array[Vector3] = (ship as Ship)._castle_wall(ship.get_node("Quarterdeck/Cabin"))
+	var spots: Array = []
+	for i in wall.size() - 1:
+		var mid := (wall[i] + wall[i + 1]) * 0.5
+		var out := (wall[i + 1] - wall[i]).cross(Vector3.UP).normalized()
+		if out.dot(mid - cabin.get_center()) < 0.0:
+			out = -out
+		spots.append([mid, out])
+	for x in [-2.5, -2.1, 0.4, 1.5, 2.5]:
+		spots.append([Vector3(x, 0.0, wall[0].z), Vector3.FORWARD])
+	for spot in spots:
+		var at := Vector3(spot[0].x, Ship.CASTLE_TRIM_Y, spot[0].z)
+		var dir: Vector3 = spot[1]
+		var wall_hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at + dir * 0.5), ship.to_global(at - dir * 0.5)))
+		var gap: float = (ship.to_local(wall_hit.position) - at).dot(dir) if not wall_hit.is_empty() else INF
+		check(absf(gap) <= 0.015, "the trim at (%.2f, %.2f) is %.3f m off the castle's wall" % [at.x, at.z, gap])
 
 
 ## The wale: swept from its profile and textured, closed round the hull, and lying on the hull's
@@ -688,6 +747,66 @@ func _check_flag_flies_downwind(ship: Node3D) -> void:
 			"the flag flies toward %s with the wind blowing toward %s" % [fly, blows])
 
 
+## The mizzen stands on the quarterdeck clear of everything there; its boom and gaff reach aft
+## from it over the binnacle and the wheel, the boom well above the helmsman's head; its
+## shrouds are set up with deadeyes just above the rail; and the spanker, blown abeam, stays
+## laced along its luff and foot and never comes down onto the deck.
+func _check_mizzen(ship: Node3D) -> void:
+	var mizzen := ship.get_node_or_null("Mizzen") as Node3D
+	var spanker := ship.get_node_or_null("Spanker")
+	if mizzen == null or spanker == null:
+		check(false, "the mizzen or its spanker is missing")
+		return
+	var mast := _bounds(ship, mizzen.get_node_or_null("Model"))
+	check(absf(mast.size.y - Ship.MIZZEN_HEIGHT) <= TOLERANCE, "the mizzen is %.2f m, not %.1f" % [mast.size.y, Ship.MIZZEN_HEIGHT])
+	check(mast.position.z > Ship.CASTLE_FRONT_Z + 0.4, "the mizzen stands at the quarterdeck's front edge, in the rail")
+	for path in ["Helm", "DeckFittings/Binnacle", "DeckFittings/CoilQuarterdeck", "Quarterdeck/Stairs"]:
+		check(not mast.intersects(_bounds(ship, ship.get_node_or_null(path))), "the mizzen stands in %s" % path)
+	var helm := _bounds(ship, ship.get_node_or_null("Helm"))
+	var boom := _bounds(ship, mizzen.get_node_or_null("Boom"))
+	var gaff := _bounds(ship, mizzen.get_node_or_null("Gaff"))
+	check(boom.position.y > Ship.HELM_FEET.y + 2.2 and boom.position.y > helm.end.y + 0.5,
+			"the boom comes down to %.2f, into the helmsman's head room" % boom.position.y)
+	check(boom.end.z > Ship.HELM_FEET.z and gaff.end.z > Ship.HELM_AT.z,
+			"the boom and gaff do not reach aft over the wheel (to %.2f and %.2f)" % [boom.end.z, gaff.end.z])
+	check(boom.position.z < mast.end.z + 0.1 and gaff.position.z < mast.end.z + 0.1,
+			"the boom or gaff does not start at the mast")
+	check(gaff.position.y > boom.end.y + 1.0, "the gaff is not above the boom")
+	var deadeyes: Array = mizzen.find_children("Deadeye*", "", true, false)
+	check(deadeyes.size() == 4 and deadeyes.all(func(d: Node) -> bool: return d.get_node_or_null("Model") != null),
+			"%d deadeyes with models on the mizzen's shrouds; there should be four" % deadeyes.size())
+	for node in deadeyes:
+		var d := _bounds(ship, node as Node3D)
+		check(d.position.y > Ship.QUARTERDECK_Y + 0.74 and d.position.y < Ship.QUARTERDECK_Y + 1.1,
+				"%s hangs from %.2f, not just above the quarterdeck's rail" % [node.name, d.position.y])
+
+	var wind := ship.get_tree().get_first_node_in_group("wind")
+	if wind == null:
+		check(false, "no wind to blow the spanker")
+		return
+	# From either beam in turn: the spanker is a fore-and-aft sail and fills on either tack.
+	for side in [1.0, -1.0]:
+		var abeam: Vector3 = ship.global_basis.x * side
+		for i in 120:
+			wind.set("_angle", atan2(abeam.x, abeam.z))
+			await physics_frame
+		var blows := ship.global_basis.inverse() * (wind.get("direction") as Vector3)
+		var points := spanker.get("_pos") as PackedVector3Array
+		var lowest := INF
+		var off_luff := 0.0
+		var belly := 0.0
+		for i in points.size():
+			lowest = minf(lowest, points[i].y)
+			if absf(points[i].x) > absf(belly):
+				belly = points[i].x
+			if i % Sail.COLS == 0:
+				off_luff = maxf(off_luff, absf(points[i].x))
+		check(lowest >= boom.position.y, "the spanker comes down to %.2f, under the boom (%.2f)" % [lowest, boom.position.y])
+		check(off_luff < 0.01, "the spanker's luff has blown %.2f m off the mast" % off_luff)
+		check(absf(belly) > 0.2 and signf(belly) == signf(blows.x),
+				"with the wind blowing toward x %.1f the spanker bellies %.2f m across" % [blows.x, belly])
+
+
 ## The course's foot hangs free. With the breeze from dead astern it swings back over the
 ## quarterdeck; the cloth must drape on the cabin, never hang inside it.
 func _check_course_clears_cabin(ship: Node3D) -> void:
@@ -702,14 +821,19 @@ func _check_course_clears_cabin(ship: Node3D) -> void:
 		wind.set("_angle", atan2(aft.x, aft.z))
 		await physics_frame
 	var cabin := _bounds(ship, cabin_node).grow(-0.01)
+	var mizzen := _bounds(ship, ship.get_node_or_null("Mizzen/Model")).grow(-0.01)
+	var in_mizzen := 0
 	var inside := 0
 	var reach := -INF
 	for p in sail.get("_pos") as PackedVector3Array:
 		reach = maxf(reach, p.z)
 		if cabin.has_point(p):
 			inside += 1
+		if mizzen.has_point(p):
+			in_mizzen += 1
 	check(reach > cabin.position.z, "the test wind never swung the course back to the cabin (reached z %.2f)" % reach)
 	check(inside == 0, "%d points of the course hang inside the stern cabin" % inside)
+	check(in_mizzen == 0, "%d points of the course hang through the mizzen" % in_mizzen)
 
 
 ## A ray straight down in ship space from `from`, `length` long.

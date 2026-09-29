@@ -65,9 +65,12 @@ Done so far:
 - It replaces Tripo's cabin_house.glb, a 3.8 m box that could not follow a hull that narrows to a point over its last four metres. That model stays in `cabin/` but is not placed.
 - STAIRS_260 (copied to `art/models/ship/deck/stairs_260.glb`) climbs to the quarterdeck on the port side, from just aft of the stair opening. A rail runs up each side, laid from the same parts as every other rail. Tripo's sheared stair rail (`deck/rail_stair.glb`) is no longer placed.
 - Tripo's door leaf is on the front wall, shut. Tripo's arched window (`cabin/cabin_window.glb`, used as delivered, scaled to 1.1 m) is repeated along the castle's wall, the way the rail follows its path. ship.gd reads the wall's outline off the castle model, spreads CASTLE_WINDOW_COUNT windows (5) evenly round it from front corner to front corner, and centres each on the wall panel it falls on, facing out. The Ship node's `window_offset` (inspector, metres along each window's normal, negative into the wall) moves them all in or out while you look.
+  - Its 4096 px texture was 64 MB of video memory for a 1.1 m window. `python tools/shrink_glb_texture.py art/models/ship/cabin/cabin_window.glb` shrank it to 1024 px, in the model and in the copy Godot extracted from it, without touching the geometry. Godot's own size limit would live in the `.import` file, which is not kept in git.
+- **Trim:** the wale's profile is swept round the castle's walls with its top just under the quarterdeck's edge, where the rail's base overhangs them. It runs round the stern and across the front wall, stopping either side of the stairs. At both ends it turns into the wall, so the stairs see a returned end, not an open one.
 - The castle, stairs and hull collide as their exact meshes.
 - The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
-- The course's foot hangs free, so a following wind swings it back toward the castle. The cloth is kept out of the castle's box.
+- **Mizzen:** the foremast's model again (4.2 m), on the quarterdeck between its front edge and the binnacle. It carries the spanker, a fore-and-aft sail laced to the mast, a boom and a gaff. Both spars are the topsail yard's model stretched to length, and they reach aft over the wheel, the boom 2.5 m up, clear of the helmsman's head. The spanker's luff is laced down the mast (`Sail.pin_luff`), so only its leech is free and it fills on either tack. Two shrouds a side hold the mast, with deadeyes just above the quarterdeck's rail. A topping lift holds up the boom's end and a peak halyard the gaff's.
+- The course's foot hangs free, so a following wind swings it back toward the castle. The cloth is kept out of the castle's box and away from the mizzen's foot.
 
 **The rail:** the solid wall round the weather deck is gone, bow to stern, and a rail stands in its place.
 - `python tools/strip_game_bulwarks.py` takes the top tier off the game hull down to the deck. The tier below ends in a flat wall top, 0.2 m wide along the sides.
@@ -107,7 +110,10 @@ Done so far:
 - a part sits off its mark;
 - the castle's sides do not meet the hull's;
 - the way up the stairs to the wheel has a step the captain cannot take, or no room for him;
-- the course hangs inside the castle;
+- the course hangs inside the castle or through the mizzen;
+- the castle's trim is off the wall, into the stairs' rails, or over a window or the door;
+- the mizzen stands in a fitting, its boom comes down into the helmsman's head room, or the spanker's luff comes off the mast;
+- the window's texture is over 1024 px;
 - a rail post is off the hull's edge or unevenly spaced, the rail's collision has a gap, or a wall still stands above the deck.
 
 The curved bow and stern rails keep Tripo's curves, which do not follow the kit outlines, so they are not placed on the ship; neither are the separate cabin walls, transom, corners, door, quarterdeck panels and gallery brackets. Each report lists what was dropped and why.

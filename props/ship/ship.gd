@@ -51,6 +51,13 @@ const CASTLE_WINDOW_COUNT := 5
 const CASTLE_WINDOW_MARGIN := 0.8
 ## How high the windows' sills are above the weather deck.
 const CASTLE_WINDOW_SILL := 0.9
+## The trim round the castle's top: the wale's profile swept along its walls with its top just
+## under the quarterdeck's edge, where the rail's base overhangs them.
+const CASTLE_TRIM_Y := DECK_Y + 2.6 - 0.11
+## Across the front wall the trim stops this far either side of the stairs' centre line and
+## turns into the wall, clear of the stair rails (STAIR_RAIL_OUT, with their 0.24 m posts)
+## by 2 cm, its return standing 0.2 m out toward them.
+const CASTLE_TRIM_STAIRS := 0.96
 ## The quarterdeck's walking surface, the castle's roof: one kit tier (2.6 m) above the
 ## weather deck, which is exactly where STAIRS_260 lands.
 const QUARTERDECK_Y := DECK_Y + 2.6
@@ -67,6 +74,17 @@ const HELM_REACH := 1.6
 const MAST_AT := Vector3(0.0, DECK_Y, 9.0)
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
+## Deck contact of the mizzen, on the quarterdeck between its front edge and the binnacle, aft
+## of where the course's foot drapes when the wind is astern. The foremast's model again, 4.2 m.
+const MIZZEN_AT := Vector3(0.0, QUARTERDECK_Y, 11.5)
+const MIZZEN_HEIGHT := 4.2
+## The spanker's spars, mizzen-local: the boom from its jaw on the mast aft to past the stern,
+## high over the binnacle, the wheel and the helmsman's head; the gaff from higher up the mast,
+## peaking aft above the mast head.
+const BOOM_FROM := Vector3(0.0, 2.5, 0.2)
+const BOOM_TO := Vector3(0.0, 2.5, 5.2)
+const GAFF_FROM := Vector3(0.0, 3.85, 0.2)
+const GAFF_TO := Vector3(0.0, 4.55, 3.8)
 ## Heel of the bowsprit, resting on the deck just inboard of the stem. The spar's own length
 ## runs forward from here, over the stem head between the two knightheads the rail ends on. A
 ## real F03_BOWSPRIT drops in on this node; its heel is 0.3 m across.
@@ -274,6 +292,7 @@ func _ready() -> void:
 	_build_top_rail()
 	_build_shrouds()
 	_build_foremast()
+	_build_mizzen()
 	_build_bowsprit()
 	_build_bobstay()
 	_build_rudder()
@@ -554,6 +573,7 @@ func _build_quarterdeck() -> void:
 		_box(cabin, Vector3(0.0, QUARTERDECK_Y - 1.3, CASTLE_FRONT_Z + length * 0.5), Vector3(5.6, 2.6, length), timber)
 		_solid(cabin)
 	_build_windows(quarterdeck, cabin)
+	_build_castle_trim(quarterdeck, cabin)
 	# Starboard of the stairs, its back against the front wall. The model's origin is the foot
 	# of its leaf, halfway through its depth.
 	var door := Node3D.new()
@@ -782,6 +802,75 @@ func _build_foremast() -> void:
 	mast.add_child(body)
 
 
+## A short mast on the quarterdeck, carrying the spanker: a fore-and-aft sail laced between
+## a boom and a gaff that reach aft from it. Two shrouds a side hold it, set up to the
+## quarterdeck's rail with deadeyes like the main's; the topping lift holds the boom's end up,
+## and the peak halyard the gaff's.
+func _build_mizzen() -> void:
+	if get_node_or_null("Mizzen") != null:
+		return
+	var mast := Node3D.new()
+	mast.name = "Mizzen"
+	mast.position = MIZZEN_AT
+	add_child(mast)
+	var timber := _flat(Color(0.55, 0.36, 0.18))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	# The foremast's model is the same 4.2 m from its deck contact.
+	if not _fit_model(mast, RIGGING + "foremast.glb"):
+		_spar(mast, MIZZEN_HEIGHT * 0.5, 0.2, 0.12, MIZZEN_HEIGHT, timber)
+		_spar(mast, 1.1, 0.24, 0.24, 0.08, iron)
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var col := CylinderShape3D.new()
+	col.radius = 0.22
+	col.height = MIZZEN_HEIGHT
+	shape.shape = col
+	shape.position = Vector3(0.0, MIZZEN_HEIGHT * 0.5, 0.0)
+	body.add_child(shape)
+	mast.add_child(body)
+	_boom(mast, "Boom", BOOM_FROM, BOOM_TO, timber)
+	_boom(mast, "Gaff", GAFF_FROM, GAFF_TO, timber)
+	var head := Vector3(0.0, MIZZEN_HEIGHT - 0.1, 0.0)
+	_rope(mast, head + Vector3(0.0, 0.0, 0.15), BOOM_TO - Vector3(0.0, 0.0, 0.15), 0.015, rope)
+	_rope(mast, head + Vector3(0.0, 0.0, 0.15), GAFF_FROM.lerp(GAFF_TO, 0.6), 0.015, rope)
+
+	var shrouds := Node3D.new()
+	shrouds.name = "Shrouds"
+	mast.add_child(shrouds)
+	for side in [-1.0, 1.0]:
+		for i in 2:
+			var top := Vector3(side * 0.16, GAFF_FROM.y - 0.25, 0.0)
+			var foot := Vector3(side * 2.95, 0.8, [-0.7, -0.2][i])
+			_rope(shrouds, top, foot, 0.02, rope)
+			var up := (top - foot).normalized()
+			var deadeye := Node3D.new()
+			deadeye.name = "Deadeye%s%d" % ["Starboard" if side > 0.0 else "Port", i]
+			var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
+			deadeye.basis = Basis(along, up, along.cross(up))
+			deadeye.position = foot + up * DEADEYE_ABOVE_RAIL
+			shrouds.add_child(deadeye)
+			_fit_model(deadeye, RIGGING + "deadeye.glb")
+
+
+## A spar from `from` to `to` under `parent`: the topsail yard's model (5.2 m along X, tapering
+## to both ends from its sling) stretched to the length, or a plain tapered pole.
+func _boom(parent: Node3D, spar_name: String, from: Vector3, to: Vector3, timber: Material) -> void:
+	var spar := Node3D.new()
+	spar.name = spar_name
+	var along := (to - from).normalized()
+	var up := (Vector3.UP - along * along.dot(Vector3.UP)).normalized()
+	var length := from.distance_to(to)
+	spar.transform = Transform3D(Basis(along * (length / 5.2), up, along.cross(up)), (from + to) * 0.5)
+	parent.add_child(spar)
+	if _fit_model(spar, RIGGING + "topsail_yard.glb"):
+		return
+	# The placeholder runs along its local Y.
+	var across := along.cross(up)
+	spar.basis = Basis(across, along, across.cross(along))
+	_spar(spar, 0.0, 0.09, 0.07, length, timber)
+
+
 ## A 3 m spar out of the stem, rising a little as it goes forward, until a real bowsprit replaces it.
 ## The node is named Bowsprit and its origin is the mount, so the swap keeps this place.
 func _build_bowsprit() -> void:
@@ -923,7 +1012,7 @@ func _build_deck_fittings() -> void:
 		binnacle.add_child(body)
 
 	# The collar's hole is 0.52 m across, for the mainmast's 0.5 m foot; the foremast is thinner.
-	for spot in [["MastCollar", MAST_AT], ["ForemastCollar", FOREMAST_AT]]:
+	for spot in [["MastCollar", MAST_AT], ["ForemastCollar", FOREMAST_AT], ["MizzenCollar", MIZZEN_AT]]:
 		var collar := Node3D.new()
 		collar.name = spot[0]
 		collar.position = spot[1]
@@ -1093,6 +1182,36 @@ func _build_windows(quarterdeck: Node3D, cabin: Node3D) -> void:
 		window.scale = Vector3.ONE * WINDOW_SCALE
 		windows.add_child(window)
 		_fit_model(window, CABIN_PARTS + "cabin_window.glb")
+
+
+## The castle's trim, one mesh: the wale's profile swept along the castle's walls at
+## CASTLE_TRIM_Y, so they end in a moulding under the quarterdeck's rail instead of a bare
+## edge. It runs from the stairs across the front wall to the port corner, round the stern,
+## and back across the front to the stairs' other side. At both ends it turns into the wall,
+## so its open ends are inside the castle and the stairs see a returned end, as a joiner
+## finishes a moulding.
+func _build_castle_trim(quarterdeck: Node3D, cabin: Node3D) -> void:
+	var wall := _castle_wall(cabin)
+	if wall.size() < 2:
+		return
+	var front := wall[0].z
+	var into := front + 0.25
+	var port_end := QUARTERDECK_STAIRS_AT.x - CASTLE_TRIM_STAIRS
+	var starboard_end := QUARTERDECK_STAIRS_AT.x + CASTLE_TRIM_STAIRS
+	# Round the same way as the wale, port side aft first, so its profile stands out from the walls.
+	var line: Array[Vector3] = [Vector3(port_end, CASTLE_TRIM_Y, into), Vector3(port_end, CASTLE_TRIM_Y, front)]
+	for i in range(wall.size() - 1, -1, -1):
+		line.append(Vector3(wall[i].x, CASTLE_TRIM_Y, wall[i].z))
+	line.append_array([Vector3(starboard_end, CASTLE_TRIM_Y, front), Vector3(starboard_end, CASTLE_TRIM_Y, into)])
+	var profile := _rail_profile("wale", _flat(Color(0.45, 0.28, 0.14)))
+	var sweep := SurfaceTool.new()
+	sweep.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_sweep(sweep, line, profile)
+	var trim := MeshInstance3D.new()
+	trim.name = "Trim"
+	trim.mesh = sweep.commit()
+	trim.material_override = profile["material"]
+	quarterdeck.add_child(trim)
 
 
 ## The castle's wall round the stern, at the deck, as a line from its starboard front corner to
@@ -1468,7 +1587,10 @@ func _build_sail() -> void:
 		var box := _mesh_bounds(cabin)
 		box.position += cabin.position
 		sail.call("keep_out", box.grow(0.05))
+	# Nor round the mizzen's foot, forward of the spanker.
+	sail.call("keep_out", AABB(MIZZEN_AT - Vector3(0.3, 0.0, 0.3), Vector3(0.6, MIZZEN_HEIGHT, 0.6)))
 	add_child(sail)
+	_build_spanker()
 	if get_node_or_null("Foremast") == null or get_node_or_null("Bowsprit") == null:
 		return
 	var old_jib := get_node_or_null("Jib")
@@ -1484,6 +1606,26 @@ func _build_sail() -> void:
 	jib.name = "Jib"
 	jib.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.35, 0.0, 0.0))
 	add_child(jib)
+
+
+## The spanker, laced to the mizzen's gaff, boom and mast: its head just under the gaff, its
+## foot just over the boom, both from just aft of the mast to a little short of the spars'
+## ends, and its luff down the mast between them. Only the leech is free.
+func _build_spanker() -> void:
+	if get_node_or_null("Mizzen") == null:
+		return
+	var old := get_node_or_null("Spanker")
+	if old != null:
+		old.free()
+	var head_from := MIZZEN_AT + GAFF_FROM.lerp(GAFF_TO, 0.04) - Vector3(0.0, 0.1, 0.0)
+	var head_to := MIZZEN_AT + GAFF_FROM.lerp(GAFF_TO, 0.94) - Vector3(0.0, 0.1, 0.0)
+	var foot_from := MIZZEN_AT + BOOM_FROM.lerp(BOOM_TO, 0.03) + Vector3(0.0, 0.1, 0.0)
+	var foot_to := MIZZEN_AT + BOOM_FROM.lerp(BOOM_TO, 0.9) + Vector3(0.0, 0.1, 0.0)
+	var spanker := SailScript.new() as Node3D
+	spanker.name = "Spanker"
+	spanker.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.3, 0.0, 0.0))
+	spanker.call("pin_luff", true)
+	add_child(spanker)
 
 
 ## A shorter course above the lookout. The topmast was a bare pole past the platform.
