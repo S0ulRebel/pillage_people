@@ -34,8 +34,7 @@ const DECK_Y := 5.2
 ## How far from the hull a climb still counts. The collision stops him short of the planks.
 const BOARD_MARGIN := 3.0
 ## Where a climb puts his feet: centreline, between the stair opening and the mainmast, a metre
-## above the deck so he drops onto it instead of spawning in the slab. On the centreline he is
-## out of reach of the guns below, which measure their reach straight through the deck.
+## above the deck so he drops onto it instead of spawning in the slab.
 const BOARD_SPOT := Vector3(0.0, DECK_Y + 1.0, 7.9)
 ## Front face of the stern castle (art/models/ship/cabin/stern_castle.glb, built by
 ## tools/build_stern_castle.py, whose FRONT_Z must match). The castle is the hull carried up

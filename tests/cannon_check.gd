@@ -456,14 +456,23 @@ func _check_through_deck(scene: Node3D) -> void:
 		return
 	if player.is_manning():
 		player.try_cannon()
-	var gun := ship.get_node_or_null("Guns/CannonStarboard7") as Cannon
-	check(gun != null, "the ship has no starboard gun at z 7 to stand over")
+	# The starboard broadside gun nearest z 7, wherever the ship spreads its ports.
+	var gun: Cannon = null
+	for node in ship.find_children("*", "", true, false):
+		var candidate := node as Cannon
+		if candidate == null:
+			continue
+		var at := ship.to_local(candidate.global_position)
+		if at.x > 0.0 and (gun == null or absf(at.z - 7.0) < absf(ship.to_local(gun.global_position).z - 7.0)):
+			gun = candidate
+	check(gun != null, "the ship has no starboard gun to stand over")
 	if gun == null:
 		return
+	var below := ship.to_local(gun.global_position)
 
 	# Set and asked in the same frame, so neither gravity nor the swell moves him in between.
 	# Straight over the gun, on the weather deck: in reach by distance, one deck up.
-	player.global_position = ship.to_global(Vector3(1.2, ship.DECK_Y, 8.0))
+	player.global_position = ship.to_global(Vector3(below.x, ship.DECK_Y, below.z))
 	var span: float = player.global_position.distance_to(gun.global_position)
 	var above: Node3D = player._near_cannon()
 	print("through deck: %.2f m from the gun below (reach %.2f), offered %s, boarding %s"
@@ -477,7 +486,7 @@ func _check_through_deck(scene: Node3D) -> void:
 			"on the weather deck over a gun, boarding() still says E would do something")
 
 	# Beside the same gun on its own deck: still his to man.
-	player.global_position = ship.to_global(Vector3(1.2, ship.GUN_DECK_Y, 7.0))
+	player.global_position = ship.to_global(Vector3(1.2, ship.GUN_DECK_Y, below.z))
 	var beside: Node3D = player._near_cannon()
 	print("gun deck: %.2f m from the gun, feet %.2f m above its floor, offered %s"
 			% [player.global_position.distance_to(gun.global_position),
