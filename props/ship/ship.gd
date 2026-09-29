@@ -380,7 +380,12 @@ func _buoy(delta: float) -> void:
 	var stern_sub := _submerged(_surface(stern.x, stern.z) - stern_y)
 	var port_sub := _submerged(_surface(mid.x - starboard.x * half_beam, mid.z - starboard.z * half_beam) - port_y)
 	var star_sub := _submerged(_surface(mid.x + starboard.x * half_beam, mid.z + starboard.z * half_beam) - star_y)
-	_rise += (lift * mid_sub - gravity) * delta
+	# The heave is the whole waterplane's, not the water at midships. Taken from one point, the
+	# hull rode the long swell's full rise and fall like a barrel, so any few seconds of it sat
+	# half a metre off the draft. Heel cancels out of this mean: bow and stern, port and
+	# starboard move in opposite senses about the keel at midships.
+	var hull_sub := (mid_sub + bow_sub + stern_sub + port_sub + star_sub) / 5.0
+	_rise += (lift * hull_sub - gravity) * delta
 	# Critical damping, and not only while submerged. Scaled by the submerged fraction the
 	# drag vanished the moment the keel cleared a crest, so the hull fell and then launched
 	# itself back out.
