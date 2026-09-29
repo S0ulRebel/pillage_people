@@ -83,7 +83,9 @@ func _run() -> void:
 	check(absf(topmast.end.y - (Ship.DECK_Y + 8.5)) <= TOLERANCE,
 			"the topmast ends at %.3f, not 8.5 m above the deck" % topmast.end.y)
 	var fore := _bounds(ship, ship.get_node_or_null("Foremast"))
-	check(absf(fore.size.y - 4.2) <= TOLERANCE, "the foremast is %.2f m, not 4.2" % fore.size.y)
+	check(absf(fore.size.y - Ship.FOREMAST_HEIGHT) <= TOLERANCE and absf(fore.position.y - Ship.DECK_Y) <= TOLERANCE,
+			"the foremast stands %.2f to %.2f, not %.1f m up from the deck" % [fore.position.y, fore.end.y, Ship.FOREMAST_HEIGHT])
+	check(fore.size.y >= 0.75 * (topmast.end.y - Ship.DECK_Y), "the foremast is %.2f m, a stub beside the main's %.2f" % [fore.size.y, topmast.end.y - Ship.DECK_Y])
 	var yard := _bounds(ship, ship.get_node_or_null("Mast/Yard"))
 	check(absf(yard.size.x - 8.0) <= TOLERANCE and yard.size.z < 0.5,
 			"the course yard is %.2f m across and %.2f deep - it should run 8 m athwartships"
@@ -99,8 +101,12 @@ func _run() -> void:
 
 	# The bowsprit reaches forward of its mount and rises, as the jib and bobstay expect.
 	var sprit := _bounds(ship, ship.get_node_or_null("Bowsprit"))
-	check(sprit.position.z < Ship.BOWSPRIT_AT.z - 2.5, "the bowsprit does not reach forward of its mount")
+	var reach := Ship.BOWSPRIT_LENGTH * cos(deg_to_rad(Ship.BOWSPRIT_RISE))
+	check(absf(Ship.BOWSPRIT_AT.z - sprit.position.z - reach) <= 0.1,
+			"the bowsprit reaches %.2f m forward of its mount; at %.1f m long it should reach %.2f" % [Ship.BOWSPRIT_AT.z - sprit.position.z, Ship.BOWSPRIT_LENGTH, reach])
 	check(sprit.end.y > Ship.BOWSPRIT_AT.y + 0.4, "the bowsprit does not rise toward its tip")
+	_check_bowsprit_clears_knightheads(ship)
+	_check_jib(ship)
 
 	# The rudder blade hangs aft of its hinge; the strip is forward of it.
 	var blade := _bounds(ship, ship.get_node_or_null("Rudder/Model"))
@@ -153,6 +159,52 @@ func _run() -> void:
 				textured = true
 	check(textured, "the hull has no plank texture")
 	_finish()
+
+
+## The bowsprit passes between the knightheads, the rail's first posts either side of it at the
+## bow, without touching them.
+func _check_bowsprit_clears_knightheads(ship: Node3D) -> void:
+	var post_half := ((ship.get_node("Rail/Posts") as MultiMeshInstance3D).multimesh.mesh.get_aabb().size.x) * 0.5
+	var knightheads: Array[Vector3] = []
+	for line in ship.get_node("Rail").get_meta("post_lines"):
+		for at in line:
+			var o := (at as Transform3D).origin
+			if o.z < Ship.BOWSPRIT_AT.z and absf(o.y - Ship.DECK_Y) < 0.01:
+				knightheads.append(o)
+	check(knightheads.size() == 2, "%d knightheads at the bow; there should be one either side of the bowsprit" % knightheads.size())
+	var to_ship := ship.global_transform.affine_inverse()
+	var widest := 0.0
+	var model := ship.get_node("Bowsprit/Model") as Node3D
+	for m in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := m as MeshInstance3D
+		for v in mesh_node.mesh.get_faces():
+			var p: Vector3 = to_ship * mesh_node.global_transform * v
+			for k in knightheads:
+				if absf(p.z - k.z) <= post_half:
+					widest = maxf(widest, absf(p.x))
+	for k in knightheads:
+		check(widest < absf(k.x) - post_half, "the bowsprit is %.3f m out from the centreline between the knightheads, into their posts (%.3f)" % [widest, absf(k.x) - post_half])
+
+
+## The jib: its head on the forward side of the foremast's head, its foot along the bowsprit,
+## short of its tip; and the bobstay holds the bowsprit down from its tip.
+func _check_jib(ship: Node3D) -> void:
+	var jib := ship.get_node_or_null("Jib")
+	var fore := _bounds(ship, ship.get_node_or_null("Foremast"))
+	var sprit := _bounds(ship, ship.get_node_or_null("Bowsprit"))
+	if jib == null:
+		check(false, "the jib is missing")
+		return
+	var head_from: Vector3 = jib.get("_head_from")
+	var head_to: Vector3 = jib.get("_head_to")
+	var foot_to: Vector3 = jib.get("_foot_to")
+	check(head_to.y <= fore.end.y and head_to.y > fore.position.y + fore.size.y * 0.9 and head_from.y > fore.position.y + fore.size.y * 0.75
+			and head_from.y < head_to.y and head_to.z < Ship.FOREMAST_AT.z,
+			"the jib's head runs %.2f to %.2f, not on the forward side of the foremast's head (top %.2f)" % [head_from.y, head_to.y, fore.end.y])
+	check(foot_to.z > sprit.position.z and foot_to.z < sprit.position.z + 0.6,
+			"the jib's foot ends at z %.2f; the bowsprit's tip is at %.2f" % [foot_to.z, sprit.position.z])
+	var stay := _bounds(ship, ship.get_node_or_null("Bobstay"))
+	check(absf(stay.position.z - sprit.position.z) < 0.3, "the bobstay reaches z %.2f, not the bowsprit's tip at %.2f" % [stay.position.z, sprit.position.z])
 
 
 ## The gunports: a hole in the gun deck's wall at every port, open through, solid wall between
