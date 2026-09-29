@@ -65,7 +65,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 
 
 func _under_terrain() -> bool:
-	return get_parent() != null and get_parent().is_in_group(&"terrain")
+	return get_parent() != null and get_parent().is_in_group(Groups.TERRAIN)
 
 
 ## Called by the terrain once its ground is final. The terrain is what it asks for heights.

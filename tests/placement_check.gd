@@ -130,7 +130,7 @@ func _run() -> void:
 	# --- and the thing that started it: does the real cannon reach the ground ---
 	var landed := 0
 	var floating: Array[String] = []
-	for node in scene.get_tree().get_nodes_in_group("cannons"):
+	for node in scene.get_tree().get_nodes_in_group(Groups.CANNONS):
 		var gun := node as Node3D
 		if not gun.get("sit_on_ground"):
 			continue

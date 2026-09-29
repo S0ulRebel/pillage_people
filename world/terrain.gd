@@ -255,7 +255,7 @@ var last_rebuilt := 0
 func _init() -> void:
 	# TerrainStamp, Tunnel and GrassPatch check for this group to warn when placed outside
 	# the terrain.
-	add_to_group(&"terrain")
+	add_to_group(Groups.TERRAIN)
 
 
 func _ready() -> void:

@@ -138,7 +138,7 @@ func _ready() -> void:
 	if not Engine.is_editor_hint():
 		# Joined at runtime rather than ticked in the scene file, so a cannon dropped anywhere
 		# is found without anyone remembering to set a group on it.
-		add_to_group("cannons")
+		add_to_group(Groups.CANNONS)
 
 
 ## The union of every child mesh's bounds, in THIS node's space. Returns an empty AABB when

@@ -2003,7 +2003,7 @@ func _build_flag() -> void:
 ## Turns the flag's fly downwind, with the breeze the sails are blown by.
 func _fly_flag() -> void:
 	var flag := get_node_or_null("Mast/Flag") as Node3D
-	var wind := get_tree().get_first_node_in_group("wind") if is_inside_tree() else null
+	var wind := get_tree().get_first_node_in_group(Groups.WIND) if is_inside_tree() else null
 	if flag == null or wind == null:
 		return
 	var down: Vector3 = flag.get_parent_node_3d().global_basis.inverse() * (wind.get("direction") as Vector3)

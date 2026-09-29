@@ -26,7 +26,7 @@ var _cloud_drift := Vector2.ZERO
 
 
 func _ready() -> void:
-	add_to_group("wind")
+	add_to_group(Groups.WIND)
 	direction = Vector3(sin(_angle), 0.0, cos(_angle))
 	_ocean = get_parent().get_node_or_null("Ocean") as Ocean
 

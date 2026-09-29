@@ -712,7 +712,7 @@ const GUN_FLOOR_GAP := 1.4
 func _near_cannon() -> Node3D:
 	var best: Node3D = null
 	var closest := INF
-	for node in get_tree().get_nodes_in_group("cannons"):
+	for node in get_tree().get_nodes_in_group(Groups.CANNONS):
 		var gun := node as Node3D
 		if gun == null or not gun.has_method("reach"):
 			continue

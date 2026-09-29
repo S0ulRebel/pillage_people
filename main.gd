@@ -530,7 +530,7 @@ func _loose_shark(around: Vector3) -> void:
 ## about it, the same split as shoot_at and aim_point.
 func _watch_cannons() -> void:
 	var sfx := get_node_or_null("Sfx")
-	for node in get_tree().get_nodes_in_group("cannons"):
+	for node in get_tree().get_nodes_in_group(Groups.CANNONS):
 		var gun := node as Node3D
 		if gun == null or not gun.has_signal("manned_changed"):
 			continue

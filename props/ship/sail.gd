@@ -121,7 +121,7 @@ func _physics_process(delta: float) -> void:
 	var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 	var down := ship.global_transform.basis.inverse() * Vector3.DOWN
 	var push := Vector3.ZERO
-	var wind := get_tree().get_first_node_in_group("wind")
+	var wind := get_tree().get_first_node_in_group(Groups.WIND)
 	if wind != null and wind.has_method("blow"):
 		push = ship.global_transform.basis.inverse() * wind.blow()
 	var accel := down * gravity + push

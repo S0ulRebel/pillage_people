@@ -148,7 +148,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 
 
 func _under_terrain() -> bool:
-	return get_parent() != null and get_parent().is_in_group(&"terrain")
+	return get_parent() != null and get_parent().is_in_group(Groups.TERRAIN)
 
 
 ## The ground height at a world point once this stamp has been applied, both in world metres.

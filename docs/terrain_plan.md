@@ -72,12 +72,13 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   (`_stamp_rects` / `height_exact()`). Image stamps are read from the baked grid. Otherwise the
   island stamp, which covers everything, would slow every ground lookup.
 
-## Phase 1: group name constants
+## Phase 1: group name constants (done)
 
 - Add `systems/groups.gd` (`class_name Groups`) with `TERRAIN`, `CANNONS` and `WIND`.
 - Replace the string names in `world/terrain.gd`, `world/terrain_stamp/terrain_stamp.gd`,
   `world/tunnel.gd`, `props/grass/grass_patch.gd`, `props/cannon/cannon.gd`,
-  `actors/captain/captain.gd`, `world/wind.gd`, `main.gd` and the tests.
+  `actors/captain/captain.gd`, `world/wind.gd`, `props/ship/ship.gd`, `props/ship/sail.gd`,
+  `main.gd` and the tests.
 - **Done when:** no group names are left as plain strings, and the tests pass.
 
 ## Phase 2: the reef becomes a ScatterPatch

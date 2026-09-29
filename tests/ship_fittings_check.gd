@@ -976,7 +976,7 @@ func _check_flag_rings(ship: Node3D) -> void:
 
 ## The flag streams downwind: with the breeze from abeam, its fly points the way it blows.
 func _check_flag_flies_downwind(ship: Node3D) -> void:
-	var wind := ship.get_tree().get_first_node_in_group("wind")
+	var wind := ship.get_tree().get_first_node_in_group(Groups.WIND)
 	var flag := ship.get_node_or_null("Mast/Flag") as Node3D
 	if wind == null or flag == null:
 		check(false, "no wind or no flag to test the flag against")
@@ -1024,7 +1024,7 @@ func _check_mizzen(ship: Node3D) -> void:
 		check(d.position.y > Ship.QUARTERDECK_Y + 0.74 and d.position.y < Ship.QUARTERDECK_Y + 1.1,
 				"%s hangs from %.2f, not just above the quarterdeck's rail" % [node.name, d.position.y])
 
-	var wind := ship.get_tree().get_first_node_in_group("wind")
+	var wind := ship.get_tree().get_first_node_in_group(Groups.WIND)
 	if wind == null:
 		check(false, "no wind to blow the spanker")
 		return
@@ -1054,7 +1054,7 @@ func _check_mizzen(ship: Node3D) -> void:
 ## The course's foot hangs free. With the breeze from dead astern it swings back over the
 ## quarterdeck; the cloth must drape on the cabin, never hang inside it.
 func _check_course_clears_cabin(ship: Node3D) -> void:
-	var wind := ship.get_tree().get_first_node_in_group("wind")
+	var wind := ship.get_tree().get_first_node_in_group(Groups.WIND)
 	var sail := ship.get_node_or_null("Sail")
 	var cabin_node := ship.get_node_or_null("Quarterdeck/Cabin") as Node3D
 	if wind == null or sail == null or cabin_node == null:
