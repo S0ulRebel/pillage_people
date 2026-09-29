@@ -278,3 +278,23 @@ project already rejects view-dependent outlines).
   little darker than the panels': the sun lights it at about 0.84, and a colour can't be
   brighter than white.
 - `tests/ground_check.gd` and `tests/material_views.gd` pass.
+
+### Step 6: clear shallows (done)
+
+- The cause of the opaque teal: the sea measures how much water the eye looks through from the
+  depth buffer, and under the Mobile renderer in the test captures that buffer came back empty
+  over the whole sea. Every pixel saw the far plane, the path ran to its 52 m cap, and the
+  shallows were as opaque as the deep sea - the seabed, its caustics and the wet sand hidden
+  under flat teal. Where the buffer has nothing, the path is now the water column over the
+  seabed (the height map) along the eye's slant. Whether the buffer is empty on an iPad too is
+  not known; with it working, the two measures agree.
+- Absorption retuned (it had been set against the broken 52 m path) and a new `inscatter`
+  (the water's own colour added per metre, in every channel) against panel 10's shallows. The
+  18 m view now measures (36-58, 163, 141-150) a few metres out, against the panels'
+  (30-70, 128-167, 134-157); the seabed, its weed and its caustics show through, as in the
+  panels' "shallow (sand)" water. Close up the water is still a little greener than panel 9's.
+- `material_views` passes, with the caustics now changing 12,701 samples through the water
+  against 5,789 before. `underwater_view` fails only on its 9 mm shallows difference, as it did
+  before step 2. `sun_view` fails its horizon check (a step of 0.087 between rows) - and fails
+  it with the files from before this step too (0.081), so it is not from this.
+- `tests/foam_view.gd` also captures the close view with the sea hidden (`seabed_close.png`).
