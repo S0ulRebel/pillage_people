@@ -38,6 +38,7 @@ render_mode blend_mix, depth_draw_never, cull_disabled, unshaded, fog_disabled;
 
 #include "res://world/waves.gdshaderinc"
 #include "res://world/cloud_shadow.gdshaderinc"
+#include "res://world/foam.gdshaderinc"
 
 // ---- Engine inputs ----------------------------------------------------------------------
 // The opaque pass's depth and colour, as drawn before the water. They are what the water
@@ -61,16 +62,30 @@ uniform int bands : hint_range(0, 8) = 4;
 uniform float band_strength : hint_range(0.0, 1.0) = 0.12;
 // Opaque, unshaded colour ramp for checking colours against your swatches. Material-only.
 uniform bool palette_preview = false;
+// Draws the surface's height instead of the water - crests light, troughs dark, a band every
+// 10 cm - for seeing the waves themselves, the shore waves coming in above all, which the toon
+// shading and the foam otherwise hide. Material-only.
+uniform bool wave_preview = false;
 
 // ---- Transmission -----------------------------------------------------------------------
 group_uniforms Transmission;
 // Beer-Lambert absorption per metre of water, per channel, pushed. Art-directed: red is lost
 // first, blue travels furthest, which is what makes the shallows turquoise and the depths
 // blue without a milky wash.
-uniform vec3 absorption = vec3(0.24, 0.075, 0.028);
-uniform float absorption_strength : hint_range(0.0, 3.0) = 0.78;
+//
+// Tuned against panel 10 of terrain-water-and-shore-transitions.jpg, whose sand under the
+// shallows reads (160, 175, 146) in the thinnest water, (127, 166, 142), then (70, 160, 150)
+// at about a metre: red lost fast, green kept. These were a quarter as strong while the
+// water measured its depth wrong (see `to_solid` in stage 1) and every path ran 52 m.
+uniform vec3 absorption = vec3(4.0, 0.35, 0.1);
+uniform float absorption_strength : hint_range(0.0, 3.0) = 1.0;
 // How much of the water's own colour is added back where the scene has been absorbed, pushed.
 uniform float scattering_strength : hint_range(0.0, 1.5) = 0.68;
+// And how much of it the water adds per metre looked through, in every channel alike - the
+// light it scatters toward the eye. Without it a channel the water barely absorbs (blue)
+// could never gain any of the water's colour, and the panels' shallows are bluer than the
+// sand under them. Pushed.
+uniform float inscatter : hint_range(0.0, 2.0) = 1.2;
 // How far the scene behind the water is shifted by the waves, in screen fraction, pushed;
 // and the depth over which that grows from nothing to full. Material-only.
 uniform float refraction_strength : hint_range(0.0, 0.05) = 0.008;
@@ -128,39 +143,62 @@ uniform float shore_softness : hint_range(0.01, 0.5) = 0.06;
 // fades in against that thing. Material-only.
 uniform float contact_fade : hint_range(0.01, 2.0) = 0.12;
 
-// ---- Shore foam -------------------------------------------------------------------------
+// ---- Foam colour -------------------------------------------------------------------------
 group_uniforms Foam;
-// The colour of every white mark on the water: shore foam and crest glints alike, pushed.
+// The colour of the crest glints offshore, pushed. The shore foam has its own three tones
+// (world/foam.gdshaderinc, the Shore_Foam group), measured off the references.
 uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
-// Metres of still-water depth the shore foam reaches out to; it is at full strength until
-// 0.44 m short of that, and fades over the rest. Zero switches the foam off. Material-only.
-uniform float foam_depth : hint_range(0.0, 8.0) = 0.92;
-// How fast the foam's shapes drift and the breaker advances. Material-only.
-uniform float foam_speed : hint_range(0.0, 2.0) = 0.35;
+
+// ---- The chop ----------------------------------------------------------------------------
+group_uniforms Chop;
+// The references' water (the water-type swatches in water-rock-wood-plant-studies.jpg) is made
+// of many small waves: rows of arched shapes overlapping like scales, each painted in three
+// tones - dark on its face turned away, mid, light on its top - with a thin white hairline
+// along its crest. Four long regular waves crossing leave the surface almost flat colour from
+// the gameplay camera (forty metres of sea is two crests of the 21 m swell), and whitecaps
+// drawn on that float on nothing.
+//
+// So six more waves, the CHOP, from chop_longest metres down, each about 0.78 of the last,
+// fanned round the swell's direction so they come in rows, each a little weaker. They shade
+// the open water in the three tones and carry the whitecaps. They don't move the mesh or
+// anything floating: leaving them out of the displacement keeps the drawn surface and the one
+// things float on (ocean.gd) the same. Material-only.
+uniform float chop_strength : hint_range(0.0, 2.0) = 1.0;
+uniform float chop_longest : hint_range(1.0, 15.0) = 5.0;
+// How strongly the three tones step the water's colour: the trough and turned-away faces this
+// much darker, the tops this much lighter. Material-only.
+uniform float chop_tone : hint_range(0.0, 0.5) = 0.24;
 
 // ---- Crest glints -----------------------------------------------------------------------
 group_uniforms Crests;
-// Short white strokes along the swell's crests offshore, drawn in foam_colour. Material-only.
-uniform float crest_strength : hint_range(0.0, 1.0) = 0.28;
+// Whitecaps: the shore foam's lace along the crests of the small waves - a net of walls and
+// knots, zigzagging and branching, the way the water-type swatches draw them. Sparse on a fair day, joining into a net as the
+// sea gets up - the swatches go from about 1% white (calm) to 4% (choppy) and 6% (stormy).
+// 0 none, 0.3 a fair day, 1 a storm. Material-only.
+uniform float crest_strength : hint_range(0.0, 1.0) = 0.3;
 
 // ---- Object bands -----------------------------------------------------------------------
 group_uniforms Object_Bands;
-// A bright ring on the water round anything standing in it - hull, rock, captain. It comes
-// from a separate overhead camera in ocean.gd that photographs the silhouettes of everything
-// crossing the surface into band_mask; all of that is pushed.
+// Where anything standing in the water meets it - rock, hull, crate, captain. It comes from a
+// separate overhead camera in ocean.gd that photographs the silhouettes of everything crossing
+// the surface into band_mask; all of that is pushed.
+//
+// Drawn the way panel 10 draws it: never a filled halo, a thin broken contact line hugging the
+// object, thickest on the side the waves come from. The darker water right against a rock in
+// that panel is the rock under the water, which the clear shallows show by themselves. (Lace
+// caught round rocks in the surf was tried, from eight taps round each pixel: at the mask's
+// 28 cm it came out as grey smudges, not lace, so it is not drawn.)
 uniform sampler2D band_mask : filter_linear, repeat_disable;
 uniform vec2 band_mask_center = vec2(0.0);
 uniform float band_mask_size = 144.0;
 uniform vec2 band_mask_texel = vec2(0.001953125);
 uniform bool band_mask_ready = false;
-// The ring's colour, how far out from the silhouette it sits, how wide it is, how strong,
-// how much the noise bends it, and how fast it breathes. Material-only.
-uniform vec3 object_band_colour : source_color = vec3(0.84, 1.0, 0.94);
-uniform float object_band_distance : hint_range(0.1, 3.0) = 0.22;
-uniform float object_band_width : hint_range(0.05, 0.6) = 0.07;
-uniform float object_band_strength : hint_range(0.0, 1.0) = 0.68;
-uniform float object_band_distortion : hint_range(0.0, 0.5) = 0.24;
-uniform float object_band_speed : hint_range(0.0, 3.0) = 0.8;
+// Metres wide the contact line is, at its thickest; it thins to a third on the side away from
+// the waves. Faded out wherever it would be thinner than a pixel, so from far off it is not an
+// outline. Material-only.
+uniform float object_line_width : hint_range(0.01, 0.3) = 0.07;
+// How much of the line is missing, in pieces. Material-only.
+uniform float object_line_gaps : hint_range(0.0, 0.9) = 0.35;
 
 // ---- Sun --------------------------------------------------------------------------------
 group_uniforms Sun;
@@ -284,12 +322,59 @@ float noise(vec2 p) {
 // would give triangle-shaped foam and lighting. Returned at the wave's full steepness; the
 // caller scales it. A wave whose phase turns more than about half a radian per pixel is faded
 // out before it can alias into speckle - that is `visible`.
+// Chop wave `i` of six, packed like wave_1..4: (direction x, z, steepness, wavelength).
+// Directions within eighteen degrees of the swell's, so their crests line up into rows (fanned
+// wider, at fifty, they blurred into blobs),
+// wavelengths from chop_longest down.
+const float CHOP_ANGLES[6] = float[6](-12.0, 10.0, -6.0, 16.0, 4.0, -18.0);
+vec4 detail_wave(int i) {
+    vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
+    float a = atan(d1.y, d1.x) + radians(CHOP_ANGLES[i]);
+    float length_here = chop_longest * pow(0.78, float(i));
+    float steepness = 0.3 * chop_strength * pow(0.88, float(i));
+    return vec4(cos(a), sin(a), steepness, length_here);
+}
+
+// The chop's height at a point, normalised to -1..1 (x), and its gradient per metre (yz), each
+// wave faded out as it gets too fine for the pixels drawing it; and in w how much of the chop
+// is still resolved there (1 near, 0 where all of it is below a couple of pixels).
+vec4 chop_at(vec2 p, float clock) {
+    float h = 0.0;
+    vec2 g = vec2(0.0);
+    float total = 0.0;
+    float seen = 0.0;
+    for (int i = 0; i < 6; i++) {
+        vec4 wave = detail_wave(i);
+        float k = TAU / max(wave.w, 0.01);
+        float phase = k * dot(wave.xy, p) - sqrt(9.8 * k) * clock * wave_speed;
+        float visible = 1.0 - smoothstep(0.5, 1.6, fwidth(phase));
+        float a = wave.z / k;
+        h += a * sin(phase) * visible;
+        g += a * k * cos(phase) * wave.xy * visible;
+        total += a;
+        seen += a * visible;
+    }
+    return vec4(h / max(total, 0.0001), g / max(total, 0.0001), seen / max(total, 0.0001));
+}
+
 vec2 wave_slope(vec4 wave, vec2 p) {
     vec2 d = wave.xy / max(length(wave.xy), 0.0001);
     float k = TAU / max(wave.w, 0.01);
     float phase = k * dot(d, p) - sqrt(9.8 * k) * water_time() * wave_speed;
     float visible = 1.0 - smoothstep(0.5, 2.0, fwidth(phase));
     return d * max(wave.z, 0.0) * cos(phase) * visible;
+}
+
+// The shore wave's slope, the same way (waves.gdshaderinc). Its phase falls by k for every
+// metre out from the shore, so it climbs toward the shore and its gradient points there.
+vec2 shore_wave_slope(vec2 p, vec4 field) {
+    float blend = shore_blend(field.x);
+    if (blend <= 0.0 || shore_wave_steepness <= 0.0) {
+        return vec2(0.0);
+    }
+    vec2 ph = shore_wave_phase(field);
+    float visible = 1.0 - smoothstep(0.5, 2.0, fwidth(ph.x));
+    return shore_direction(p, field) * shore_wave_steepness * blend * ph.y * cos(ph.x) * visible;
 }
 
 // How much of the waves this pixel keeps, three ways:
@@ -344,6 +429,25 @@ float geometry_envelope(vec2 p, vec3 eye, float wavelength) {
     return shoal * sampled * wave_height;
 }
 
+// The same for the shore wave, shoaled its own way (shore_shoal in waves.gdshaderinc).
+float shore_geometry_envelope(vec2 p, vec3 eye) {
+    float depth = sea_y - bed_height(p);
+    float range = length(p - eye.xz);
+    float radial_spacing = range * max(radial_growth - 1.0, 0.001);
+    float angular_spacing = range * TAU / max(radial_segments, 3.0);
+    float spacing = max(radial_spacing, angular_spacing);
+    float sampled = 1.0 - smoothstep(shore_wave_length * 0.24, shore_wave_length * 0.48, spacing);
+    return shore_shoal(depth) * sampled * wave_height;
+}
+
+// And for its slope per pixel: its own shoal, and the broad waves' fade with distance.
+float shore_envelope(vec2 p, vec3 eye) {
+    float depth = sea_y - bed_height(p);
+    float range = length(vec3(p.x, sea_y, p.y) - eye);
+    float broad = 1.0 - smoothstep(detail_near, max(detail_far * 0.75, detail_near + 1.0), range);
+    return shore_shoal(depth) * broad;
+}
+
 // ---- Vertex: displace the grid with the waves, and send the far rings to the horizon ----
 void vertex() {
     vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -375,10 +479,14 @@ void vertex() {
         float q = horizontal_ratio();
         vec3 offset = vec3(0.0);
         float reach = 0.0;
-        gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w), q, offset, reach);
-        gerstner(wave_2, p, geometry_envelope(p, eye, wave_2.w), q, offset, reach);
-        gerstner(wave_3, p, geometry_envelope(p, eye, wave_3.w), q, offset, reach);
-        gerstner(wave_4, p, geometry_envelope(p, eye, wave_4.w), q, offset, reach);
+        // Near the island the swell gives way to the shore waves (waves.gdshaderinc).
+        vec4 field = shore_field_at(p);
+        float swell = swell_share(field);
+        gerstner(wave_1, p, geometry_envelope(p, eye, wave_1.w) * swell, q, offset, reach);
+        gerstner(wave_2, p, geometry_envelope(p, eye, wave_2.w) * swell, q, offset, reach);
+        gerstner(wave_3, p, geometry_envelope(p, eye, wave_3.w) * swell, q, offset, reach);
+        gerstner(wave_4, p, geometry_envelope(p, eye, wave_4.w) * swell, q, offset, reach);
+        shore_wave(p, field, shore_geometry_envelope(p, eye), q, offset, reach);
         world += offset;
         wave_activity = smoothstep(0.02, 0.18, reach);
     }
@@ -452,6 +560,12 @@ void fragment() {
     // Taken BEFORE the discard: derivatives are gathered from neighbouring pixels, and a
     // neighbour that has discarded leaves them undefined.
     float pixel_span = fwidth(thickness);
+    // The run-up (runup.gdshaderinc): where the backwash has pulled the water's edge back down
+    // past the still waterline, the sea here thins to a film over the wet sand. Before the
+    // discard, for its derivative.
+    vec4 run = runup_at(world_point.xz, bed - sea_y, water_time());
+    float run_px = max(fwidth(run.x), 0.001);
+    float drawn_back = (1.0 - smoothstep(-run_px, run_px, run.x)) * step(0.0, run.w + runup_drawdown);
     if (thickness <= 0.0) { discard; }
     float water_depth = max(sea_y - bed, 0.0);
     // The opaque scene behind this pixel. `to_solid` is the view-space distance from the
@@ -469,6 +583,18 @@ void fragment() {
     if (in_band && scene_z > surface_z) { discard; }
     float ahead = surface_z - scene_z;
     float to_solid = max(ahead, 0.0);
+    // The depth buffer is not always there to read. In the Mobile renderer's test captures it
+    // came back empty over the whole sea, so every pixel "saw" the far plane behind it, the
+    // optical path ran to its cap, and the shallows were as opaque as the deep sea: flat teal
+    // right up to the sand, with the seabed, its caustics and the wet sand hidden under it.
+    // The water under this point is known anyway - the seabed is the terrain's height map -
+    // so where the buffer has nothing, the path is that column, along the eye's slant.
+    // (Anything else in the water, a hull or a rock, is then not seen through it; the
+    // seabed is what matters here.)
+    if (scene_z < -1.0e11) {
+        float slant = max(abs(normalize(CAMERA_POSITION_WORLD - world_point).y), 0.15);
+        to_solid = max(thickness, 0.0) / slant;
+    }
     // The two alpha edges. `contact` fades the water in against a thing standing in it -
     // a thing just BELOW the surface, that is; a thing in FRONT of the surface covers the
     // water by the depth test and the water stays whole beside it. It used to fade against
@@ -508,13 +634,22 @@ void fragment() {
     // once shoaled only, for the sun.
     float clock = water_time();
     vec3 env = envelopes(world_point.xz, CAMERA_POSITION_WORLD);
-    vec2 broad_slope = wave_slope(wave_1, world_point.xz)
-        + wave_slope(wave_2, world_point.xz);
-    vec2 fine_slope = wave_slope(wave_3, world_point.xz)
-        + wave_slope(wave_4, world_point.xz);
+    // By the island the swell gives way to the shore waves.
+    vec4 shore_here = shore_field_at(world_point.xz);
+    float swell = swell_share(shore_here);
+    vec2 broad_slope = (wave_slope(wave_1, world_point.xz)
+        + wave_slope(wave_2, world_point.xz)) * swell;
+    vec2 fine_slope = wave_slope(wave_3, world_point.xz) + wave_slope(wave_4, world_point.xz);
+    // The detail waves, in the shading only (see Detail_Waves).
+    for (int i = 0; i < 6; i++) {
+        fine_slope += wave_slope(detail_wave(i), world_point.xz);
+    }
+    fine_slope *= swell;
+    vec2 shore_slope = shore_wave_slope(world_point.xz, shore_here)
+        * shore_envelope(world_point.xz, CAMERA_POSITION_WORLD);
     // `n`: the shading normal, fully faded by distance. Refraction and fresnel read this;
     // letting it ripple at distance is what the fade protects them from.
-    vec2 slope = (broad_slope * env.x + fine_slope * env.y) * wave_height;
+    vec2 slope = (broad_slope * env.x + fine_slope * env.y + shore_slope) * wave_height;
     vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
     // `lit_slope`: the slope the SUN sees - the two short waves, shoaled but not faded with
     // distance; the streak fades its flecks by pixel size itself (stage 10). It is the
@@ -522,128 +657,106 @@ void fragment() {
     vec2 lit_slope = fine_slope * env.z * wave_height;
 
     // ---- 4. Shore foam ------------------------------------------------------------------
-    // One deformed breaker with organic trailing strands. These are band-passed noise
-    // contours, not cells, so the foam cannot be confused with seabed caustics.
-    vec2 slow_flow = vec2(clock * foam_speed * 0.045,
-        -clock * foam_speed * 0.030);
-    float foam_broad = noise(world_point.xz * 0.20 + slow_flow);
-    foam_broad = foam_broad * 0.68 + noise(world_point.xz * 0.43
-        - slow_flow * 0.72 + vec2(11.7, -4.2)) * 0.32;
-    float foam_detail = noise(world_point.xz * 0.82
-        + vec2(-clock * 0.034, clock * 0.026));
-    foam_detail = foam_detail * 0.70 + noise(world_point.xz * 1.67
-        + vec2(clock * 0.021, -clock * 0.039) + vec2(3.1, 8.6)) * 0.30;
-    // The upper clamp here used to be 0.035, and that was the white outline.
-    //
-    // Close to the camera a pixel spans a centimetre of beach and 0.035 is plenty. Two
-    // hundred metres out, at a grazing angle, a pixel spans METRES of it - so every
-    // smoothstep below was transitioning over a range far narrower than the pixel drawing
-    // it, and a band that should have been soft resolved as a single hard white line. It
-    // traced the waterline round every shore, every pond and every rock standing in the
-    // sea, which is what read as distant objects being outlined.
-    float foam_aa = max(pixel_span, 0.006);
-    // Widening the transition is only half of it. Once the foam band is narrower than the
-    // pixel it is drawn in, it should also LOSE contrast - a pixel covering a metre of beach
-    // with four centimetres of surf in it is mostly water. Without this the band keeps full
-    // white however little of the pixel it really occupies, and crawls as the camera moves.
-    float foam_resolve = clamp(0.045 / max(pixel_span, 0.0001), 0.0, 1.0);
-    // Foam lives in the shallows only: full until 0.44 m short of foam_depth, gone at it.
-    float shore_only = 1.0 - smoothstep(max(foam_depth - 0.44, 0.0), max(foam_depth, 0.001), water_depth);
-
-    // The breaker: a contour of the water's thickness, pushed up the beach by a slow
-    // sine (`advance`) and bent by the noise so it is one ragged line rather than a
-    // level one. Its width varies with the fine noise, its brightness with the broad.
-    float advance = 0.14 + 0.075 * (0.5 + 0.5 * sin(
-        clock * foam_speed * 2.0 + foam_broad * TAU));
-    float distorted_depth = thickness - advance
-        + (foam_broad - 0.5) * 0.16 + (foam_detail - 0.5) * 0.045;
-    float breaker_width = mix(0.014, 0.034, foam_detail);
-    float breaker = 1.0 - smoothstep(breaker_width,
-        breaker_width + foam_aa, abs(distorted_depth));
-    breaker *= mix(0.12, 1.0, smoothstep(0.30, 0.70,
-        foam_broad * 0.62 + foam_detail * 0.38));
-
-    // Short secondary wash lines follow the same depth contours as the coast. Independent
-    // warping and hard breakup keep them as torn fragments instead of global sine ribbons.
-    float wash_shape_1 = noise(world_point.xz * 0.31
-        + vec2(-clock * 0.019, clock * 0.027) + vec2(9.4, 2.7));
-    float wash_mask_1 = noise(world_point.xz * 0.69
-        + vec2(clock * 0.031, clock * 0.014) + vec2(-3.2, 7.6));
-    float wash_distance_1 = distorted_depth - 0.13 - (wash_shape_1 - 0.5) * 0.085;
-    float wash_1 = 1.0 - smoothstep(0.012, 0.026 + foam_aa,
-        abs(wash_distance_1));
-    wash_1 *= smoothstep(0.53, 0.69, wash_mask_1);
-
-    float wash_shape_2 = noise(world_point.xz * 0.24
-        + vec2(clock * 0.014, -clock * 0.022) + vec2(4.8, -8.1));
-    float wash_mask_2 = noise(world_point.xz * 0.57
-        + vec2(-clock * 0.023, clock * 0.018) + vec2(13.1, 5.3));
-    float wash_distance_2 = distorted_depth - 0.27 - (wash_shape_2 - 0.5) * 0.12;
-    float wash_2 = 1.0 - smoothstep(0.010, 0.023 + foam_aa,
-        abs(wash_distance_2));
-    wash_2 *= smoothstep(0.61, 0.76, wash_mask_2);
-    float strands = max(wash_1 * 0.42, wash_2 * 0.25);
-
-    // Flecks left on the wet sand just landward of the breaker, where the last wave was.
-    float landward_window = smoothstep(-0.13, -0.045, distorted_depth)
-        * (1.0 - smoothstep(-0.025, 0.018, distorted_depth));
-    float remnants = landward_window * smoothstep(0.68, 0.82, foam_detail);
-    float surf = max(breaker * 0.82, max(strands, remnants * 0.24));
-    surf *= shore_only * step(0.001, foam_depth) * foam_resolve;
+    // The front, the lace it leaves and the lace behind each breaking shore wave: all of it
+    // world/foam.gdshaderinc, shared with the sand, which draws the same foam on its side of
+    // the still waterline. Out past the run-up the foam's age is the time since the last shore
+    // wave's crest went over: its phase climbs back to a crest's at the wave's own speed.
+    vec2 shore_phase = shore_wave_phase(shore_here);
+    float shore_omega = sqrt(9.8 * TAU / max(wave_1.w, 0.01)) * wave_speed;
+    float surf_age = mod(1.5708 - shore_phase.x, TAU) / max(shore_omega, 0.001)
+        / max(shore_blend(shore_here.x) * step(0.0001, shore_wave_steepness), 0.001);
+    vec4 shore_white = shore_foam(world_point.xz, run, 0.0, surf_age, false);
+    float surf = shore_white.a;
 
     // ---- 5. Object bands ----------------------------------------------------------------
     // Only the dedicated overhead camera supplies object silhouettes. Gameplay-camera depth
     // must never create outlines: that would rim dry objects merely seen against the ocean.
-    // The band is where the mask is empty at this point but set within radius_metres of it -
-    // eight taps round a circle - so it hugs each silhouette from the outside.
+    //
+    // How far this pixel is outside the nearest silhouette, to a few centimetres although the
+    // mask is 28 cm a texel: the mask is filtered, so across a silhouette's edge it ramps from
+    // one to nought over about a texel, and its value over its slope is the distance to where
+    // it crosses a half. That is the contact line.
     vec2 band_uv = (world_point.xz - band_mask_center) / max(band_mask_size, 0.001) + 0.5;
     float capture_edge = smoothstep(0.0, 0.035, min(min(band_uv.x, band_uv.y),
         min(1.0 - band_uv.x, 1.0 - band_uv.y)));
-    float moving_noise = noise(world_point.xz * 0.82
-        + vec2(clock * object_band_speed * 0.19, -clock * object_band_speed * 0.14));
-    float object_band = 0.0;
+    float object_line = 0.0;
     if (band_mask_ready && capture_edge > 0.0) {
-        float centre_mask = textureLod(band_mask, band_uv, 0.0).a;
         float metres_per_texel = band_mask_size * band_mask_texel.x;
-        float radius_metres = object_band_distance + object_band_width
-            + (moving_noise - 0.5) * object_band_distortion * 0.35
-            + sin(clock * object_band_speed * 1.7) * 0.035;
-        float radius_texels = max(radius_metres / max(metres_per_texel, 0.001), 1.0);
-        float nearby_mask = 0.0;
-        for (int i = 0; i < 8; i++) {
-            float angle = TAU * float(i) / 8.0 + moving_noise * 0.12;
-            vec2 offset = vec2(cos(angle), sin(angle))
-                * band_mask_texel * radius_texels;
-            nearby_mask = max(nearby_mask,
-                textureLod(band_mask, clamp(band_uv + offset, vec2(0.0), vec2(1.0)), 0.0).a);
-        }
-        object_band = smoothstep(0.04, 0.45, nearby_mask - centre_mask)
-            * capture_edge * smoothstep(0.12, 0.45, water_depth);
-        object_band *= mix(0.72, 1.0, moving_noise);
+        vec2 tx = vec2(band_mask_texel.x, 0.0);
+        vec2 tz = vec2(0.0, band_mask_texel.y);
+        float centre_mask = textureLod(band_mask, band_uv, 0.0).a;
+        vec2 gradient = vec2(textureLod(band_mask, band_uv + tx, 0.0).a - textureLod(band_mask, band_uv - tx, 0.0).a,
+            textureLod(band_mask, band_uv + tz, 0.0).a - textureLod(band_mask, band_uv - tz, 0.0).a)
+            / (2.0 * metres_per_texel);
+        float slope = length(gradient);
+        // Metres outside the silhouette; only meaningful on the ramp.
+        float outside = (0.5 - centre_mask) / max(slope, 0.5 / metres_per_texel);
+        bool on_ramp = centre_mask > 0.01 && centre_mask < 0.99 && slope > 0.2 / metres_per_texel;
+        // Thickest facing the waves: the outward direction (down the mask's slope) against the
+        // direction the shore waves come from (away from the shore).
+        vec2 outward = -gradient / max(slope, 0.0001);
+        float facing = clamp(dot(outward, -shore_direction(world_point.xz, shore_here)) * 0.5 + 0.5, 0.0, 1.0);
+        float width = object_line_width * mix(0.33, 1.0, facing);
+        float metres_per_pixel = length(vec2(fwidth(world_point.x), fwidth(world_point.z)));
+        float line_aa = max(metres_per_pixel, 0.004);
+        float gaps = step(object_line_gaps, foam_lace_at(world_point.xz, 0.3, true).y);
+        float resolved = clamp(width * 2.0 / max(metres_per_pixel, 0.0001), 0.0, 1.0);
+        object_line = on_ramp ? (1.0 - smoothstep(width - line_aa, width + line_aa, outside))
+            * step(-0.02, outside) * gaps * resolved * resolved : 0.0;
+        object_line *= capture_edge * smoothstep(0.05, 0.25, water_depth);
     }
+    float object_band = object_line;
 
     // ---- 6. Crest glints ----------------------------------------------------------------
-    // White strokes along the dominant swell's crests, offshore. Crossing waves and slow noise
-    // bend its phase before thresholding, so they come out as short curved strokes instead of
-    // dashed straight lines that reveal the sine wave underneath. Only in water deeper than
-    // a few metres, only where the mesh is actually carrying a swell, and only near.
+    // The chop (see its uniforms): its height here, which the whitecaps are drawn from and
+    // which shades the open water in three tones (stage 8).
     vec2 crest_p = world_point.xz;
+    vec4 chop = chop_at(crest_p, clock);
+    // The swell under it: whitecaps gather on the swell's crests, as they do on a real sea.
     vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
-    vec2 d2 = wave_2.xy / max(length(wave_2.xy), 0.0001);
-    vec2 d3 = wave_3.xy / max(length(wave_3.xy), 0.0001);
     float k1 = TAU / max(wave_1.w, 0.01);
-    float k2 = TAU / max(wave_2.w, 0.01);
-    float k3 = TAU / max(wave_3.w, 0.01);
-    float phase1 = k1 * dot(d1, crest_p) - sqrt(9.8 * k1) * clock * wave_speed;
-    float phase2 = k2 * dot(d2, crest_p) - sqrt(9.8 * k2) * clock * wave_speed;
-    float phase3 = k3 * dot(d3, crest_p) - sqrt(9.8 * k3) * clock * wave_speed;
-    float warp = (noise(crest_p * 0.065 + vec2(clock * 0.015, -clock * 0.011)) - 0.5) * 2.4;
-    warp += sin(phase2) * 0.72 + sin(phase3) * 0.28;
-    float crest = smoothstep(0.94, 0.995, sin(phase1 + warp));
-    float crest_breakup = noise(crest_p * 0.21 + vec2(-clock * 0.025, clock * 0.018));
-    crest_breakup = crest_breakup * 0.65 + noise(crest_p * 0.47 + vec2(7.3, -2.8)) * 0.35;
-    crest *= smoothstep(0.58, 0.76, crest_breakup);
-    crest *= crest_strength * smoothstep(1.5, 4.0, water_depth) * wave_activity;
+    float swell_up = sin(k1 * dot(d1, crest_p) - sqrt(9.8 * k1) * clock * wave_speed);
+    // The whitecaps are the shore foam's lace, not lines: the walls of a net of cells -
+    // zigzagging, branching, meeting in fat knots, like lightning or cracked glass - shown
+    // only where the chop runs high, so the net lies along each crest. The cells are squeezed
+    // across the crests and bent by the chop, so most walls run along the waves and stray
+    // branches shoot off other ways. Each cell's half of each wall comes and goes with its
+    // own random number, so on a fair day the net is broken fragments on the crests; as
+    // crest_strength rises the band along each crest widens, the fragments join, and the
+    // sea is the lightning net of the "choppy" swatch. Two sizes of cell at once, for
+    // branches within branches.
+    float strength = clamp(crest_strength, 0.0, 1.0);
+    float level = mix(0.5, 0.2, strength) - swell_up * 0.15;
+    // A strip along each crest - one level of the chop's height, some way either side of it -
+    // narrow on a fair day, so only the walls crossing it show: a zigzag chain along the
+    // crest, a branch or two off it. Wider as the sea gets up, so the chains of neighbouring
+    // crests reach each other and join into the net.
+    float strip = 1.0 - smoothstep(0.0, mix(0.13, 0.35, strength), abs(chop.x - level));
+    vec2 crest_side = vec2(-d1.y, d1.x);
+    vec2 net_p = vec2(dot(crest_p, crest_side), dot(crest_p, d1) * 1.8 + chop.x * 0.6);
+    float crest = 0.0;
+    for (int n = 0; n < 2; n++) {
+        vec3 lace = foam_lace_at(net_p, n == 0 ? 0.9 : 0.45, n == 1);
+        float aa_w = max(fwidth(lace.z), 0.004);
+        float aa_c = max(fwidth(lace.x), 0.004);
+        // The finer net only in the middle of the strip.
+        float here = n == 0 ? strip : smoothstep(0.5, 1.0, strip);
+        // Walls thin, thinning toward the strip's edges; broken cell by cell.
+        float w = (n == 0 ? 0.075 : 0.05) * here;
+        float wall = (1.0 - smoothstep(w - aa_w, w + aa_w, lace.z))
+            * step(lace.y, here * 1.7) * step(0.001, w);
+        // Small beads where walls meet, in the strip's middle.
+        float k = 0.74;
+        float knot = smoothstep(k - aa_c, k + aa_c, lace.x) * step(0.6, here);
+        crest = max(crest, max(wall, knot));
+    }
+    // The net's walls are a few centimetres: gone where a pixel spans more than a quarter
+    // metre of sea, before they can shimmer.
+    float metres_per_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
+    crest *= 1.0 - smoothstep(0.12, 0.3, metres_per_px);
+    // Only offshore, where the shore foam is not already drawing the waves, only where the
+    // chop is still bigger than the pixels, and near.
+    crest *= smoothstep(1.5, 4.0, water_depth) * swell * smoothstep(0.35, 0.7, chop.w);
     crest *= 1.0 - smoothstep(55.0, 150.0, range_here);
     // Everything white on the water, foam and crests together.
     float white = clamp(max(crest, surf), 0.0, 1.0);
@@ -693,10 +806,23 @@ void fragment() {
         * absorption_strength * optical_depth);
     vec3 water_scatter = water * max(0.0,
         1.0 + (lambert - max(light_dir.y, 0.0)) * wave_shading);
-    vec3 scatter_amount = max(vec3(1.0) - transmittance, vec3(0.045));
+    vec3 scatter_amount = max(max(vec3(1.0) - transmittance,
+        vec3(1.0 - exp(-inscatter * optical_depth))), vec3(0.045));
     vec3 shaded_water = scene_colour * transmittance
         + water_scatter * scatter_amount * scattering_strength * sky_light
         * mix(1.0, sun_through, 0.6);
+
+    // The chop's three tones on the open water: darker in its troughs and on the faces turned
+    // away from the eye, lighter on its tops - hard toon steps, each a pixel soft. Faded out in
+    // the clear shallows, where the seabed is the picture, and where the chop is too fine to see.
+    vec2 to_eye = normalize(CAMERA_POSITION_WORLD.xz - world_point.xz + vec2(0.0001));
+    float facing_eye = dot(normalize(chop.yz + vec2(0.0001)), to_eye) * min(length(chop.yz) * 2.0, 1.0);
+    float tone = chop.x * 0.7 + facing_eye * 0.35;
+    float tone_aa = max(fwidth(tone), 0.001);
+    float tone_step = smoothstep(0.3 - tone_aa, 0.3 + tone_aa, tone)
+        - (1.0 - smoothstep(-0.3 - tone_aa, -0.3 + tone_aa, tone));
+    tone_step *= chop_tone * smoothstep(1.0, 4.0, water_depth) * smoothstep(0.35, 0.7, chop.w);
+    shaded_water *= 1.0 + tone_step;
 
     // ---- 9. Sky reflection --------------------------------------------------------------
     shaded_water = mix(shaded_water, sky_reflection_colour * sky_light, fresnel * sky_reflection_strength);
@@ -755,11 +881,12 @@ void fragment() {
     // The band rides on the shaded water; the foam and crests go on top in foam_colour. The
     // shader already contains the transmitted scene colour, so it composites opaquely except
     // at its two edges; foam and the band stay visible right up to those.
-    vec3 banded_water = mix(shaded_water, object_band_colour * sky_light,
-        object_band * object_band_strength);
-    ALBEDO = mix(banded_water, foam_colour * sky_light, white);
-    float band_opacity = object_band * object_band_strength;
-    ALPHA = edge * max(contact, max(white, band_opacity * 0.82));
+    // The contact line is foam too, in the foam's lit tone.
+    vec3 banded_water = mix(shaded_water, foam_lit * sky_light, object_band);
+    vec3 white_colour = surf >= crest ? shore_white.rgb : foam_colour;
+    ALBEDO = mix(banded_water, white_colour * sky_light, white);
+    ALPHA = edge * max(contact, max(white, object_band));
+    ALPHA *= 1.0 - drawn_back * 0.85;
 
     // ---- 12. The underside --------------------------------------------------------------
     // Seen from below. Not FRONT_FACING, which depends on which way the radial grid is
@@ -826,6 +953,21 @@ void fragment() {
     ALBEDO = mix(ALBEDO, haze_colour, haze);
     if (palette_preview) {
         ALBEDO = water;
+        ALPHA = 1.0;
+    }
+    if (shore_field_preview) {
+        ALBEDO = shore_field_preview_colour(world_point.xz);
+        ALPHA = 1.0;
+    }
+    if (runup_preview) {
+        ALBEDO = runup_preview_colour(run, vec3(0.10, 0.30, 0.55));
+        ALPHA = 1.0;
+    }
+    if (wave_preview) {
+        float rise = world_position.y - sea_y;
+        float step_up = floor(rise / 0.1);
+        ALBEDO = mix(vec3(0.05, 0.12, 0.30), vec3(0.85, 0.95, 1.0),
+            clamp(0.5 + step_up * 0.1, 0.0, 1.0));
         ALPHA = 1.0;
     }
 }
