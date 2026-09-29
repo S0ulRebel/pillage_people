@@ -472,7 +472,7 @@ func _check_rail(ship: Node3D) -> void:
 
 
 ## The castle's windows: as many as asked, each with its model, spaced evenly along the wall,
-## and each flat on the wall - both back edges touching it, the middle not sunk over its glass.
+## and each with its back on the middle of its wall panel (before the editor's window_offset).
 func _check_windows(ship: Node3D) -> void:
 	var windows := ship.get_node_or_null("Quarterdeck/Windows")
 	check(windows != null and windows.get_child_count() == Ship.CASTLE_WINDOW_COUNT
@@ -488,19 +488,32 @@ func _check_windows(ship: Node3D) -> void:
 		var box := _bounds(w, w.get_node_or_null("Model"))
 		var out := w.basis.z.normalized()
 		var across := w.basis.x.normalized()
-		var back := w.position + out * box.position.z * Ship.WINDOW_SCALE + Vector3.UP * box.get_center().y * Ship.WINDOW_SCALE
+		# Where its back would be with no offset: the offset is the editor's to tune.
+		var back := w.position + out * box.position.z * Ship.WINDOW_SCALE + Vector3.UP * box.get_center().y * Ship.WINDOW_SCALE \
+				- out * (ship as Ship).window_offset
 		for side in [-1.0, 0.0, 1.0]:
 			var at: Vector3 = back + across * side * box.size.x * 0.5 * Ship.WINDOW_SCALE * 0.95
 			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at + out * 0.5), ship.to_global(at - out * 0.5)))
 			var gap: float = (at - ship.to_local(hit.position)).dot(out) if not hit.is_empty() else INF
 			if side == 0.0:
-				# Its glass is recessed only a few centimetres in front of its back.
-				check(gap > -0.015, "%s is sunk %.3f m into the wall, over its glass" % [w.name, -gap])
+				check(absf(gap) <= 0.005, "%s's back is %.3f m off the middle of its wall panel" % [w.name, gap])
 			else:
-				check(gap <= 0.01, "%s's edge stands %.2f m off the wall" % [w.name, gap])
+				# The wall bends away past its panel: a window whose edges stand well off it is
+				# not on the panel it belongs to.
+				check(gap <= 0.04, "%s's edge stands %.2f m off the wall" % [w.name, gap])
 		if last != Vector3.INF:
 			gaps.append(Vector2(w.position.x, w.position.z).distance_to(Vector2(last.x, last.z)))
 		last = w.position
+	# Changing the offset moves every window along its normal, as tuning it in the editor would.
+	var typed := ship as Ship
+	var before := typed.window_offset
+	var first := (windows.get_child(0) as Node3D).position
+	var normal := (windows.get_child(0) as Node3D).basis.z.normalized()
+	typed.window_offset = before + 0.05
+	var moved := ship.get_node("Quarterdeck/Windows").get_child(0) as Node3D
+	check(absf((moved.position - first).dot(normal) - 0.05) <= 0.001 and ship.get_node("Quarterdeck/Windows").get_child_count() == Ship.CASTLE_WINDOW_COUNT,
+			"setting window_offset does not move the windows along their normal")
+	typed.window_offset = before
 	if not gaps.is_empty():
 		# Each is centred on its wall panel, so the spacing varies by up to a panel's length.
 		var mean := 0.0

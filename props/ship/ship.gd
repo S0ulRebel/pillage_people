@@ -175,6 +175,23 @@ const MAX_HEEL := 0.14
 
 ## The ocean, so the lift is taken from the waves rather than the flat sea level. Same sampler
 ## the barrels use. Without it the hull sits on the average.
+## How far the stern castle's windows stand off its wall, in metres along each one's normal:
+## positive out, negative into the wall. At 0 each window's back is on the middle of its wall
+## panel; where the wall bends away under its edges, a small push in closes the gap there.
+## Tune it in the inspector: the windows move as it changes.
+@export_range(-0.1, 0.1, 0.001, "suffix:m") var window_offset := 0.0:
+	set(value):
+		window_offset = value
+		var quarterdeck := get_node_or_null("Quarterdeck") as Node3D
+		if quarterdeck != null and quarterdeck.get_node_or_null("Cabin") != null:
+			var old := quarterdeck.get_node_or_null("Windows")
+			if old != null:
+				# Out of the way now, gone at the end of the frame.
+				old.name = "WindowsOld"
+				quarterdeck.remove_child(old)
+				old.queue_free()
+			_build_windows(quarterdeck, quarterdeck.get_node("Cabin") as Node3D)
+
 var ocean: Node3D
 ## Whoever is standing on deck. The hull moves, and a character body is not carried along by a
 ## static floor that teleports, so he is moved with it while his feet are over the deck.
@@ -993,9 +1010,8 @@ func _build_rail() -> void:
 
 
 ## CASTLE_WINDOW_COUNT windows spread evenly along the castle's wall (_castle_wall), each
-## centred on the wall panel its even spacing falls on and facing out from it. A window wider
-## than its panel overhangs onto the next ones, which bend away; it is pushed in until both its
-## back edges touch the wall, which is a centimetre or two, short of its recessed glass.
+## centred on the wall panel its even spacing falls on, facing out from it, and stood off it by
+## window_offset.
 func _build_windows(quarterdeck: Node3D, cabin: Node3D) -> void:
 	var windows := Node3D.new()
 	windows.name = "Windows"
@@ -1007,7 +1023,6 @@ func _build_windows(quarterdeck: Node3D, cabin: Node3D) -> void:
 	for i in wall.size() - 1:
 		reach.append(reach[i] + wall[i].distance_to(wall[i + 1]))
 	var length := reach[reach.size() - 1]
-	var width := 0.83 * WINDOW_SCALE
 	for k in CASTLE_WINDOW_COUNT:
 		var t := 0.5 if CASTLE_WINDOW_COUNT == 1 else float(k) / (CASTLE_WINDOW_COUNT - 1)
 		var s := lerpf(CASTLE_WINDOW_MARGIN, length - CASTLE_WINDOW_MARGIN, t)
@@ -1019,10 +1034,7 @@ func _build_windows(quarterdeck: Node3D, cabin: Node3D) -> void:
 		var at := _rail_at(wall, reach, s)
 		# Outward: the wall runs with the castle on its right, so out is -Z of the rail's frame.
 		var out := -at.basis.z
-		var sink := 0.0
-		for edge in [s - width * 0.5, s + width * 0.5]:
-			sink = maxf(sink, -(_rail_at(wall, reach, clampf(edge, 0.0, length)).origin - at.origin).dot(out))
-		var back := at.origin - out * sink
+		var back := at.origin + out * window_offset
 		var window := Node3D.new()
 		window.name = "Window%d" % k
 		var facing := atan2(out.x, out.z)
