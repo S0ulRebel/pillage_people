@@ -67,7 +67,7 @@ Done so far:
 - Tripo's door leaf is on the front wall, shut. Tripo's arched window (`cabin/cabin_window.glb`, used as delivered, scaled to 1.1 m) is repeated along the castle's wall, the way the rail follows its path. ship.gd reads the wall's outline off the castle model, spreads CASTLE_WINDOW_COUNT windows (5) evenly round it from front corner to front corner, and centres each on the wall panel it falls on, facing out. The Ship node's `window_offset` (inspector, metres along each window's normal, negative into the wall) moves them all in or out while you look.
   - Its 4096 px texture was 64 MB of video memory for a 1.1 m window. `python tools/shrink_glb_texture.py art/models/ship/cabin/cabin_window.glb` shrank it to 1024 px, in the model and in the copy Godot extracted from it, without touching the geometry. Godot's own size limit would live in the `.import` file, which is not kept in git.
 - **Pillars:** Tripo's carved pillar (`cabin/cabin_pillar.glb`, texture shrunk to 1024 px), scaled to 2.35 m. Each stands on the deck line with the bottom rim running into its base, and its capital carries the trim. They frame the castle the way the corner posts of a stern castle do:
-  - one at each corner of the front wall, its outer side 2 cm proud of the castle's side. The weather deck's rail runs into it and ends inside it, so the pillar stands for the rail's last post;
+  - one at each corner of the front wall, its outer side 2 cm proud of the castle's side. The weather deck's rail stops 0.25 m short of it on a post of its own, rather than springing out of the pillar; the gap is too narrow to slip through, and the corner pillars collide;
   - round the stern, one between each pair of windows, except that the two nearest the stern window stand on the panels either side of it, framing it.
 
   The Ship node's `pillar_offset` moves them in or out along the wall's normal, like `window_offset`.
@@ -119,7 +119,7 @@ Done so far:
 - the course hangs inside the castle or through the mizzen;
 - the castle's trim is off the wall, into the stairs' rails, or over a window or the door;
 - the mizzen stands in a fitting, its boom comes down into the helmsman's head room, or the spanker's luff comes off the mast;
-- a pillar is off the wall, not under the trim, or in a window, the door or the stairs' rails; a corner pillar is off its corner or has a rail post in it; or the stern window is not framed;
+- a pillar is off the wall, not under the trim, or in a window, the door or the stairs' rails; a corner pillar is off its corner, the rail reaches into it or does not stop 0.25 m short, or it does not collide; or the stern window is not framed;
 - the bottom rim is off the deck line or the wall, or runs across the front wall's walkway;
 - the window's or pillar's texture is over 1024 px;
 - a rail post is off the hull's edge or unevenly spaced, the rail's collision has a gap, or a wall still stands above the deck.

@@ -63,8 +63,12 @@ const PILLAR_BACK := 0.086
 const PILLAR_WIDTH := 0.199 * PILLAR_SCALE
 const PILLAR_DEPTH := 0.172 * PILLAR_SCALE
 ## The front wall's two pillars stand at its corners, their outer sides this far proud of the
-## castle's sides, so the weather deck's rail and the bottom rim both end inside them.
+## castle's sides, so the bottom rim ends inside them.
 const PILLAR_CORNER_PROUD := 0.02
+## The weather deck's rail stops this short of the corner pillars, on a post of its own: run into
+## them, it read as springing out of the pillar. Far narrower than anyone who would slip through,
+## and the corner pillars collide.
+const RAIL_PILLAR_GAP := 0.25
 ## Across the front wall the trim stops this far either side of the stairs' centre line and
 ## turns into the wall, clear of the stair rails (STAIR_RAIL_OUT, with their 0.24 m posts)
 ## by 2 cm, its return standing 0.2 m out toward them.
@@ -1133,20 +1137,13 @@ func _build_rail() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Body"
 	rail.add_child(body)
-	# The weather deck's rail ends inside the front wall's corner pillars, which stand for its
-	# last posts; without them it ends on a post of its own, clear of the wall.
+	# The weather deck's rail stops short of the front wall's corner pillars; without them it
+	# ends just clear of the wall.
 	var pillars := get_node_or_null("Quarterdeck/Pillars") as Node3D
-	var into_pillars := pillars != null and pillars.get_child_count() > 0 and pillars.get_child(0).get_node_or_null("Model") != null
-	var stand_in: Array[AABB] = []
-	if into_pillars:
-		for pillar in pillars.get_children():
-			var box: AABB = global_transform.affine_inverse() * (pillar as Node3D).global_transform * _mesh_bounds(pillar as Node3D)
-			clear.append(box)
-			stand_in.append(box)
-	var legs := _rail_legs(into_pillars)
+	var legs := _rail_legs(pillars != null and pillars.get_child_count() > 0 and pillars.get_child(0).get_node_or_null("Model") != null)
 	var post_lines: Array = []
 	for line in legs:
-		post_lines.append(_lay_rail(line, post_width, baluster_box, clear, stand_in, placed, body))
+		post_lines.append(_lay_rail(line, post_width, baluster_box, clear, placed, body))
 	# Every post, line by line, for the tests: the MultiMesh does not keep them headless.
 	rail.set_meta("post_lines", post_lines)
 
@@ -1243,6 +1240,17 @@ func _build_pillars(quarterdeck: Node3D, cabin: Node3D) -> void:
 		pillar.scale = Vector3.ONE * PILLAR_SCALE
 		pillars.add_child(pillar)
 		_fit_model(pillar, CABIN_PARTS + "cabin_pillar.glb")
+		# The corner pillars stand on the weather deck, where the rail ends short of them: solid,
+		# so nobody walks through one and off the deck.
+		if k < 2:
+			var body := StaticBody3D.new()
+			var shape := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(0.199, 1.0, 0.172)
+			shape.shape = box
+			shape.position = Vector3(0.0, 0.5, 0.0)
+			body.add_child(shape)
+			pillar.add_child(body)
 
 
 ## How far out from the centreline the front wall's corner pillars stand (PILLAR_CORNER_PROUD).
@@ -1375,12 +1383,11 @@ func _castle_wall(cabin: Node3D) -> Array[Vector3]:
 
 
 ## One leg of rail along `line`: posts spaced evenly from end to end and balusters spread
-## between each pair, no baluster in anything in `clear` and no post in anything in `stand_in`
-## (a pillar the rail ends in stands for its post). Adds what it places to `placed`, and a
+## between each pair, no baluster in anything in `clear`. Adds what it places to `placed`, and a
 ## collision box per straight length to `body`. Returns the posts. The handrail and base are
 ## swept along the leg (_sweep).
 func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
-		clear: Array[AABB], stand_in: Array[AABB], placed: Dictionary, body: StaticBody3D) -> Array[Transform3D]:
+		clear: Array[AABB], placed: Dictionary, body: StaticBody3D) -> Array[Transform3D]:
 	var reach: PackedFloat32Array = [0.0]
 	for i in line.size() - 1:
 		reach.append(reach[i] + line[i].distance_to(line[i + 1]))
@@ -1401,13 +1408,6 @@ func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 	for k in bays + 1:
 		posts.append(length * k / bays)
 		var post := _rail_at(line, reach, posts[k])
-		# A post that would stand in a pillar is the pillar's to stand for: the rail runs into the
-		# corner pillar and ends inside it.
-		var inside := false
-		for box in stand_in:
-			inside = inside or box.grow(0.01).has_point(post.origin)
-		if inside:
-			continue
 		standing.append(post)
 		# Where two legs meet they share the corner's post: stand it once.
 		var shared := false
@@ -1454,15 +1454,18 @@ func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 
 
 ## The rail's lines, each running with the deck on its left so a post's local +Z faces out:
-## - the weather deck, each side from its knighthead at the bow to the castle's front wall;
+## - the weather deck, each side from its knighthead at the bow to the castle's front wall, or
+##   with `before_pillars` to RAIL_PILLAR_GAP short of the corner pillar there;
 ## - the quarterdeck's: up the stairs' outboard side, across the front to the port corner,
 ##   round the stern on the castle's wall top, back across the front to the landing and down
 ##   the stairs' inboard side. The stair rails start 0.16 m up from the stairs' foot, so the
 ##   inboard post stays clear of the stair opening in the deck below.
 ## A line is split into legs wherever it turns more than RAIL_CORNER, and each leg gets its own
 ## evenly spaced posts, so a square corner always has a post on it.
-func _rail_legs(into_pillars := false) -> Array:
-	var front := CASTLE_FRONT_Z - (0.1 if into_pillars else 0.16)
+func _rail_legs(before_pillars := false) -> Array:
+	var front := CASTLE_FRONT_Z - 0.16
+	if before_pillars:
+		front = CASTLE_FRONT_Z - PILLAR_DEPTH - RAIL_PILLAR_GAP - 0.12
 	var starboard: Array[Vector3] = [Vector3(2.9, DECK_Y, front)]
 	for i in range(RAIL_PATH.size() - 1, -1, -1):
 		if RAIL_PATH[i].y < front:

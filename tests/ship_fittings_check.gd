@@ -470,10 +470,12 @@ func _check_rail(ship: Node3D) -> void:
 	# tip). A post's local +Z faces out. The rays start inside the rail's own collision, which
 	# they ignore.
 	var space := ship.get_world_3d().direct_space_state
-	# The quarterdeck's stairs arrive between two posts: the rays past the edge ignore them.
+	# The quarterdeck's stairs arrive between two posts, and the corner pillars stand under its
+	# front corners: the rays past the edge ignore them.
 	var stairs: Array[RID] = []
-	for stair_body in ship.get_node("Quarterdeck/Stairs").find_children("*", "StaticBody3D", true, false):
-		stairs.append((stair_body as StaticBody3D).get_rid())
+	for below in ["Quarterdeck/Stairs", "Quarterdeck/Pillars"]:
+		for stair_body in ship.get_node(below).find_children("*", "StaticBody3D", true, false):
+			stairs.append((stair_body as StaticBody3D).get_rid())
 	var lines: Array = rail.get_meta("post_lines", [])
 	# Legs meeting at a corner both list its post; it stands once.
 	var unique: Array[Vector3] = []
@@ -599,9 +601,15 @@ func _check_on_wall(ship: Node3D, node: Node3D, scale: float, offset: float, edg
 	var out := node.basis.z.normalized()
 	var across := node.basis.x.normalized()
 	var back := node.position + out * box.position.z * scale + Vector3.UP * box.get_center().y * scale - out * offset
+	# Past its own collision, if it has any, to the wall behind.
+	var own: Array[RID] = []
+	for body in node.find_children("*", "StaticBody3D", true, false):
+		own.append((body as StaticBody3D).get_rid())
 	for side in [-1.0, 0.0, 1.0]:
 		var at: Vector3 = back + across * side * box.size.x * 0.5 * scale * edge
-		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at + out * 0.5), ship.to_global(at - out * 0.5)))
+		var ray := PhysicsRayQueryParameters3D.create(ship.to_global(at + out * 0.5), ship.to_global(at - out * 0.5))
+		ray.exclude = own
+		var hit := space.intersect_ray(ray)
 		var gap: float = (at - ship.to_local(hit.position)).dot(out) if not hit.is_empty() else INF
 		if side == 0.0:
 			check(absf(gap) <= 0.005, "%s's back is %.3f m off the middle of its wall panel" % [node.name, gap])
@@ -613,8 +621,9 @@ func _check_on_wall(ship: Node3D, node: Node3D, scale: float, offset: float, edg
 ## of the castle's side, and one between each pair of windows round the stern, the two nearest
 ## the stern window on the panels either side of its own. Each stands on the deck line with its
 ## back on the wall and its head just under the trim, clear of the windows, the door and the
-## stairs' rails. The weather deck's rail runs into the corner pillars and ends inside them,
-## with no post of its own there, and collides right up to them. pillar_offset moves them all.
+## stairs' rails. The weather deck's rail stops a little short of each corner pillar, on a post
+## of its own, leaving a gap too narrow to slip through, and the corner pillar is solid.
+## pillar_offset moves them all.
 func _check_pillars(ship: Node3D) -> void:
 	var pillars := ship.get_node_or_null("Quarterdeck/Pillars")
 	var wanted := 2 + Ship.CASTLE_WINDOW_COUNT - 1
@@ -671,25 +680,31 @@ func _check_pillars(ship: Node3D) -> void:
 			flanking.append(panel)
 	check(flanking.size() == 2, "the stern window (panel %d) is not framed by a pillar either side (%s)" % [stern_window, flanking])
 
-	# The weather deck's rail runs into the corner pillars: its handrail ends inside each, no post
-	# stands in one, and its collision runs up to it.
-	var handrails := ship.get_node("Rail/Handrails") as MeshInstance3D
-	var faces := handrails.mesh.get_faces()
+	# The weather deck's rail stops short of the corner pillars: its last post stands
+	# RAIL_PILLAR_GAP clear of the pillar's front, no part of the rail reaches into the pillar,
+	# and the pillar itself stops a walker.
 	var space := ship.get_world_3d().direct_space_state
-	var body := ship.get_node("Rail/Body")
+	var parts: Array = []
+	for part in ["Handrails", "Bases"]:
+		parts.append_array((ship.get_node("Rail/" + part) as MeshInstance3D).mesh.get_faces())
 	for k in 2:
 		var p := pillars.get_child(k) as Node3D
 		var box := _bounds(ship, p)
-		var ends_inside := false
-		for v in faces:
-			ends_inside = ends_inside or (box.has_point(v) and v.y < Ship.DECK_Y + 1.0)
-		check(ends_inside, "the weather deck's rail does not run into %s" % p.name)
+		var nearest := INF
 		for line in ship.get_node("Rail").get_meta("post_lines"):
 			for at in line:
-				check(not box.grow(0.01).has_point((at as Transform3D).origin), "a rail post stands inside %s" % p.name)
-		var q := Vector3(signf(p.position.x) * 2.9, Ship.DECK_Y + 0.4, box.position.z - 0.08)
-		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(q - Vector3(0.4, 0.0, 0.0)), ship.to_global(q + Vector3(0.4, 0.0, 0.0))))
-		check(not hit.is_empty() and hit.collider == body, "the rail does not collide right up to %s" % p.name)
+				var o := (at as Transform3D).origin
+				if absf(o.y - Ship.DECK_Y) < 0.01 and signf(o.x) == signf(p.position.x):
+					nearest = minf(nearest, box.position.z - (o.z + 0.12))
+		check(absf(nearest - Ship.RAIL_PILLAR_GAP) <= 0.03,
+				"the weather deck's rail ends %.2f m short of %s; it should stop %.2f short" % [nearest, p.name, Ship.RAIL_PILLAR_GAP])
+		var inside := 0
+		for v in parts:
+			inside += 1 if box.has_point(v) else 0
+		check(inside == 0, "the weather deck's rail reaches into %s" % p.name)
+		var q := Vector3(p.position.x, Ship.DECK_Y + 1.0, box.position.z - 0.5)
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(q), ship.to_global(q + Vector3(0.0, 0.0, 0.6))))
+		check(not hit.is_empty() and p.is_ancestor_of(hit.collider), "%s does not collide" % p.name)
 
 	_check_texture_size(pillars.get_child(0), "pillar")
 	var typed := ship as Ship
