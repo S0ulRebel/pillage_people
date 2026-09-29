@@ -353,3 +353,18 @@ project already rejects view-dependent outlines).
   X's like scratches (2.4% white); aligning them to the swell and bending them fixed it.
 - Open water 70 m out from the gameplay camera: 0.7% near-white at the default fair-day
   `crest_strength` 0.3 (references: about 1% calm, 4% choppy).
+
+### Step 8c: the chop, and hairline whitecaps (done, replaces 8b's dashes)
+
+- The detail waves became the CHOP (`Chop` group on the ocean material): six waves from
+  `chop_longest` (5 m) down, within 18 degrees of the swell's direction so their crests line up
+  in rows, shading the open water in three hard tones (`chop_tone`): darker in the troughs and
+  on faces turned from the eye, lighter on the tops. Still shading only - not the mesh, not what
+  floats. Fanned wider (50 degrees) they blurred into blobs.
+- Whitecaps are now one high level of the chop's height, on the front of each small wave, drawn
+  `crest_line_pixels` (1.4) pixels wide at any distance: hairlines along the crests of the rows,
+  gathering on the swell's crests, joining up as `crest_strength` rises. Tufts at the tops were
+  tried and came out as fat white ovals; not drawn.
+- `tests/foam_view.gd` now also frames open water like the reference's water-type swatches
+  (8 m up, 30 degrees down) and puts it beside the calm, small-waves and choppy swatches
+  (`compare_water.png`). Open water from the gameplay camera: 1.5% white.

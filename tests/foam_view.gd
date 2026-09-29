@@ -18,6 +18,8 @@ extends SceneTree
 ##   runup_0..3.png      the close view at four moments through one run-up (step 3)
 ##   runup_debug_0..3    the same with runup_preview: water blue, foam age white, drying orange
 ##   open_sea.png        open water 70 m out from the gameplay camera, for the whitecaps (step 8)
+##   open_sea_low.png    open water from 8 m up, 30 degrees down, framed like the swatches
+##   compare_water.png   the calm, small-waves and choppy swatches | open_sea_low
 ##   waves_0..2.png      the sea's height from 110 m up over the coast, 2 s apart (step 2)
 ##   overview.png        the same view as the game draws it
 ## Not headless - no renderer there.
@@ -28,6 +30,10 @@ const SHEET := "res://art/references/terrain-water-and-shore-transitions.jpg"
 ## 1280 x 853 pixels, below their titles.
 const PANEL_9 := Rect2i(642, 457, 306, 377)
 const PANEL_10 := Rect2i(955, 457, 323, 377)
+## The "Water types" row of the water studies sheet (1280 x 853): calm, small waves, choppy.
+const WATER_SHEET := "res://art/references/water-rock-wood-plant-studies.jpg"
+const WATER_SWATCHES: Array[Rect2i] = [Rect2i(10, 313, 61, 112), Rect2i(74, 313, 61, 112),
+		Rect2i(137, 313, 61, 112)]
 ## The camera rig's play settings (ui/camera_rig.gd, main.tscn).
 const ARM := 18.0
 const PITCH := -55.0
@@ -155,6 +161,13 @@ func _run() -> void:
 				white += 1
 	print("open sea: %.1f%% whitecap" % (100.0 * float(white) / float(maxi(counted, 1))))
 
+	# And framed like the references' water-type swatches: from 8 m up, 30 degrees down, over
+	# open water - next to the "small waves" and "choppy" swatches.
+	camera.global_position = open_sea + Vector3.UP * 8.0 + inland * 12.0
+	camera.look_at(camera.global_position - inland * cos(deg_to_rad(30.0)) - Vector3.UP * sin(deg_to_rad(30.0)), Vector3.UP)
+	var low := await _capture("open_sea_low")
+	_swatches(low)
+
 	# The waves, seen from high over the coast: the surface's height drawn in bands, at three
 	# moments two seconds apart, so the shore waves can be seen coming in parallel to the beach
 	# and wrapping round it. And the same view as the game draws it.
@@ -202,6 +215,37 @@ func _compare(sheet: Image, game: Image, camera: Camera3D, target: Vector3, tag:
 			Vector2i(left.get_width() + framed.get_width() + gap * 2, 0))
 	out.save_png("%s/%s.png" % [SHOTS, tag])
 	print("  %s" % tag)
+
+
+## The swatches of water-rock-wood-plant-studies.jpg's "Water types" row - calm, small waves,
+## choppy - beside the low open-sea view, all at the frame's height.
+func _swatches(game: Image) -> void:
+	var sheet := Image.load_from_file(ProjectSettings.globalize_path(WATER_SHEET))
+	if sheet == null:
+		return
+	sheet.convert(Image.FORMAT_RGB8)
+	game = game.duplicate()
+	game.convert(Image.FORMAT_RGB8)
+	var h := game.get_height()
+	var parts: Array[Image] = []
+	for rect in WATER_SWATCHES:
+		var swatch := sheet.get_region(rect)
+		swatch.resize(int(round(float(h) * float(rect.size.x) / float(rect.size.y))), h,
+				Image.INTERPOLATE_LANCZOS)
+		parts.append(swatch)
+	var w := int(round(float(h) * 0.9))
+	parts.append(game.get_region(Rect2i((game.get_width() - w) / 2, 0, w, h)))
+	var total := 0
+	for part in parts:
+		total += part.get_width() + 12
+	var out := Image.create_empty(total, h, false, Image.FORMAT_RGB8)
+	out.fill(Color(0.08, 0.09, 0.12))
+	var x := 0
+	for part in parts:
+		out.blit_rect(part, Rect2i(Vector2i.ZERO, part.get_size()), Vector2i(x, 0))
+		x += part.get_width() + 12
+	out.save_png("%s/compare_water.png" % SHOTS)
+	print("  compare_water")
 
 
 func _capture(tag: String) -> Image:

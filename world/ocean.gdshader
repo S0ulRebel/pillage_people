@@ -149,28 +149,35 @@ group_uniforms Foam;
 // (world/foam.gdshaderinc, the Shore_Foam group), measured off the references.
 uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
 
-// ---- Detail waves ------------------------------------------------------------------------
-group_uniforms Detail_Waves;
-// Six short waves on top of the four, drawn only where they show: in the shading and the
-// whitecaps. Four regular waves crossing make a sparse, repeating pattern of crests, and
-// everything drawn from them came out sparse and regular - a few long whitecap strokes, the
-// surface's light with little in it - where the references' water has crests at many sizes.
-// These don't move the mesh or anything floating: waves this short barely lift a barrel, and
-// leaving them out of the displacement keeps the drawn surface and the one things float on
-// (ocean.gd) the same. From detail_longest metres down, each about 0.78 of the last, fanned
-// out round the swell's direction, each a little weaker. Material-only.
-uniform float detail_strength : hint_range(0.0, 2.0) = 1.0;
-uniform float detail_longest : hint_range(0.5, 6.0) = 3.0;
+// ---- The chop ----------------------------------------------------------------------------
+group_uniforms Chop;
+// The references' water (the water-type swatches in water-rock-wood-plant-studies.jpg) is made
+// of many small waves: rows of arched shapes overlapping like scales, each painted in three
+// tones - dark on its face turned away, mid, light on its top - with a thin white hairline
+// along its crest. Four long regular waves crossing leave the surface almost flat colour from
+// the gameplay camera (forty metres of sea is two crests of the 21 m swell), and whitecaps
+// drawn on that float on nothing.
+//
+// So six more waves, the CHOP, from chop_longest metres down, each about 0.78 of the last,
+// fanned round the swell's direction so they come in rows, each a little weaker. They shade
+// the open water in the three tones and carry the whitecaps. They don't move the mesh or
+// anything floating: leaving them out of the displacement keeps the drawn surface and the one
+// things float on (ocean.gd) the same. Material-only.
+uniform float chop_strength : hint_range(0.0, 2.0) = 1.0;
+uniform float chop_longest : hint_range(1.0, 15.0) = 5.0;
+// How strongly the three tones step the water's colour: the trough and turned-away faces this
+// much darker, the tops this much lighter. Material-only.
+uniform float chop_tone : hint_range(0.0, 0.5) = 0.24;
 
 // ---- Crest glints -----------------------------------------------------------------------
 group_uniforms Crests;
-// Whitecaps offshore, the way the references' water-type swatches draw them: thin dashed white
-// lines along the tops of the wave faces - about 1% of calm water, 4% of choppy, 6% of stormy -
-// joining up as the sea gets up, with small tufts where crests cross. 0 none, 0.3 a fair day,
-// 1 a storm. Material-only.
+// Whitecaps: a thin hairline along the crest of each small wave, on its front. (Tufts at the
+// tops were tried and came out as fat white ovals.) Sparse on a fair day, joining into a net as the
+// sea gets up - the swatches go from about 1% white (calm) to 4% (choppy) and 6% (stormy).
+// 0 none, 0.3 a fair day, 1 a storm. Material-only.
 uniform float crest_strength : hint_range(0.0, 1.0) = 0.3;
-// Metres wide a whitecap's line is. Material-only.
-uniform float crest_line_width : hint_range(0.02, 0.6) = 0.11;
+// Pixels wide a hairline is, whatever the distance. Material-only.
+uniform float crest_line_pixels : hint_range(0.5, 4.0) = 1.4;
 
 // ---- Object bands -----------------------------------------------------------------------
 group_uniforms Object_Bands;
@@ -317,15 +324,39 @@ float noise(vec2 p) {
 // would give triangle-shaped foam and lighting. Returned at the wave's full steepness; the
 // caller scales it. A wave whose phase turns more than about half a radian per pixel is faded
 // out before it can alias into speckle - that is `visible`.
-// Detail wave `i` of six, packed like wave_1..4: (direction x, z, steepness, wavelength).
-// Directions fanned round the swell's, wavelengths from detail_longest down.
-const float DETAIL_ANGLES[6] = float[6](-70.0, 25.0, -20.0, 60.0, 105.0, -120.0);
+// Chop wave `i` of six, packed like wave_1..4: (direction x, z, steepness, wavelength).
+// Directions within eighteen degrees of the swell's, so their crests line up into rows (fanned
+// wider, at fifty, they blurred into blobs),
+// wavelengths from chop_longest down.
+const float CHOP_ANGLES[6] = float[6](-12.0, 10.0, -6.0, 16.0, 4.0, -18.0);
 vec4 detail_wave(int i) {
     vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
-    float a = atan(d1.y, d1.x) + radians(DETAIL_ANGLES[i]);
-    float length_here = detail_longest * pow(0.78, float(i));
-    float steepness = 0.22 * detail_strength * pow(0.85, float(i));
+    float a = atan(d1.y, d1.x) + radians(CHOP_ANGLES[i]);
+    float length_here = chop_longest * pow(0.78, float(i));
+    float steepness = 0.3 * chop_strength * pow(0.88, float(i));
     return vec4(cos(a), sin(a), steepness, length_here);
+}
+
+// The chop's height at a point, normalised to -1..1 (x), and its gradient per metre (yz), each
+// wave faded out as it gets too fine for the pixels drawing it; and in w how much of the chop
+// is still resolved there (1 near, 0 where all of it is below a couple of pixels).
+vec4 chop_at(vec2 p, float clock) {
+    float h = 0.0;
+    vec2 g = vec2(0.0);
+    float total = 0.0;
+    float seen = 0.0;
+    for (int i = 0; i < 6; i++) {
+        vec4 wave = detail_wave(i);
+        float k = TAU / max(wave.w, 0.01);
+        float phase = k * dot(wave.xy, p) - sqrt(9.8 * k) * clock * wave_speed;
+        float visible = 1.0 - smoothstep(0.5, 1.6, fwidth(phase));
+        float a = wave.z / k;
+        h += a * sin(phase) * visible;
+        g += a * k * cos(phase) * wave.xy * visible;
+        total += a;
+        seen += a * visible;
+    }
+    return vec4(h / max(total, 0.0001), g / max(total, 0.0001), seen / max(total, 0.0001));
 }
 
 vec2 wave_slope(vec4 wave, vec2 p) {
@@ -672,95 +703,27 @@ void fragment() {
     float object_band = object_line;
 
     // ---- 6. Crest glints ----------------------------------------------------------------
-    // Whitecaps, on the real crests: thin lines along the front of the long swell's crests,
-    // shown only where the sea as a whole runs high there.
-    //
-    // The line: one level of the swell's own sine just ahead of each crest (where the water
-    // falls away in the direction it travels), bent a little by the next two waves so it is
-    // not ruled, and drawn a fixed width in metres - the level's distance over its slope.
-    // `lift`, the four waves' sines summed by steepness over their total, is 1 where they all
-    // peak at once; it is also what says a Gerstner surface is folding over, so where it is
-    // high is where a crest would break. The line shows where it passes a level that
-    // crest_strength lowers - so it comes in dashes of every length, long where the sea is
-    // up, none in its troughs - and where lift runs highest still the line swells into a tuft.
+    // The chop (see its uniforms): its height here, which the whitecaps are drawn from and
+    // which shades the open water in three tones (stage 8).
     vec2 crest_p = world_point.xz;
-    float lift = 0.0;
-    float total_steep = 0.0;
-    vec4 phases = vec4(0.0);
-    vec4 wave_ks = vec4(1.0);
-    for (int i = 0; i < 4; i++) {
-        vec4 wave = i == 0 ? wave_1 : (i == 1 ? wave_2 : (i == 2 ? wave_3 : wave_4));
-        vec2 dir = wave.xy / max(length(wave.xy), 0.0001);
-        float k = TAU / max(wave.w, 0.01);
-        float phase = k * dot(dir, crest_p) - sqrt(9.8 * k) * clock * wave_speed;
-        float q = max(wave.z, 0.0);
-        lift += q * sin(phase);
-        total_steep += q;
-        phases[i] = phase;
-        wave_ks[i] = k;
-    }
-    // The detail waves count too: where they pile onto a crest it breaks, where they dip it
-    // doesn't, which is what breaks each crest line into many short dashes.
-    for (int i = 0; i < 6; i++) {
-        vec4 wave = detail_wave(i);
-        float k = TAU / max(wave.w, 0.01);
-        float phase = k * dot(wave.xy, crest_p) - sqrt(9.8 * k) * clock * wave_speed;
-        lift += wave.z * sin(phase);
-        total_steep += wave.z;
-    }
-    lift /= max(total_steep, 0.0001);
-    float metres_per_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
-    float line_aa = max(metres_per_px, 0.01);
+    vec4 chop = chop_at(crest_p, clock);
+    // The swell under it: whitecaps gather on the swell's crests, as they do on a real sea.
+    vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
+    float k1 = TAU / max(wave_1.w, 0.01);
+    float swell_up = sin(k1 * dot(d1, crest_p) - sqrt(9.8 * k1) * clock * wave_speed);
+    // The hairline: one high level of the chop's height, on the FRONT of each small wave (where
+    // it falls away in the direction the waves run), a fixed number of pixels wide. Along a row
+    // of waves that level is an arc following the crest; as crest_strength lowers it the arcs
+    // lengthen and meet their neighbours, and the sea is a net of lines.
     float strength = clamp(crest_strength, 0.0, 1.0);
-    float high = mix(0.25, -0.1, strength);
-    float tuft = smoothstep(high + 0.2, high + 0.3, lift);
-    float half_width = crest_line_width * 0.5 * (1.0 + 0.8 * tuft);
-    // Lines on the two long waves' crests - the swell's, and the second wave's, which runs
-    // another way, so as the sea gets up the two sets cross into the cells the choppy swatch
-    // draws. Each bent a little by the other waves, and broken into dashes by cells a couple
-    // of metres across, fewer gaps as the sea gets up.
-    float crest = 0.0;
-    for (int i = 0; i < 2; i++) {
-        float bent = phases[i] + sin(phases[i == 0 ? 1 : 0]) * 0.12 + sin(phases[2]) * 0.12;
-        // Ahead of the crest the phase is past a quarter turn, so its cosine is negative.
-        float leading = smoothstep(0.0, 0.2, -cos(bent));
-        float to_line = abs(sin(bent) - 0.8) / max(wave_ks[i] * abs(cos(bent)), 0.02);
-        // Each dash is a brush stroke: full width in the middle of its cell, tapering to a
-        // point toward the cell's edge, rather than cut off square where the gap begins.
-        vec3 cell = foam_lace_at(crest_p, 1.6, i == 1);
-        float taper = sqrt(clamp(1.0 - cell.x / 0.62, 0.0, 1.0));
-        float width_here = half_width * taper;
-        float line = (1.0 - smoothstep(width_here, width_here + line_aa, to_line)) * leading
-            * step(0.02, taper);
-        float dashes = step(mix(0.45, 0.1, strength), cell.y);
-        // The second wave's lines only once the sea is up a little.
-        crest = max(crest, line * dashes * (i == 0 ? 1.0 : smoothstep(0.1, 0.5, strength)));
-    }
-    // And short, thinner dashes on the two detail waves that run near the swell's direction
-    // (the second and third, 25 and 20 degrees off it), bent by the swell so they arc along its
-    // crests: the scatter of small whitecaps the "small waves" swatch draws between the long
-    // lines. Only where the sea runs clearly high, so they sit on and round the big crests.
-    for (int i = 1; i < 3; i++) {
-        vec4 wave = detail_wave(i);
-        float k = TAU / max(wave.w, 0.01);
-        float phase = k * dot(wave.xy, crest_p) - sqrt(9.8 * k) * clock * wave_speed
-            + sin(phases[0]) * 0.9 + sin(phases[1]) * 0.5;
-        float leading = smoothstep(0.0, 0.2, -cos(phase));
-        float to_line = abs(sin(phase) - 0.8) / max(k * abs(cos(phase)), 0.02);
-        vec3 cell = foam_lace_at(crest_p + float(i) * 7.3, 0.9, i == 1);
-        float taper = sqrt(clamp(1.0 - cell.x / 0.62, 0.0, 1.0));
-        float small_width = half_width * 0.6 * taper;
-        float line = (1.0 - smoothstep(small_width, small_width + line_aa, to_line)) * leading
-            * step(0.02, taper);
-        float dashes = step(mix(0.8, 0.45, strength), cell.y);
-        crest = max(crest, line * dashes * step(0.001, detail_strength)
-            * smoothstep(high + 0.12, high + 0.16, lift));
-    }
-    crest *= smoothstep(high, high + 0.04, lift);
+    float level = mix(0.48, 0.18, strength) - swell_up * 0.12;
+    float front = smoothstep(0.0, 0.25, -dot(normalize(chop.yz + vec2(0.0001)), d1));
+    float px_height = max(fwidth(chop.x), 0.0001);
+    float crest = (1.0 - smoothstep(crest_line_pixels * 0.5, crest_line_pixels * 0.5 + 1.0,
+        abs(chop.x - level) / px_height)) * front;
     // Only offshore, where the shore foam is not already drawing the waves, only where the
-    // mesh carries a swell, and not where a line would be thinner than the pixel drawing it.
-    crest *= smoothstep(1.5, 4.0, water_depth) * wave_activity * swell;
-    crest *= clamp(crest_line_width * 1.5 / max(metres_per_px, 0.0001), 0.0, 1.0);
+    // chop is still bigger than the pixels, and near.
+    crest *= smoothstep(1.5, 4.0, water_depth) * swell * smoothstep(0.35, 0.7, chop.w);
     crest *= 1.0 - smoothstep(55.0, 150.0, range_here);
     // Everything white on the water, foam and crests together.
     float white = clamp(max(crest, surf), 0.0, 1.0);
@@ -815,6 +778,18 @@ void fragment() {
     vec3 shaded_water = scene_colour * transmittance
         + water_scatter * scatter_amount * scattering_strength * sky_light
         * mix(1.0, sun_through, 0.6);
+
+    // The chop's three tones on the open water: darker in its troughs and on the faces turned
+    // away from the eye, lighter on its tops - hard toon steps, each a pixel soft. Faded out in
+    // the clear shallows, where the seabed is the picture, and where the chop is too fine to see.
+    vec2 to_eye = normalize(CAMERA_POSITION_WORLD.xz - world_point.xz + vec2(0.0001));
+    float facing_eye = dot(normalize(chop.yz + vec2(0.0001)), to_eye) * min(length(chop.yz) * 2.0, 1.0);
+    float tone = chop.x * 0.7 + facing_eye * 0.35;
+    float tone_aa = max(fwidth(tone), 0.001);
+    float tone_step = smoothstep(0.3 - tone_aa, 0.3 + tone_aa, tone)
+        - (1.0 - smoothstep(-0.3 - tone_aa, -0.3 + tone_aa, tone));
+    tone_step *= chop_tone * smoothstep(1.0, 4.0, water_depth) * smoothstep(0.35, 0.7, chop.w);
+    shaded_water *= 1.0 + tone_step;
 
     // ---- 9. Sky reflection --------------------------------------------------------------
     shaded_water = mix(shaded_water, sky_reflection_colour * sky_light, fresnel * sky_reflection_strength);
