@@ -332,3 +332,24 @@ project already rejects view-dependent outlines).
 - `tests/foam_view.gd` captures open water 70 m out (`open_sea.png`) and counts the near-white
   share: 0.5% at the default - counting only near-pure white; the references' swatches are about
   1% calm, 4% choppy, 6% stormy.
+
+### Step 8b: detail waves (done)
+
+- Four regular waves crossing make a sparse, repeating pattern of crests, and what is drawn
+  from them came out sparse and regular. Six short DETAIL waves now sit on top of them
+  (`Detail_Waves` on the ocean material: `detail_strength`, `detail_longest` 3 m, each next one
+  0.78 as long and a little weaker, fanned round the swell's direction). They go into the
+  shading and the whitecaps only, not the mesh or anything floating: waves this short barely
+  lift a barrel, and keeping them out of the displacement keeps the drawn surface and the one
+  things float on the same.
+- In the shading they show as fine ripples in the middle distance and a sun streak broken into
+  glints; close up the toon bands still hide most of them.
+- The whitecaps count them: where they pile onto a crest it breaks, where they dip it does not,
+  so each crest line comes in shorter pieces. The two detail waves nearest the swell's direction
+  also get short dashes, bent along the swell so they arc, only where the sea runs clearly high,
+  so they cluster on the big crests. Every dash, long or short, is a tapered brush stroke - full
+  width in the middle of its cell, narrowing to a point - not a line cut off square.
+- Tried on the way: dashes on all the longest detail waves, straight, crossed into sticks and
+  X's like scratches (2.4% white); aligning them to the swell and bending them fixed it.
+- Open water 70 m out from the gameplay camera: 0.7% near-white at the default fair-day
+  `crest_strength` 0.3 (references: about 1% calm, 4% choppy).
