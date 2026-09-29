@@ -58,7 +58,7 @@ func _run() -> void:
 	var decks := {"Helm": Ship.QUARTERDECK_Y, "Capstan": Ship.GUN_DECK_Y,
 			"DeckFittings/Binnacle": Ship.QUARTERDECK_Y, "DeckFittings/MastCollar": Ship.DECK_Y,
 			"Quarterdeck/Cabin": Ship.DECK_Y, "Quarterdeck/Stairs": Ship.DECK_Y,
-			"Mizzen": Ship.QUARTERDECK_Y, "DeckFittings/MizzenCollar": Ship.QUARTERDECK_Y}
+			"Mizzen/Model": Ship.QUARTERDECK_Y, "DeckFittings/MizzenCollar": Ship.QUARTERDECK_Y}
 	for path in decks:
 		var box := _bounds(ship, ship.get_node_or_null(path))
 		check(absf(box.position.y - decks[path]) <= TOLERANCE,
@@ -82,7 +82,7 @@ func _run() -> void:
 	check(absf(topmast.position.y - lower.end.y) <= TOLERANCE, "the topmast does not sit on the mainmast's head")
 	check(absf(topmast.end.y - (Ship.DECK_Y + 8.5)) <= TOLERANCE,
 			"the topmast ends at %.3f, not 8.5 m above the deck" % topmast.end.y)
-	var fore := _bounds(ship, ship.get_node_or_null("Foremast"))
+	var fore := _bounds(ship, ship.get_node_or_null("Foremast/Model"))
 	check(absf(fore.size.y - Ship.FOREMAST_HEIGHT) <= TOLERANCE and absf(fore.position.y - Ship.DECK_Y) <= TOLERANCE,
 			"the foremast stands %.2f to %.2f, not %.1f m up from the deck" % [fore.position.y, fore.end.y, Ship.FOREMAST_HEIGHT])
 	check(fore.size.y >= 0.75 * (topmast.end.y - Ship.DECK_Y), "the foremast is %.2f m, a stub beside the main's %.2f" % [fore.size.y, topmast.end.y - Ship.DECK_Y])
@@ -228,7 +228,7 @@ func _check_bowsprit_clears_knightheads(ship: Node3D) -> void:
 ## short of its tip; and the bobstay holds the bowsprit down from its tip.
 func _check_jib(ship: Node3D) -> void:
 	var jib := ship.get_node_or_null("Jib")
-	var fore := _bounds(ship, ship.get_node_or_null("Foremast"))
+	var fore := _bounds(ship, ship.get_node_or_null("Foremast/Model"))
 	var sprit := _bounds(ship, ship.get_node_or_null("Bowsprit"))
 	if jib == null:
 		check(false, "the jib is missing")
@@ -918,19 +918,10 @@ func _check_wale(ship: Node3D) -> void:
 			check(absf(gap) <= 0.015, "the wale at (%.2f, %.2f) is %.3f m off the hull" % [mid.x, mid.y, gap])
 
 
-## The small rigging: a deadeye on every shroud's foot, hung on the rope just above the rail, a
-## block under each yard arm, and the flag above everything on the topmast.
+## The small rigging: a block under each yard arm, and the flag above everything on the
+## topmast. The shrouds and backstays are _check_shrouds'.
 func _check_rigging(ship: Node3D) -> void:
-	var shrouds := ship.get_node_or_null("Mast/Shrouds")
-	var deadeyes: Array = [] if shrouds == null else shrouds.find_children("Deadeye*", "", false, false)
-	check(deadeyes.size() == 6 and deadeyes.all(func(d: Node) -> bool: return d.get_node_or_null("Model") != null),
-			"%d deadeyes with models; there should be one on each of the six shrouds" % deadeyes.size())
-	for node in deadeyes:
-		var d := node as Node3D
-		var box := _bounds(ship, d)
-		# Above the handrail's top (5.95), and no higher than a hand's reach up the shroud.
-		check(box.position.y > Ship.DECK_Y + 0.74 and box.position.y < Ship.DECK_Y + 1.1,
-				"%s hangs from %.2f to %.2f, not just above the rail" % [d.name, box.position.y, box.end.y])
+	_check_shrouds(ship)
 	var blocks := ship.get_node_or_null("Mast/Blocks")
 	check(blocks != null and blocks.get_child_count() == 4
 			and blocks.get_children().all(func(b: Node) -> bool: return b.get_node_or_null("Model") != null),
@@ -939,6 +930,110 @@ func _check_rigging(ship: Node3D) -> void:
 	var flag := _bounds(ship, ship.get_node_or_null("Mast/Flag"))
 	check(ship.get_node_or_null("Mast/Flag/Model") != null and flag.position.y > yard.end.y,
 			"the flag is missing or hangs down to %.2f, into the topsail yard (top %.2f)" % [flag.position.y, yard.end.y])
+
+
+## Every shroud and backstay is made fast at both ends. At the top it leaves the mast from its
+## surface (the main's from inside its top's collar). At the foot it is set up with an upper and a
+## lower deadeye to a channel standing out from the hull, the channel's inner edge on the hull,
+## and a chain plate from the lower deadeye down to the hull's side. Between, the rope passes
+## clear of the rail and the hull, and the fore shrouds clear of the catheads and anchors and
+## forward of the fore sails.
+func _check_shrouds(ship: Node3D) -> void:
+	var space := ship.get_world_3d().direct_space_state
+	var sets := [["Mast/Shrouds", 6, "Mast/Top"], ["Foremast/Shrouds", 6, "Foremast/Model"],
+			["Mizzen/Shrouds", 4, "Mizzen/Model"], ["Mast/Backstays", 2, "Mast/Topmast"]]
+	var catheads: Array[Vector3] = []
+	for name in ["CatheadStarboard", "CatheadPort"]:
+		var cathead := ship.get_node("DeckFittings/" + name) as Node3D
+		for m in cathead.find_children("*", "MeshInstance3D", true, false):
+			var mesh_node := m as MeshInstance3D
+			for v in mesh_node.mesh.get_faces():
+				catheads.append(ship.global_transform.affine_inverse() * mesh_node.global_transform * v)
+	for spec in sets:
+		var node := ship.get_node_or_null(spec[0])
+		var ropes: Array = [] if node == null else node.get_meta("set_up", [])
+		check(ropes.size() == spec[1], "%s: %d ropes set up; there should be %d" % [spec[0], ropes.size(), spec[1]])
+		if node == null:
+			continue
+		for kind in ["Deadeye*", "LowerDeadeye*"]:
+			var found: Array = node.find_children(kind, "", false, false)
+			check(found.size() == spec[1] and found.all(func(d: Node) -> bool: return d.get_node_or_null("Model") != null),
+					"%s: %d %s with models; there should be one on each rope" % [spec[0], found.size(), kind.trim_suffix("*")])
+		# The mast part the ropes leave from, and how far out from its axis it reaches.
+		var part := ship.get_node(spec[2]) as Node3D
+		var axis := ship.to_local(part.global_position)
+		var part_verts: Array[Vector3] = []
+		for m in part.find_children("*", "MeshInstance3D", true, false) + ([part] if part is MeshInstance3D else []):
+			var mesh_node := m as MeshInstance3D
+			for v in mesh_node.mesh.get_faces():
+				part_verts.append(ship.global_transform.affine_inverse() * mesh_node.global_transform * v)
+		var index := {}
+		for rope in ropes:
+			var top: Vector3 = rope["top"]
+			var strop: Vector3 = rope["strop"]
+			var foot: Vector3 = rope["foot"]
+			var plate_end: Vector3 = rope["plate_end"]
+			var out: Vector3 = rope["out"]
+			var side := "Starboard" if out.x > 0.0 else "Port"
+			var k: int = index.get(side, 0)
+			index[side] = k + 1
+			var label := "%s rope at (%.2f, %.2f)" % [spec[0], foot.x, foot.z]
+			# Its top on the mast: no further from the axis than the mast reaches at that height.
+			# A plain spar has vertices only at its ends and bands: look wider until some are found.
+			var reach := 0.0
+			for band in [0.15, 0.6, 1.2]:
+				for v in part_verts:
+					if absf(v.y - top.y) < band:
+						reach = maxf(reach, Vector2(v.x - axis.x, v.z - axis.z).length())
+				if reach > 0.0:
+					break
+			var from_axis := Vector2(top.x - axis.x, top.z - axis.z).length()
+			check(reach > 0.0 and from_axis <= reach + 0.03,
+					"%s leaves %s %.2f m from its axis, where it reaches %.2f: in the air" % [label, spec[2], from_axis, reach])
+			# Its channel's inner edge over the hull's side: the hull's outer face at the deck under it.
+			var hull: Vector3 = rope["hull"]
+			var deck_at := Vector3(hull.x, (Ship.QUARTERDECK_Y if rope["on_castle"] else Ship.DECK_Y) - 0.05, hull.z)
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(deck_at + out * 0.6), ship.to_global(deck_at - out * 0.3)))
+			var gap: float = (ship.to_local(hit.position) - deck_at).dot(out) if not hit.is_empty() else INF
+			check(absf(gap) <= 0.03, "%s: its channel's inner edge stands %.3f m off the hull below it" % [label, gap])
+			var lower := _bounds(ship, node.get_node_or_null("LowerDeadeye%s%d" % [side, k]))
+			# A steeply leaning rope tips its deadeyes, and a corner dips a little into the plank.
+			check(lower.position.y >= foot.y - 0.12 and lower.position.y <= foot.y + 0.05,
+					"%s: its lower deadeye does not stand on the channel (%.2f, channel top %.2f)" % [label, lower.position.y, foot.y])
+			var planked := false
+			for channel in node.find_children("Channel*", "MeshInstance3D", false, false):
+				planked = planked or _bounds(ship, channel as Node3D).grow(0.02).has_point(foot - Vector3(0.0, Ship.CHANNEL_THICK * 0.5, 0.0))
+			check(planked, "%s: its foot is not on a channel's plank" % label)
+			# Its chain plate down to the hull's side.
+			var plate := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(plate_end + out * 0.3), ship.to_global(plate_end - out * 0.3)))
+			var plate_gap: float = (plate_end - ship.to_local(plate.position)).dot(out) if not plate.is_empty() else INF
+			if rope["on_castle"]:
+				# On the castle it is bolted to the trim, which stands 0.2 m off the wall.
+				var trim := _bounds(ship, ship.get_node("Quarterdeck/Trim"))
+				check(plate_gap >= 0.0 and plate_gap <= 0.2 and absf(plate_end.y - trim.end.y) <= 0.02,
+						"%s: its chain plate does not end on the castle's trim (%.3f off the wall at %.2f)" % [label, plate_gap, plate_end.y])
+			else:
+				check(absf(plate_gap) <= 0.06, "%s: its chain plate ends %.3f m off the hull" % [label, plate_gap])
+			check(plate_end.y < foot.y - 0.5, "%s: its chain plate does not reach down the hull" % label)
+			# The deadeyes wholly above the rail's top, and the lower one outboard of it.
+			var rail_top: float = (Ship.QUARTERDECK_Y if rope["on_castle"] else Ship.DECK_Y) + Ship.RAIL_HEIGHT
+			check(lower.position.y > rail_top and (foot - hull).dot(out) >= 0.13,
+					"%s: its deadeyes are not clear above and outboard of the rail (%.2f, rail top %.2f)" % [label, lower.position.y, rail_top])
+			# The rope itself clear of the rail, the hull and the castle, from its deadeye up.
+			var run := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(strop), ship.to_global(strop.lerp(top, 0.85))))
+			check(run.is_empty(), "%s runs into %s" % [label, "" if run.is_empty() else str((run.collider as Node).get_path())])
+			if spec[0] == "Foremast/Shrouds":
+				var nearest := INF
+				for j in 21:
+					var p := foot.lerp(top, j / 20.0)
+					for v in catheads:
+						nearest = minf(nearest, p.distance_to(v))
+				for j in 11:
+					var p := foot.lerp(plate_end, j / 10.0)
+					for v in catheads:
+						nearest = minf(nearest, p.distance_to(v))
+				check(nearest > 0.1, "%s comes within %.2f m of a cathead or its anchor" % [label, nearest])
+				check(top.z <= Ship.FOREMAST_AT.z + 0.01 and foot.z < top.z, "%s is not forward of the foremast, clear of its sails" % label)
 
 
 ## The flag hangs on its staff by its three rings: the staff's axis passes through each ring's
@@ -1016,13 +1111,6 @@ func _check_mizzen(ship: Node3D) -> void:
 	check(boom.position.z < mast.end.z + 0.1 and gaff.position.z < mast.end.z + 0.1,
 			"the boom or gaff does not start at the mast")
 	check(gaff.position.y > boom.end.y + 1.0, "the gaff is not above the boom")
-	var deadeyes: Array = mizzen.find_children("Deadeye*", "", true, false)
-	check(deadeyes.size() == 4 and deadeyes.all(func(d: Node) -> bool: return d.get_node_or_null("Model") != null),
-			"%d deadeyes with models on the mizzen's shrouds; there should be four" % deadeyes.size())
-	for node in deadeyes:
-		var d := _bounds(ship, node as Node3D)
-		check(d.position.y > Ship.QUARTERDECK_Y + 0.74 and d.position.y < Ship.QUARTERDECK_Y + 1.1,
-				"%s hangs from %.2f, not just above the quarterdeck's rail" % [node.name, d.position.y])
 
 	var wind := ship.get_tree().get_first_node_in_group("wind")
 	if wind == null:

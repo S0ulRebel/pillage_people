@@ -113,6 +113,8 @@ const MIRRORED: Array[StringName] = [
 	&"terrain_height", &"terrain_size", &"terrain_scale", &"terrain_center", &"terrain_base_y",
 	&"sea_y", &"preview_time", &"wave_1", &"wave_2", &"wave_3", &"wave_4", &"wave_height",
 	&"wave_speed", &"shoal_depth", &"choppiness", &"sun_direction", &"daylight",
+	&"shore_field", &"shore_field_rect", &"shore_wave_length", &"shore_wave_steepness",
+	&"shore_wave_reach", &"shore_wave_calm", &"shore_wave_shoal",
 ]
 
 var material: ShaderMaterial

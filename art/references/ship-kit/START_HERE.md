@@ -103,7 +103,11 @@ Done so far:
 
 **The wale and the small rigging:**
 - **Wale:** swept round the whole hull at 4.4 m, between the gunport frames and the weather deck, closed round the stem and the stern. `tools/rail_profiles.py` slices and bakes the wale bay like the rail's pieces (`deck/rail_sweep.glb`). Each side follows its own outline measured off the hull, because the kit's bow is not quite symmetrical.
-- **Deadeyes:** one on each shroud's foot, just above the rail, lying along the rope.
+- **Shrouds and backstays:** every rope is made fast at both ends, as on a real ship.
+  - At the top it leaves its mast from the surface: the main's from the top's collar, under the platform and clear of the course yard; the fore's between its yards; the mizzen's under the gaff; the backstays' from the topmast's aft side, above the topsail yard.
+  - At the foot it ends in an upper deadeye, with a lanyard to a lower deadeye. The lower deadeye stands on a channel, a 0.3 m plank along the outside of the rail just above its top, so the deadeyes and ropes are clear of the rail. An iron chain plate runs from the lower deadeye down the hull to just above the wale, or on the castle to the top of the trim.
+  - Channels at deck level would have had to stand out most of a metre, because the ropes lean in so far toward their masts, which is why they sit above the rail.
+  - Main: 3 a side, with ratlines. Fore: 3 a side, with ratlines, forward of the mast (clear of the fore sails) and forward of the catheads. Mizzen: 2 a side. Backstays: one a side, each to its own channel at the stern quarter.
 - **Blocks:** a single block under each end of the course yard and the topsail yard. The double blocks are not placed.
 - **Flag:** on a short staff above the topmast, held by its three rings, and turned each physics frame to stream downwind with the breeze the sails feel. `python tools/rig_flag.py` sets Tripo's flag up for that (`rigging/flag_rigged.glb`):
   - straightens its hoist so the rings stand in one line;
@@ -121,6 +125,7 @@ Done so far:
 - the course hangs inside the castle or through the mizzen;
 - the castle's trim is off the wall, into the stairs' rails, or over a window or the door;
 - the mizzen stands in a fitting, its boom comes down into the helmsman's head room, or the spanker's luff comes off the mast;
+- a shroud or backstay leaves its mast in the air, or its deadeyes, channel or chain plate are not made fast to the ship, or it runs through the rail, the hull or the fore sails;
 - a pillar is off the wall, not under the trim, or in a window, the door or the stairs' rails; a corner pillar is off its corner, the rail reaches into it or does not stop 0.25 m short, or it does not collide; or the stern window is not framed;
 - the bottom rim is off the deck line or the wall, or runs across the front wall's walkway;
 - the window's or pillar's texture is over 1024 px;
