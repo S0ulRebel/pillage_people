@@ -54,6 +54,21 @@ const CASTLE_WINDOW_SILL := 0.9
 ## The trim round the castle's top: the wale's profile swept along its walls with its top just
 ## under the quarterdeck's edge, where the rail's base overhangs them.
 const CASTLE_TRIM_Y := DECK_Y + 2.6 - 0.11
+## Tripo's carved pillar (art/models/ship/cabin/cabin_pillar.glb, its texture shrunk to 1024
+## px): 1 m tall, 0.199 m wide and 0.172 m deep, facing +Z, its foot at its origin and its flat
+## back 0.086 m behind it. Scaled to stand from the deck line to just under the trim, where the
+## bottom rim runs into its base and its capital carries the trim.
+const PILLAR_SCALE := 2.35
+const PILLAR_BACK := 0.086
+const PILLAR_WIDTH := 0.199 * PILLAR_SCALE
+const PILLAR_DEPTH := 0.172 * PILLAR_SCALE
+## The front wall's two pillars stand at its corners, their outer sides this far proud of the
+## castle's sides, so the bottom rim ends inside them.
+const PILLAR_CORNER_PROUD := 0.02
+## The weather deck's rail stops this short of the corner pillars, on a post of its own: run into
+## them, it read as springing out of the pillar. Far narrower than anyone who would slip through,
+## and the corner pillars collide.
+const RAIL_PILLAR_GAP := 0.25
 ## Across the front wall the trim stops this far either side of the stairs' centre line and
 ## turns into the wall, clear of the stair rails (STAIR_RAIL_OUT, with their 0.24 m posts)
 ## by 2 cm, its return standing 0.2 m out toward them.
@@ -251,6 +266,19 @@ const MAX_HEEL := 0.14
 				quarterdeck.remove_child(old)
 				old.queue_free()
 			_build_windows(quarterdeck, quarterdeck.get_node("Cabin") as Node3D)
+
+## How far the castle's pillars stand off its wall, like window_offset. Tune it in the inspector.
+@export_range(-0.1, 0.1, 0.001, "suffix:m") var pillar_offset := 0.0:
+	set(value):
+		pillar_offset = value
+		var quarterdeck := get_node_or_null("Quarterdeck") as Node3D
+		if quarterdeck != null and quarterdeck.get_node_or_null("Cabin") != null:
+			var old := quarterdeck.get_node_or_null("Pillars")
+			if old != null:
+				old.name = "PillarsOld"
+				quarterdeck.remove_child(old)
+				old.queue_free()
+			_build_pillars(quarterdeck, quarterdeck.get_node("Cabin") as Node3D)
 
 ## Gunports a side. Changing it moves the holes, the frames and lids, and the guns together.
 @export_range(1, 6) var gun_port_count := 4:
@@ -573,7 +601,9 @@ func _build_quarterdeck() -> void:
 		_box(cabin, Vector3(0.0, QUARTERDECK_Y - 1.3, CASTLE_FRONT_Z + length * 0.5), Vector3(5.6, 2.6, length), timber)
 		_solid(cabin)
 	_build_windows(quarterdeck, cabin)
+	_build_pillars(quarterdeck, cabin)
 	_build_castle_trim(quarterdeck, cabin)
+	_build_castle_rim(quarterdeck, cabin)
 	# Starboard of the stairs, its back against the front wall. The model's origin is the foot
 	# of its leaf, halfway through its depth.
 	var door := Node3D.new()
@@ -1107,7 +1137,10 @@ func _build_rail() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Body"
 	rail.add_child(body)
-	var legs := _rail_legs()
+	# The weather deck's rail stops short of the front wall's corner pillars; without them it
+	# ends just clear of the wall.
+	var pillars := get_node_or_null("Quarterdeck/Pillars") as Node3D
+	var legs := _rail_legs(pillars != null and pillars.get_child_count() > 0 and pillars.get_child(0).get_node_or_null("Model") != null)
 	var post_lines: Array = []
 	for line in legs:
 		post_lines.append(_lay_rail(line, post_width, baluster_box, clear, placed, body))
@@ -1157,31 +1190,104 @@ func _build_windows(quarterdeck: Node3D, cabin: Node3D) -> void:
 	var wall := _castle_wall(cabin)
 	if wall.size() < 2 or CASTLE_WINDOW_COUNT < 1:
 		return
-	var reach: PackedFloat32Array = [0.0]
-	for i in wall.size() - 1:
-		reach.append(reach[i] + wall[i].distance_to(wall[i + 1]))
-	var length := reach[reach.size() - 1]
+	var reach := _reach(wall)
 	for k in CASTLE_WINDOW_COUNT:
-		var t := 0.5 if CASTLE_WINDOW_COUNT == 1 else float(k) / (CASTLE_WINDOW_COUNT - 1)
-		var s := lerpf(CASTLE_WINDOW_MARGIN, length - CASTLE_WINDOW_MARGIN, t)
-		# Centred on the wall panel it falls on, so its flat back lies on a flat wall.
-		var panel := 0
-		while panel < wall.size() - 2 and reach[panel + 1] <= s:
-			panel += 1
-		s = (reach[panel] + reach[panel + 1]) * 0.5
-		var at := _rail_at(wall, reach, s)
-		# Outward: the wall runs with the castle on its right, so out is -Z of the rail's frame.
-		var out := -at.basis.z
-		var back := at.origin + out * window_offset
+		var at := _panel_spot(wall, reach, _panel_at(reach, _window_reach(reach, k)))
+		var out := at.basis.z
 		var window := Node3D.new()
 		window.name = "Window%d" % k
-		var facing := atan2(out.x, out.z)
 		# Stood out by the depth behind the model's origin, so its back is on the wall.
-		window.position = back + Vector3.UP * CASTLE_WINDOW_SILL + out * 0.105 * WINDOW_SCALE
-		window.rotation.y = facing
+		window.position = at.origin + out * (window_offset + 0.105 * WINDOW_SCALE) + Vector3.UP * CASTLE_WINDOW_SILL
+		window.rotation.y = atan2(out.x, out.z)
 		window.scale = Vector3.ONE * WINDOW_SCALE
 		windows.add_child(window)
 		_fit_model(window, CABIN_PARTS + "cabin_window.glb")
+
+
+## The castle's carved pillars, framing its walls as the corner posts of a stern castle do: one
+## at each corner of the front wall, facing forward, and round the stern one between each pair
+## of windows, except that the two either side of the stern window stand on the panels next to
+## it, framing it. Each is centred on its wall panel as the windows are, stands on the deck
+## line with its back on the wall, and is stood off it by pillar_offset.
+func _build_pillars(quarterdeck: Node3D, cabin: Node3D) -> void:
+	var pillars := Node3D.new()
+	pillars.name = "Pillars"
+	quarterdeck.add_child(pillars)
+	var wall := _castle_wall(cabin)
+	if wall.size() < 2:
+		return
+	var spots: Array[Transform3D] = []
+	for side in [1.0, -1.0]:
+		spots.append(Transform3D(Basis(Vector3.LEFT, Vector3.UP, Vector3.FORWARD), Vector3(side * _corner_pillar_x(wall), DECK_Y, wall[0].z)))
+	var reach := _reach(wall)
+	var windows: Array[int] = []
+	for k in CASTLE_WINDOW_COUNT:
+		windows.append(_panel_at(reach, _window_reach(reach, k)))
+	var middle := CASTLE_WINDOW_COUNT / 2 if CASTLE_WINDOW_COUNT % 2 == 1 else -1
+	for k in CASTLE_WINDOW_COUNT - 1:
+		var panel := _panel_at(reach, (_window_reach(reach, k) + _window_reach(reach, k + 1)) * 0.5)
+		if k == middle - 1:
+			panel = windows[middle] - 1
+		elif k == middle:
+			panel = windows[middle] + 1
+		spots.append(_panel_spot(wall, reach, panel))
+	for k in spots.size():
+		var out := spots[k].basis.z
+		var pillar := Node3D.new()
+		pillar.name = "Pillar%d" % k
+		pillar.position = spots[k].origin + out * (pillar_offset + PILLAR_BACK * PILLAR_SCALE)
+		pillar.rotation.y = atan2(out.x, out.z)
+		pillar.scale = Vector3.ONE * PILLAR_SCALE
+		pillars.add_child(pillar)
+		_fit_model(pillar, CABIN_PARTS + "cabin_pillar.glb")
+		# The corner pillars stand on the weather deck, where the rail ends short of them: solid,
+		# so nobody walks through one and off the deck.
+		if k < 2:
+			var body := StaticBody3D.new()
+			var shape := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(0.199, 1.0, 0.172)
+			shape.shape = box
+			shape.position = Vector3(0.0, 0.5, 0.0)
+			body.add_child(shape)
+			pillar.add_child(body)
+
+
+## How far out from the centreline the front wall's corner pillars stand (PILLAR_CORNER_PROUD).
+func _corner_pillar_x(wall: Array[Vector3]) -> float:
+	return absf(wall[0].x) + PILLAR_CORNER_PROUD - PILLAR_WIDTH * 0.5
+
+
+## How far along the castle's wall the `k`th window's even spacing falls, before it is centred on
+## its panel.
+func _window_reach(reach: PackedFloat32Array, k: int) -> float:
+	var t := 0.5 if CASTLE_WINDOW_COUNT == 1 else float(k) / (CASTLE_WINDOW_COUNT - 1)
+	return lerpf(CASTLE_WINDOW_MARGIN, reach[reach.size() - 1] - CASTLE_WINDOW_MARGIN, t)
+
+
+## How far along `line` each of its points is, in metres.
+func _reach(line: Array[Vector3]) -> PackedFloat32Array:
+	var reach: PackedFloat32Array = [0.0]
+	for i in line.size() - 1:
+		reach.append(reach[i] + line[i].distance_to(line[i + 1]))
+	return reach
+
+
+## The castle wall's panel that `s` metres along it falls on.
+func _panel_at(reach: PackedFloat32Array, s: float) -> int:
+	var panel := 0
+	while panel < reach.size() - 2 and reach[panel + 1] <= s:
+		panel += 1
+	return panel
+
+
+## Where something flat-backed stands on the castle's wall (_castle_wall): the middle of wall
+## panel `panel`, so its back lies on a flat wall, at the deck. Its basis's Z points out.
+func _panel_spot(wall: Array[Vector3], reach: PackedFloat32Array, panel: int) -> Transform3D:
+	var at := _rail_at(wall, reach, (reach[panel] + reach[panel + 1]) * 0.5)
+	# The wall runs with the castle on its right, so out is -Z of the rail's frame.
+	var out := -at.basis.z
+	return Transform3D(Basis(Vector3.UP.cross(out), Vector3.UP, out), at.origin)
 
 
 ## The castle's trim, one mesh: the wale's profile swept along the castle's walls at
@@ -1212,6 +1318,36 @@ func _build_castle_trim(quarterdeck: Node3D, cabin: Node3D) -> void:
 	trim.mesh = sweep.commit()
 	trim.material_override = profile["material"]
 	quarterdeck.add_child(trim)
+
+
+## The castle's bottom rim, one mesh: the trim's profile swept round the castle's outside walls
+## with its foot on the deck line, covering the joint where the castle stands on the hull. The
+## pillars stand on the same line, and the rim runs into their bases. Not across the front wall,
+## where it would be a step in the walkway: it goes round each front corner and ends inside the
+## corner pillar's base.
+func _build_castle_rim(quarterdeck: Node3D, cabin: Node3D) -> void:
+	var wall := _castle_wall(cabin)
+	if wall.size() < 2:
+		return
+	var profile := _rail_profile("wale", _flat(Color(0.45, 0.28, 0.14)))
+	var low := INF
+	for point in profile["points"] as PackedVector2Array:
+		low = minf(low, point.y)
+	var y := DECK_Y - low
+	var tuck := _corner_pillar_x(wall)
+	# Round the same way as the trim, so its profile stands out from the walls.
+	var line: Array[Vector3] = [Vector3(-tuck, y, wall[0].z)]
+	for i in range(wall.size() - 1, -1, -1):
+		line.append(Vector3(wall[i].x, y, wall[i].z))
+	line.append(Vector3(tuck, y, wall[0].z))
+	var sweep := SurfaceTool.new()
+	sweep.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_sweep(sweep, line, profile)
+	var rim := MeshInstance3D.new()
+	rim.name = "Rim"
+	rim.mesh = sweep.commit()
+	rim.material_override = profile["material"]
+	quarterdeck.add_child(rim)
 
 
 ## The castle's wall round the stern, at the deck, as a line from its starboard front corner to
@@ -1247,8 +1383,9 @@ func _castle_wall(cabin: Node3D) -> Array[Vector3]:
 
 
 ## One leg of rail along `line`: posts spaced evenly from end to end and balusters spread
-## between each pair. Adds what it places to `placed`, and a collision box per straight length
-## to `body`. Returns the posts. The handrail and base are swept along the leg (_sweep).
+## between each pair, no baluster in anything in `clear`. Adds what it places to `placed`, and a
+## collision box per straight length to `body`. Returns the posts. The handrail and base are
+## swept along the leg (_sweep).
 func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 		clear: Array[AABB], placed: Dictionary, body: StaticBody3D) -> Array[Transform3D]:
 	var reach: PackedFloat32Array = [0.0]
@@ -1270,13 +1407,14 @@ func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 	var standing: Array[Transform3D] = []
 	for k in bays + 1:
 		posts.append(length * k / bays)
-		standing.append(_rail_at(line, reach, posts[k]))
+		var post := _rail_at(line, reach, posts[k])
+		standing.append(post)
 		# Where two legs meet they share the corner's post: stand it once.
 		var shared := false
 		for other in placed["post"]:
-			shared = shared or (other as Transform3D).origin.distance_to(standing[k].origin) < 0.001
+			shared = shared or (other as Transform3D).origin.distance_to(post.origin) < 0.001
 		if not shared:
-			placed["post"].append(standing[k])
+			placed["post"].append(post)
 
 	# Collision in straight lengths, one per hull panel between posts, each running through
 	# the posts so there is no gap at either end. A box cannot shear, so up the stairs it is
@@ -1316,15 +1454,18 @@ func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 
 
 ## The rail's lines, each running with the deck on its left so a post's local +Z faces out:
-## - the weather deck, each side from its knighthead at the bow to the castle's front wall;
+## - the weather deck, each side from its knighthead at the bow to the castle's front wall, or
+##   with `before_pillars` to RAIL_PILLAR_GAP short of the corner pillar there;
 ## - the quarterdeck's: up the stairs' outboard side, across the front to the port corner,
 ##   round the stern on the castle's wall top, back across the front to the landing and down
 ##   the stairs' inboard side. The stair rails start 0.16 m up from the stairs' foot, so the
 ##   inboard post stays clear of the stair opening in the deck below.
 ## A line is split into legs wherever it turns more than RAIL_CORNER, and each leg gets its own
 ## evenly spaced posts, so a square corner always has a post on it.
-func _rail_legs() -> Array:
+func _rail_legs(before_pillars := false) -> Array:
 	var front := CASTLE_FRONT_Z - 0.16
+	if before_pillars:
+		front = CASTLE_FRONT_Z - PILLAR_DEPTH - RAIL_PILLAR_GAP - 0.12
 	var starboard: Array[Vector3] = [Vector3(2.9, DECK_Y, front)]
 	for i in range(RAIL_PATH.size() - 1, -1, -1):
 		if RAIL_PATH[i].y < front:
