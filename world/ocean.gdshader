@@ -151,8 +151,13 @@ uniform vec3 foam_colour : source_color = vec3(0.95, 0.98, 1.0);
 
 // ---- Crest glints -----------------------------------------------------------------------
 group_uniforms Crests;
-// Short white strokes along the swell's crests offshore, drawn in foam_colour. Material-only.
-uniform float crest_strength : hint_range(0.0, 1.0) = 0.28;
+// Whitecaps offshore, the way the references' water-type swatches draw them: thin dashed white
+// lines along the tops of the wave faces - about 1% of calm water, 4% of choppy, 6% of stormy -
+// joining up as the sea gets up, with small tufts where crests cross. 0 none, 0.3 a fair day,
+// 1 a storm. Material-only.
+uniform float crest_strength : hint_range(0.0, 1.0) = 0.3;
+// Metres wide a whitecap's line is. Material-only.
+uniform float crest_line_width : hint_range(0.02, 0.6) = 0.11;
 
 // ---- Object bands -----------------------------------------------------------------------
 group_uniforms Object_Bands;
@@ -639,27 +644,60 @@ void fragment() {
     float object_band = object_line;
 
     // ---- 6. Crest glints ----------------------------------------------------------------
-    // White strokes along the dominant swell's crests, offshore. Crossing waves and slow noise
-    // bend its phase before thresholding, so they come out as short curved strokes instead of
-    // dashed straight lines that reveal the sine wave underneath. Only in water deeper than
-    // a few metres, only where the mesh is actually carrying a swell, and only near.
+    // Whitecaps, on the real crests: thin lines along the front of the long swell's crests,
+    // shown only where the sea as a whole runs high there.
+    //
+    // The line: one level of the swell's own sine just ahead of each crest (where the water
+    // falls away in the direction it travels), bent a little by the next two waves so it is
+    // not ruled, and drawn a fixed width in metres - the level's distance over its slope.
+    // `lift`, the four waves' sines summed by steepness over their total, is 1 where they all
+    // peak at once; it is also what says a Gerstner surface is folding over, so where it is
+    // high is where a crest would break. The line shows where it passes a level that
+    // crest_strength lowers - so it comes in dashes of every length, long where the sea is
+    // up, none in its troughs - and where lift runs highest still the line swells into a tuft.
     vec2 crest_p = world_point.xz;
-    vec2 d1 = wave_1.xy / max(length(wave_1.xy), 0.0001);
-    vec2 d2 = wave_2.xy / max(length(wave_2.xy), 0.0001);
-    vec2 d3 = wave_3.xy / max(length(wave_3.xy), 0.0001);
-    float k1 = TAU / max(wave_1.w, 0.01);
-    float k2 = TAU / max(wave_2.w, 0.01);
-    float k3 = TAU / max(wave_3.w, 0.01);
-    float phase1 = k1 * dot(d1, crest_p) - sqrt(9.8 * k1) * clock * wave_speed;
-    float phase2 = k2 * dot(d2, crest_p) - sqrt(9.8 * k2) * clock * wave_speed;
-    float phase3 = k3 * dot(d3, crest_p) - sqrt(9.8 * k3) * clock * wave_speed;
-    float warp = (noise(crest_p * 0.065 + vec2(clock * 0.015, -clock * 0.011)) - 0.5) * 2.4;
-    warp += sin(phase2) * 0.72 + sin(phase3) * 0.28;
-    float crest = smoothstep(0.94, 0.995, sin(phase1 + warp));
-    float crest_breakup = noise(crest_p * 0.21 + vec2(-clock * 0.025, clock * 0.018));
-    crest_breakup = crest_breakup * 0.65 + noise(crest_p * 0.47 + vec2(7.3, -2.8)) * 0.35;
-    crest *= smoothstep(0.58, 0.76, crest_breakup);
-    crest *= crest_strength * smoothstep(1.5, 4.0, water_depth) * wave_activity;
+    float lift = 0.0;
+    float total_steep = 0.0;
+    vec4 phases = vec4(0.0);
+    vec4 wave_ks = vec4(1.0);
+    for (int i = 0; i < 4; i++) {
+        vec4 wave = i == 0 ? wave_1 : (i == 1 ? wave_2 : (i == 2 ? wave_3 : wave_4));
+        vec2 dir = wave.xy / max(length(wave.xy), 0.0001);
+        float k = TAU / max(wave.w, 0.01);
+        float phase = k * dot(dir, crest_p) - sqrt(9.8 * k) * clock * wave_speed;
+        float q = max(wave.z, 0.0);
+        lift += q * sin(phase);
+        total_steep += q;
+        phases[i] = phase;
+        wave_ks[i] = k;
+    }
+    lift /= max(total_steep, 0.0001);
+    float metres_per_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
+    float line_aa = max(metres_per_px, 0.01);
+    float strength = clamp(crest_strength, 0.0, 1.0);
+    float high = mix(0.35, -0.05, strength);
+    float tuft = smoothstep(high + 0.2, high + 0.3, lift);
+    float half_width = crest_line_width * 0.5 * (1.0 + 0.8 * tuft);
+    // Lines on the two long waves' crests - the swell's, and the second wave's, which runs
+    // another way, so as the sea gets up the two sets cross into the cells the choppy swatch
+    // draws. Each bent a little by the other waves, and broken into dashes by cells a couple
+    // of metres across, fewer gaps as the sea gets up.
+    float crest = 0.0;
+    for (int i = 0; i < 2; i++) {
+        float bent = phases[i] + sin(phases[i == 0 ? 1 : 0]) * 0.12 + sin(phases[2]) * 0.12;
+        // Ahead of the crest the phase is past a quarter turn, so its cosine is negative.
+        float leading = smoothstep(0.0, 0.2, -cos(bent));
+        float to_line = abs(sin(bent) - 0.8) / max(wave_ks[i] * abs(cos(bent)), 0.02);
+        float line = (1.0 - smoothstep(half_width, half_width + line_aa, to_line)) * leading;
+        float dashes = step(mix(0.45, 0.1, strength), foam_lace_at(crest_p, 1.6, i == 1).y);
+        // The second wave's lines only once the sea is up a little.
+        crest = max(crest, line * dashes * (i == 0 ? 1.0 : smoothstep(0.1, 0.5, strength)));
+    }
+    crest *= smoothstep(high, high + 0.04, lift);
+    // Only offshore, where the shore foam is not already drawing the waves, only where the
+    // mesh carries a swell, and not where a line would be thinner than the pixel drawing it.
+    crest *= smoothstep(1.5, 4.0, water_depth) * wave_activity * swell;
+    crest *= clamp(crest_line_width * 1.5 / max(metres_per_px, 0.0001), 0.0, 1.0);
     crest *= 1.0 - smoothstep(55.0, 150.0, range_here);
     // Everything white on the water, foam and crests together.
     float white = clamp(max(crest, surf), 0.0, 1.0);

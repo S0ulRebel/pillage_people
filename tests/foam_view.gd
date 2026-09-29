@@ -17,6 +17,7 @@ extends SceneTree
 ##   field.png           the shore distance field drawn over the 18 m view (step 1 of the plan)
 ##   runup_0..3.png      the close view at four moments through one run-up (step 3)
 ##   runup_debug_0..3    the same with runup_preview: water blue, foam age white, drying orange
+##   open_sea.png        open water 70 m out from the gameplay camera, for the whitecaps (step 8)
 ##   waves_0..2.png      the sea's height from 110 m up over the coast, 2 s apart (step 2)
 ##   overview.png        the same view as the game draws it
 ## Not headless - no renderer there.
@@ -137,6 +138,22 @@ func _run() -> void:
 	terrain.material.set_shader_parameter("runup_preview", false)
 	ocean.material.set_shader_parameter("runup_preview", false)
 	ocean.hold_clock = MOMENT
+
+	# Whitecaps (step 8): open water from the gameplay camera, 70 m out, and the share of it
+	# that is white - the references' water-type swatches are about 1% white in calm water,
+	# 4% choppy, 6% stormy.
+	var open_sea := shore - inland * 70.0
+	_aim(camera, open_sea + Vector3.UP * TARGET_HEIGHT, inland, ARM)
+	var sea_frame := await _capture("open_sea")
+	var white := 0
+	var counted := 0
+	for y in range(0, sea_frame.get_height(), 3):
+		for x in range(0, sea_frame.get_width(), 3):
+			var c := sea_frame.get_pixel(x, y)
+			counted += 1
+			if c.r > 0.8 and c.g > 0.8 and c.b > 0.8:
+				white += 1
+	print("open sea: %.1f%% whitecap" % (100.0 * float(white) / float(maxi(counted, 1))))
 
 	# The waves, seen from high over the coast: the surface's height drawn in bands, at three
 	# moments two seconds apart, so the shore waves can be seen coming in parallel to the beach

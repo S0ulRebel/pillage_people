@@ -313,3 +313,22 @@ project already rejects view-dependent outlines).
   from the object): at the mask's resolution it came out as grey smudges, not lace, and was
   taken out. Splashes on rocks in heavy surf remain for later.
 - The old `object_band_*` settings went with the discs.
+
+### Step 8: whitecaps (done)
+
+- The old strokes (the swell's phase bent by noise and thresholded) sat nowhere near the real
+  crests and came out as detached dashes. Whitecaps are now thin lines (`crest_line_width`,
+  11 cm) along the front of the two long waves' crests - the swell's, and from a fair day up the
+  second wave's, which runs another way, so the two sets cross as the sea gets up - bent a
+  little by the other waves, broken into dashes by cells a couple of metres across, and shown
+  only where the four waves summed by steepness run high (which is also where a Gerstner
+  surface folds, and a crest would break), so each crest line comes in pieces of every length.
+  Where the sum runs highest the line swells into a tuft.
+- `crest_strength` is the sea state: 0 none, 0.3 (the default) a fair day, 1 a storm; it lowers
+  the level the sum must pass and closes the gaps.
+- Tried first: lines along a level of the four-wave sum itself. Four waves crossing at angles
+  peak in isolated spots, so its levels are short arcs round each peak, and its tufts came out
+  as holed ovals; taken out.
+- `tests/foam_view.gd` captures open water 70 m out (`open_sea.png`) and counts the near-white
+  share: 0.5% at the default - counting only near-pure white; the references' swatches are about
+  1% calm, 4% choppy, 6% stormy.
