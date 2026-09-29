@@ -376,8 +376,13 @@ func _check_quarterdeck(ship: Node3D) -> void:
 	var last := Ship.DECK_Y
 	var z := Ship.QUARTERDECK_STAIRS_AT.z - 1.0
 	while z <= Ship.HELM_FEET.z:
-		var hit := _ray_down(ship, Vector3(x, Ship.QUARTERDECK_Y + 2.5, z), 5.5)
-		var y := ship.to_local(hit.position).y if not hit.is_empty() else -INF
+		# The treads have open risers, and a foot is wider than the gap: the highest of three
+		# rays across 20 cm is what he stands on, not a single ray that slips between two.
+		var y := -INF
+		for step in [-0.1, 0.0, 0.1]:
+			var hit := _ray_down(ship, Vector3(x, Ship.QUARTERDECK_Y + 2.5, z + step), 5.5)
+			if not hit.is_empty():
+				y = maxf(y, ship.to_local(hit.position).y)
 		check(y - last <= 0.35 and y - last >= -0.35,
 				"the way up to the quarterdeck jumps from %.2f to %.2f at z %.2f" % [last, y, z])
 		body.transform = Transform3D(ship.global_basis, ship.to_global(Vector3(x, y + 0.35 + 0.95, z)))

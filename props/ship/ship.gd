@@ -1600,8 +1600,8 @@ func _build_blocks() -> void:
 			_fit_model(block, RIGGING + "block_single.glb")
 
 
-## The flag on a short staff above the topmast. Its model's hoist is at its origin and its fly
-## runs toward -X; _fly_flag turns it downwind.
+## The flag on a short staff above the topmast, its hoist on the staff and its fly out along
+## +X; _fly_flag turns it downwind.
 func _build_flag() -> void:
 	var mast := get_node_or_null("Mast") as Node3D
 	if mast == null or mast.get_node_or_null("Flag") != null:
@@ -1612,7 +1612,19 @@ func _build_flag() -> void:
 	flag.name = "Flag"
 	flag.position = Vector3(0.0, head + FLAGSTAFF_HEIGHT - 0.03, 0.0)
 	mast.add_child(flag)
-	_fit_model(flag, RIGGING + "flag.glb")
+	# The model's picture is upside down. Turned half round in its own plane - which keeps its
+	# face where it was, and sends its fly to +X - and dropped by its 0.975 m height, so its
+	# top edge still hangs from the staff's top.
+	if _fit_model(flag, RIGGING + "flag.glb", Vector3(0.0, -0.975, 0.0), Vector3(0.0, 0.0, 180.0)):
+		# Seen from both sides: the model is a single sheet.
+		for node in _descendants(flag):
+			var mesh_node := node as MeshInstance3D
+			if mesh_node == null or mesh_node.mesh == null:
+				continue
+			for surface in mesh_node.mesh.get_surface_count():
+				var material := mesh_node.get_surface_override_material(surface) as BaseMaterial3D
+				if material != null:
+					material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_fly_flag()
 
 
@@ -1625,8 +1637,8 @@ func _fly_flag() -> void:
 	var down: Vector3 = flag.get_parent_node_3d().global_basis.inverse() * (wind.get("direction") as Vector3)
 	if Vector2(down.x, down.z).length_squared() < 0.0001:
 		return
-	# Turning by a about Y sends the fly's -X to (-cos a, 0, sin a).
-	flag.rotation.y = atan2(down.z, -down.x)
+	# Turning by a about Y sends the fly's +X to (cos a, 0, -sin a).
+	flag.rotation.y = atan2(-down.z, down.x)
 
 
 func _rope(parent: Node3D, a: Vector3, b: Vector3, radius: float, material: Material) -> void:
