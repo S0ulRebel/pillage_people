@@ -513,6 +513,11 @@ func _grow_shallows(around: Vector3) -> void:
 	shallows.size_jitter = Vector2(0.4, 1.1)
 	shallows.sink = 0.05
 	shallows.visible_within = 110.0
+	# Half the trough rather than all of it. Under all of it a plant a metre deep could stand
+	# 0.38 m and the beds by the beach were specks; under half it is 0.62, at 1.5 m 0.92 rather
+	# than 0.49. The cost is the tallest tips showing at the bottom of the biggest swells - see
+	# coral_check for how often.
+	shallows.trough_share = 0.5
 	# The hull moors in exactly the water the beds want - see keep_clear.
 	var ship := get_node_or_null("Ship") as Node3D
 	if ship != null:

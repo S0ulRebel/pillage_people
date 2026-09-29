@@ -45,7 +45,8 @@ const FAMILIES := [
 ## floor too far out to see from the beach.
 @export var max_depth := 1000.0
 ## Metres of clear water that must stay over the top of a growth when the swell is at its
-## LOWEST there - see Ocean.deepest_trough, which is added to this at every spot.
+## LOWEST there - see Ocean.deepest_trough, which is added to this at every spot, in the share
+## trough_share asks for. Whatever that share, this much still water is always kept.
 ##
 ## THIS IS WHAT KEEPS LAYER 20 OFF - see coral.gd. A coral that breached the surface would need
 ## to punch a hole in the ocean's foam band like a rock does; one that stays under does not,
@@ -56,6 +57,15 @@ const FAMILIES := [
 ## hand for the crater. That is right fifteen metres down and wrong on the coast, where the
 ## shoal flattens the waves and 1.5 m would leave nothing growing inside two metres of water.
 @export var surface_clearance := 0.15
+## How much of the swell's deepest trough a growth stays under, 0 to 1.
+##
+## At 1 nothing ever breaks the surface - right for the crater, where it costs nothing. In the
+## shallows it costs almost everything: the trough there is most of the water, so a metre deep
+## the tallest thing that stays under it is 0.38 m. Below 1 the tallest growths' tips come out
+## at the bottom of the biggest troughs, and in exchange the plants by the beach can be twice
+## the size. The still level and surface_clearance under it hold whatever this is, and that is
+## the line layer 20 needs - see coral.gd.
+@export_range(0.0, 1.0) var trough_share := 1.0
 ## Nothing plants within this of another growth. Rocks do not bother - a boulder half inside
 ## another boulder still reads as rock - but two coral heads in the same place read as one
 ## broken coral.
@@ -227,8 +237,8 @@ func _plant(terrain: Node, at: Vector3, rng: RandomNumberGenerator,
 	for other in near:
 		if Vector2(other.x - at.x, other.z - at.z).length() < spacing:
 			return false
-	# The tallest thing that stays under here with the swell at its lowest.
-	var trough := _ocean.deepest_trough(depth) if _ocean != null else 0.0
+	# The tallest thing that stays under here with the swell as low as trough_share allows for.
+	var trough := _ocean.deepest_trough(depth) * trough_share if _ocean != null else 0.0
 	var room := depth - trough - surface_clearance
 	# Only what may grow at this depth and fits even at its smallest. Picked from those,
 	# rather than picked from everything and then refused, so the shallow edge of a bed fills

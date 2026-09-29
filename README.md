@@ -259,11 +259,15 @@ filling all of it at a beach's density would be over a thousand plants. Weed gro
 foam line out; corals only past 1.4 m, where he is swimming rather than wading, because they
 have no collider and walking through one reads as a bug. Nothing grows under the moored hull.
 
-**Near the beach everything is small, and that is the swell, not a setting.** The waves sum to
-1.32 m and only flatten as the bed rises, so in 1.5 m of water the surface can fall to 0.64 m.
-Each growth is sized to stay under the lowest the water gets where it stands
-(`Ocean.deepest_trough`), not under the still level: at most 0.4 m tall in a metre of water,
-up to 1.2 m by 2.8 m. Beyond 110 m from the camera they are not drawn (`visible_within`).
+**Near the beach the swell decides how big they can be.** The waves sum to 1.32 m and only
+flatten as the bed rises, so in 1.5 m of water the surface can fall to 0.64 m. Each growth is
+sized against the lowest the water gets where it stands (`Ocean.deepest_trough`), and the
+shallows ask for half of that trough (`trough_share = 0.5` in `_grow_shallows`): plants in a
+metre of water average 0.55 m tall rather than the 0.35 m the whole trough would allow, and
+the tallest tips show at the bottom of the biggest swells - the most exposed about 9% of the
+time. Lower `trough_share` for bigger plants and more showing, 1.0 for none ever showing. No
+setting lets one reach the still level, which is what keeps them off layer 20. Beyond 110 m from
+the camera they are not drawn (`visible_within`).
 
 Grass grows in **patches, not a scatter** — the patch centres are chosen first and each is
 filled with tufts crowded toward its middle, with the rocks handed in as extra centres so
@@ -480,8 +484,9 @@ and a rock field up the beach with nothing between them but a signed water band.
 breaks the surface — which is what makes it correct for a coral to be the one prop here that
 stays off the ocean's layer 20. It then measures the shallows the same way, but reads the sea
 itself - `surface_y` at every growth over three quarters of a minute - rather than trusting the
-trough the reef planted against, and checks the corals stay out of wading depth, the beds reach
-round the island and thicken at the start, and nothing grows under the moored hull. `coastal_smoke` checks the island builds and the captain stands
+trough the reef planted against: no tip may be out of the water more than an eighth of the
+time. It also checks the corals stay out of wading depth, the beds reach round the island and
+thicken at the start, and nothing grows under the moored hull. `coastal_smoke` checks the island builds and the captain stands
 on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below

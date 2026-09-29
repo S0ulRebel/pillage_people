@@ -169,6 +169,11 @@ func _run() -> void:
 ## the water - which is what makes this a different check rather than the one above again. Down
 ## there the swell is a rounding error; here its troughs are most of the water there is, and a
 ## growth that clears the still level by a hand stands in the air every few seconds.
+##
+## They are allowed to, a little: the shallows plant under half the deepest trough, so that the
+## plants by the beach are not specks (reef.gd, trough_share). So this does not ask that none
+## ever shows. It asks that none crosses the still level, which is the line layer 20 needs, and
+## it measures how long the tallest of them actually spends with its tip out.
 func _check_shallows(scene: Node3D, terrain: Node) -> void:
 	var shallows := scene.get_node_or_null("Shallows")
 	check(shallows != null, "there is no Shallows node - nothing grew along the coast")
@@ -188,25 +193,36 @@ func _check_shallows(scene: Node3D, terrain: Node) -> void:
 
 	# --- under the swell, sampled rather than taken on trust ---
 	#
-	# The reef keeps each growth under sea - Ocean.deepest_trough(depth). Checking tops against
+	# The reef keeps each growth under part of Ocean.deepest_trough(depth). Checking tops against
 	# that same function would pass whatever it returned, zero included. So the sea is READ, at
 	# every growth, over three quarters of a minute: surface_y is what floats the cargo and the
 	# hull, and the ocean shader draws the same sum. Each sample is also held to the bound, which
 	# is what says deepest_trough is a floor and not a guess.
 	#
 	# The clock is set by hand because the sea's time is its own - surface_motion does the same.
+	const SAMPLES := 150
+	var tops: Array[float] = []
+	for node in growths:
+		tops.append(_world_bounds(node).end.y)
 	var clock: float = ocean._clock
 	var lowest: Array[float] = []
 	lowest.resize(growths.size())
 	lowest.fill(1e9)
-	for step in 150:
+	var showing: Array[int] = []
+	showing.resize(growths.size())
+	showing.fill(0)
+	for step in SAMPLES:
 		ocean._clock = float(step) * 0.29
 		for i in growths.size():
 			var at := growths[i].global_position
-			lowest[i] = minf(lowest[i], ocean.surface_y(at.x, at.z))
+			var surface: float = ocean.surface_y(at.x, at.z)
+			lowest[i] = minf(lowest[i], surface)
+			if surface < tops[i]:
+				showing[i] += 1
 	ocean._clock = clock
-	var awash := 0
-	var tightest := 1e9
+	var breached := 0
+	var ever_showing := 0
+	var longest_showing := 0
 	var under_bound := 0
 	var worst_perch := 0.0
 	var out_of_band := 0
@@ -229,10 +245,12 @@ func _check_shallows(scene: Node3D, terrain: Node) -> void:
 		var at := node.global_position
 		var ground: float = terrain.height_at(at.x, at.z)
 		var depth := sea - ground
-		var top: float = _world_bounds(node).end.y
-		tightest = minf(tightest, lowest[i] - top)
-		if top >= lowest[i]:
-			awash += 1
+		# The band camera's far plane is 0.1 m under the still level - see coral.gd.
+		if tops[i] >= sea - 0.1:
+			breached += 1
+		if showing[i] > 0:
+			ever_showing += 1
+		longest_showing = maxi(longest_showing, showing[i])
 		# 5 mm for the one thing the bound leaves out: the surface over a point is the water
 		# from up to 0.65 m away, flattened by the depth THERE (see Ocean.surface_y).
 		if lowest[i] < sea - ocean.deepest_trough(depth) - 0.005:
@@ -266,12 +284,20 @@ func _check_shallows(scene: Node3D, terrain: Node) -> void:
 			nearest = minf(nearest, Vector2(there.x - at.x, there.z - at.z).length())
 	print("shallows: %d growths %s, %d within %.0f m of the start, %d of 12 twelfths of the coast"
 			% [growths.size(), str(counted), near_start, scene.shallows_reach, sectors.size()])
-	print("shallows: tightest %.3f m under the lowest sampled trough, worst perch %.3f m,"
-			% [tightest, worst_perch] + " nearest pair %.2f m" % nearest)
+	var longest := float(longest_showing) / SAMPLES
+	print("shallows: %d of %d show a tip in some trough, the most exposed %.0f%% of the time;"
+			% [ever_showing, growths.size(), longest * 100.0] + " worst perch %.3f m," % worst_perch
+			+ " nearest pair %.2f m" % nearest)
 
-	check(awash == 0,
-			"%d growth(s) in the shallows come out of the water when the swell goes by. They"
-			% awash + " carry no layer 20, so they punch no foam ring - see coral.gd")
+	check(breached == 0,
+			"%d growth(s) in the shallows reach within 0.1 m of the still level. They carry no"
+			% breached + " layer 20, so they punch no foam ring - see coral.gd")
+	# An eighth. Measured, the most exposed shows 9% of the time under half the trough; ignoring
+	# the trough altogether it was 33%, the tallest standing in the air every third second.
+	check(longest <= 0.125,
+			"a growth in the shallows has its tip out of the water %.0f%% of the time. Half the"
+			% (longest * 100.0) + " trough lets the tallest show at the bottom of the biggest"
+			+ " swells, not stand in the air")
 	check(under_bound == 0,
 			"the sea went lower than Ocean.deepest_trough allows at %d growth(s). The reef"
 			% under_bound + " plants against that number, so it is under-reading the swell")
