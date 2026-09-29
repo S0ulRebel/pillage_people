@@ -491,6 +491,37 @@ func surface_motion(x: float, z: float) -> Vector3:
 			(after - 2.0 * here + before) / (STEP * STEP))
 
 
+## How far below sea level the surface can fall over water `depth` metres deep: every wave in
+## its trough at once, flattened by the shoal the way surface_y flattens them.
+##
+## For planting things that must stay under the sea. The still level is the wrong line to keep
+## them under: the four swell waves sum to 1.32 m, the long swell alone is 0.77 of it, and in
+## open water the surface spends 5% of its time more than 0.97 m down - so a coral that clears
+## the still water by a hand stands in the air every few seconds.
+##
+## Near the island the swell hands over to the shore wave (see _displacement): calmed by
+## shore_wave_calm where the shore wave is at full height, which is where the beds grow. Which of
+## the two holds a spot is a matter of its distance to the shore, not its depth, so this answers
+## for the worse of them - all swell, or the calmed swell and the whole shore wave together. The
+## sum is straight in how far the shore wave has taken over, so one end or the other is the most
+## it can be. By depth alone because it answers before setup() has built the shore field and
+## handed over the terrain; wind only turns the waves, never their size, so it holds all game.
+func deepest_trough(depth: float) -> float:
+	var reach := 0.0
+	for wave: Vector4 in [wave_1, wave_2, wave_3, wave_4]:
+		if Vector2(wave.x, wave.y).length() < 0.0001 or wave.z <= 0.0:
+			continue
+		# Steepness over wave number, as _prepare_wave has it.
+		reach += wave.z * maxf(wave.w, 0.01) / TAU
+	var swell := reach * wave_height * smoothstep(0.0, maxf(shoal_depth, 0.001), depth)
+	if shore_wave_steepness <= 0.0001:
+		return swell
+	# Its stretch and set factors top out at 1 - see _shore_displacement.
+	var shore := shore_wave_steepness * maxf(shore_wave_length, 0.01) / TAU * wave_height \
+			* smoothstep(0.0, maxf(shore_wave_shoal, 0.001), depth)
+	return maxf(swell, swell * (1.0 - shore_wave_calm) + shore)
+
+
 ## The shore field under a point, read the way the shaders read it: (signed metres to the
 ## shore, nearest shore point x, z), or null before there is one.
 func _shore_at(p: Vector2) -> Vector3:

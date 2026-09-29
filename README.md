@@ -38,7 +38,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `actors/grunt/` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
 | `actors/parts/` | Shared by both: the blade (hung off a hand bone with a hitbox along it) and the hit spark. |
 | `actors/outfit/` | Modular characters: a rigged body plus swappable pieces (heads, hats, coats, boots), and the workshop scene they are tried on in. See Modular characters below. |
-| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
+| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, corals and seaweed (`reef/` grows them in the dive crater and through the shallows), fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
 | `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
 | `world/sky.*` | The sky, day, golden hour and night: the dome's gradients, sun, moon and stars, and the clouds - see Clouds and weather below. `world/cloud_shadow.gdshaderinc` lays the clouds' shadows on the ground and the sea. |
@@ -296,7 +296,36 @@ mesas, about 78% of it near-level. Deliberate — the first map was ridges edge 
 left nowhere to build.
 
 Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
-tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, and 5 grunts.
+tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, 5 grunts, a reef of
+corals and weed on the dive crater's floor, and about 450 more through the shallows in some
+twenty coral reefs and weed patches.
+
+The shallows are `props/reef/reef.gd` again, told a band of water (0.9 to 2.8 m) instead of a
+crater, and it finds the coast by depth rather than from a list of beaches. They grow the way
+the real things do, **in beds of one kind**: a coral reef, or a patch of weed, 14 to 26 plants
+packed closer than they are wide, thinner and smaller toward the rim. How big a bed is and how
+tight it packs belongs to the family - `BED_RADIUS` and `BED_SPACING` in `coral.gd` and
+`seaweed.gd` - because weed is blades a handspan deep and needs a smaller, tighter patch than a
+reef to read as one. Each bed is a node (`CoralBed3`, `SeaweedBed7`) you can find, move or
+delete in the editor. Beds of the two kinds mixed, a metre apart, read as single plants dotted
+about.
+
+About half the beds go along the beach he starts on (`shallows_beds_here`, within
+`shallows_reach` of the spawn) and the rest round the island (`shallows_beds_round`), because
+the coast is 1.5 km long and filling all of it at a beach's density would be over a thousand
+plants. Weed grows from the foam line out; a reef only where all of it is past 1.4 m, where he
+is swimming rather than wading, because corals have no collider and walking through one reads
+as a bug. Nothing grows under the moored hull.
+
+**Near the beach the swell decides how big they can be.** The waves sum to 1.32 m and only
+flatten as the bed rises, so in 1.5 m of water the surface can fall to 0.64 m. Each growth is
+sized against the lowest the water gets where it stands (`Ocean.deepest_trough`), and the
+shallows ask for half of that trough (`trough_share = 0.5` in `_grow_shallows`): plants in a
+metre of water average 0.55 m tall rather than the 0.35 m the whole trough would allow, and
+the tallest tips show at the bottom of the biggest swells - the most exposed about 9% of the
+time. Lower `trough_share` for bigger plants and more showing, 1.0 for none ever showing. No
+setting lets one reach the still level, which is what keeps them off layer 20. Beyond 110 m from
+the camera they are not drawn (`visible_within`).
 
 Grass grows in **patches, not a scatter** — the patch centres are chosen first and each is
 filled with tufts crowded toward its middle, with the rocks handed in as extra centres so
@@ -512,7 +541,12 @@ and a rock field up the beach with nothing between them but a signed water band.
 `coral_check` measures the reef on the crater floor: that the corals carry their size in the
 `.glb` rather than a gitignored `.import`, that every one sits on the seabed, and that none
 breaks the surface — which is what makes it correct for a coral to be the one prop here that
-stays off the ocean's layer 20. `coastal_smoke` checks the island builds and the captain stands
+stays off the ocean's layer 20. It then measures the shallows the same way, but reads the sea
+itself - `surface_y` at every growth over three quarters of a minute - rather than trusting the
+trough the reef planted against: no tip may be out of the water more than an eighth of the
+time. It also checks each bed is one kind and packed like a patch, the corals stay out of
+wading depth, the beds reach round the island and thicken at the start, and nothing grows under
+the moored hull. `coastal_smoke` checks the island builds and the captain stands
 on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below
