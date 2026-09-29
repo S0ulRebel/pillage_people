@@ -75,11 +75,19 @@ const BOWSPRIT_AT := Vector3(0.0, DECK_Y + 0.15, -1.9)
 ## Hinge of the rudder, on the stern under the counter. The blade hangs aft of this
 ## point. A real F04_RUDDER drops in on this node.
 const RUDDER_AT := Vector3(0.0, 1.8, 14.9)
-## Gun deck the ports look out of. One opening per side in each centre bay, centred a metre
-## aft of the bay's forward station. The carriage sits high enough for this model's barrel to
-## meet that opening: the sill is 0.8 m off the deck and the barrel axis is only 0.62 m up.
+## Gun deck the ports look out of. The carriage sits high enough for this model's barrel to
+## meet the openings: the sill is 0.8 m off the deck and the barrel axis is only 0.62 m up.
 const GUN_DECK_Y := 2.6
-const GUN_PORT_Z := [5.0, 7.0, 9.0, 11.0]
+## The straight run of the hull's side the gun deck's walls are built along, both sides, with a
+## hole wherever a port is (tools/strip_game_gunports.py takes the kit's walls out). Ports are
+## spread evenly along it, the first and last GUN_PORT_MARGIN in from its ends: with four, that
+## puts them where the kit's bays did, at 5, 7, 9 and 11.
+const GUN_WALL_FORE_Z := 4.0
+const GUN_WALL_AFT_Z := 12.0
+const GUN_WALL_INNER_X := 2.8
+const GUN_PORT_MARGIN := 1.0
+## The opening, the kit's: 1 m wide and 0.8 m tall.
+const GUN_PORT_SIZE := Vector2(1.0, 0.8)
 ## Centre of each port's opening: the kit's sill is 0.8 m off the gun deck, the opening 0.8 m tall.
 const GUN_PORT_Y := GUN_DECK_Y + 1.2
 ## Deck contact of the capstan, on the gun deck under the cabin: the weather deck there is
@@ -192,6 +200,18 @@ const MAX_HEEL := 0.14
 				old.queue_free()
 			_build_windows(quarterdeck, quarterdeck.get_node("Cabin") as Node3D)
 
+## Gunports a side. Changing it moves the holes, the frames and lids, and the guns together.
+@export_range(1, 6) var gun_port_count := 4:
+	set(value):
+		gun_port_count = value
+		_rebuild_gun_ports()
+## How far the gunport frames stand off the hull's side, in metres along its normal: positive
+## out, negative into the wall. Tune it in the inspector.
+@export_range(-0.1, 0.1, 0.001, "suffix:m") var gun_port_offset := 0.0:
+	set(value):
+		gun_port_offset = value
+		_rebuild_gun_ports()
+
 var ocean: Node3D
 ## Whoever is standing on deck. The hull moves, and a character body is not carried along by a
 ## static floor that teleports, so he is moved with it while his feet are over the deck.
@@ -224,7 +244,7 @@ func _ready() -> void:
 	_build_bobstay()
 	_build_rudder()
 	_build_capstan()
-	_build_guns()
+	_build_gun_ports()
 	_build_sail()
 	_build_topsail()
 	_build_backstays()
@@ -872,22 +892,6 @@ func _build_deck_fittings() -> void:
 	fittings.add_child(lantern)
 	_fit_model(lantern, FITTINGS + "stern_lantern.glb")
 
-	# The frame faces +X with its back on the hull, centred on its opening; turned half round
-	# it serves the port side. The lid is its own node hung on its hinge: +Z swings it out.
-	var lids := Node3D.new()
-	lids.name = "GunportLids"
-	fittings.add_child(lids)
-	for z in GUN_PORT_Z:
-		for side in [1.0, -1.0]:
-			var port := Node3D.new()
-			port.name = "Port%s%d" % ["Starboard" if side > 0.0 else "Port", int(z)]
-			port.position = Vector3(side * BEAM * 0.5, GUN_PORT_Y, z)
-			port.rotation_degrees.y = 0.0 if side > 0.0 else 180.0
-			lids.add_child(port)
-			if _fit_model(port, HULL_PARTS + "gunport_lid.glb"):
-				var lid := port.find_child("lid", true, false) as Node3D
-				if lid != null:
-					lid.rotation_degrees.z = LID_OPEN_DEGREES
 
 	for entry in DECK_PROPS:
 		var prop := Node3D.new()
@@ -1521,22 +1525,149 @@ func _rope(parent: Node3D, a: Vector3, b: Vector3, radius: float, material: Mate
 	parent.add_child(node)
 
 
-## One of the cannon prefabs behind each gunport, barrel out through the opening.
-func _build_guns() -> void:
-	if get_node_or_null("Guns") != null:
+## Where the gunports are along the hull's side: gun_port_count of them spread evenly along
+## the gun deck's straight wall, the first and last GUN_PORT_MARGIN in from its ends.
+func gun_port_z() -> Array[float]:
+	var spots: Array[float] = []
+	for k in gun_port_count:
+		var t := 0.5 if gun_port_count == 1 else float(k) / (gun_port_count - 1)
+		spots.append(lerpf(GUN_WALL_FORE_Z + GUN_PORT_MARGIN, GUN_WALL_AFT_Z - GUN_PORT_MARGIN, t))
+	return spots
+
+
+## Everything that goes with the gunports, under one node so a change to them rebuilds it all
+## in step: the gun deck's side walls with a hole at every port, a frame and open lid on each,
+## and a cannon behind each.
+func _build_gun_ports() -> void:
+	if get_node_or_null("GunPorts") != null:
 		return
+	var ports := Node3D.new()
+	ports.name = "GunPorts"
+	add_child(ports)
+	var spots := gun_port_z()
+	_build_gun_walls(ports, spots)
+
+	# The frame faces +X with its back on the hull, centred on its opening; turned half round
+	# it serves the port side. The lid is its own node hung on its hinge: +Z swings it out.
+	var lids := Node3D.new()
+	lids.name = "Lids"
+	ports.add_child(lids)
 	var guns := Node3D.new()
 	guns.name = "Guns"
-	add_child(guns)
-	for z in GUN_PORT_Z:
+	ports.add_child(guns)
+	for k in spots.size():
+		for side in [1.0, -1.0]:
+			var port := Node3D.new()
+			port.name = "Port%s%d" % ["Starboard" if side > 0.0 else "Port", k]
+			port.position = Vector3(side * (BEAM * 0.5 + gun_port_offset), GUN_PORT_Y, spots[k])
+			port.rotation_degrees.y = 0.0 if side > 0.0 else 180.0
+			lids.add_child(port)
+			if _fit_model(port, HULL_PARTS + "gunport_lid.glb"):
+				var lid := port.find_child("lid", true, false) as Node3D
+				if lid != null:
+					lid.rotation_degrees.z = LID_OPEN_DEGREES
 		# Muzzle is 1 m along local -Z and 0.62 m up. -90° yaw sends -Z to starboard.
-		_gun(guns, Vector3(2.15, GUN_DECK_Y + 0.58, z), -PI * 0.5, "Starboard")
-		_gun(guns, Vector3(-2.15, GUN_DECK_Y + 0.58, z), PI * 0.5, "Port")
+		_gun(guns, Vector3(2.15, GUN_DECK_Y + 0.58, spots[k]), -PI * 0.5, "Starboard%d" % k)
+		_gun(guns, Vector3(-2.15, GUN_DECK_Y + 0.58, spots[k]), PI * 0.5, "Port%d" % k)
+
+
+func _rebuild_gun_ports() -> void:
+	var old := get_node_or_null("GunPorts")
+	if old == null:
+		return
+	# Out of the way now, gone at the end of the frame.
+	old.name = "GunPortsOld"
+	remove_child(old)
+	old.queue_free()
+	_build_gun_ports()
+
+
+## The gun deck's side walls along the straight run of the hull, both sides, 0.2 m thick from
+## the gun deck to the weather deck, with a hole at every port: the outer and inner faces
+## round the holes, and each hole's sill, lintel and sides. Their ends meet the kit's bow and
+## stern walls, their tops are the hull's own, and their feet stand on the tier below. Planked
+## with the hull's own material and UV rule (tools/texture_kit.py: along the hull u = z/2,
+## up it v = -y/2.6; flat faces u = z/2, v = x/2.6; faces across the hull u = x/2), so the
+## planks run on from the kit's walls. They collide exactly, like the hull.
+func _build_gun_walls(parent: Node3D, spots: Array[float]) -> void:
+	var low := GUN_DECK_Y
+	var high := DECK_Y
+	var sill := GUN_PORT_Y - GUN_PORT_SIZE.y * 0.5
+	var head := GUN_PORT_Y + GUN_PORT_SIZE.y * 0.5
+	var half := GUN_PORT_SIZE.x * 0.5
+	# Solid wall between the holes along the port band, as (from, to) in z.
+	var gaps: Array[Vector2] = []
+	var from := GUN_WALL_FORE_Z
+	for z in spots:
+		gaps.append(Vector2(from, z - half))
+		from = z + half
+	gaps.append(Vector2(from, GUN_WALL_AFT_Z))
+	var material: Material = null
+	var hull := get_node_or_null("Model")
+	if hull != null:
+		for node in _descendants(hull):
+			var mesh_node := node as MeshInstance3D
+			if mesh_node == null or mesh_node.mesh == null:
+				continue
+			for surface in mesh_node.mesh.get_surface_count():
+				if mesh_node.mesh.surface_get_material(surface) != null and mesh_node.mesh.surface_get_material(surface).resource_name == "wood":
+					material = mesh_node.get_surface_override_material(surface)
+	for side in [1.0, -1.0]:
+		var wall := SurfaceTool.new()
+		wall.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var outer: float = side * BEAM * 0.5
+		var inner: float = side * GUN_WALL_INNER_X
+		for x in [outer, inner]:
+			var facing := Vector3(signf(x - side * (BEAM * 0.25 + GUN_WALL_INNER_X * 0.5)), 0.0, 0.0)
+			_wall_quad(wall, Vector3(x, low, GUN_WALL_FORE_Z), Vector3(x, sill, GUN_WALL_AFT_Z), facing)
+			_wall_quad(wall, Vector3(x, head, GUN_WALL_FORE_Z), Vector3(x, high, GUN_WALL_AFT_Z), facing)
+			for gap in gaps:
+				if gap.y - gap.x > 0.001:
+					_wall_quad(wall, Vector3(x, sill, gap.x), Vector3(x, head, gap.y), facing)
+		for z in spots:
+			_wall_quad(wall, Vector3(inner, sill, z - half), Vector3(outer, sill, z + half), Vector3.UP)
+			_wall_quad(wall, Vector3(inner, head, z - half), Vector3(outer, head, z + half), Vector3.DOWN)
+			_wall_quad(wall, Vector3(inner, sill, z - half), Vector3(outer, head, z - half), Vector3.BACK)
+			_wall_quad(wall, Vector3(inner, sill, z + half), Vector3(outer, head, z + half), Vector3.FORWARD)
+		var node := MeshInstance3D.new()
+		node.name = "WallStarboard" if side > 0.0 else "WallPort"
+		node.mesh = wall.commit()
+		node.layers = 1 | (1 << 19)
+		if material != null:
+			node.material_override = material
+		parent.add_child(node)
+		node.create_trimesh_collision()
+
+
+## A flat rectangle between opposite corners `a` and `b` (they share one coordinate), facing
+## `normal`, with the hull's UVs. Wound clockwise from the front, as Godot draws front faces.
+func _wall_quad(into: SurfaceTool, a: Vector3, b: Vector3, normal: Vector3) -> void:
+	var corners: Array[Vector3]
+	if is_equal_approx(a.x, b.x):
+		corners = [a, Vector3(a.x, a.y, b.z), b, Vector3(a.x, b.y, a.z)]
+	elif is_equal_approx(a.y, b.y):
+		corners = [a, Vector3(b.x, a.y, a.z), b, Vector3(a.x, a.y, b.z)]
+	else:
+		corners = [a, Vector3(b.x, a.y, a.z), b, Vector3(a.x, b.y, a.z)]
+	if (corners[1] - corners[0]).cross(corners[2] - corners[0]).dot(normal) > 0.0:
+		corners.reverse()
+	for i in [0, 1, 2, 0, 2, 3]:
+		var p := corners[i]
+		var uv: Vector2
+		if absf(normal.y) >= 0.7071:
+			uv = Vector2(p.z / 2.0, p.x / 2.6)
+		elif absf(normal.x) >= absf(normal.z):
+			uv = Vector2(p.z / 2.0, -p.y / 2.6)
+		else:
+			uv = Vector2(p.x / 2.0, -p.y / 2.6)
+		into.set_normal(normal)
+		into.set_uv(uv)
+		into.add_vertex(p)
 
 
 func _gun(parent: Node3D, at: Vector3, yaw: float, side: String) -> void:
 	var gun := CannonScene.instantiate() as Node3D
-	gun.name = "Cannon%s%d" % [side, int(at.z)]
+	gun.name = "Cannon%s" % side
 	gun.position = at
 	gun.rotation.y = yaw
 	gun.set("sit_on_ground", false)

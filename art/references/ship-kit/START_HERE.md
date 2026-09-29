@@ -58,7 +58,7 @@ Done so far:
 
 - **Hull extras** (tripo/hull.json) into `art/models/ship/hull/`: the gunport lid (H11) and one bay of wale (H12). Tripo's hull shells were dropped; they copied the old painted sheet's errors, and the textured canonical shells replace them. The frame's opening is sized to the kit's 1.0 m gunport. The lid is exported closed, re-hung on its own hinge node, so the engine opens it by turning that one node. The wale is one 2 m bay with straight butt ends.
 
-**On the ship:** props/ship/ship.gd loads these into the slots its placeholders used: the helm, capstan, rudder with its hinge strip, mainmast, topmast, mast top, both yard sizes, foremast and bowsprit. It adds a binnacle, two mast collars, the stern lantern, and a frame and open lid on all eight gunports. On the weather deck there are the bitts, the anchor cable and rope coils, the hatch with its grating, cleats and belaying racks. A cathead sits on each bow with its anchor, and deck beams run under the weather deck. Where a model file is missing, the placeholder is built instead.
+**On the ship:** props/ship/ship.gd loads these into the slots its placeholders used: the helm, capstan, rudder with its hinge strip, mainmast, topmast, mast top, both yard sizes, foremast and bowsprit. It adds a binnacle, two mast collars, the stern lantern, and a frame and open lid on every gunport. On the weather deck there are the bitts, the anchor cable and rope coils, the hatch with its grating, cleats and belaying racks. A cathead sits on each bow with its anchor, and deck beams run under the weather deck. Where a model file is missing, the placeholder is built instead.
 
 **The stern castle and quarterdeck:**
 - `python tools/build_stern_castle.py` builds the castle from the game hull's own outline (`cabin/stern_castle.glb`). Its walls stand on the hull's outer edge from z 10.4 round the stern, one 2.6 m tier high, facet for facet with the hull below and planked with the same texture. The stern's point is cut square into a flat transom about 1.2 m wide, so a window stands flat on it. A front wall closes it across the deck, and its roof is the quarterdeck.
@@ -83,6 +83,12 @@ Done so far:
 - A turn sharper than 30 degrees (the quarterdeck's front corners, the head of each stair rail) always gets a post.
 - At the bow the rail ends on two knightheads. The bowsprit rests on the deck and passes over the stem between them.
 - Each straight length collides as one box.
+
+**The gunports:** `python tools/strip_game_gunports.py` takes the kit's gun-deck side walls, with their fixed holes, out of the game hull (z 4 to 12, both sides). ship.gd builds them again with a hole wherever its ports go:
+- the Ship node's `gun_port_count` (inspector, 4 a side) spreads the ports evenly along that straight run, 1 m in from its ends, so 4 lands on the kit's 5, 7, 9 and 11 m;
+- the walls, the frames with their open lids, and the cannons are all built from that one list, so changing the count moves them together;
+- `gun_port_offset` moves the frames in or out along the hull's normal;
+- the new walls are planked with the hull's own material and UV rule, and collide exactly.
 
 `python tools/texture_game_hull.py` gives the game's own hull (art/models/ship/double_deck.glb, with its raked bow and bulged stern) the kit's plank texture without moving a vertex. tests/ship_fittings_check.gd fails in any of these cases:
 - a slot falls back to its placeholder;

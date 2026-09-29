@@ -108,9 +108,10 @@ func _run() -> void:
 	check(strip.end.z <= Ship.RUDDER_AT.z + TOLERANCE, "the hinge strip is aft of the hinge")
 
 	# A frame on every port, on the hull's side, and every lid standing open above its port.
-	var lids := ship.get_node_or_null("DeckFittings/GunportLids")
+	var lids := ship.get_node_or_null("GunPorts/Lids")
 	var ports := 0 if lids == null else lids.get_child_count()
-	check(ports == Ship.GUN_PORT_Z.size() * 2, "%d gunport frames for %d ports" % [ports, Ship.GUN_PORT_Z.size() * 2])
+	var wanted: int = (ship as Ship).gun_port_count * 2
+	check(ports == wanted, "%d gunport frames for %d ports" % [ports, wanted])
 	if lids != null:
 		for port in lids.get_children():
 			var lid := port.find_child("lid", true, false) as Node3D
@@ -124,6 +125,7 @@ func _run() -> void:
 			check(absf(absf(frame.position.x + frame.size.x * 0.5) - Ship.BEAM * 0.5) <= 0.3,
 					"%s's frame is not on the hull's side" % port.name)
 
+	_check_gun_ports(ship)
 	_check_deck_props(ship)
 	_check_catheads(ship)
 	_check_beams(ship)
@@ -142,6 +144,50 @@ func _run() -> void:
 				textured = true
 	check(textured, "the hull has no plank texture")
 	_finish()
+
+
+## The gunports: a hole in the gun deck's wall at every port, open through, solid wall between
+## them, the wall planked like the hull, and a gun behind every hole. Changing the count moves
+## the holes, frames and guns together.
+func _check_gun_ports(ship: Node3D) -> void:
+	var typed := ship as Ship
+	for wall in ["GunPorts/WallStarboard", "GunPorts/WallPort"]:
+		var node := ship.get_node_or_null(wall) as MeshInstance3D
+		var material := null if node == null else node.material_override as BaseMaterial3D
+		check(node != null and material != null and material.albedo_texture != null,
+				"%s is missing or not planked like the hull" % wall)
+	_check_port_holes(ship, typed.gun_port_z())
+	var before := typed.gun_port_count
+	typed.gun_port_count = 3
+	check(ship.get_node("GunPorts/Lids").get_child_count() == 6 and ship.get_node("GunPorts/Guns").get_child_count() == 6,
+			"with 3 ports a side there should be 6 frames and 6 guns")
+	_check_port_holes(ship, typed.gun_port_z())
+	typed.gun_port_count = before
+
+
+func _check_port_holes(ship: Node3D, spots: Array[float]) -> void:
+	var space := ship.get_world_3d().direct_space_state
+	var guns := ship.get_node("GunPorts/Guns")
+	for side in [1.0, -1.0]:
+		for z in spots:
+			# Through the hole, clear of the barrel: nothing between the gun deck and the sea.
+			var through := Vector3(0.0, Ship.GUN_PORT_Y + 0.25, z + 0.35)
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(
+					ship.to_global(through + Vector3(side * 2.5, 0.0, 0.0)), ship.to_global(through + Vector3(side * 3.6, 0.0, 0.0))))
+			check(hit.is_empty(), "the port at z %.2f on the %s side is not open" % [z, "starboard" if side > 0.0 else "port"])
+			var gun := false
+			for g in guns.get_children():
+				gun = gun or (absf((g as Node3D).position.z - z) < 0.01 and signf((g as Node3D).position.x) == side)
+			check(gun, "no gun behind the port at z %.2f" % z)
+		# Between ports, and past the ends: solid wall.
+		var solid: Array[float] = [Ship.GUN_WALL_FORE_Z + 0.2, Ship.GUN_WALL_AFT_Z - 0.2]
+		for i in spots.size() - 1:
+			solid.append((spots[i] + spots[i + 1]) * 0.5)
+		for z in solid:
+			var at := Vector3(side * 2.5, Ship.GUN_PORT_Y, z)
+			var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(at), ship.to_global(at + Vector3(side * 1.1, 0.0, 0.0))))
+			var wall := absf(ship.to_local(hit.position).x) if not hit.is_empty() else INF
+			check(absf(wall - Ship.GUN_WALL_INNER_X) <= 0.01, "the gun deck wall is open at z %.2f (met %.2f)" % [z, wall])
 
 
 ## Everything standing on a deck: on it, on solid planks, and out of each other's way.
