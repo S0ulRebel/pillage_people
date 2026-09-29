@@ -94,7 +94,13 @@ Done so far:
 - **Wale:** swept round the whole hull at 4.4 m, between the gunport frames and the weather deck, closed round the stem and the stern. `tools/rail_profiles.py` slices and bakes the wale bay like the rail's pieces (`deck/rail_sweep.glb`). Each side follows its own outline measured off the hull, because the kit's bow is not quite symmetrical.
 - **Deadeyes:** one on each shroud's foot, just above the rail, lying along the rope.
 - **Blocks:** a single block under each end of the course yard and the topsail yard. The double blocks are not placed.
-- **Flag:** on a short staff above the topmast, turned each physics frame to stream downwind with the breeze the sails feel.
+- **Flag:** on a short staff above the topmast, held by its three rings, and turned each physics frame to stream downwind with the breeze the sails feel. `python tools/rig_flag.py` sets Tripo's flag up for that (`rigging/flag_rigged.glb`):
+  - straightens its hoist so the rings stand in one line;
+  - turns the picture upright;
+  - turns each ring so its hole runs up the staff;
+  - moves the cloth's edge clear of the staff.
+
+  The staff, 11 mm round, passes through all three rings (holes 13 mm).
 
 `python tools/texture_game_hull.py` gives the game's own hull (art/models/ship/double_deck.glb, with its raked bow and bulged stern) the kit's plank texture without moving a vertex. tests/ship_fittings_check.gd fails in any of these cases:
 - a slot falls back to its placeholder;

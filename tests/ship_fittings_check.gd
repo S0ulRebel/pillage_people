@@ -134,6 +134,7 @@ func _run() -> void:
 	_check_rail(ship)
 	_check_wale(ship)
 	_check_rigging(ship)
+	_check_flag_rings(ship)
 	await _check_course_clears_cabin(ship)
 	await _check_flag_flies_downwind(ship)
 
@@ -635,6 +636,39 @@ func _check_rigging(ship: Node3D) -> void:
 	var flag := _bounds(ship, ship.get_node_or_null("Mast/Flag"))
 	check(ship.get_node_or_null("Mast/Flag/Model") != null and flag.position.y > yard.end.y,
 			"the flag is missing or hangs down to %.2f, into the topsail yard (top %.2f)" % [flag.position.y, yard.end.y])
+
+
+## The flag hangs on its staff by its three rings: the staff's axis passes through each ring's
+## hole, clear of the ring and of the cloth.
+func _check_flag_rings(ship: Node3D) -> void:
+	var flag := ship.get_node_or_null("Mast/Flag") as Node3D
+	var model := null if flag == null else flag.get_node_or_null("Model") as Node3D
+	if model == null:
+		check(false, "no flag model to hang by its rings")
+		return
+	var to_flag := flag.global_transform.affine_inverse()
+	var near := INF
+	# Per 5 cm of height: which sides of the staff's axis the flag reaches round, within 8 cm.
+	# A ring the staff passes through reaches round all four.
+	var sides := {}
+	for m in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := m as MeshInstance3D
+		for v in mesh_node.mesh.get_faces():
+			var p: Vector3 = to_flag * mesh_node.global_transform * v
+			var round := Vector2(p.x, p.z)
+			near = minf(near, round.length())
+			if round.length() < 0.08:
+				var band := int(floor(-p.y / 0.05))
+				var quadrant := (1 if round.x >= 0.0 else 0) + (2 if round.y >= 0.0 else 0)
+				if not sides.has(band):
+					sides[band] = {}
+				sides[band][quadrant] = true
+	var wrapped: Array[int] = []
+	for band in sides:
+		if sides[band].size() == 4 and not wrapped.has(band - 1):
+			wrapped.append(band)
+	check(near > Ship.FLAGSTAFF_RADIUS, "the flag reaches %.3f m from the staff's axis, into the %.3f m staff" % [near, Ship.FLAGSTAFF_RADIUS])
+	check(wrapped.size() >= 3, "the staff passes through the flag at %d heights; it should through all three rings" % wrapped.size())
 
 
 ## The flag streams downwind: with the breeze from abeam, its fly points the way it blows.

@@ -190,8 +190,10 @@ const DEADEYE_ABOVE_RAIL := 0.42
 ## Mast-local: [yard's height, how far out, how far aft]. The block's origin is its strop.
 const YARD_BLOCKS := [[4.47, 3.8, 0.0], [8.07, 2.45, 0.12]]
 ## The flag's staff stands on the topmast head (8.5 m up the mast) and its flag flies from the
-## staff's top, above the topsail yard and the backstays' heads.
+## staff's top, above the topsail yard and the backstays' heads. The staff runs through the
+## flag's three rings, whose holes are 13 mm round: FLAGSTAFF_RADIUS fits through them.
 const FLAGSTAFF_HEIGHT := 1.05
+const FLAGSTAFF_RADIUS := 0.011
 ## The mast top's platform floor stands 1.06 m above the model's lowest point; this puts that
 ## floor just above the placeholder's, and the model's collar clear of the course yard at 4.6.
 const MAST_TOP_Y := 4.72
@@ -1600,22 +1602,21 @@ func _build_blocks() -> void:
 			_fit_model(block, RIGGING + "block_single.glb")
 
 
-## The flag on a short staff above the topmast, its hoist on the staff and its fly out along
-## +X; _fly_flag turns it downwind.
+## The flag on a short staff above the topmast, held on it by its three rings, its fly out
+## along +X; _fly_flag turns it downwind, the rings turning round the staff.
 func _build_flag() -> void:
 	var mast := get_node_or_null("Mast") as Node3D
 	if mast == null or mast.get_node_or_null("Flag") != null:
 		return
 	var head := 8.5
-	_spar(mast, head + FLAGSTAFF_HEIGHT * 0.5, 0.035, 0.025, FLAGSTAFF_HEIGHT, _flat(Color(0.55, 0.36, 0.18)))
+	_spar(mast, head + FLAGSTAFF_HEIGHT * 0.5, FLAGSTAFF_RADIUS, FLAGSTAFF_RADIUS, FLAGSTAFF_HEIGHT, _flat(Color(0.55, 0.36, 0.18)))
 	var flag := Node3D.new()
 	flag.name = "Flag"
 	flag.position = Vector3(0.0, head + FLAGSTAFF_HEIGHT - 0.03, 0.0)
 	mast.add_child(flag)
-	# The model's picture is upside down. Turned half round in its own plane - which keeps its
-	# face where it was, and sends its fly to +X - and dropped by its 0.975 m height, so its
-	# top edge still hangs from the staff's top.
-	if _fit_model(flag, RIGGING + "flag.glb", Vector3(0.0, -0.975, 0.0), Vector3(0.0, 0.0, 180.0)):
+	# tools/rig_flag.py set the model up for this: picture upright, fly out along +X, origin on
+	# its rings' line at the flag's top, so the staff's axis runs through all three rings.
+	if _fit_model(flag, RIGGING + "flag_rigged.glb"):
 		# Seen from both sides: the model is a single sheet.
 		for node in _descendants(flag):
 			var mesh_node := node as MeshInstance3D
