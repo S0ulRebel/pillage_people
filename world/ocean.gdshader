@@ -564,7 +564,7 @@ vec2 crest_wall_foam(float dist, float ny, float which, float other, float stren
 // just off its edge. As it ages the solid heap shrinks and lace of two sizes opens round it.
 // Returns (cover, shade 0 lit .. 1 shaded, pale halo round it).
 vec3 whitecap_event(float dist, float mid, float which, float spill, vec3 fine, vec3 coarse,
-        float t) {
+        float t, float extent) {
     float life = event_period * 0.55;
     float cyc = t / max(event_period, 0.1) + which * 7.13;
     float n = floor(cyc);
@@ -572,8 +572,9 @@ vec3 whitecap_event(float dist, float mid, float which, float spill, vec3 fine, 
     float chosen = step(hash(vec2(which * 91.7, n * 1.37)), event_rate) * step(a, 1.0);
     float size = 0.7 + 0.6 * hash(vec2(n * 3.1, which * 17.0));
     float grow = sqrt(clamp(a * 3.0, 0.0, 1.0));
-    float w = mix(0.08, 0.7, grow) * spill * size;
-    float r = mix(0.5, 3.4, grow) * size;
+    // `extent` shrinks it (0 gone, 1 full size) where it must end before a hard line.
+    float w = mix(0.08, 0.7, grow) * spill * size * extent;
+    float r = mix(0.5, 3.4, grow) * size * extent;
     float e = length(vec2(dist / max(w, 0.001), mid / r));
     // The scalloped outline: big lobes, and small round bumps on them.
     float lobe = smoothstep(0.65, 0.05, coarse.x);
@@ -614,7 +615,7 @@ vec3 whitecap_event(float dist, float mid, float which, float spill, vec3 fine, 
 // the spill goes down the face.
 vec3 wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 coarse, float t) {
     float spill = ny < -0.35 ? 1.0 : 0.35;
-    return whitecap_event(dist, mid, which, spill, fine, coarse, t) * step(0.35, abs(ny));
+    return whitecap_event(dist, mid, which, spill, fine, coarse, t, 1.0) * step(0.35, abs(ny));
 }
 
 // Style 3: whitecap events on the painted lattice's crests. `along` metres along the crests,
@@ -623,7 +624,8 @@ vec3 wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 co
 // its own; this stretch and one either side are tried, so a whitecap can spread over a
 // stretch's end (a whitecap reaches at most about 5.5 m from its middle, which lies at least
 // 1.5 m inside its stretch).
-vec3 lattice_event(float along, float below, float crest_id, vec3 fine, vec3 coarse, float t) {
+vec3 lattice_event(float along, float below, float crest_id, vec3 fine, vec3 coarse, float t,
+        float extent) {
     const float stretch = 6.0;
     float k = floor(along / stretch);
     vec3 best = vec3(0.0);
@@ -631,7 +633,7 @@ vec3 lattice_event(float along, float below, float crest_id, vec3 fine, vec3 coa
         float kk = k + float(i);
         float which = hash(vec2(kk * 1.31 + 0.5, crest_id * 97.3));
         float centre = (kk + 0.25 + 0.5 * hash(vec2(kk * 5.7, crest_id * 13.1))) * stretch;
-        vec3 one = whitecap_event(below, along - centre, which, 1.0, fine, coarse, t);
+        vec3 one = whitecap_event(below, along - centre, which, 1.0, fine, coarse, t, extent);
         // The shade goes with whichever covers more.
         best = vec3(max(best.x, one.x), one.x > best.x ? one.y : best.y, max(best.z, one.z));
     }
@@ -1062,22 +1064,23 @@ void fragment() {
                 float weight = c == 0 ? 1.0 - pick : pick;
                 float crest_id = texture(wave_lattice_ids, uv).a;
                 float below = texture(wave_lattice, uv).g * scale / 7.0;
-                vec3 one = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
-                    clock * wave_speed);
                 // Where the tile hands one crest over to the next, the crest above changes at a
-                // hard line; fade the whitecap out toward it (the same crest found a little
-                // either way along it) rather than cutting it there.
-                float step_uv = 0.35 / scale;
-                float same = 0.0;
-                for (int i = -2; i <= 2; i++) {
-                    if (i == 0) {
-                        continue;
+                // hard line. Find how far along the crest that line is (the same crest looked
+                // for 0.2 m steps either way), and shrink the whitecaps toward it, so they end
+                // before it rather than being cut by it; likewise where this copy of the tile
+                // gives way to the other.
+                float step_uv = 0.2 / scale;
+                float clear = 5.0;
+                for (int j = 4; j >= 1; j--) {
+                    float left = texture(wave_lattice_ids, uv - vec2(float(j) * step_uv, 0.0)).a;
+                    float right = texture(wave_lattice_ids, uv + vec2(float(j) * step_uv, 0.0)).a;
+                    if (abs(left - crest_id) > 0.002 || abs(right - crest_id) > 0.002) {
+                        clear = float(j);
                     }
-                    float id_there = texture(wave_lattice_ids, uv + vec2(float(i) * step_uv, 0.0)).a;
-                    same += abs(id_there - crest_id) < 0.002 ? 0.25 : 0.0;
                 }
-                one.x *= smoothstep(0.2, 0.95, same) * weight;
-                one.z *= weight;
+                float extent = smoothstep(1.0, 5.0, clear) * smoothstep(0.1, 0.6, weight);
+                vec3 one = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
+                    clock * wave_speed, extent);
                 events = vec3(max(events.x, one.x), one.x > events.x ? one.y : events.y,
                     max(events.z, one.z));
             }
