@@ -420,3 +420,24 @@ project already rejects view-dependent outlines).
   in `sss_colour` (0.16, 0.7, 0.9) at `sss_strength` 0.85 - strongest looking toward the sun,
   never gone (the sky lights it too). It replaces the plain lighter tone on the tops, which read
   grey. Measured light tone now (33, 134, 181) against the swatch's (39, 168, 220).
+
+### Step 8h: whitecaps as a net of wave cells
+
+- The ridged noise read as random whirls, not the swatches' little nets of white on the waves.
+  Now each small wave is a cell of a Voronoi net (`wave_cells`), 5 m along the crests and 2.4 m
+  across, bent by noise so the crests arch, drifting with the waves. A cell's walls are the net:
+  the wall behind each cell is its wave's crest line, the slanting ones are the connectors that
+  join crests. `crest_strength` (0.45 by default) decides how many walls show: most crest lines
+  and some connectors on a fair day, all of them in a storm; gathered a little onto the swell's
+  crests.
+- Each shown wall is a band of the shore foam's own lace (`foam_holes`, 0.3 m cells): solid on
+  the crest line, opening into a net further from it, beads at its edge. Wide where the wave is
+  breaking (a noise along the crest), a beaded hairline where it is not, widest where walls
+  meet, and spilling further down the face than over the back. Too far to see as lace, a
+  beaded plain line. A soft pale-turquoise glow runs down the face under it.
+- The faces are shaded from the cells too: one soft gradient per wave from turquoise just under
+  its crest (the painted light through it) to dark in the trough above the next crest - so the
+  shading follows the same waves the white sits on. Softer seen from above.
+- The swatch comparison now looks into the swell, as the swatches are painted.
+  `FOAM_SEA_ONLY=1` makes tests/foam_view.gd render only the open-sea views, for tuning.
+- Open water from the gameplay camera: 1.1% white.

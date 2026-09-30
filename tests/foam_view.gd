@@ -111,8 +111,21 @@ func _run() -> void:
 	sheet.convert(Image.FORMAT_RGB8)
 	DirAccess.make_dir_recursive_absolute(SHOTS)
 
+	# FOAM_SEA_ONLY=1 skips to the open-sea views, for tuning the whitecaps quickly.
+	var sea_only := OS.get_environment("FOAM_SEA_ONLY") == "1"
 	_aim(camera, target, inland, ARM)
 	var game := await _capture("gameplay")
+	if not sea_only:
+		await _shore_views(sheet, game, camera, target, terrain, ocean, shore, inland)
+	await _sea_views(camera, ocean, shore, inland)
+	if not sea_only:
+		await _wave_views(camera, ocean, shore, inland)
+	print("foam views: %s" % ("PASS" if _failures == 0 else "FAIL"))
+	quit(0 if _failures == 0 else 1)
+
+
+func _shore_views(sheet: Image, game: Image, camera: Camera3D, target: Vector3, terrain: Node,
+		ocean: Node, shore: Vector3, inland: Vector3) -> void:
 	_compare(sheet, game, camera, target, "compare_18m")
 	terrain.material.set_shader_parameter("shore_field_preview", true)
 	ocean.material.set_shader_parameter("shore_field_preview", true)
@@ -145,6 +158,8 @@ func _run() -> void:
 	ocean.material.set_shader_parameter("runup_preview", false)
 	ocean.hold_clock = MOMENT
 
+
+func _sea_views(camera: Camera3D, ocean: Node, shore: Vector3, inland: Vector3) -> void:
 	# Whitecaps (step 8): open water from the gameplay camera, 70 m out, and the share of it
 	# that is white - the references' water-type swatches are about 1% white in calm water,
 	# 4% choppy, 6% stormy.
@@ -163,11 +178,17 @@ func _run() -> void:
 
 	# And framed like the references' water-type swatches: from 8 m up, 30 degrees down, over
 	# open water - next to the "small waves" and "choppy" swatches.
-	camera.global_position = open_sea + Vector3.UP * 8.0 + inland * 12.0
-	camera.look_at(camera.global_position - inland * cos(deg_to_rad(30.0)) - Vector3.UP * sin(deg_to_rad(30.0)), Vector3.UP)
+	# Looking into the swell, the way the swatches are painted: the waves come toward the eye
+	# and their crests run across the frame.
+	var swell: Vector4 = ocean.wave_1
+	var into := -Vector3(swell.x, 0.0, swell.y).normalized()
+	camera.global_position = open_sea + Vector3.UP * 8.0 - into * 12.0
+	camera.look_at(camera.global_position + into * cos(deg_to_rad(30.0)) - Vector3.UP * sin(deg_to_rad(30.0)), Vector3.UP)
 	var low := await _capture("open_sea_low")
 	_swatches(low)
 
+
+func _wave_views(camera: Camera3D, ocean: Node, shore: Vector3, inland: Vector3) -> void:
 	# The waves, seen from high over the coast: the surface's height drawn in bands, at three
 	# moments two seconds apart, so the shore waves can be seen coming in parallel to the beach
 	# and wrapping round it. And the same view as the game draws it.
@@ -180,8 +201,6 @@ func _run() -> void:
 	ocean.material.set_shader_parameter("wave_preview", false)
 	ocean.hold_clock = MOMENT
 	await _capture("overview")
-	print("foam views: %s" % ("PASS" if _failures == 0 else "FAIL"))
-	quit(0 if _failures == 0 else 1)
 
 
 func _aim(camera: Camera3D, target: Vector3, inland: Vector3, arm: float) -> void:
