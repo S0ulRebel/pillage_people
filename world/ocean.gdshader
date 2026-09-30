@@ -400,9 +400,11 @@ vec2 shore_wave_slope(vec2 p, vec4 field) {
 //   z  distance to the second-nearest wall, in metres (roughly) - small near a corner, where
 //      walls meet in a knot
 //   w  a random number for that wall, the same all along it, for which walls show
-// and `face`: where the point lies between the crest behind it (0) and the wall ahead (1), for
-// the shading down each wave's face.
-vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out float face) {
+// and `crest_info`: x where the point lies between the crest behind it (0) and the wall ahead
+// (1), for the shading down each wave's face; y metres to that crest behind (roughly); z its
+// random number (as w) - for the glow under the crest, which must not stop where a connector
+// becomes the nearest wall.
+vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out vec3 crest_info) {
     vec2 q = vec2(dot(p, along) / size.x, (dot(p, travel) - drift) / size.y);
     float wx = noise(q * 0.9 + vec2(3.1, 0.0));
     float wy = noise(q * 0.9 + vec2(0.0, 5.7));
@@ -434,6 +436,7 @@ vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out flo
     float which = 0.0;
     float behind = 1.0;
     float ahead = 1.0;
+    float behind_which = 1.0;
     for (int j = -1; j <= 1; j++) {
         for (int i = -1; i <= 1; i++) {
             vec2 id = near_id + vec2(float(i), float(j));
@@ -446,7 +449,12 @@ vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out flo
             }
             float border = dot(0.5 * (near + r), d / len);
             if (d.y < -0.35 * len) {
-                behind = min(behind, border);
+                if (border < behind) {
+                    behind = border;
+                    vec2 lo_b = min(near_id, id);
+                    vec2 hi_b = max(near_id, id);
+                    behind_which = hash(lo_b * 1.7 + hi_b * 3.1 + vec2(5.1, 0.3));
+                }
             } else if (d.y > 0.35 * len) {
                 ahead = min(ahead, border);
             }
@@ -467,7 +475,7 @@ vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out flo
     // is as thin as a crest line.
     float normal_x = sqrt(max(1.0 - normal_y * normal_y, 0.0));
     float to_metres = 1.0 / max(length(vec2(normal_x / size.x, normal_y / size.y)), 0.0001);
-    face = behind / max(behind + ahead, 0.0001);
+    crest_info = vec3(behind / max(behind + ahead, 0.0001), behind * size.y, behind_which);
     return vec4(b1 * to_metres, normal_y, b2 * to_metres, which);
 }
 
@@ -816,8 +824,9 @@ void fragment() {
     vec2 crest_side = vec2(-d1.y, d1.x);
     // The cells drift with the small waves: about the speed of a chop_longest wave.
     float cell_drift = sqrt(9.8 * chop_longest / TAU) * clock * wave_speed;
-    float cell_face;
-    vec4 cells = wave_cells(crest_p, crest_side, d1, wave_cell_size, cell_drift, cell_face);
+    vec3 crest_info;
+    vec4 cells = wave_cells(crest_p, crest_side, d1, wave_cell_size, cell_drift, crest_info);
+    float cell_face = crest_info.x;
     float crest_wall = abs(cells.y) > 0.7 ? 1.0 : 0.0;
     float shown = crest_wall > 0.5 ? step(cells.w, 0.2 + 0.7 * strength)
         : step(cells.w, strength * 0.7);
@@ -833,14 +842,23 @@ void fragment() {
     float knot = max(0.5 - cells.z / max(wave_cell_size.y, 0.01), 0.0) * 0.35;
     float band = (cell_line * (0.25 + 0.9 * beads) + (0.26 * breaking + knot) * spill) * shown;
     float wall_aa = max(fwidth(cells.x), 0.0005);
-    float crest_band = clamp((band - cells.x) / wall_aa * 0.5 + 0.5, 0.0, 1.0) * shown;
     float crest = 0.0;
+    float crest_band = 0.0;
     // (Not branched on the band: the lace's texture read and foam_holes need their derivatives.)
     if (foam_lace_ready) {
-        // Age across the band: fresh at the crest line, old lace at the band's edge.
-        float lace_age = clamp(cells.x / max(band, 0.001), 0.0, 1.0) * mix(0.95, 0.6, breaking);
+        // Fluffy, as the swatches paint breaking crests: a solid core whose edge bulges into
+        // round lobes (one per cell of a larger, turned lace lattice, bigger at the cell's
+        // middle), and round it a fringe of the shore foam's small lace, older further out -
+        // an open net, then beads. So the white is a little net of foam, not a ribbon.
         vec2 lace_p = crest_p - d1 * cell_drift;
-        vec2 lace = foam_holes(foam_lace_at(lace_p, 0.3, false), lace_age);
+        vec3 fine = foam_lace_at(lace_p, 0.24, false);
+        vec3 coarse = foam_lace_at(lace_p, 0.6, true);
+        float lobe = band * (0.35 + 1.0 * smoothstep(0.65, 0.1, coarse.x) * (0.5 + coarse.y));
+        float solid = clamp((lobe - cells.x) / wall_aa * 0.5 + 0.5, 0.0, 1.0);
+        float reach = lobe * 1.9 + 0.02;
+        crest_band = clamp((reach - cells.x) / wall_aa * 0.5 + 0.5, 0.0, 1.0) * shown;
+        float lace_age = mix(0.4, 0.95, clamp((cells.x - lobe) / max(reach - lobe, 0.001), 0.0, 1.0));
+        vec2 lace = vec2(max(solid, foam_holes(fine, lace_age).x), 0.0);
         // A hairline core so the crest reads as one line even where its lace is thin.
         float core = clamp((cell_line * 0.35 * beads - cells.x) / wall_aa * 0.5 + 0.5, 0.0, 1.0)
             * shown;
@@ -849,24 +867,29 @@ void fragment() {
     // Too small to see as lace: a plain band, thinner, before the lace can shimmer.
     float lace_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
     // Beaded, as the swatches paint their distant crests: dashes and dots along the line.
-    float plain = clamp((band * 0.45 - cells.x) / wall_aa * 0.5 + 0.5, 0.0, 1.0) * 0.85 * shown
+    // At least most of a pixel wide, so the crests go on toward the horizon as in the swatches.
+    float plain = clamp((max(band * 0.45, lace_px * 0.6) - cells.x) / wall_aa * 0.5 + 0.5, 0.0, 1.0)
+        * 0.85 * shown
         * smoothstep(0.3, 0.45, beads + 0.25 * breaking);
     crest = mix(crest, plain, smoothstep(0.03, 0.07, lace_px));
     // A pale glow down the face below the white.
-    float crest_glow = (1.0 - smoothstep(band * 0.5, band * 2.5 + 0.12, cells.x))
-        * shown * spill * step(cells.y, -0.35);
+    // Measured from this wave's own crest, not the nearest wall, so it runs on past connectors.
+    float crest_glow = (1.0 - smoothstep(0.02, 0.2 + 0.35 * breaking, crest_info.y))
+        * step(crest_info.z, 0.2 + 0.7 * strength)
+        * smoothstep(-1.1, -0.6, 0.5 * swell_up + (crest_info.z - 0.5))
+        // ... and fading out toward the cell's other walls rather than stopping at them.
+        * (cells.y < -0.35 ? 1.0 : smoothstep(0.0, 0.3, cells.x));
     // Gathered a little onto the swell's crests: fewer walls in its troughs.
     float swell_gate = smoothstep(-1.1, -0.6, 0.5 * swell_up + (cells.w - 0.5));
     crest *= swell_gate;
-    crest_glow *= swell_gate;
     // The walls are a few centimetres: gone where a pixel spans more than a quarter metre of
     // sea, before they can shimmer.
     float metres_per_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
-    crest *= 1.0 - smoothstep(0.12, 0.3, metres_per_px);
+    crest *= 1.0 - smoothstep(0.2, 0.45, metres_per_px);
     // Only offshore, where the shore foam is not already drawing the waves, only where the
     // chop is still bigger than the pixels, and near.
     crest *= smoothstep(1.5, 4.0, water_depth) * swell;
-    crest *= 1.0 - smoothstep(55.0, 150.0, range_here);
+    crest *= 1.0 - smoothstep(80.0, 200.0, range_here);
     crest_glow *= (1.0 - smoothstep(0.12, 0.3, metres_per_px)) * smoothstep(1.5, 4.0, water_depth)
         * swell * (1.0 - smoothstep(55.0, 150.0, range_here));
     // Everything white on the water, foam and crests together.

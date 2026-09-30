@@ -441,3 +441,15 @@ project already rejects view-dependent outlines).
 - The swatch comparison now looks into the swell, as the swatches are painted.
   `FOAM_SEA_ONLY=1` makes tests/foam_view.gd render only the open-sea views, for tuning.
 - Open water from the gameplay camera: 1.1% white.
+
+### Step 8i: whitecaps, second pass
+
+- Fluffier foam close up: each crest is a solid core whose edge bulges into round lobes (one per
+  cell of a larger, turned lace lattice), with a fringe of the small lace round it - open net,
+  then beads. It was a scalloped ribbon of even lace.
+- The glow under a crest is measured from that wave's own crest line (`wave_cells` now also
+  returns the distance to the crest behind and its random number), not from the nearest wall,
+  and fades out toward the cell's other walls, so it no longer stops hard at a connector.
+- The crests reach further: far off they are drawn at least most of a pixel wide, and fade out
+  over 0.2-0.45 m a pixel and 80-200 m, not 0.12-0.3 m and 55-150 m.
+- Open water from the gameplay camera: 1.4% white.
