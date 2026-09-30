@@ -1051,28 +1051,34 @@ void fragment() {
         crest_glow = tile.b * 0.9;
         cell_face = tile.g;
         if (whitecap_style == 3 && foam_lace_ready) {
-            // The events break along the crests of whichever copy of the tile shows here.
-            bool second_copy = pick > 0.5;
-            vec2 uv = second_copy ? uv2 : uv1;
-            float scale = lattice_size * (second_copy ? 0.77 : 1.0);
-            float crest_id = texture(wave_lattice_ids, uv).a;
-            float below = (second_copy ? texture(wave_lattice, uv2).g : texture(wave_lattice, uv1).g)
-                * scale / 7.0;
-            vec3 events = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
-                clock * wave_speed);
-            // Where the tile hands one crest over to the next, the crest above changes at a
-            // hard line; fade the whitecap out toward it (the same crest found a little either
-            // way along it) rather than cutting it there.
-            float step_uv = 0.35 / scale;
-            float same = 0.0;
-            for (int i = -2; i <= 2; i++) {
-                if (i == 0) {
-                    continue;
+            // The events break along the crests of both copies of the tile, blended as the
+            // copies are, so no whitecap is cut where one copy gives way to the other.
+            vec3 events = vec3(0.0);
+            for (int c = 0; c < 2; c++) {
+                vec2 uv = c == 0 ? uv1 : uv2;
+                float scale = lattice_size * (c == 0 ? 1.0 : 0.77);
+                float weight = c == 0 ? 1.0 - pick : pick;
+                float crest_id = texture(wave_lattice_ids, uv).a;
+                float below = texture(wave_lattice, uv).g * scale / 7.0;
+                vec3 one = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
+                    clock * wave_speed);
+                // Where the tile hands one crest over to the next, the crest above changes at a
+                // hard line; fade the whitecap out toward it (the same crest found a little
+                // either way along it) rather than cutting it there.
+                float step_uv = 0.35 / scale;
+                float same = 0.0;
+                for (int i = -2; i <= 2; i++) {
+                    if (i == 0) {
+                        continue;
+                    }
+                    float id_there = texture(wave_lattice_ids, uv + vec2(float(i) * step_uv, 0.0)).a;
+                    same += abs(id_there - crest_id) < 0.002 ? 0.25 : 0.0;
                 }
-                float id_there = texture(wave_lattice_ids, uv + vec2(float(i) * step_uv, 0.0)).a;
-                same += abs(id_there - crest_id) < 0.002 ? 0.25 : 0.0;
+                one.x *= smoothstep(0.2, 0.95, same) * weight;
+                one.z *= weight;
+                events = vec3(max(events.x, one.x), one.x > events.x ? one.y : events.y,
+                    max(events.z, one.z));
             }
-            events.x *= smoothstep(0.2, 0.95, same);
             crest_shade = events.y * step(crest, events.x);
             crest = max(crest, events.x * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
             event_halo = events.z;
