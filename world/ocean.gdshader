@@ -1066,8 +1066,11 @@ void fragment() {
                 vec2 uv = c == 0 ? uv1 : uv2;
                 float scale = lattice_size * (c == 0 ? 1.0 : 0.77);
                 float weight = c == 0 ? 1.0 - pick : pick;
-                float crest_id = texture(wave_lattice_ids, uv).a;
-                float below = texture(wave_lattice, uv).g * scale / 7.0;
+                // Read at full resolution: looked at along the sea, the eye's slant picks a mip
+                // level many texels wide, which blended neighbouring crests into stripes and
+                // cut the whitecaps along them.
+                float crest_id = textureLod(wave_lattice_ids, uv, 0.0).a;
+                float below = textureLod(wave_lattice, uv, 0.0).g * scale / 7.0;
                 // Where the tile hands one crest over to the next, the crest above changes at a
                 // hard line. Find how far along the crest that line is (the same crest looked
                 // for 0.2 m steps either way), and shrink the whitecaps toward it, so they end
@@ -1076,8 +1079,8 @@ void fragment() {
                 float step_uv = 0.2 / scale;
                 float clear = 5.0;
                 for (int j = 4; j >= 1; j--) {
-                    float left = texture(wave_lattice_ids, uv - vec2(float(j) * step_uv, 0.0)).a;
-                    float right = texture(wave_lattice_ids, uv + vec2(float(j) * step_uv, 0.0)).a;
+                    float left = textureLod(wave_lattice_ids, uv - vec2(float(j) * step_uv, 0.0), 0.0).a;
+                    float right = textureLod(wave_lattice_ids, uv + vec2(float(j) * step_uv, 0.0), 0.0).a;
                     if (abs(left - crest_id) > 0.002 || abs(right - crest_id) > 0.002) {
                         clear = float(j);
                     }
