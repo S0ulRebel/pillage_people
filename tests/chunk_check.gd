@@ -22,7 +22,7 @@ extends SceneTree
 ##   All of it twice: with the default 32-quad chunks, and with 48-quad ones, which 512 quads
 ##   do not divide, so the last row and column are ragged.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 const PATCH := preload("res://props/grass/grass_patch.tscn")
 
@@ -49,11 +49,7 @@ func _run() -> void:
 # --- the pieces --------------------------------------------------------------------------------
 
 func _terrain(chunk_quads: int) -> Node3D:
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.file_height = 180.0
+	var terrain := ISLAND.make()
 	terrain.chunk_quads = chunk_quads
 	return terrain
 

@@ -45,13 +45,13 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `world/sky.*` | The sky, day, golden hour and night: the dome's gradients, sun, moon and stars, and the clouds - see Clouds and weather below. `world/cloud_shadow.gdshaderinc` lays the clouds' shadows on the ground and the sea. |
 | `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
 | `world/tunnel.gd` | Tunnels and caves, placed under Terrain: draw a curve, pick a section (round, arch, shaft). Dead ends are capped, corners mitred, crossings opened. See Tunnels below. |
-| `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. Every stamp follows one rule: its shape gives a height (a signed fraction of the stamp's `height` in metres) and a mask, and the mode blends that into the ground - **Add** puts it on top (a mountain, mesa, volcano or canyon; negative digs), **Replace** sets the ground to the stamp's own Y plus the shape, **Min** only cuts down to that and **Max** only fills up to it, then mask x `opacity` decides how much lands. Replace, Min and Max show a see-through sheet in the editor at the level they work to. Shapes: a `.stamp` image, or a soft rectangle or circle (full height, with a fade round its edge - so a levelling pad wants `height` 0 to sit at the gizmo); the ground mesh is cut along a soft shape's outline and along the foot of its bank, so an edge as sharp as 0.25 m is a real edge at any angle, with a straight lip, a straight shadow and a collider that matches (Terrain's `cut_edges` turns this off). A `.stamp` holds a 16-bit height (mid-grey is zero) and a 16-bit mask per sample; `tools/make_stamp.py` makes one from the "Terrain - Stamp" ComfyUI workflow's output in `D:\code\gan`, or from an old `.r16`. Add `*.stamp` to the export filter beside `*.r16`. |
+| `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. Every stamp follows one rule: its shape gives a height (a signed fraction of the stamp's `height` in metres) and a mask, and the mode blends that into the ground - **Add** puts it on top (a mountain, mesa, volcano or canyon; negative digs), **Replace** sets the ground to the stamp's own Y plus the shape, **Min** only cuts down to that and **Max** only fills up to it, then mask x `opacity` decides how much lands. Replace, Min and Max show a see-through sheet in the editor at the level they work to. Shapes: a `.stamp` image, or a soft rectangle or circle (full height, with a fade round its edge - so a levelling pad wants `height` 0 to sit at the gizmo); the ground mesh is cut along a soft shape's outline and along the foot of its bank, so an edge as sharp as 0.25 m is a real edge at any angle, with a straight lip, a straight shadow and a collider that matches (Terrain's `cut_edges` turns this off). A `.stamp` holds a 16-bit height (mid-grey is zero) and a 16-bit mask per sample; `tools/make_stamp.py` makes one from the "Terrain - Stamp" ComfyUI workflow's output in `D:\code\gan`, or from an old `.r16` stamp. Add `*.stamp` to the export filter. |
 | `addons/biome_painter/` | Editor plugin: a brush that hand-overrides the automatic ground biome (grass, sand, rock, jungle) straight in the 3D viewport. See Painting the biome below. |
 | `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
 | `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |
 | `art/` | Data only — imported models, generated audio, reference images. Nothing here is loaded as code. |
 | `art/models/characters/` | Bodies and pieces for the modular characters, named `<slot>_<name>.glb`. See the README there. |
-| `terrain/*.r16` | Height maps from `tools\make_heightmap.py` in `D:\code\gan`. |
+| `terrain/island.stamp` | The island: the image the **Island** stamp in `main.tscn` lays over the Seabed. |
 
 ## The fight
 
@@ -294,8 +294,10 @@ Wading becomes swimming past `swim_depth` (1.3 m, about chest height).
 
 The island is a stamp: `terrain/island.stamp`, the TerrainStamp named **Island** that comes first
 under Terrain in `main.tscn` - a Replace, 620 m square, over a Seabed. It used to be the whole
-ground, read as `terrain/island.r16`; that file stays until the old loader is removed, so
-`tests/island_stamp_check.gd` can show the stamp gives the same ground (to 0.015 mm).
+ground, read from a height file, `terrain/island.r16`; the stamp was shown to give the same
+ground to 0.015 mm at every sample before the file and its loader were removed. Tests that
+build a Terrain of their own build this island with `tests/island_terrain.gd`, and
+`tests/island_stamp_check.gd` holds main.tscn's Island to it.
 
 Its outer slope fades into the **Seabed** (`world/seabed/seabed.gd`, a child of Terrain) over
 `border_fade` (90 m), so at the square's edge the ground is the Seabed alone, and the Terrain
@@ -314,10 +316,12 @@ three dives.
 | `deepening_distance` | 350 m | over which it then drops to `far_depth` |
 | `far_depth` | 60 m | the open sea's depth, and the water's bed past the far ring |
 
+A Terrain with no Seabed child stands on a plain default one, and the editor warns about it.
+
 Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
-tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, 5 grunts, a reef of
-corals and weed on the dive crater's floor, and about 450 more through the shallows in some
-twenty coral reefs and weed patches.
+tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, 5 grunts, and about 450
+corals and weeds through the shallows in some twenty coral reefs and weed patches. The reef on
+the dive crater's floor is not main.gd's: it is a ScatterPatch under the crater (see Stamps).
 
 The shallows are `props/reef/reef.gd` again, told a band of water (0.9 to 2.8 m) instead of a
 crater, and it finds the coast by depth rather than from a list of beaches. They grow the way
@@ -351,7 +355,8 @@ filled with tufts crowded toward its middle, with the rocks handed in as extra c
 grass grows against a boulder the way it does in life. An even scatter reads as a texture
 rather than as plants, however many you use.
 
-Swapping the map means re-drawing any tunnel curve, since the curve is world-space geometry.
+Moving or swapping the island stamp means re-drawing any tunnel curve, since the curve is
+world-space geometry.
 
 **Heights are metres, and the sea is at y = 0** - the Terrain's own y, which is 0 in
 `main.tscn`. A height is how far above (or below) the sea something is, so a stamp at Y = 12 is
@@ -371,9 +376,37 @@ Useful settings on the Terrain node:
 | `far_extent` | 1200 | how far out from the middle the far ring goes, in metres. Only with a Seabed. |
 | `far_cell` | 8 | detail quads per far ring cell (8 is 9.7 m on the island). Must divide `mesh_resolution` / 2. |
 | `chunk_quads` | 32 | quads per chunk side. The ground is built in chunks so an edit only rebuilds the chunks it touches: the whole island is about 3 s, one chunk about 10 ms, so a ticked stamp or tunnel follows the gizmo. Chunks are culled one by one too. |
-| `file_height`, `file_sea_fraction` | 60, 0.1 | only for a ground read from a height file (`raw_path`) rather than a Seabed: the metres the file's range spans, and how far up it the sea is |
 | `biome_path` | `terrain/island_biome.png` | the hand-painted overrides on the automatic biome. See Painting the biome below. |
 | `biome_palette_path` | `terrain/biome_palette.png` | the named colours `biome_path` indexes into. See Painting the biome below. |
+
+### Stamps
+
+The Seabed is laid down first, then every TerrainStamp under the Terrain in child order - the
+Island first, so the pads and the crater after it shape the island rather than being wiped out
+by it. Every stamp follows one rule. Its shape gives a value from -1 to 1 at each point, times
+its `height` in metres:
+
+| Mode | The ground becomes | For |
+|---|---|---|
+| Add | ground + value x height | details on whatever is there: dunes, ridges, craters |
+| Replace | the stamp's Y + value x height | exact set pieces - the island, a levelling pad |
+| Min | that, only where it is lower | canyons, rivers, coves |
+| Max | that, only where it is higher | raising ground up to a level |
+
+Then the stamp's mask, times its `opacity` and its `border_fade`, says how much of that lands:
+the ground is mix(ground, result, mask x opacity x fade), so 0 leaves it alone.
+
+A `.stamp` is raw: `STMP`, then version, columns and rows as little-endian uint32, then two
+little-endian uint16 per sample, row by row - the height, with 32768 as zero (brighter raises,
+darker lowers), and the mask. Raw rather than PNG because Godot's loader cuts a 16-bit PNG to
+8 bits. `tools/make_stamp.py` writes one from a 16-bit PNG or an old `.r16`, and `info`
+reports what one holds.
+
+Things that belong to a piece of ground go under it: the crater's reef is a **ScatterPatch**
+under the DiveCrater stamp, so it moves with the crater and replants when the ground under it
+changes. Things are found by **group**, and every group name is a constant in
+`systems/groups.gd` (`Groups.TERRAIN`, `Groups.CANNONS`, `Groups.WIND`) - no file spells one
+out, so a typo is a parse error rather than a query that quietly finds nothing.
 
 ## Painting the biome
 
@@ -614,15 +647,15 @@ in `docs/` and the art in `art/references/` are data rather than textures, so ea
 from the exporter as well as from the editor, and no export filter reaches back in: `*.r16` in
 the preset looked right and shipped nothing, so the exported game opened with no island. The
 game reads `res://terrain/island.stamp` with `FileAccess` at run time, and a file the exporter
-cannot see is a file the build does not have - so the preset needs `*.stamp` as well as `*.r16`.
+cannot see is a file the build does not have - so the preset needs `*.stamp`.
 
 If Working Copy says a pull was aborted because of uncommitted changes, check what they are
 first: if they are only `.import`/`.godot` files, discard them and pull again.
 
 ## Notes worth keeping
 
-- **Use the `.r16`, not the PNG.** Godot's image loader converts a 16-bit PNG down to 8-bit,
-  which shows up as terracing.
+- **Heights go in a `.stamp`, not a PNG.** Godot's image loader converts a 16-bit PNG down to
+  8-bit, which shows up as terracing; `tools/make_stamp.py` reads the PNG itself.
 - **Vertex colours are linear.** sRGB values need `srgb_to_linear()`, or the terrain looks
   washed out.
 - **Renderer is Mobile**, not Forward+, so it runs on iPad. SSAO is off for the same reason.

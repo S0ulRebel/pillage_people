@@ -68,8 +68,9 @@ and a distributable ZIP, which the game does not need. The last three do not exi
 disk - the doc is stale about them.
 
 The line is import-shaped rather than a matter of taste: a tool belongs here when it runs
-against an asset on its own. `make_heightmap.py` is the one the game names that stayed behind,
-because it does `from comfy import ...` and would not run without that workspace.
+against an asset on its own. `make_heightmap.py`, which made the old `.r16` height maps, stayed
+behind because it does `from comfy import ...` and would not run without that workspace; what it
+makes now goes through `make_stamp.py` into a `.stamp`.
 
 ## The thing these exist to prevent
 

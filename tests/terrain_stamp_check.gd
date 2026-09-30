@@ -9,7 +9,7 @@ extends SceneTree
 ## leaked past its border would lift a square of ground around the landform - the failure the
 ## stamp images are made 0 at the edge to prevent.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 
 var failures := 0
@@ -26,11 +26,7 @@ func check(condition: bool, message: String) -> void:
 
 
 func _terrain(stamps: Array) -> Node3D:
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.file_height = 180.0
+	var terrain := ISLAND.make()
 	for stamp in stamps:
 		terrain.add_child(stamp)
 	root.add_child(terrain)

@@ -11,7 +11,7 @@ extends SceneTree
 ## has to land exactly on the plane, at the foot exactly on the natural ground, and halfway
 ## down the wall exactly on the stamp's own fade - at any angle, for a rectangle and an oval.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 
 var failures := 0
@@ -29,19 +29,11 @@ func check(condition: bool, message: String) -> void:
 
 
 func _run() -> void:
-	var plain := StaticBody3D.new()
-	plain.set_script(TERRAIN)
-	plain.raw_path = "res://terrain/island.r16"
-	plain.world_size = 620.0
-	plain.file_height = 180.0
+	var plain := ISLAND.make()
 	root.add_child(plain)
 	await process_frame
 
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.file_height = 180.0
+	var terrain := ISLAND.make()
 	root.add_child(terrain)
 	await process_frame
 	# A rectangle turned 27 degrees with a 0.5 m fade, 6 m up; an oval turned the other way

@@ -25,6 +25,7 @@ extends SceneTree
 ## always aims at the nearest thing on that exact line, does not have this problem - but two
 ## renders of the same scene needing two different live states is still simplest as two runs.
 
+const ISLAND := preload("res://tests/island_terrain.gd")
 const TMP_PALETTE := "res://tests/_tmp_paint_view_palette.png"
 const PAINTED_COLOUR := Color(0.95, 0.05, 0.85)   # magenta: no automatic rule ever draws this
 
@@ -80,12 +81,8 @@ func _run() -> void:
 	palette.set_pixel(0, 0, PAINTED_COLOUR)
 	palette.save_png(ProjectSettings.globalize_path(TMP_PALETTE))
 
-	var terrain := StaticBody3D.new()
+	var terrain := ISLAND.make()
 	terrain.name = "Terrain"
-	terrain.set_script(load("res://world/terrain.gd"))
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.file_height = 180.0
 	terrain.biome_palette_path = TMP_PALETTE
 	var scene := Node3D.new()
 	root.add_child(scene)

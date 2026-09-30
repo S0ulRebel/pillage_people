@@ -14,10 +14,9 @@ extends SceneTree
 ##   island's edge carries on into the ring rather than stopping at a wall.
 ## - far out, the bed is at the Seabed's far depth.
 
+const ISLAND := preload("res://tests/island_terrain.gd")
 const TERRAIN := preload("res://world/terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
-const ISLAND_HEIGHT := 90.001373291015625
-const ISLAND_Y := ISLAND_HEIGHT - 18.0
 
 var failures := 0
 
@@ -39,15 +38,7 @@ func _run() -> void:
 	var seabed := Seabed.new()
 	seabed.noise = FastNoiseLite.new()
 	terrain.add_child(seabed)
-	var island := STAMP.instantiate() as TerrainStamp
-	island.mode = TerrainStamp.Mode.REPLACE
-	island.stamp_path = "res://terrain/island.stamp"
-	island.height = ISLAND_HEIGHT
-	island.length = 620.0
-	island.width = 620.0
-	island.border_fade = 90.0
-	island.position = Vector3(0.0, ISLAND_Y, 0.0)
-	terrain.add_child(island)
+	terrain.add_child(ISLAND.island(90.0))
 	# A hole dug at the island's edge, its fade reaching sixteen metres past it.
 	var dig := STAMP.instantiate() as TerrainStamp
 	dig.shape = TerrainStamp.Shape.SOFT_CIRCLE

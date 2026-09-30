@@ -230,18 +230,28 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   `underwater_view`'s shallow waterline is 9 mm off the sea's mesh, against 7-8 mm before:
   the same failure the renderer here always shows, at a different moment of the swell.
 
-## Phase 7: clean-up and docs
+## Phase 7: clean-up and docs (done)
 
-- Remove the `raw_path`/PNG loader and the old-against-new comparison test.
-- Remove the unused `terrain/heightmap.png`, `terrain/heightmap.r16`, `terrain/island_a.r16`,
-  `terrain/island_b.r16`, `terrain/mountains.png` and `terrain/island.r16`.
-- Update `README.md`, `world/README.md` and `CONVENTIONS.md`: the stamp format, blend modes,
-  Seabed node, groups rule and sea level at 0.
+- **Loader gone:** `raw_path`, `heightmap_path`, `file_height` and `file_sea_fraction` are out of
+  the Terrain, with the code that read `.r16` and PNG height maps. A Terrain with no Seabed
+  child stands on a plain default one and shows a configuration warning, rather than erroring
+  and drawing nothing.
+- **Files gone:** `terrain/heightmap.png`, `heightmap.r16`, `island_a.r16`, `island_b.r16`,
+  `mountains.png` and `island.r16`. `terrain/` holds `island.stamp` and the biome maps.
+- **Tests:** the seven that built their ground from `island.r16` (and both editor live checks)
+  build it with `tests/island_terrain.gd` - a Seabed with the Island stamp over the whole
+  square, unfaded, so the ground is the file's to 0.015 mm - and the checks among them print
+  the same numbers as before, to the last digit. `island_stamp_check` drops its comparison with the file; it keeps
+  holding main.tscn's Island to the stamp, the fade into the bed, and the Seabed alone.
+- **Docs:** the README has a Stamps section (the modes, the rule, the `.stamp` layout, where a
+  ScatterPatch goes, `Groups`), the Seabed settings and heights in metres from the sea at 0;
+  `CONVENTIONS.md` has the groups rule and "Heights are metres from the sea"; the `.r16` rows
+  and notes are gone.
 
 ## Risks
 
 - **Load time:** the island stamp covers about 1 million samples in GDScript. Measured in
-  phase 4.
+  phase 4: about 0.5 s with the Seabed, against 0.04 s from the height file.
 - **Seams in the far ring:** where the coarse ring meets the detailed grid, in phase 5.
 - **Testing:** Godot 4.7 is needed to run the tests; it is not installed in the cloud sessions
   by default.

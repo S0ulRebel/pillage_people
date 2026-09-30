@@ -12,6 +12,8 @@ extends EditorPlugin
 ## command-line EditorScript, but it does load plugins. Not enabled in project.godot: the
 ## script enables it through an override.cfg it removes again.
 
+const ISLAND := preload("res://tests/island_terrain.gd")
+
 var failures := 0
 
 
@@ -32,12 +34,8 @@ func _run() -> void:
 	print("editor hint: %s" % Engine.is_editor_hint())
 	check(Engine.is_editor_hint(), "not running as the editor - this proves nothing")
 
-	var terrain := StaticBody3D.new()
+	var terrain := ISLAND.make()
 	terrain.name = "Terrain"
-	terrain.set_script(load("res://world/terrain.gd"))
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.file_height = 180.0
 	var stamp: TerrainStamp = load("res://world/terrain_stamp/terrain_stamp.tscn").instantiate()
 	stamp.name = "Pad"
 	stamp.mode = TerrainStamp.Mode.REPLACE

@@ -14,7 +14,7 @@ Placement uses the local height gradient for shoreline orientation, checks a gri
 across the whole group and spawn for dry ground, slopes below 0.32 and ground at
 least two metres from any tunnel opening, and requires water within 36 metres. If
 no patch passes, the original spawn remains in use.
-It uses local RNGs and never changes terrain generation or the heightmap.
+It uses local RNGs and never changes terrain generation or the ground.
 
 ## Run
 

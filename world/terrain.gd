@@ -1,14 +1,11 @@
 @tool
 extends StaticBody3D
 ## Builds a terrain mesh + collision: the heights of a Seabed child, with every TerrainStamp
-## child laid on top in order - the island is one of those stamps. Without a Seabed the ground
-## starts from a 16-bit height map instead (raw_path), which is how it used to be built.
+## child laid on top in order - the island is one of those stamps. Without a Seabed child the
+## ground is a plain default seabed, and the editor says so.
 ##
 ## Every height is in metres, and the sea is at the Terrain's own y - 0 in main.tscn - so a
 ## height is also how far above or below the sea it is.
-##
-## A height map is read at runtime rather than imported, so Godot's texture importer cannot
-## quietly convert it to 8-bit or apply sRGB - both of which flatten the heights.
 
 const ShoreField = preload("res://world/shore_field.gd")
 
@@ -18,26 +15,6 @@ const ShoreField = preload("res://world/shore_field.gd")
 ## Terrain is, since children are readied first, and without this it would read the ground
 ## before there was any.
 signal reshaped
-
-@export_group("Height map file")
-## Raw 16-bit heights (make_heightmap.py writes these), read only when there is no Seabed child.
-## Godot's Image loader converts a 16-bit PNG down to 8-bit, which shows up as visible
-## terracing, so the .r16 is preferred and the PNG is only a fallback.
-@export_file("*.r16") var raw_path := "res://terrain/heightmap.r16"
-@export_file("*.png") var heightmap_path := "res://terrain/heightmap.png"
-## Metres from the file's lowest value to its highest. A height file holds fractions of a range
-## rather than metres, so it has to be told how tall that range is.
-@export var file_height := 60.0:
-	set(value):
-		file_height = value
-		_setting_changed()
-## How far up that range the file puts the sea. make_heightmap.py bakes the same number into
-## the island, so it has to match or the shoreline lands in the wrong place.
-@export var file_sea_fraction := 0.10:
-	set(value):
-		file_sea_fraction = value
-		_setting_changed()
-@export_group("")
 
 ## Hand-painted overrides on top of the automatic biome (grass/sand/rock from height and
 ## slope): where a rock, or a patch of sand in the grass, is a choice rather than what the
@@ -191,9 +168,9 @@ func _push_colour(name: StringName, value: Variant) -> void:
 		mesh_resolution = value
 		_setting_changed()
 @export var collision_resolution := 513  ## samples per side for the collision shape (match mesh_resolution + 1)
-## Height samples per side when the ground starts from a Seabed; a height file says for itself.
-## One mesh vertex on every second sample, as with the file - so 2 x mesh_resolution + 1. An
-## island stamp the same size as the ground, with this many samples, lands sample on sample.
+## Height samples per side. One mesh vertex on every second sample - so 2 x mesh_resolution
+## + 1. An island stamp the same size as the ground, with this many samples, lands sample on
+## sample.
 @export var height_samples := 1025:
 	set(value):
 		height_samples = maxi(value, 2)
@@ -284,8 +261,10 @@ var _stamp_rects: Array[Rect2] = []
 ## Each active stamp's own reach, in the same order: past the square every stamp is evaluated
 ## where it reaches, and this is how the far ground skips the ones that do not.
 var _active_rects: Array[Rect2] = []
-## The Seabed the ground started from, or null when it came from a height file.
+## The Seabed the ground started from: the child, or with none the plain one below.
 var _bed: Seabed = null
+## A default seabed for a Terrain with no Seabed child - never in the tree, freed with us.
+var _plain_bed: Seabed = null
 ## The far ring, as of the last build: heights over a grid `_far_count` samples a side,
 ## `_far_step` apart and centred on the Terrain, in metres above it, NAN strictly inside the
 ## detailed square, where the ground is the chunks'. Empty without a Seabed.
@@ -330,9 +309,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	if not _read_base():
-		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
-		return
+	_read_base()
 	_biome_image = _load_biome_image()
 	_biome_palette_image = _load_biome_palette_image()
 	_built_quads = maxi(chunk_quads, 1)
@@ -391,19 +368,28 @@ func _seabed(leaving: Node = null) -> Seabed:
 
 
 ## Lays the ground down before any stamp, into _base_heights, and sets _size: from the Seabed
-## child if there is one, else from the height file. False if there was nothing to read.
-func _read_base(leaving: Node = null) -> bool:
-	var seabed := _seabed(leaving)
-	_bed = seabed
-	if seabed == null:
-		if not _load_raw() and not _load_png():
-			return false
-		_base_heights = _heights.duplicate()
-		return true
+## child, or with none from a plain default one - a Terrain is never without ground.
+func _read_base(leaving: Node = null) -> void:
+	_bed = _seabed(leaving)
+	if _bed == null:
+		if _plain_bed == null:
+			_plain_bed = Seabed.new()
+		_bed = _plain_bed
 	_size = height_samples
-	_base_heights = seabed.fill(_size, world_size / float(_size - 1), -world_size * 0.5)
+	_base_heights = _bed.fill(_size, world_size / float(_size - 1), -world_size * 0.5)
 	_heights = _base_heights.duplicate()
-	return true
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _plain_bed != null:
+		_plain_bed.free()
+
+
+func _get_configuration_warnings() -> PackedStringArray:
+	if _seabed() == null:
+		return ["No Seabed child, so the ground is a plain default seabed. Add a Seabed under "
+				+ "the Terrain to shape it, and stamps for the islands."]
+	return []
 
 
 ## Whether a stamp or tunnel is part of the terrain: always in the game, and in the editor
@@ -503,6 +489,8 @@ func _watch(child: Node) -> void:
 
 
 func _on_child_entered(child: Node) -> void:
+	if child is Seabed and Engine.is_editor_hint():
+		update_configuration_warnings()
 	if not _tracked(child):
 		return
 	_watch(child)
@@ -513,6 +501,9 @@ func _on_child_entered(child: Node) -> void:
 
 
 func _on_child_exiting(child: Node) -> void:
+	if child is Seabed and Engine.is_editor_hint():
+		# Still a child until this returns.
+		update_configuration_warnings.call_deferred()
 	if not _tracked(child):
 		return
 	if _connections.has(child):
@@ -847,36 +838,6 @@ func hole_field(world_x: float, world_z: float) -> float:
 		if tunnel.bounds().has_point(point):
 			best = minf(best, tunnel.distance_outside(point))
 	return best
-
-
-func _load_raw() -> bool:
-	var file := FileAccess.open(raw_path, FileAccess.READ)
-	if file == null:
-		return false
-	var bytes := file.get_buffer(file.get_length())
-	var count := bytes.size() / 2
-	_size = int(sqrt(float(count)))
-	if _size * _size != count:
-		push_error("%s is not square (%d samples)" % [raw_path, count])
-		return false
-	_heights = PackedFloat32Array()
-	_heights.resize(count)
-	for i in count:
-		_heights[i] = (bytes.decode_u16(i * 2) / 65535.0 - file_sea_fraction) * file_height
-	return true
-
-
-func _load_png() -> bool:
-	var image := Image.load_from_file(ProjectSettings.globalize_path(heightmap_path))
-	if image == null:
-		return false
-	_size = image.get_width()
-	_heights = PackedFloat32Array()
-	_heights.resize(_size * _size)
-	for y in _size:
-		for x in _size:
-			_heights[y * _size + x] = (image.get_pixel(x, y).r - file_sea_fraction) * file_height
-	return true
 
 
 ## The default size of a freshly started biome map: fine enough for a small patch of sand in

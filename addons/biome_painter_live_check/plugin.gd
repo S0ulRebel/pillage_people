@@ -15,7 +15,7 @@ extends EditorPlugin
 ## and a running EditorPlugin's _forward_3d_gui_input, both editor-only, the same reason
 ## addons/terrain_live_check exists for stamps and tunnels.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const TMP_BIOME := "res://tests/_tmp_painter_check.png"
 const TMP_PALETTE := "res://tests/_tmp_painter_check_palette.png"
 
@@ -69,12 +69,8 @@ func _run() -> void:
 	var painter: EditorPlugin = Engine.get_meta(&"biome_painter_plugin")
 
 	_cleanup()
-	var terrain := StaticBody3D.new()
+	var terrain := ISLAND.make()
 	terrain.name = "Terrain"
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.file_height = 180.0
 	terrain.biome_path = TMP_BIOME
 	terrain.biome_palette_path = TMP_PALETTE
 	tree.root.add_child(terrain)
