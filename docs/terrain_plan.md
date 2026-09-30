@@ -68,9 +68,9 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   and centred on the origin. Its samples land exactly on the terrain grid (both map a sample
   as u × (N − 1)), so Y + value × height gives back the old heights apart from floating-point
   rounding.
-- **Speed.** Only soft-shape stamps go through the terrain's exact-height path
-  (`_stamp_rects` / `height_exact()`). Image stamps are read from the baked grid. Otherwise the
-  island stamp, which covers everything, would slow every ground lookup.
+- **Speed.** An image stamp that lands sample on sample on the ground's grid - the island -
+  skips the terrain's exact-height path (`_stamp_rects` / `height_exact()`): its baked samples
+  are its own, and it covers everything, so it would slow every ground lookup for nothing.
 
 ## Phase 1: group name constants (done)
 
@@ -142,7 +142,8 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   area (the Terrain's square) rather than from each island. `height_at()` for one point,
   `fill()` for the whole grid at once. Any change rebuilds the whole ground in the editor.
 - Terrain: a Seabed child wins over `raw_path`; `height_samples` (1025) sets the grid when the
-  ground starts from the Seabed. Only soft-shape stamps use the exact-height path. An image's
+  ground starts from the Seabed. An image on the grid (the island) skips the exact-height
+  path, which would add nothing for it and slow every lookup; other images keep it. An image's
   edge samples now count as inside it - the island's outer ring was being left to the seabed.
 - `terrain/island.stamp` (made with `make_stamp.py r16 --signed`) is the `Island` stamp, first
   under Terrain in `main.tscn`: Replace, 620 m, Y = height = 90.001373291015625 (180 x 32768 /

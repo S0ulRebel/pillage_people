@@ -76,8 +76,12 @@ func _build() -> void:
 	var model := (load(path) as PackedScene).instantiate()
 	model.name = "Model"
 	add_child(model)
-	if Engine.is_editor_hint() and get_tree() != null and get_tree().edited_scene_root != null:
-		model.owner = get_tree().edited_scene_root
+	# Only to a scene root this is inside. main.tscn opened by a test, rather than as the edited
+	# scene, is under some other root - and an owner that is not an ancestor is an error, one
+	# for every coral in the reef.
+	var root := get_tree().edited_scene_root if get_tree() != null else null
+	if Engine.is_editor_hint() and root != null and (root == self or root.is_ancestor_of(self)):
+		model.owner = root
 	dress(model)
 
 

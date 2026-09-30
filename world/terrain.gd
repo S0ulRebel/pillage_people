@@ -677,16 +677,20 @@ func _refresh_stamps(leaving: Node = null) -> void:
 	# A sample's margin round the reach: just outside a fade the baked samples inside it still
 	# lean on what is read between them, so exact and baked only agree a sample further out.
 	# Without it a foot vertex right on the edge of the reach read baked ground, 0.3 m off.
-	var margin := world_size / float(maxi(_size - 1, 1)) + 0.15
+	var spacing := world_size / float(maxi(_size - 1, 1))
+	var margin := spacing + 0.15
 	for stamp in _stamps():
 		# not one on its way out, nor - when the terrain itself is leaving the tree, children
 		# first - one that has already gone
 		if stamp != leaving and stamp.is_inside_tree():
 			_active_stamps.append(stamp)
-			# Only a soft shape's reach. Its sharp edge is what the exact path is for; an image
-			# is smooth between its samples, so the baked ground already is it there - and an
-			# island stamp reaches every sample, so it would send every lookup the slow way.
-			if stamp.has_outline():
+			# Not an image that lands sample on sample on the grid: the baked samples are its
+			# own, and read between them the same way, so the exact path would add nothing - and
+			# the island is one, covering every sample, so it would send every lookup the slow
+			# way. Any other image keeps it: a sharp step in one sampled finer than the ground
+			# was 1.7 m out read off the baked grid.
+			if stamp.has_outline() \
+					or stamp.grid_offset(spacing, -world_size * 0.5) == TerrainStamp.OFF_GRID:
 				_stamp_rects.append(stamp.footprint().grow(margin))
 
 
