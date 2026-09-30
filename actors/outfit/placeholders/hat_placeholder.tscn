@@ -1,0 +1,44 @@
+[gd_scene load_steps=6 format=3]
+
+[sub_resource type="StandardMaterial3D" id="black"]
+albedo_color = Color(0.1, 0.09, 0.09, 1)
+
+[sub_resource type="StandardMaterial3D" id="gold"]
+albedo_color = Color(0.78, 0.6, 0.25, 1)
+
+[sub_resource type="CylinderMesh" id="brim"]
+material = SubResource("black")
+top_radius = 0.5
+bottom_radius = 0.5
+height = 0.05
+radial_segments = 3
+rings = 1
+
+[sub_resource type="CylinderMesh" id="crown"]
+material = SubResource("black")
+top_radius = 0.24
+bottom_radius = 0.28
+height = 0.32
+radial_segments = 16
+rings = 1
+
+[sub_resource type="TorusMesh" id="trim"]
+material = SubResource("gold")
+inner_radius = 0.27
+outer_radius = 0.3
+rings = 24
+ring_segments = 6
+
+[node name="HatPlaceholder" type="Node3D"]
+
+[node name="Brim" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0.025, 0)
+mesh = SubResource("brim")
+
+[node name="Crown" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0)
+mesh = SubResource("crown")
+
+[node name="Trim" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
+mesh = SubResource("trim")

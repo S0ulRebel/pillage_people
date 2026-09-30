@@ -61,7 +61,39 @@ uniform float shoal_depth : hint_range(0.5, 40.0) = 2.5;
 // How much of a wave's sideways motion is kept: the fraction of full Gerstner horizontal
 // displacement, 0 pure up-and-down sine, 1 the full peaked crest. See horizontal_ratio().
 uniform float choppiness : hint_range(0.0, 1.0) = 0.85;
+
+// ---- Shore waves --------------------------------------------------------------------------
+// Near the island the swell hands over to waves that come straight in to the beach. Real
+// waves do that by slowing in shallow water, so their crests bend round until they arrive
+// parallel to the shore (refraction). Here it is drawn rather than simulated: the shore waves'
+// crests are lines of equal distance to the shore (world/shore_field.gdshaderinc), so they
+// run in parallel to every beach and wrap round the island by construction.
+//
+// They keep the long swell's period (wave_1's), so the rhythm on the beach is the rhythm out
+// at sea. Each stretch of coast gets its own timing and height from where its nearest shore
+// point is - smooth sines of that point, so neighbouring stretches differ without a seam and
+// the crests never copy the coastline as rings round a headland - and every fourth wave or so
+// is bigger: the sets surfers wait for. ocean.gd repeats all of this on the CPU (surface_y),
+// so it is built from sines and nothing else.
+//
+// Metres between shore-wave crests as they come in: shorter than the swell, as waves get in
+// shallow water.
+uniform float shore_wave_length : hint_range(2.0, 40.0) = 11.0;
+// The shore waves' steepness (the Gerstner Q, as for the swell). 0 switches them off.
+uniform float shore_wave_steepness : hint_range(0.0, 1.0) = 0.55;
+// Metres out from the waterline where the shore waves begin to take over; they are at full
+// height within the nearest third of it.
+uniform float shore_wave_reach : hint_range(5.0, 120.0) = 40.0;
+// How much of the swell they take over from, at full: 1 leaves only the shore waves by the
+// beach, 0 lays them on top of the swell.
+uniform float shore_wave_calm : hint_range(0.0, 1.0) = 0.9;
+// Metres of water the shore waves keep their full height down to. Much less than the swell's
+// shoal_depth: the shore waves ARE the waves in the shallows, and flattened over the last
+// couple of metres of depth like the swell they were gone before they reached the beach.
+uniform float shore_wave_shoal : hint_range(0.05, 5.0) = 0.6;
 group_uniforms;
+
+#include "res://world/shore_field.gdshaderinc"
 
 // ---- The seabed under a point -----------------------------------------------------------
 // Ground height, world y, at a world x/z. Read the terrain's way, and continued past the map.
@@ -134,12 +166,71 @@ float horizontal_ratio() {
     return choppiness / max(1.0, total_steepness * wave_height);
 }
 
-// All four waves, one amplitude scale for all of them.
-void gerstner_all(vec2 p, float scale, float q, inout vec3 offset, inout float reach) {
-    gerstner(wave_1, p, scale, q, offset, reach);
-    gerstner(wave_2, p, scale, q, offset, reach);
-    gerstner(wave_3, p, scale, q, offset, reach);
-    gerstner(wave_4, p, scale, q, offset, reach);
+// How far the shore waves have taken over at a point `d` metres from the shore (signed, +
+// out at sea): 1 near the beach and on it, 0 beyond shore_wave_reach.
+float shore_blend(float d) {
+    return 1.0 - smoothstep(shore_wave_reach * 0.35, max(shore_wave_reach, 0.01), d);
+}
+
+// The shore wave's phase and its amplitude factor at a point, from the shore field there:
+// x = phase, y = the stretch-and-set factor on its height. Its crests are where the phase is
+// a quarter turn: they sit at fixed distances from the shore and move in at the swell's
+// speed.
+vec2 shore_wave_phase(vec4 field) {
+    float k = TAU / max(shore_wave_length, 0.01);
+    float k_swell = TAU / max(wave_1.w, 0.01);
+    float omega = sqrt(9.8 * k_swell) * wave_speed;
+    // Each stretch of shore its own timing (up to about a wave either way) and height.
+    float stagger = shore_stagger(field.yz);
+    float stretch = shore_stretch(field.yz);
+    float phase = -k * field.x - omega * water_time() + stagger;
+    // Sets: a slow swell of height over about four waves, riding in with them.
+    float set = 0.72 + 0.28 * cos(phase * 0.25 + stagger * 0.5);
+    return vec2(phase, stretch * set);
+}
+
+// The shore wave's displacement at `p`, added in like a Gerstner wave's. `scale` as there; the
+// shore_blend is applied here. It moves water toward and away from the shore - at half the
+// swell's sideways share, because across the line half-way between two shores (a narrow bay)
+// the direction to the nearest shore turns round.
+void shore_wave(vec2 p, vec4 field, float scale, float horizontal_ratio,
+        inout vec3 offset, inout float reach) {
+    float blend = shore_blend(field.x);
+    if (blend <= 0.0 || shore_wave_steepness <= 0.0) {
+        return;
+    }
+    vec2 toward = shore_direction(p, field);
+    vec2 ph = shore_wave_phase(field);
+    float k = TAU / max(shore_wave_length, 0.01);
+    float a = shore_wave_steepness / k * scale * blend * ph.y;
+    float sideways = a * horizontal_ratio * 0.5 * cos(ph.x);
+    offset += vec3(sideways * toward.x, a * sin(ph.x), sideways * toward.y);
+    reach += a;
+}
+
+// How much of its height the seabed lets the shore wave keep at a still-water `depth`.
+float shore_shoal(float depth) {
+    return smoothstep(0.0, max(shore_wave_shoal, 0.001), depth);
+}
+
+// How much of the swell is left at a point: all of it out at sea, 1 - shore_wave_calm by the
+// beach.
+float swell_share(vec4 field) {
+    return 1.0 - shore_wave_calm * shore_blend(field.x) * step(0.0001, shore_wave_steepness);
+}
+
+// All four waves and the shore wave at `p`, `height` (wave_height, or less) scaling all of
+// them. Each is shoaled here by the depth at p: the swell by shoal_depth, the shore wave by
+// shore_wave_shoal.
+void gerstner_all(vec2 p, float height, float q, inout vec3 offset, inout float reach) {
+    vec4 field = shore_field_at(p);
+    float depth = sea_y - bed_height(p);
+    float swell = height * smoothstep(0.0, max(shoal_depth, 0.001), depth) * swell_share(field);
+    gerstner(wave_1, p, swell, q, offset, reach);
+    gerstner(wave_2, p, swell, q, offset, reach);
+    gerstner(wave_3, p, swell, q, offset, reach);
+    gerstner(wave_4, p, swell, q, offset, reach);
+    shore_wave(p, field, height * shore_shoal(depth), q, offset, reach);
 }
 
 // ---- The surface above a point ----------------------------------------------------------
@@ -179,13 +270,13 @@ float surface_height(vec2 p) {
     // Eight refinements of the source point ...
     for (int i = 0; i < 8; i++) {
         offset = vec3(0.0);
-        gerstner_all(source, shoal_at(source) * wave_height, q, offset, reach);
+        gerstner_all(source, wave_height, q, offset, reach);
         source = p - offset.xz;
     }
     // ... and a ninth evaluation at the point they arrive at, whose height is the answer.
     // `reach` is only accumulated because gerstner() insists on it; nothing reads it here.
     offset = vec3(0.0);
-    gerstner_all(source, shoal_at(source) * wave_height, q, offset, reach);
+    gerstner_all(source, wave_height, q, offset, reach);
     return sea_y + offset.y;
 }
 

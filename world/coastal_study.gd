@@ -14,6 +14,14 @@ const KINDS := [RockKind.Kind.CLUSTER, RockKind.Kind.BOULDER, RockKind.Kind.PLAT
 const HEIGHTS := [3.8, 2.2, 0.9, 1.6, 0.55, 0.5]
 const PALM_OFFSET := Vector2(3.5, 4.0)
 const SPAWN_OFFSET := Vector2(0.0, -5.5)
+## Metres the group, the spawn and the water rocks keep from the edge of a tunnel's opening.
+##
+## A tunnel drawn in the scene does not cancel the study, so the study has to lay the beach out
+## around one: height_at() reads the ground as whole where a tunnel has cut it open, and a beach
+## chosen from heights alone put a rock on a tunnel's mouth and the whole group round it. Two
+## metres because _patch_score samples every two - no point between samples is further than
+## 1.4 m from one, so an opening cannot slip through the grid unseen.
+const HOLE_CLEARANCE := 2.0
 
 var spawn := Vector3.ZERO
 var anchor := Vector3.ZERO
@@ -114,7 +122,8 @@ func _place_water_rocks(sea: float) -> int:
 			var p := to_global(Vector3(lateral_offsets[i], 0.0, -float(distance)))
 			var bed: float = _terrain.height_at(p.x, p.z)
 			var depth: float = sea - bed
-			if depth >= 0.45 and depth <= heights[i] * 0.68:
+			if depth >= 0.45 and depth <= heights[i] * 0.68 \
+					and _terrain.hole_field(p.x, p.z) >= HOLE_CLEARANCE:
 				chosen = Vector3(p.x, bed - 0.12, p.z)
 				found = true
 				break
@@ -162,6 +171,8 @@ func _patch_score(centre: Vector3, orientation: Basis, sea: float) -> float:
 			var p := centre + orientation * Vector3(x, 0, z)
 			var h: float = _terrain.height_at(p.x, p.z)
 			if h < sea + 0.75 or absf(h - centre.y) > 2.2:
+				return INF
+			if _terrain.hole_field(p.x, p.z) < HOLE_CLEARANCE:
 				return INF
 			var dx: float = (_terrain.height_at(p.x + 1, p.z) - _terrain.height_at(p.x - 1, p.z)) * 0.5
 			var dz: float = (_terrain.height_at(p.x, p.z + 1) - _terrain.height_at(p.x, p.z - 1)) * 0.5

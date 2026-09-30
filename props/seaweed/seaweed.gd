@@ -26,6 +26,16 @@ const MODELS := {
 	Kind.ARCHING: "res://art/models/props/seaweed_arching.glb",
 }
 
+## The least water the reef plants one in, in metres. None: a weed is something he may wade
+## through, so it grows right up to where the water stops - see SHALLOWEST in coral.gd.
+const SHALLOWEST := 0.0
+## How a patch of them grows along the coast (reef.gd, fringe). Tighter and smaller than a coral
+## reef, and not for taste: these are blades a handspan deep, and at a reef's spacing twenty of
+## them over a reef's ground read as stalks dotted about the sand. Packed into a smaller patch,
+## the same twenty read as one clump of weed.
+const BED_RADIUS := 2.0
+const BED_SPACING := 0.3
+
 @export var kind: Kind = Kind.LEAFY:
 	set(value):
 		kind = value
@@ -88,8 +98,9 @@ func _build() -> void:
 ## Flat shading and no back-face culling, the same pass every prop here applies plus the one
 ## line the leafy ones need.
 ##
-## A scattered plant and an authored one both come through here: the reef places seaweed
-## scenes, one per kind, not bare models.
+## Static, so reef.gd can dress a model it instantiated itself without going through a Seaweed
+## node - its beds along the coast plant the models bare. A ScatterPatch's reef places seaweed
+## scenes, which come through here from _build(). Either way it is the same plant.
 static func dress(model: Node) -> void:
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := node as MeshInstance3D

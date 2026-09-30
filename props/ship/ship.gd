@@ -87,32 +87,44 @@ const HELM_FEET := Vector3(0.0, QUARTERDECK_Y, 14.05)
 const HELM_REACH := 1.6
 ## Deck contact of the mainmast, aft of the stair hatch and forward of the wheel.
 const MAST_AT := Vector3(0.0, DECK_Y, 9.0)
+## The mainmast's lower mast: the M01 model (5.5 m) stretched to this, and everything above it -
+## the top, the course and topsail yards, the topmast and the flag - raised with it
+## (MAIN_LIFT). The quarterdeck's stairs run up beside the mast, under the course: at 5.5 m the
+## course hung across the stairway, into the head of anyone climbing it.
+const MAIN_LOWER := 7.0
+const MAIN_LIFT := MAIN_LOWER - 5.5
+## The course: laced to its yard and sheeted home at its foot, as the reference's sails are, so
+## it bellies but never swings back over the stairs or the castle. This deep, its foot is above
+## the head of anyone on the stairs beside the mast, and above the quarterdeck's rail.
+const COURSE_DROP := 2.6
+## How the sails' feet are made fast, as in the reference: a block hangs from each course's clews
+## (its foot's corners), and from it a sheet runs aft and a tack forward, down to the rail's
+## handrail, where they are belayed: these far along the rail. The fore course's tack goes to
+## its cathead instead, the rail ahead of it being taken by the fore shrouds' channels.
+const MAIN_SHEET_Z := 9.45
+const MAIN_TACK_Z := 6.8
+const FORE_SHEET_Z := 3.2
+## The jib's clew, its foot's after corner: free above the bow, clear of the head of anyone
+## there, with a sheet from it down to each side's rail JIB_SHEET_Z along. Its tack is lashed
+## to the bowsprit's tip.
+const JIB_CLEW := Vector3(0.0, DECK_Y + 2.3, -0.9)
+const JIB_SHEET_Z := -1.2
+## Where a rope belayed to the rail meets it: the handrail's top is 0.75 m above the deck.
+const HANDRAIL_TOP := 0.75
+## The braces, from each course yard's arms aft to the rail, which swing the yards round to the
+## wind: the main's to the quarterdeck's rail, the fore's to the waist, between the fore sheet
+## and the main tack. Both run outboard of anywhere a man walks.
+const MAIN_BRACE_Z := 12.4
+const FORE_BRACE_Z := 5.5
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
-## The foremast: the M01 model (4.2 m, 0.4 m across at the deck) stretched to four fifths of the
-## main's 8.5 m and thickened to 0.46 m across, next to the main's 0.5. As modelled it stood
-## barely half the main's height, a stub on the bow.
-const FOREMAST_HEIGHT := 6.8
-const FOREMAST_GIRTH := 1.15
-## The foremast's yards, mast-local, as (height, length): the main's two yard models at about
-## four fifths of their size, as the mast is. The fore yard carries the fore course, its foot
-## hanging free FORE_COURSE_DROP below, above the head of anyone on the foredeck. The fore
-## topsail yard carries the fore topsail, laced below to the fore yard. Both yards are just
-## under the jib's head, which is on the mast's forward side.
-const FORE_YARD := Vector2(4.3, 6.4)
-const FORE_TOPSAIL_YARD := Vector2(6.3, 4.2)
-const FORE_COURSE_DROP := 2.3
-## Deck contact of the mizzen, on the quarterdeck between its front edge and the binnacle, aft
-## of where the course's foot drapes when the wind is astern. The foremast's model again, 4.2 m.
-const MIZZEN_AT := Vector3(0.0, QUARTERDECK_Y, 11.5)
-const MIZZEN_HEIGHT := 4.2
-## The spanker's spars, mizzen-local: the boom from its jaw on the mast aft to past the stern,
-## high over the binnacle, the wheel and the helmsman's head; the gaff from higher up the mast,
-## peaking aft above the mast head.
-const BOOM_FROM := Vector3(0.0, 2.5, 0.2)
-const BOOM_TO := Vector3(0.0, 2.5, 5.2)
-const GAFF_FROM := Vector3(0.0, 3.85, 0.2)
-const GAFF_TO := Vector3(0.0, 4.55, 3.8)
+## The foremast is built as the mainmast is (_square_mast) - lower mast, top, topmast, course and
+## topsail yards and their blocks - at this scale, as the reference's foremast is a smaller
+## copy of its main. Its course is sheeted home FORE_COURSE_DROP below its yard, above the head of
+## anyone on the foredeck; its topsail is laced between its topsail yard and topsail foot yard;
+## the jib's head is at its course yard.
+const FORE_SCALE := 0.85
+const FORE_COURSE_DROP := 2.6
 ## Heel of the bowsprit, resting on the deck just inboard of the stem. The spar's own length
 ## runs forward from here, over the stem head between the two knightheads the rail ends on. A
 ## real F03_BOWSPRIT drops in on this node; its heel is 0.3 m across.
@@ -153,8 +165,11 @@ const BINNACLE_AT := Vector3(0.0, QUARTERDECK_Y, 12.15)
 ## On the aft face of the quarterdeck rail's stern post, on the centreline: the model's origin
 ## is the top of its wall plate, and the lantern hangs aft of it, out over the stern.
 const LANTERN_AT := Vector3(0.0, QUARTERDECK_Y + 0.9, 16.34)
-## How far the gunport lids stand open, so the guns can run out under them.
-const LID_OPEN_DEGREES := 100.0
+## How far each gun stands out from the ship's centreline: its carriage 5 cm short of the gun
+## deck's wall, so its muzzle is run out through the port and clear of the frame, as in the
+## reference. The barrel is 2 m long and the carriage 1.2 m; further in, the muzzle hid inside
+## the port frame.
+const GUN_OUT_X := 2.43
 ## Where the bow's catheads sit: the origin is the top of the timber's inboard end, 25 degrees
 ## forward of square. That lands the supporter's foot, 1.0 m out and 1.35 m down in the model,
 ## on the hull side at z=1.0, and passes the timber through the bulwark at rail height.
@@ -198,6 +213,13 @@ const RAIL_PATH := [
 	Vector2(2.05, 14.825), Vector2(1.615, 15.39), Vector2(1.11, 15.82), Vector2(0.57, 16.085),
 	Vector2(0.0, 16.18),
 ]
+## The bow's sheer, as in the reference, where the hull's side sweeps up to the stem: from
+## BOW_SHEER_FROM, just forward of the catheads, the side rises along a curve that starts level,
+## BOW_SHEER at the knightheads. A planked bulwark (_build_bow_bulwark) fills it on the hull's
+## wall top, and the rail stands on it; the fore shrouds' channels and everything belayed to the
+## rail rise with it (bow_sheer).
+const BOW_SHEER_FROM := 1.0
+const BOW_SHEER := 0.6
 ## Posts stand evenly along the whole rail, bow to stern, no more than this apart. They do not
 ## follow the hull's corners: the stern is eight short panels, and a post on each would crowd
 ## it. The handrail and base are swept through the posts and round the corners unbroken.
@@ -216,7 +238,7 @@ const BALUSTER_PITCH := 0.45
 const RAIL_HEIGHT := 0.81
 ## The wale: the thick strake round the hull, swept from Tripo's wale (rail_sweep.glb, see
 ## tools/rail_profiles.py) along the hull's outer face at WALE_Y, between the gunport frames
-## and the weather deck, above the open lids. Each side's outline is measured off
+## and the weather deck, above the port frames. Each side's outline is measured off
 ## double_deck.glb on its own, as (x, z) from the stem round to the stern's centreline, with the
 ## gun deck's rebuilt walls at x = 3: the kit's bow is not quite symmetrical, and a mirrored
 ## outline stood 2 cm off the port bow. The wale closes round both ends.
@@ -236,20 +258,35 @@ const WALE_PORT := [
 	Vector2(-2.086, 14.845), Vector2(-1.641, 15.388), Vector2(-1.164, 15.786), Vector2(-1.075, 15.835),
 	Vector2(-0.607, 16.062), Vector2(-0.507, 16.086), Vector2(0.0, 16.167),
 ]
-## How far up its shroud each deadeye's strop is from the rail: the deadeye model hangs 0.35 m
-## below its strop, so this leaves it just clear of the handrail.
-const DEADEYE_ABOVE_RAIL := 0.42
+## The shrouds and backstays are set up as a ship's are. Each rope ends in an upper deadeye, a
+## lanyard DEADEYE_LANYARD long joins that to a lower deadeye, and the lower deadeye stands on
+## the outer edge of a channel: a plank CHANNEL_OUT wide along the outside of the rail, its
+## underside just above the rail's top, so the deadeyes and the rope above them are all clear
+## of the rail. (At the deck, the ropes lean in so far toward their masts that they would pass
+## through the open rail unless the channel stood out most of a metre.) An iron chain plate
+## holds each lower deadeye down to the hull's side: to just above the wale, or on the castle to
+## the top of its trim. The deadeye model hangs 0.35 m from its strop and is 0.2 m across.
+const CHANNEL_OUT := 0.3
+const CHANNEL_THICK := 0.1
+const DEADEYE_LANYARD := 0.25
+## How far forward of the foremast its shrouds' feet stand. Forward, as the main's are, clear of
+## the fore sails, which hang aft of the mast; and forward of the catheads and the anchors under
+## them.
+const FORE_SHROUD_FEET := [-2.1, -1.75, -1.4]
+## Where each backstay's foot stands along the castle's side: on the wall panel nearest this z,
+## at the stern quarter, well aft of the mast it holds.
+const BACKSTAY_Z := 13.9
 ## A single block under each end of both yards, where the braces and sheets would be led.
 ## Mast-local: [yard's height, how far out, how far aft]. The block's origin is its strop.
-const YARD_BLOCKS := [[4.47, 3.8, 0.0], [8.07, 2.45, 0.12]]
-## The flag's staff stands on the topmast head (8.5 m up the mast) and its flag flies from the
+const YARD_BLOCKS := [[4.47 + MAIN_LIFT, 3.8, 0.0], [8.07 + MAIN_LIFT, 2.45, 0.12]]
+## The flag's staff stands on the topmast head (MAIN_LOWER + 3 m up the mast) and its flag flies from the
 ## staff's top, above the topsail yard and the backstays' heads. The staff runs through the
 ## flag's three rings, whose holes are 13 mm round: FLAGSTAFF_RADIUS fits through them.
 const FLAGSTAFF_HEIGHT := 1.05
 const FLAGSTAFF_RADIUS := 0.011
 ## The mast top's platform floor stands 1.06 m above the model's lowest point; this puts that
-## floor just above the placeholder's, and the model's collar clear of the course yard at 4.6.
-const MAST_TOP_Y := 4.72
+## floor just above the placeholder's, and the model's collar clear of the course yard 0.12 below.
+const MAST_TOP_Y := 4.72 + MAIN_LIFT
 
 const FITTINGS := "res://art/models/ship/fittings/"
 const RIGGING := "res://art/models/ship/rigging/"
@@ -300,7 +337,7 @@ const MAX_HEEL := 0.14
 				old.queue_free()
 			_build_pillars(quarterdeck, quarterdeck.get_node("Cabin") as Node3D)
 
-## Gunports a side. Changing it moves the holes, the frames and lids, and the guns together.
+## Gunports a side. Changing it moves the holes, the frames and the guns together.
 @export_range(1, 6) var gun_port_count := 4:
 	set(value):
 		gun_port_count = value
@@ -337,10 +374,8 @@ func _ready() -> void:
 	_build_quarterdeck()
 	_build_helm()
 	_build_mast()
-	_build_top_rail()
 	_build_shrouds()
 	_build_foremast()
-	_build_mizzen()
 	_build_bowsprit()
 	_build_bobstay()
 	_build_rudder()
@@ -349,10 +384,13 @@ func _ready() -> void:
 	_build_sail()
 	_build_topsail()
 	_build_backstays()
-	_build_blocks()
+	_build_sheets()
+	_build_stays()
+	_build_braces()
 	_build_flag()
 	_build_deck_fittings()
 	_build_rail()
+	_build_bow_bulwark()
 	_build_wale()
 
 
@@ -741,31 +779,38 @@ func _helm_body(helm: Node3D) -> void:
 ## when they are missing. The node is named Mast and sits on MAST_AT so the swap is a mesh,
 ## not a new place.
 func _build_mast() -> void:
-	var existing := get_node_or_null("Mast") as Node3D
-	if existing != null:
-		var old_foot := existing.get_node_or_null("FootYard")
-		if old_foot != null:
-			old_foot.free()
-		return
+	if get_node_or_null("Mast") == null:
+		_square_mast("Mast", MAST_AT, 1.0)
+
+
+## A square-rigged mast at `at`, named `mast_name`, built at `scale` of the mainmast: the lower
+## mast, the top on its head with the lookout's posts and rail ring, the topmast, the course yard
+## under the top, the topsail yard and topsail foot yard on the topmast, a block under each yard
+## arm, and the lower mast's collision. Everything is laid out in the mainmast's own measures;
+## the node's scale makes the foremast of them.
+func _square_mast(mast_name: String, at: Vector3, scale: float) -> Node3D:
 	var mast := Node3D.new()
-	mast.name = "Mast"
-	mast.position = MAST_AT
+	mast.name = mast_name
+	mast.position = at
+	mast.scale = Vector3.ONE * scale
 	add_child(mast)
 	var timber := _flat(Color(0.55, 0.36, 0.18))
 	var iron := _flat(Color(0.22, 0.22, 0.24))
-	# M01: 5.5 m, radius 0.25 at the deck narrowing to 0.18 at the head. The model is the same
-	# 5.5 m from its deck contact, with the topmast's heel seated on its head.
+	# M01: radius 0.25 at the deck narrowing to 0.18 at the head. The model is 5.5 m from its deck
+	# contact, stretched to MAIN_LOWER, with the topmast's heel seated on its head.
 	var lower := Node3D.new()
 	lower.name = "Lower"
 	mast.add_child(lower)
-	if not _fit_model(lower, RIGGING + "mainmast.glb"):
-		_spar(lower, 2.75, 0.25, 0.18, 5.5, timber)
+	if _fit_model(lower, RIGGING + "mainmast.glb"):
+		(lower.get_node("Model") as Node3D).scale = Vector3(1.0, MAIN_LOWER / 5.5, 1.0)
+	else:
+		_spar(lower, MAIN_LOWER * 0.5, 0.25, 0.18, MAIN_LOWER, timber)
 		_spar(lower, 1.4, 0.3, 0.3, 0.08, iron)
 		_spar(lower, 3.6, 0.24, 0.24, 0.08, iron)
-		_spar(lower, 5.42, 0.22, 0.22, 0.1, iron)
+		_spar(lower, MAIN_LOWER - 0.08, 0.22, 0.22, 0.1, iron)
 	var upper := Node3D.new()
 	upper.name = "Topmast"
-	upper.position = Vector3(0.0, 5.5, 0.0)
+	upper.position = Vector3(0.0, MAIN_LOWER, 0.0)
 	mast.add_child(upper)
 	if not _fit_model(upper, RIGGING + "topmast.glb"):
 		# M02 sits on that head and runs another 3 m, down to a 0.08 m tip.
@@ -777,15 +822,28 @@ func _build_mast() -> void:
 	top.name = "Top"
 	mast.add_child(top)
 	if not _fit_model(top, RIGGING + "mast_top.glb", Vector3(0.0, MAST_TOP_Y, 0.0)):
-		_spar(top, 5.5, 1.05, 1.05, 0.18, timber)
+		_spar(top, MAIN_LOWER, 1.05, 1.05, 0.18, timber)
+	# Turned half a step off the centreline, so the stay from the mast aft passes between two.
 	for i in 8:
-		var ang := TAU * float(i) / 8.0
-		_box(mast, Vector3(cos(ang) * 0.95, 6.05, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
+		var ang := TAU * (float(i) + 0.5) / 8.0
+		var post := _box(mast, Vector3(cos(ang) * 0.95, 6.05 + MAIN_LIFT, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
+		post.name = "TopPost%d" % i
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.86
+	ring.outer_radius = 1.04
+	ring.rings = 24
+	ring.ring_segments = 6
+	var rail := MeshInstance3D.new()
+	rail.name = "TopRail"
+	rail.mesh = ring
+	rail.position = Vector3(0.0, 6.6 + MAIN_LIFT, 0.0)
+	rail.material_override = timber
+	mast.add_child(rail)
 	# One course yard under the top. The kit never sized one; this is the crosspiece that
 	# makes the pole read as a mast. Eight metres, so it clears the six-metre beam.
 	var yard := Node3D.new()
 	yard.name = "Yard"
-	yard.position = Vector3(0.0, 4.6, 0.0)
+	yard.position = Vector3(0.0, 4.6 + MAIN_LIFT, 0.0)
 	mast.add_child(yard)
 	# The model already runs athwartships along X, from its sling at the origin.
 	if not _fit_model(yard, RIGGING + "lower_yard.glb"):
@@ -794,164 +852,49 @@ func _build_mast() -> void:
 		_spar(yard, -2.0, 0.06, 0.12, 4.0, timber)
 		_spar(yard, 2.0, 0.12, 0.06, 4.0, timber)
 		_spar(yard, 0.0, 0.2, 0.2, 0.12, iron)
-	var old_foot := mast.get_node_or_null("FootYard")
-	if old_foot != null:
-		old_foot.free()
+	# The topsail's yards: just under the topmast's tip, and just clear of the lookout's rails.
+	_crossyard(mast, "TopsailYard", 8.15 + MAIN_LIFT, 2.6, 0.09, timber, iron)
+	_crossyard(mast, "TopsailFoot", 6.9 + MAIN_LIFT, 2.6, 0.07, timber, iron)
+	# A single block under each end of the course yard and the topsail yard (YARD_BLOCKS).
+	var blocks := Node3D.new()
+	blocks.name = "Blocks"
+	mast.add_child(blocks)
+	for spot in YARD_BLOCKS:
+		for side in [1.0, -1.0]:
+			var block := Node3D.new()
+			block.position = Vector3(side * spot[1], spot[0], spot[2])
+			blocks.add_child(block)
+			_fit_model(block, RIGGING + "block_single.glb")
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
 	col.radius = 0.28
-	col.height = 5.5
+	col.height = MAIN_LOWER
 	shape.shape = col
-	shape.position = Vector3(0.0, 2.75, 0.0)
+	shape.position = Vector3(0.0, MAIN_LOWER * 0.5, 0.0)
 	body.add_child(shape)
 	mast.add_child(body)
+	return mast
 
 
-## A ring on the post tops. The floor was already there; this is the fence around it.
-func _build_top_rail() -> void:
-	var mast := get_node_or_null("Mast") as Node3D
-	if mast == null or mast.get_node_or_null("TopRail") != null:
-		return
-	var mesh := TorusMesh.new()
-	mesh.inner_radius = 0.86
-	mesh.outer_radius = 1.04
-	mesh.rings = 24
-	mesh.ring_segments = 6
-	var rail := MeshInstance3D.new()
-	rail.name = "TopRail"
-	rail.mesh = mesh
-	rail.position = Vector3(0.0, 6.6, 0.0)
-	rail.material_override = _flat(Color(0.55, 0.36, 0.18))
-	mast.add_child(rail)
-
-
-## A shorter mast on the bow, forward of the hatch. The jib stays to this, not to the main.
+## The foremast, on the bow forward of the hatch: the mainmast again at FORE_SCALE
+## (_square_mast), with three shrouds a side from its top's collar down to channels on the bow.
+## The jib stays to it, not to the main.
 func _build_foremast() -> void:
 	if get_node_or_null("Foremast") != null:
 		return
-	var mast := Node3D.new()
-	mast.name = "Foremast"
-	mast.position = FOREMAST_AT
-	add_child(mast)
-	# The M01 model is 4.2 m from its deck contact: stretched to FOREMAST_HEIGHT.
-	if _fit_model(mast, RIGGING + "foremast.glb"):
-		(mast.get_node("Model") as Node3D).scale = Vector3(FOREMAST_GIRTH, FOREMAST_HEIGHT / 4.2, FOREMAST_GIRTH)
-	else:
-		var timber := _flat(Color(0.55, 0.36, 0.18))
-		var iron := _flat(Color(0.22, 0.22, 0.24))
-		_spar(mast, FOREMAST_HEIGHT * 0.5, 0.23, 0.14, FOREMAST_HEIGHT, timber)
-		_spar(mast, 1.8, 0.27, 0.27, 0.08, iron)
-		_spar(mast, 5.3, 0.19, 0.19, 0.08, iron)
-	var body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var col := CylinderShape3D.new()
-	col.radius = 0.2 * FOREMAST_GIRTH + 0.02
-	col.height = FOREMAST_HEIGHT
-	shape.shape = col
-	shape.position = Vector3(0.0, FOREMAST_HEIGHT * 0.5, 0.0)
-	body.add_child(shape)
-	mast.add_child(body)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	_yard(mast, "Yard", FORE_YARD, RIGGING + "lower_yard.glb", 8.0, 0.12, timber)
-	_yard(mast, "TopsailYard", FORE_TOPSAIL_YARD, RIGGING + "topsail_yard.glb", 5.2, 0.09, timber)
-	# A single block under each arm of both yards, as on the main.
-	var blocks := Node3D.new()
-	blocks.name = "Blocks"
-	mast.add_child(blocks)
-	for yard in [FORE_YARD, FORE_TOPSAIL_YARD]:
-		for side in [1.0, -1.0]:
-			var block := Node3D.new()
-			block.position = Vector3(side * (yard.y * 0.5 - 0.2), yard.x - 0.13, 0.1)
-			blocks.add_child(block)
-			_fit_model(block, RIGGING + "block_single.glb")
-
-
-## A yard across `mast` at `at` (mast-local height, length), just aft of the mast's axis: the
-## yard model at `path`, `model_length` long along X from its sling, stretched to the length and
-## thinned with it; or a plain spar `thick` at the sling, tapering to both arms.
-func _yard(mast: Node3D, yard_name: String, at: Vector2, path: String, model_length: float, thick: float, timber: Material) -> void:
-	var yard := Node3D.new()
-	yard.name = yard_name
-	yard.position = Vector3(0.0, at.x, 0.1)
-	mast.add_child(yard)
-	var scale := at.y / model_length
-	if _fit_model(yard, path):
-		(yard.get_node("Model") as Node3D).scale = Vector3(scale, lerpf(scale, 1.0, 0.5), lerpf(scale, 1.0, 0.5))
-		return
-	yard.rotation_degrees.z = -90.0
-	var half := at.y * 0.5
-	_spar(yard, -half * 0.5, thick * 0.5, thick, half, timber)
-	_spar(yard, half * 0.5, thick, thick * 0.5, half, timber)
-
-
-## A short mast on the quarterdeck, carrying the spanker: a fore-and-aft sail laced between
-## a boom and a gaff that reach aft from it. Two shrouds a side hold it, set up to the
-## quarterdeck's rail with deadeyes like the main's; the topping lift holds the boom's end up,
-## and the peak halyard the gaff's.
-func _build_mizzen() -> void:
-	if get_node_or_null("Mizzen") != null:
-		return
-	var mast := Node3D.new()
-	mast.name = "Mizzen"
-	mast.position = MIZZEN_AT
-	add_child(mast)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	var rope := _flat(Color(0.45, 0.34, 0.22))
-	# The foremast's model is the same 4.2 m from its deck contact.
-	if not _fit_model(mast, RIGGING + "foremast.glb"):
-		_spar(mast, MIZZEN_HEIGHT * 0.5, 0.2, 0.12, MIZZEN_HEIGHT, timber)
-		_spar(mast, 1.1, 0.24, 0.24, 0.08, iron)
-	var body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var col := CylinderShape3D.new()
-	col.radius = 0.22
-	col.height = MIZZEN_HEIGHT
-	shape.shape = col
-	shape.position = Vector3(0.0, MIZZEN_HEIGHT * 0.5, 0.0)
-	body.add_child(shape)
-	mast.add_child(body)
-	_boom(mast, "Boom", BOOM_FROM, BOOM_TO, timber)
-	_boom(mast, "Gaff", GAFF_FROM, GAFF_TO, timber)
-	var head := Vector3(0.0, MIZZEN_HEIGHT - 0.1, 0.0)
-	_rope(mast, head + Vector3(0.0, 0.0, 0.15), BOOM_TO - Vector3(0.0, 0.0, 0.15), 0.015, rope)
-	_rope(mast, head + Vector3(0.0, 0.0, 0.15), GAFF_FROM.lerp(GAFF_TO, 0.6), 0.015, rope)
-
-	var shrouds := Node3D.new()
-	shrouds.name = "Shrouds"
-	mast.add_child(shrouds)
+	var mast := _square_mast("Foremast", FOREMAST_AT, FORE_SCALE)
+	var shrouds := _rigging_node(mast, "Shrouds")
+	# As the main's: on the top's collar, forward, clear of the course yard.
+	var upper_z: Array[float] = [-0.4, -0.33, -0.26]
 	for side in [-1.0, 1.0]:
-		for i in 2:
-			var top := Vector3(side * 0.16, GAFF_FROM.y - 0.25, 0.0)
-			var foot := Vector3(side * 2.95, 0.8, [-0.7, -0.2][i])
-			_rope(shrouds, top, foot, 0.02, rope)
-			var up := (top - foot).normalized()
-			var deadeye := Node3D.new()
-			deadeye.name = "Deadeye%s%d" % ["Starboard" if side > 0.0 else "Port", i]
-			var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
-			deadeye.basis = Basis(along, up, along.cross(up))
-			deadeye.position = foot + up * DEADEYE_ABOVE_RAIL
-			shrouds.add_child(deadeye)
-			_fit_model(deadeye, RIGGING + "deadeye.glb")
-
-
-## A spar from `from` to `to` under `parent`: the topsail yard's model (5.2 m along X, tapering
-## to both ends from its sling) stretched to the length, or a plain tapered pole.
-func _boom(parent: Node3D, spar_name: String, from: Vector3, to: Vector3, timber: Material) -> void:
-	var spar := Node3D.new()
-	spar.name = spar_name
-	var along := (to - from).normalized()
-	var up := (Vector3.UP - along * along.dot(Vector3.UP)).normalized()
-	var length := from.distance_to(to)
-	spar.transform = Transform3D(Basis(along * (length / 5.2), up, along.cross(up)), (from + to) * 0.5)
-	parent.add_child(spar)
-	if _fit_model(spar, RIGGING + "topsail_yard.glb"):
-		return
-	# The placeholder runs along its local Y.
-	var across := along.cross(up)
-	spar.basis = Basis(across, along, across.cross(along))
-	_spar(spar, 0.0, 0.09, 0.07, length, timber)
+		var tops: Array[Vector3] = []
+		var hull: Array[Vector3] = []
+		for i in FORE_SHROUD_FEET.size():
+			tops.append(FOREMAST_AT + Vector3(side * 0.25, 5.05 + MAIN_LIFT, upper_z[i]) * FORE_SCALE)
+			hull.append(_hull_edge(FOREMAST_AT.z + FORE_SHROUD_FEET[i], side))
+		var mid: float = FOREMAST_AT.z + (FORE_SHROUD_FEET[0] + FORE_SHROUD_FEET[FORE_SHROUD_FEET.size() - 1]) * 0.5
+		_ratlines(shrouds, tops, _shroud_side(shrouds, tops, hull, _hull_out(mid, side), false))
 
 
 ## The bowsprit, BOWSPRIT_LENGTH out over the stem, rising BOWSPRIT_RISE as it goes forward.
@@ -1102,7 +1045,7 @@ func _build_deck_fittings() -> void:
 		binnacle.add_child(body)
 
 	# The collar's hole is 0.52 m across, for the mainmast's 0.5 m foot; the foremast is thinner.
-	for spot in [["MastCollar", MAST_AT], ["ForemastCollar", FOREMAST_AT], ["MizzenCollar", MIZZEN_AT]]:
+	for spot in [["MastCollar", MAST_AT], ["ForemastCollar", FOREMAST_AT]]:
 		var collar := Node3D.new()
 		collar.name = spot[0]
 		collar.position = spot[1]
@@ -1459,9 +1402,9 @@ func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 	var last := line[line.size() - 1]
 	if absf(first.x) > 0.01 and absf(first.x + last.x) < 0.01 and absf(first.z - last.z) < 0.01:
 		bays += bays % 2
-	# A leg that climbs, up the stairs, has a post only at its foot and its head, and
-	# balusters all the way between.
-	if absf(first.y - last.y) > 0.01:
+	# A leg that climbs straight, up the stairs, has a post only at its foot and its head, and
+	# balusters all the way between. The rail rising with the bow's sheer keeps its spacing.
+	if line.size() == 2 and absf(first.y - last.y) > 0.01:
 		bays = 1
 	var posts: Array[float] = []
 	var standing: Array[Transform3D] = []
@@ -1530,9 +1473,10 @@ func _rail_legs(before_pillars := false) -> Array:
 	for i in range(RAIL_PATH.size() - 1, -1, -1):
 		if RAIL_PATH[i].y < front:
 			starboard.append(Vector3(RAIL_PATH[i].x, DECK_Y, RAIL_PATH[i].y))
+	starboard = _sheer_line(starboard)
 	var port: Array[Vector3] = []
 	for i in range(starboard.size() - 1, -1, -1):
-		port.append(Vector3(-starboard[i].x, DECK_Y, starboard[i].z))
+		port.append(Vector3(-starboard[i].x, starboard[i].y, starboard[i].z))
 
 	var edge := CASTLE_FRONT_Z + 0.1
 	var landing := QUARTERDECK_STAIRS_AT.x
@@ -1780,81 +1724,71 @@ func _build_sail() -> void:
 		old_sail.free()
 	var sail := SailScript.new() as Node3D
 	sail.name = "Sail"
-	sail.call("pin_foot", false)
-	# The foot hangs free, and a breeze from astern swings it back over the quarterdeck's
-	# forward edge. The cloth drapes on the cabin instead of hanging through it.
-	var cabin := get_node_or_null("Quarterdeck/Cabin") as Node3D
-	if cabin != null:
-		var box := _mesh_bounds(cabin)
-		box.position += cabin.position
-		sail.call("keep_out", box.grow(0.05))
-	# Nor round the mizzen's foot, forward of the spanker.
-	sail.call("keep_out", AABB(MIZZEN_AT - Vector3(0.3, 0.0, 0.3), Vector3(0.6, MIZZEN_HEIGHT, 0.6)))
+	_canvas(sail, "course")
+	# Laced to the course yard and sheeted home COURSE_DROP below, just aft of the mast.
+	var yard_y := MAST_AT.y + 4.6 + MAIN_LIFT
+	var z := MAST_AT.z + 0.12
+	var half := SailScript.HALF_WIDTH
+	sail.call("rig_between", Vector3(-half, yard_y, z), Vector3(half, yard_y, z),
+			Vector3(-half, yard_y - COURSE_DROP, z), Vector3(half, yard_y - COURSE_DROP, z), Vector3(0.0, 0.0, 0.45))
 	add_child(sail)
-	_build_spanker()
 	if get_node_or_null("Foremast") == null or get_node_or_null("Bowsprit") == null:
 		return
 	var old_jib := get_node_or_null("Jib")
 	if old_jib != null:
 		old_jib.free()
-	# Along the bowsprit from just clear of the knightheads to just short of its tip.
-	var foot_from := _along_bowsprit(BOWSPRIT_LENGTH * 0.13)
+	# The foot from the clew, free above the bow, to the tack, lashed near the bowsprit's tip.
+	var foot_from := JIB_CLEW
 	var foot_to := _along_bowsprit(BOWSPRIT_LENGTH * 0.95)
-	# A short span on the forward side of the foremast head, in its top sixth.
-	var ahead := Vector3(0.0, 0.0, -0.2 * FOREMAST_GIRTH - 0.02)
-	var head_from := FOREMAST_AT + Vector3(0.0, FOREMAST_HEIGHT * 0.83, 0.0) + ahead
-	var head_to := FOREMAST_AT + Vector3(0.0, FOREMAST_HEIGHT * 0.99, 0.0) + ahead
+	# A short span on the forward side of the foremast up to its course yard, as the reference's
+	# jib is: not up at the masthead.
+	var fore_yard_y := FOREMAST_AT.y + (4.6 + MAIN_LIFT) * FORE_SCALE
+	var ahead := Vector3(0.0, 0.0, -0.2 * FORE_SCALE - 0.02)
+	var head_from := Vector3(0.0, fore_yard_y - 1.0, FOREMAST_AT.z) + ahead
+	var head_to := Vector3(0.0, fore_yard_y + 0.2, FOREMAST_AT.z) + ahead
 	var jib := SailScript.new() as Node3D
 	jib.name = "Jib"
+	_canvas(jib, "jib")
 	jib.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.35, 0.0, 0.0))
 	add_child(jib)
 	_build_fore_sails()
 
 
-## The fore course, laced to the fore yard with its foot hanging free, and above it the fore
-## topsail, laced to the fore topsail yard and down to the fore yard's arms. Both just aft of
+## The fore course, laced to the fore yard and sheeted home at its foot, and above it the fore
+## topsail, laced between the fore topsail yard and the fore topsail foot yard. Both just aft of
 ## the foremast, as the main's are.
 func _build_fore_sails() -> void:
 	for old_name in ["ForeCourse", "ForeTopsail"]:
 		var old := get_node_or_null(old_name)
 		if old != null:
 			old.free()
-	var z := FOREMAST_AT.z + 0.12
-	var course_y := FOREMAST_AT.y + FORE_YARD.x
-	var course_half := FORE_YARD.y * 0.5 - 0.3
+	# As the main's, at FORE_SCALE.
+	var z := FOREMAST_AT.z + 0.12 * FORE_SCALE
+	var course_y := FOREMAST_AT.y + (4.6 + MAIN_LIFT) * FORE_SCALE
+	var course_half := SailScript.HALF_WIDTH * FORE_SCALE
 	var course := SailScript.new() as Node3D
 	course.name = "ForeCourse"
-	course.call("pin_foot", false)
+	_canvas(course, "course")
 	course.call("rig_between", Vector3(-course_half, course_y, z), Vector3(course_half, course_y, z),
 			Vector3(-course_half, course_y - FORE_COURSE_DROP, z), Vector3(course_half, course_y - FORE_COURSE_DROP, z), Vector3(0.0, 0.0, 0.4))
 	add_child(course)
-	var top_y := FOREMAST_AT.y + FORE_TOPSAIL_YARD.x
-	var top_half := FORE_TOPSAIL_YARD.y * 0.5 - 0.2
+	var top_y := FOREMAST_AT.y + (8.15 + MAIN_LIFT) * FORE_SCALE
+	var foot_y := FOREMAST_AT.y + (6.9 + MAIN_LIFT) * FORE_SCALE
+	var top_half := 2.3 * FORE_SCALE
 	var topsail := SailScript.new() as Node3D
 	topsail.name = "ForeTopsail"
+	_canvas(topsail, "topsail")
 	topsail.call("rig_between", Vector3(-top_half, top_y, z), Vector3(top_half, top_y, z),
-			Vector3(-course_half, course_y + 0.1, z), Vector3(course_half, course_y + 0.1, z), Vector3(0.0, 0.0, 0.3))
+			Vector3(-top_half, foot_y, z), Vector3(top_half, foot_y, z), Vector3(0.0, 0.0, 0.3 * FORE_SCALE))
 	add_child(topsail)
 
 
-## The spanker, laced to the mizzen's gaff, boom and mast: its head just under the gaff, its
-## foot just over the boom, both from just aft of the mast to a little short of the spars'
-## ends, and its luff down the mast between them. Only the leech is free.
-func _build_spanker() -> void:
-	if get_node_or_null("Mizzen") == null:
-		return
-	var old := get_node_or_null("Spanker")
-	if old != null:
-		old.free()
-	var head_from := MIZZEN_AT + GAFF_FROM.lerp(GAFF_TO, 0.04) - Vector3(0.0, 0.1, 0.0)
-	var head_to := MIZZEN_AT + GAFF_FROM.lerp(GAFF_TO, 0.94) - Vector3(0.0, 0.1, 0.0)
-	var foot_from := MIZZEN_AT + BOOM_FROM.lerp(BOOM_TO, 0.03) + Vector3(0.0, 0.1, 0.0)
-	var foot_to := MIZZEN_AT + BOOM_FROM.lerp(BOOM_TO, 0.9) + Vector3(0.0, 0.1, 0.0)
-	var spanker := SailScript.new() as Node3D
-	spanker.name = "Spanker"
-	spanker.call("rig_between", head_from, head_to, foot_from, foot_to, Vector3(0.3, 0.0, 0.0))
-	spanker.call("pin_luff", true)
-	add_child(spanker)
+## Paints `sail` with Tripo's canvas for its kind (art/models/ship/rigging/canvas_<kind>.png,
+## from tools/bake_sail_canvas.py): seams, patches and hem. Left plain if the file is missing.
+func _canvas(sail: Node3D, kind: String) -> void:
+	var path := RIGGING + "canvas_%s.png" % kind
+	if ResourceLoader.exists(path):
+		sail.call("use_canvas", load(path))
 
 
 ## A shorter course above the lookout. The topmast was a bare pole past the platform.
@@ -1862,19 +1796,15 @@ func _build_topsail() -> void:
 	var mast := get_node_or_null("Mast") as Node3D
 	if mast == null:
 		return
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	# Just under the tip, and just clear of the lookout rails. Shorter than the course yard.
-	_crossyard(mast, "TopsailYard", 8.15, 2.6, 0.09, timber, iron)
-	_crossyard(mast, "TopsailFoot", 6.9, 2.6, 0.07, timber, iron)
 	if get_node_or_null("Topsail") != null:
 		return
-	var head_y := MAST_AT.y + 8.15
-	var foot_y := MAST_AT.y + 6.9
+	var head_y := MAST_AT.y + 8.15 + MAIN_LIFT
+	var foot_y := MAST_AT.y + 6.9 + MAIN_LIFT
 	var z := MAST_AT.z + 0.12
 	var half := 2.3
 	var sail := SailScript.new() as Node3D
 	sail.name = "Topsail"
+	_canvas(sail, "topsail")
 	sail.call("rig_between", Vector3(-half, head_y, z), Vector3(half, head_y, z), Vector3(-half, foot_y, z), Vector3(half, foot_y, z), Vector3(0.0, 0.0, 0.3))
 	add_child(sail)
 
@@ -1895,27 +1825,38 @@ func _crossyard(mast: Node3D, yard_name: String, y: float, half: float, thick: f
 	_spar(yard, 0.0, thick + 0.04, thick + 0.04, 0.1, iron)
 
 
-## One rope a side from the topmast head down to the stern quarters. The shrouds hold the
-## mast sideways; these hold it aft. No collision, same as the shrouds.
+## One rope a side from the topmast head down to the stern quarters, set up to a channel of its
+## own on the castle's side (_shroud_side). The shrouds hold the mast sideways; these hold it aft.
+## No collision, same as the shrouds.
 func _build_backstays() -> void:
-	if get_node_or_null("Mast") == null or get_node_or_null("Backstays") != null:
+	var mast := get_node_or_null("Mast") as Node3D
+	var cabin := get_node_or_null("Quarterdeck/Cabin") as Node3D
+	if mast == null or cabin == null or mast.get_node_or_null("Backstays") != null:
 		return
-	var stays := Node3D.new()
-	stays.name = "Backstays"
-	add_child(stays)
-	var rope := _flat(Color(0.45, 0.34, 0.22))
-	# Just above the topsail yard and a little aft of it, so the rope clears the cloth.
-	var head_y := MAST_AT.y + 8.4
-	var head_z := MAST_AT.z + 0.35
+	var stays := _rigging_node(mast, "Backstays")
+	var wall := _castle_wall(cabin)
 	for side in [-1.0, 1.0]:
-		var head := Vector3(side * 0.22, head_y, head_z)
-		# On the quarterdeck's rail at the stern quarter.
-		var foot := Vector3(side * 2.41, QUARTERDECK_Y + RAIL_HEIGHT, 14.165)
-		_rope(stays, head, foot, 0.02, rope)
+		# On the aft side of the topmast just above the topsail yard, so the rope clears its cloth.
+		var head := MAST_AT + Vector3(side * 0.1, 8.4 + MAIN_LIFT, 0.12)
+		var nearest := 0
+		for i in wall.size() - 1:
+			var mid := (wall[i] + wall[i + 1]) * 0.5
+			var best := (wall[nearest] + wall[nearest + 1]) * 0.5
+			if mid.x * side > 0.0 and (best.x * side <= 0.0 or absf(mid.z - BACKSTAY_Z) < absf(best.z - BACKSTAY_Z)):
+				nearest = i
+		var at := (wall[nearest] + wall[nearest + 1]) * 0.5
+		var out := (wall[nearest + 1] - wall[nearest]).cross(Vector3.UP).normalized()
+		if out.x * side < 0.0:
+			out = -out
+		var tops: Array[Vector3] = [head]
+		var hull: Array[Vector3] = [at]
+		_shroud_side(stays, tops, hull, out, true)
 
 
-## Three ropes a side, from just under the lookout to the rail, and the ratlines across them.
-## No collision: a solid cage here would close the deck. A real rope mesh can replace this node.
+## Three ropes a side, from the top's collar under the lookout down to the channels on
+## the hull's sides (_shroud_side), and the ratlines across them. All forward of the mast, clear of
+## the sails, which hang aft of it. No collision: a solid cage here would close the deck. A real
+## rope mesh can replace this node.
 func _build_shrouds() -> void:
 	var mast := get_node_or_null("Mast") as Node3D
 	if mast == null:
@@ -1923,54 +1864,304 @@ func _build_shrouds() -> void:
 	var old := mast.get_node_or_null("Shrouds")
 	if old != null:
 		old.free()
-	var shrouds := Node3D.new()
-	shrouds.name = "Shrouds"
-	mast.add_child(shrouds)
-	var rope := _flat(Color(0.45, 0.34, 0.22))
-	# Mast-local, and all of them forward of the sail. Port stays on the port side, starboard
-	# on the starboard side, so a rope never crosses the spar or the cloth.
-	var upper_z: Array[float] = [-0.55, -0.4, -0.25]
+	var shrouds := _rigging_node(mast, "Shrouds")
+	# Ship space. The tops are on the top's collar, under its platform and above the course yard,
+	# and far enough forward that no rope touches the yard on its way down.
+	var upper_z: Array[float] = [-0.4, -0.33, -0.26]
 	var lower_z: Array[float] = [-1.15, -0.55, -0.2]
 	for side in [-1.0, 1.0]:
 		var tops: Array[Vector3] = []
-		var feet: Array[Vector3] = []
+		var hull: Array[Vector3] = []
 		for i in 3:
-			var top := Vector3(side * 0.42, 5.25, upper_z[i])
-			var foot := Vector3(side * 2.95, 0.8, lower_z[i])
-			tops.append(top)
-			feet.append(foot)
-			_rope(shrouds, top, foot, 0.02, rope)
-			# A deadeye on the shroud's foot, where it is set up to the rail: hung on the rope
-			# just above the rail and lying along it.
-			var up := (top - foot).normalized()
-			var deadeye := Node3D.new()
-			deadeye.name = "Deadeye%s%d" % ["Starboard" if side > 0.0 else "Port", i]
-			var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
-			deadeye.basis = Basis(along, up, along.cross(up))
-			deadeye.position = foot + up * DEADEYE_ABOVE_RAIL
-			shrouds.add_child(deadeye)
-			_fit_model(deadeye, RIGGING + "deadeye.glb")
-		var steps := int(tops[0].distance_to(feet[0]) / 0.42)
-		for s in range(1, steps):
-			var t := float(s) / float(steps)
-			for i in 2:
-				_rope(shrouds, tops[i].lerp(feet[i], t), tops[i + 1].lerp(feet[i + 1], t), 0.012, rope)
+			tops.append(MAST_AT + Vector3(side * 0.25, 5.05 + MAIN_LIFT, upper_z[i]))
+			hull.append(_hull_edge(MAST_AT.z + lower_z[i], side))
+		_ratlines(shrouds, tops, _shroud_side(shrouds, tops, hull, Vector3(side, 0.0, 0.0), false))
 
 
-## A single block under each end of the course yard and the topsail yard (YARD_BLOCKS).
-func _build_blocks() -> void:
-	var mast := get_node_or_null("Mast") as Node3D
-	if mast == null or mast.get_node_or_null("Blocks") != null:
+## A node under `mast` whose own space is the ship's, for rigging laid out in ship space.
+func _rigging_node(mast: Node3D, node_name: String) -> Node3D:
+	var node := Node3D.new()
+	node.name = node_name
+	node.transform = mast.transform.affine_inverse()
+	node.set_meta("set_up", [])
+	mast.add_child(node)
+	return node
+
+
+## Ratlines across three shrouds, every 0.42 m down from `tops` to `ends`.
+func _ratlines(parent: Node3D, tops: Array[Vector3], ends: Array[Vector3]) -> void:
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	var steps := int(tops[0].distance_to(ends[0]) / 0.42)
+	for s in range(1, steps):
+		var t := float(s) / float(steps)
+		for i in tops.size() - 1:
+			_rope(parent, tops[i].lerp(ends[i], t), tops[i + 1].lerp(ends[i + 1], t), 0.012, rope)
+
+
+## Where the hull's outer face is at the deck's edge, `z` along the ship on `side` (+1 starboard),
+## and which way is out from it: off the rail's line (RAIL_PATH, the middle of the hull's 0.2 m
+## wall top), 0.1 m outboard. Its y is the weather deck's.
+func _hull_edge(z: float, side: float) -> Vector3:
+	var edge := _outline_at(RAIL_PATH, z)
+	var at: Vector2 = edge[0] + (edge[1] as Vector2) * 0.1
+	return Vector3(side * at.x, DECK_Y, at.y)
+
+
+## Which way is out from the hull at `z` on `side`, flat.
+func _hull_out(z: float, side: float) -> Vector3:
+	var out: Vector2 = _outline_at(RAIL_PATH, z)[1]
+	return Vector3(side * out.x, 0.0, out.y)
+
+
+## The point `z` along a starboard outline of (x, z) points, and its outward normal there.
+func _outline_at(outline: Array, z: float) -> Array:
+	for i in outline.size() - 1:
+		var a: Vector2 = outline[i]
+		var b: Vector2 = outline[i + 1]
+		if (z >= a.y and z <= b.y) or i == outline.size() - 2:
+			var t := clampf((z - a.y) / (b.y - a.y), 0.0, 1.0) if absf(b.y - a.y) > 0.0001 else 0.0
+			var normal := Vector2(b.y - a.y, a.x - b.x).normalized()
+			if normal.x < 0.0:
+				normal = -normal
+			return [a.lerp(b, t), normal]
+	return [outline[0], Vector2.RIGHT]
+
+
+## One side's ropes set up to a single channel: rope `i` from `tops[i]` down to a foot standing
+## out along `out` from `hull[i]`, a point on the hull's outer face at the edge of the deck whose
+## rail the channel stands above (the weather deck, or on the castle, `on_castle`, the
+## quarterdeck). The channel runs along the hull through the first and last of them. Returns
+## where each rope meets its upper deadeye, and lists every rope on `parent`'s "set_up" meta, in
+## ship space.
+func _shroud_side(parent: Node3D, tops: Array[Vector3], hull: Array[Vector3], out: Vector3, on_castle: bool) -> Array[Vector3]:
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	var iron := _flat(Color(0.22, 0.22, 0.24))
+	var timber := _rail_profile("wale", _flat(Color(0.45, 0.28, 0.14)))["material"] as Material
+	var side := signf(out.x)
+	var deck_y := (QUARTERDECK_Y if on_castle else DECK_Y) + RAIL_HEIGHT + 0.02 + CHANNEL_THICK
+	# On the weather deck the channel rises with the rail over the bow's sheer, as a real
+	# channel follows the sheer line.
+	var first := Vector3(hull[0].x, deck_y + (0.0 if on_castle else bow_sheer(hull[0].z)), hull[0].z)
+	var last := Vector3(hull[hull.size() - 1].x, deck_y + (0.0 if on_castle else bow_sheer(hull[hull.size() - 1].z)), hull[hull.size() - 1].z)
+	_channel(parent, first, last, out, CHANNEL_OUT, timber, "Channel%s" % ("Starboard" if side > 0.0 else "Port"))
+	var ends: Array[Vector3] = []
+	var listed: Array = parent.get_meta("set_up")
+	for i in tops.size():
+		# On the channel's line, which runs straight from its first foot to its last.
+		var t := (hull[i].z - first.z) / (last.z - first.z) if absf(last.z - first.z) > 0.001 else 0.0
+		var foot := Vector3(hull[i].x, lerpf(first.y, last.y, t), hull[i].z) + out * (CHANNEL_OUT - 0.08)
+		var plate_end: Vector3
+		if on_castle:
+			# On the trim's top, near its outer edge.
+			plate_end = Vector3(hull[i].x, CASTLE_TRIM_Y + 0.1, hull[i].z) + out * 0.15
+		else:
+			var wale: Vector2 = _outline_at(WALE_STARBOARD if side > 0.0 else _mirrored(WALE_PORT), hull[i].z)[0]
+			plate_end = Vector3(side * absf(wale.x), WALE_Y + 0.15, wale.y) + out * 0.03
+		var label := "%s%d" % ["Starboard" if side > 0.0 else "Port", i]
+		var strop := _set_up(parent, tops[i], foot, plate_end, label, rope, iron)
+		ends.append(strop)
+		listed.append({"top": tops[i], "strop": strop, "foot": foot, "plate_end": plate_end, "out": out,
+				"hull": Vector3(hull[i].x, foot.y, hull[i].z), "on_castle": on_castle})
+	return ends
+
+
+## The port wale outline as a starboard one: x made positive.
+func _mirrored(outline: Array) -> Array:
+	var flipped := []
+	for p in outline:
+		flipped.append(Vector2(absf((p as Vector2).x), (p as Vector2).y))
+	return flipped
+
+
+## A channel: a plank `width` wide standing out from the hull's side along `out`, from `a` to `b`
+## (points on the hull's outer face at its top), and 0.25 m past each.
+func _channel(parent: Node3D, a: Vector3, b: Vector3, out: Vector3, width: float, material: Material, channel_name: String) -> void:
+	var run := (b - a).normalized() if a.distance_to(b) > 0.01 else out.cross(Vector3.UP).normalized()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(a.distance_to(b) + 0.5, CHANNEL_THICK, width)
+	var node := MeshInstance3D.new()
+	node.name = channel_name
+	node.mesh = mesh
+	node.material_override = material
+	node.basis = Basis(run, Vector3.UP, run.cross(Vector3.UP))
+	node.position = (a + b) * 0.5 + out * width * 0.5 - Vector3.UP * CHANNEL_THICK * 0.5
+	parent.add_child(node)
+
+
+## One rope set up to a channel, in `parent`'s space: from `top` down to its upper deadeye, a
+## lanyard to the lower deadeye standing on the channel at `foot`, and an iron chain plate from
+## that down to `plate_end` on the hull. The deadeyes lie in the rope's line, faces fore and aft.
+## Returns the upper deadeye's strop, where the rope ends.
+func _set_up(parent: Node3D, top: Vector3, foot: Vector3, plate_end: Vector3, label: String, rope: Material, iron: Material) -> Vector3:
+	var up := (top - foot).normalized()
+	var along := (Vector3.BACK - up * up.dot(Vector3.BACK)).normalized()
+	var lower := Node3D.new()
+	lower.name = "LowerDeadeye" + label
+	# Upside down: its strop on the chain plate, its body up the rope.
+	lower.basis = Basis(along, -up, along.cross(-up))
+	lower.position = foot
+	parent.add_child(lower)
+	_fit_model(lower, RIGGING + "deadeye.glb")
+	var lanyard := foot + up * 0.35
+	var strop := lanyard + up * (DEADEYE_LANYARD + 0.35)
+	var upper := Node3D.new()
+	upper.name = "Deadeye" + label
+	upper.basis = Basis(along, up, along.cross(up))
+	upper.position = strop
+	parent.add_child(upper)
+	_fit_model(upper, RIGGING + "deadeye.glb")
+	_rope(parent, lanyard, lanyard + up * DEADEYE_LANYARD, 0.012, rope)
+	_rope(parent, strop, top, 0.02, rope)
+	_rope(parent, foot, plate_end, 0.018, iron)
+	return strop
+
+
+## The sails' feet made fast (MAIN_SHEET_Z and the rest): a block at each course clew, a sheet
+## aft and a tack forward from it, belayed to the rail's handrail (the fore tack to its
+## cathead); a block at the jib's clew and a sheet from it down to each side's rail. Listed on
+## the node's "sheets" meta, in ship space, for the tests. The topsails' feet are laced to the
+## yards below them and need none.
+func _build_sheets() -> void:
+	var old := get_node_or_null("Sheets")
+	if old != null:
+		old.free()
+	var sheets := Node3D.new()
+	sheets.name = "Sheets"
+	sheets.set_meta("sheets", [])
+	add_child(sheets)
+	var main := get_node_or_null("Sail")
+	var fore := get_node_or_null("ForeCourse")
+	var jib := get_node_or_null("Jib")
+	for side in [-1.0, 1.0]:
+		if main != null:
+			var clew := _clew(main, side)
+			_sheet(sheets, clew, _rail_top(MAIN_SHEET_Z, side), "rail")
+			_sheet(sheets, clew, _rail_top(MAIN_TACK_Z, side), "rail")
+		if fore != null:
+			var clew := _clew(fore, side)
+			_sheet(sheets, clew, _rail_top(FORE_SHEET_Z, side), "rail")
+			# On the cathead's top, where it stands out over the bow, 1.2 m along it.
+			var along := Vector3(side * cos(deg_to_rad(CATHEAD_YAW)), 0.0, -sin(deg_to_rad(CATHEAD_YAW)))
+			_sheet(sheets, clew, Vector3(side * CATHEAD_AT.x, CATHEAD_AT.y, CATHEAD_AT.z) + along * 1.2, "cathead")
+		if jib != null:
+			_sheet(sheets, JIB_CLEW, _rail_top(JIB_SHEET_Z, side), "rail")
+	for sail in [main, fore]:
+		if sail != null:
+			for side in [-1.0, 1.0]:
+				_clew_block(sheets, _clew(sail, side))
+	if jib != null:
+		_clew_block(sheets, JIB_CLEW)
+
+
+## The stays, which hold the masts forward as the shrouds hold them sideways: the main topmast
+## stay from the main topmast's head, just above its topsail yard, forward to the fore topmast,
+## just under its topsail foot yard, crossing the fore top's rail ring between two of its posts
+## on the way; the fore topmast stay from the fore topmast's head, above its
+## topsail yard, down to the bowsprit's tip, above the jib's luff, as in the reference. Both on
+## the centreline, forward of the sails, which hang aft of their yards. Listed on the node's
+## "ropes" meta, in ship space, for the tests. No collision, like the rest of the rigging.
+func _build_stays() -> void:
+	var old := get_node_or_null("Stays")
+	if old != null:
+		old.free()
+	if get_node_or_null("Mast") == null or get_node_or_null("Foremast") == null:
 		return
-	var blocks := Node3D.new()
-	blocks.name = "Blocks"
-	mast.add_child(blocks)
-	for yard in YARD_BLOCKS:
-		for side in [1.0, -1.0]:
-			var block := Node3D.new()
-			block.position = Vector3(side * yard[1], yard[0], yard[2])
-			blocks.add_child(block)
-			_fit_model(block, RIGGING + "block_single.glb")
+	var stays := Node3D.new()
+	stays.name = "Stays"
+	stays.set_meta("ropes", [])
+	add_child(stays)
+	# The topmast is 0.18 m in radius at MAST_AT; its head is 3 m above the lower mast's.
+	var main_head := MAST_AT + Vector3(0.0, 8.4 + MAIN_LIFT, -0.18)
+	# Above the fore top's floor, which it would pass through lower down, and low enough under the
+	# topsail foot yard; rising aft, it is 0.14 m over the rail ring where it crosses it.
+	var fore_foot := FOREMAST_AT + Vector3(0.0, MAIN_LOWER + 1.0, 0.18) * FORE_SCALE
+	var fore_head := FOREMAST_AT + Vector3(0.0, 8.4 + MAIN_LIFT, -0.18) * FORE_SCALE
+	_stay(stays, "MainTopmastStay", main_head, fore_foot)
+	if get_node_or_null("Bowsprit") != null:
+		_stay(stays, "ForeTopmastStay", fore_head, _along_bowsprit(BOWSPRIT_LENGTH - 0.1))
+
+
+func _stay(parent: Node3D, label: String, from: Vector3, to: Vector3) -> void:
+	_rope(parent, from, to, 0.025, _flat(Color(0.45, 0.34, 0.22)))
+	var entries: Array = parent.get_meta("ropes")
+	entries.append({"name": label, "from": from, "to": to})
+
+
+## A brace from each course yard's arm, just outside its block, aft and down to the rail
+## (MAIN_BRACE_Z, FORE_BRACE_Z). Listed on the node's "ropes" meta, in ship space, for the tests.
+func _build_braces() -> void:
+	var old := get_node_or_null("Braces")
+	if old != null:
+		old.free()
+	var braces := Node3D.new()
+	braces.name = "Braces"
+	braces.set_meta("ropes", [])
+	add_child(braces)
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	for side in [-1.0, 1.0]:
+		for spec in [["Mast", MAST_AT, 1.0, MAIN_BRACE_Z, QUARTERDECK_Y], ["Foremast", FOREMAST_AT, FORE_SCALE, FORE_BRACE_Z, DECK_Y]]:
+			if get_node_or_null(spec[0]) == null:
+				continue
+			var at: Vector3 = spec[1]
+			var scale: float = spec[2]
+			var arm := at + Vector3(side * (YARD_BLOCKS[0][1] + 0.1), 4.6 + MAIN_LIFT, 0.0) * scale
+			var to := _rail_top(spec[3], side, spec[4])
+			_rope(braces, arm, to, 0.015, rope)
+			var entries: Array = braces.get_meta("ropes")
+			entries.append({"name": "%sBrace%s" % [spec[0], "Starboard" if side > 0.0 else "Port"], "from": arm, "to": to})
+
+
+## The foot corner of a sail on `side` (+1 starboard).
+func _clew(sail: Node, side: float) -> Vector3:
+	var from: Vector3 = sail.get("_foot_from")
+	var to: Vector3 = sail.get("_foot_to")
+	return to if (to.x - from.x) * side > 0.0 else from
+
+
+## The top of the rail's handrail `z` along the ship, on `side`, on the rail round `deck`.
+func _rail_top(z: float, side: float, deck := DECK_Y) -> Vector3:
+	var at: Vector2 = _outline_at(RAIL_PATH, z)[0]
+	var sheer := bow_sheer(z) if deck == DECK_Y else 0.0
+	return Vector3(side * at.x, deck + sheer + HANDRAIL_TOP, z)
+
+
+## How far the hull's wall top stands above the weather deck `z` along the ship: nothing aft of
+## BOW_SHEER_FROM, rising on a curve that starts level to BOW_SHEER at the knightheads.
+static func bow_sheer(z: float) -> float:
+	var stem: float = (RAIL_PATH[0] as Vector2).y
+	var t := clampf((BOW_SHEER_FROM - z) / (BOW_SHEER_FROM - stem), 0.0, 1.0)
+	return BOW_SHEER * t * t
+
+
+## `line`, on the weather deck, with a point every 0.25 m where it rises with the bow's sheer, and
+## each point lifted by it.
+func _sheer_line(line: Array[Vector3]) -> Array[Vector3]:
+	var out: Array[Vector3] = [line[0] + Vector3.UP * bow_sheer(line[0].z)]
+	for i in range(1, line.size()):
+		var a := line[i - 1]
+		var b := line[i]
+		var steps := ceili(a.distance_to(b) / 0.25) if minf(a.z, b.z) < BOW_SHEER_FROM else 1
+		for k in range(1, steps + 1):
+			var p := a.lerp(b, float(k) / steps)
+			out.append(Vector3(p.x, a.y + bow_sheer(p.z), p.z))
+	return out
+
+
+## A single block hung from a clew: its strop at the clew, 0.35 m long below it.
+func _clew_block(parent: Node3D, clew: Vector3) -> void:
+	var block := Node3D.new()
+	block.name = "Block%d" % parent.get_child_count()
+	block.position = clew
+	parent.add_child(block)
+	_fit_model(block, RIGGING + "block_single.glb")
+
+
+## One sheet or tack from the block at `clew` down to `to`, on the `onto` it is belayed to.
+func _sheet(parent: Node3D, clew: Vector3, to: Vector3, onto: String) -> void:
+	var from := clew - Vector3(0.0, 0.33, 0.0)
+	_rope(parent, from, to, 0.015, _flat(Color(0.45, 0.34, 0.22)))
+	var entries: Array = parent.get_meta("sheets")
+	entries.append({"clew": clew, "from": from, "to": to, "onto": onto})
 
 
 ## The flag on a short staff above the topmast, held on it by its three rings, its fly out
@@ -1979,7 +2170,7 @@ func _build_flag() -> void:
 	var mast := get_node_or_null("Mast") as Node3D
 	if mast == null or mast.get_node_or_null("Flag") != null:
 		return
-	var head := 8.5
+	var head := MAIN_LOWER + 3.0
 	_spar(mast, head + FLAGSTAFF_HEIGHT * 0.5, FLAGSTAFF_RADIUS, FLAGSTAFF_RADIUS, FLAGSTAFF_HEIGHT, _flat(Color(0.55, 0.36, 0.18)))
 	var flag := Node3D.new()
 	flag.name = "Flag"
@@ -2047,8 +2238,9 @@ func gun_port_z() -> Array[float]:
 
 
 ## Everything that goes with the gunports, under one node so a change to them rebuilds it all
-## in step: the gun deck's side walls with a hole at every port, a frame and open lid on each,
-## and a cannon behind each.
+## in step: the gun deck's side walls with a hole at every port, a frame on each, and a
+## cannon run out through each. The ports stand open with no lid, as the reference's do: the
+## model's lid, swung up, stood out from the side like a shelf over every port.
 func _build_gun_ports() -> void:
 	if get_node_or_null("GunPorts") != null:
 		return
@@ -2059,10 +2251,10 @@ func _build_gun_ports() -> void:
 	_build_gun_walls(ports, spots)
 
 	# The frame faces +X with its back on the hull, centred on its opening; turned half round
-	# it serves the port side. The lid is its own node hung on its hinge: +Z swings it out.
-	var lids := Node3D.new()
-	lids.name = "Lids"
-	ports.add_child(lids)
+	# it serves the port side. The model's lid is its own node, taken off.
+	var frames := Node3D.new()
+	frames.name = "Frames"
+	ports.add_child(frames)
 	var guns := Node3D.new()
 	guns.name = "Guns"
 	ports.add_child(guns)
@@ -2072,15 +2264,16 @@ func _build_gun_ports() -> void:
 			port.name = "Port%s%d" % ["Starboard" if side > 0.0 else "Port", k]
 			port.position = Vector3(side * (BEAM * 0.5 + gun_port_offset), GUN_PORT_Y, spots[k])
 			port.rotation_degrees.y = 0.0 if side > 0.0 else 180.0
-			lids.add_child(port)
+			frames.add_child(port)
 			if _fit_model(port, HULL_PARTS + "gunport_lid.glb"):
-				var lid := port.find_child("lid", true, false) as Node3D
+				var lid := port.find_child("lid", true, false)
 				if lid != null:
-					lid.rotation_degrees.z = LID_OPEN_DEGREES
-		# On the deck: the model's origin is under its wheels. Muzzle 1 m along local -Z and
-		# 0.62 m up, level with the port. -90° yaw sends -Z to starboard.
-		_gun(guns, Vector3(2.15, GUN_DECK_Y, spots[k]), -PI * 0.5, "Starboard%d" % k)
-		_gun(guns, Vector3(-2.15, GUN_DECK_Y, spots[k]), PI * 0.5, "Port%d" % k)
+					lid.get_parent().remove_child(lid)
+					lid.free()
+		# On the deck: the model's origin is under its wheels. Muzzle along local -Z and 0.62 m
+		# up, level with the port. -90° yaw sends -Z to starboard.
+		_gun(guns, Vector3(GUN_OUT_X, GUN_DECK_Y, spots[k]), -PI * 0.5, "Starboard%d" % k)
+		_gun(guns, Vector3(-GUN_OUT_X, GUN_DECK_Y, spots[k]), PI * 0.5, "Port%d" % k)
 
 
 func _rebuild_gun_ports() -> void:
@@ -2114,16 +2307,7 @@ func _build_gun_walls(parent: Node3D, spots: Array[float]) -> void:
 		gaps.append(Vector2(from, z - half))
 		from = z + half
 	gaps.append(Vector2(from, GUN_WALL_AFT_Z))
-	var material: Material = null
-	var hull := get_node_or_null("Model")
-	if hull != null:
-		for node in _descendants(hull):
-			var mesh_node := node as MeshInstance3D
-			if mesh_node == null or mesh_node.mesh == null:
-				continue
-			for surface in mesh_node.mesh.get_surface_count():
-				if mesh_node.mesh.surface_get_material(surface) != null and mesh_node.mesh.surface_get_material(surface).resource_name == "wood":
-					material = mesh_node.get_surface_override_material(surface)
+	var material := _hull_wood()
 	for side in [1.0, -1.0]:
 		var wall := SurfaceTool.new()
 		wall.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -2149,6 +2333,101 @@ func _build_gun_walls(parent: Node3D, spots: Array[float]) -> void:
 			node.material_override = material
 		parent.add_child(node)
 		node.create_trimesh_collision()
+
+
+## The hull's own planked material (its toon copy), or null without the hull.
+func _hull_wood() -> Material:
+	var material: Material = null
+	var hull := get_node_or_null("Model")
+	if hull != null:
+		for node in _descendants(hull):
+			var mesh_node := node as MeshInstance3D
+			if mesh_node == null or mesh_node.mesh == null:
+				continue
+			for surface in mesh_node.mesh.get_surface_count():
+				if mesh_node.mesh.surface_get_material(surface) != null and mesh_node.mesh.surface_get_material(surface).resource_name == "wood":
+					material = mesh_node.get_surface_override_material(surface)
+	return material
+
+
+## The bow's raised side (bow_sheer): a wall on the hull's wall top each side, 0.2 m thick like
+## it, its outer face flush with the hull's, from BOW_SHEER_FROM to the knighthead, its top
+## rising with the sheer and the rail standing on it. Its inner and outer faces, its top and its
+## end at the knighthead, planked with the hull's material; planks run along it (u is metres
+## along it over 2, v height over 2.6, as the hull's side). It collides exactly, under the rail.
+func _build_bow_bulwark() -> void:
+	var old := get_node_or_null("BowBulwark")
+	if old != null:
+		old.free()
+	var path: Array[Vector3] = [Vector3(RAIL_PATH[0].x, DECK_Y, RAIL_PATH[0].y)]
+	for i in range(1, RAIL_PATH.size()):
+		var p: Vector2 = RAIL_PATH[i]
+		if p.y >= BOW_SHEER_FROM:
+			var q: Vector2 = RAIL_PATH[i - 1]
+			path.append(Vector3(lerpf(q.x, p.x, (BOW_SHEER_FROM - q.y) / (p.y - q.y)), DECK_Y, BOW_SHEER_FROM))
+			break
+		path.append(Vector3(p.x, DECK_Y, p.y))
+	path = _sheer_line(path)
+	var node := MeshInstance3D.new()
+	node.name = "BowBulwark"
+	var wall := SurfaceTool.new()
+	wall.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for side in [1.0, -1.0]:
+		var reach := 0.0
+		var rows: Array = []
+		for i in path.size():
+			var p := Vector3(side * path[i].x, path[i].y, path[i].z)
+			if i > 0:
+				reach += path[i].distance_to(path[i - 1])
+			var n := _hull_out(p.z - 0.001, side) if i == 0 else _hull_out(p.z + 0.001, side)
+			if i > 0 and i < path.size() - 1:
+				n = (_hull_out(p.z - 0.001, side) + _hull_out(p.z + 0.001, side)).normalized()
+			rows.append({"outer": p + n * 0.1, "inner": p - n * 0.1, "n": n, "top": p.y, "u": reach / 2.0})
+		for i in rows.size() - 1:
+			var a: Dictionary = rows[i]
+			var b: Dictionary = rows[i + 1]
+			# Each face from a little down in the hull's wall top, so no seam shows at the deck.
+			for face in [["outer", 1.0], ["inner", -1.0]]:
+				var normal: Vector3 = ((a["n"] as Vector3) + (b["n"] as Vector3)).normalized() * face[1]
+				var a0: Vector3 = a[face[0]]
+				var b0: Vector3 = b[face[0]]
+				_bulwark_quad(wall, [Vector3(a0.x, DECK_Y - 0.02, a0.z), Vector3(b0.x, DECK_Y - 0.02, b0.z), b0, a0],
+						[Vector2(a["u"], (DECK_Y - 0.02) / -2.6), Vector2(b["u"], (DECK_Y - 0.02) / -2.6), Vector2(b["u"], b0.y / -2.6), Vector2(a["u"], a0.y / -2.6)], normal)
+			var ai: Vector3 = a["inner"]
+			var ao: Vector3 = a["outer"]
+			var bi: Vector3 = b["inner"]
+			var bo: Vector3 = b["outer"]
+			_bulwark_quad(wall, [ai, bi, bo, ao], [Vector2(a["u"], ai.x / 2.6), Vector2(b["u"], bi.x / 2.6), Vector2(b["u"], bo.x / 2.6), Vector2(a["u"], ao.x / 2.6)], Vector3.UP)
+		# Its end at the knighthead, facing forward along the rail.
+		var end: Dictionary = rows[0]
+		var ei: Vector3 = end["inner"]
+		var eo: Vector3 = end["outer"]
+		var ahead := (Vector3(rows[0]["outer"]) - Vector3(rows[1]["outer"]))
+		ahead.y = 0.0
+		_bulwark_quad(wall, [Vector3(ei.x, DECK_Y - 0.02, ei.z), Vector3(eo.x, DECK_Y - 0.02, eo.z), eo, ei],
+				[Vector2(ei.x / 2.0, (DECK_Y - 0.02) / -2.6), Vector2(eo.x / 2.0, (DECK_Y - 0.02) / -2.6), Vector2(eo.x / 2.0, eo.y / -2.6), Vector2(ei.x / 2.0, ei.y / -2.6)], ahead.normalized())
+	node.mesh = wall.commit()
+	node.layers = 1 | (1 << 19)
+	var material := _hull_wood()
+	if material != null:
+		node.material_override = material
+	add_child(node)
+	node.create_trimesh_collision()
+
+
+## A four-cornered face through `corners` in order round it, with their `uvs`, facing `normal`.
+## Wound clockwise from the front, as Godot draws front faces.
+func _bulwark_quad(into: SurfaceTool, corners: Array, uvs: Array, normal: Vector3) -> void:
+	var order := [0, 1, 2, 0, 2, 3]
+	var a: Vector3 = corners[0]
+	var b: Vector3 = corners[1]
+	var c: Vector3 = corners[2]
+	if (b - a).cross(c - a).dot(normal) > 0.0:
+		order = [0, 2, 1, 0, 3, 2]
+	for i in order:
+		into.set_normal(normal)
+		into.set_uv(uvs[i])
+		into.add_vertex(corners[i])
 
 
 ## A flat rectangle between opposite corners `a` and `b` (they share one coordinate), facing
