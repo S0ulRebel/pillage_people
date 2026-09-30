@@ -411,3 +411,12 @@ project already rejects view-dependent outlines).
 - Tried: thresholding the ridged value itself gave fat blobs where the noise is flat; laying the
   cell net along the height contours gave glyph-like scribbles.
 - Open water from the gameplay camera: 2.6% white.
+
+### Step 8g: light through the crests (subsurface scattering, painted)
+
+- The swatches' small waves glow a lighter, saturated turquoise on the thin upper part of each
+  face, just under the crest: light through the water. Painted, not simulated: one flat toon
+  step on the chop's face turned toward the eye, high on the wave but below the whitecap strip,
+  in `sss_colour` (0.16, 0.7, 0.9) at `sss_strength` 0.85 - strongest looking toward the sun,
+  never gone (the sky lights it too). It replaces the plain lighter tone on the tops, which read
+  grey. Measured light tone now (33, 134, 181) against the swatch's (39, 168, 220).

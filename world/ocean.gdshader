@@ -169,6 +169,11 @@ uniform float chop_longest : hint_range(1.0, 15.0) = 5.0;
 // the "small waves" swatch, the dark faces are about 0.7 of the mid tone in red and green and
 // 0.8 in blue, and the lit tops brighter in green and blue, not red. Material-only.
 uniform float chop_tone : hint_range(0.0, 1.5) = 1.0;
+// Light through the crests (subsurface scattering, painted): the turquoise the upper face of
+// each small wave glows, and how strongly. Measured on the "small waves" swatch's lit faces.
+// Material-only.
+uniform vec3 sss_colour : source_color = vec3(0.16, 0.7, 0.9);
+uniform float sss_strength : hint_range(0.0, 1.0) = 0.85;
 
 // ---- Crest glints -----------------------------------------------------------------------
 group_uniforms Crests;
@@ -831,10 +836,23 @@ void fragment() {
     float tone = chop.x * 0.7 + facing_eye * 0.35;
     float tone_aa = max(fwidth(tone), 0.001);
     float tone_amount = chop_tone * smoothstep(1.0, 4.0, water_depth) * smoothstep(0.35, 0.7, chop.w);
-    float lit_top = smoothstep(0.42 - tone_aa, 0.42 + tone_aa, tone) * tone_amount;
     float dark_face = (1.0 - smoothstep(-0.3 - tone_aa, -0.3 + tone_aa, tone)) * tone_amount;
     shaded_water = mix(shaded_water, shaded_water * vec3(0.7, 0.72, 0.8), clamp(dark_face, 0.0, 1.0));
-    shaded_water += vec3(0.04, 0.16, 0.18) * lit_top * sky_light;
+    // Light through the crests - subsurface scattering, painted: the thin upper part of each
+    // small wave's face, just under its crest, glows a lighter, more saturated turquoise, as in
+    // the swatches. One flat toon step: the face turned toward the eye, high on the wave but
+    // below the whitecap strip. Strongest looking toward the sun, which shines through the crests
+    // then; never gone, since the sky lights them too. Replaces a plain lighter tone on the tops,
+    // which read grey.
+    float upper_face = smoothstep(0.1 - tone_aa, 0.1 + tone_aa, chop.x)
+        * (1.0 - smoothstep(0.62 - tone_aa, 0.62 + tone_aa, chop.x))
+        * smoothstep(-0.05, 0.05, facing_eye);
+    vec2 look = normalize(world_point.xz - CAMERA_POSITION_WORLD.xz + vec2(0.0001));
+    float toward_sun = max(dot(look, normalize(light_dir.xz + vec2(0.0001))), 0.0)
+        * smoothstep(-0.05, 0.25, light_dir.y);
+    float glow_through = upper_face * tone_amount * sss_strength * mix(0.55, 1.0, toward_sun);
+    shaded_water = mix(shaded_water, sss_colour * sky_light * mix(0.85, 1.1, toward_sun),
+        clamp(glow_through, 0.0, 1.0));
 
     // ---- 9. Sky reflection --------------------------------------------------------------
     shaded_water = mix(shaded_water, sky_reflection_colour * sky_light, fresnel * sky_reflection_strength);
