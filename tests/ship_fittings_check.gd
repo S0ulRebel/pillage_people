@@ -149,6 +149,7 @@ func _run() -> void:
 	_check_sheets(ship)
 	_check_flag_rings(ship)
 	await _check_course_clears_stairs(ship)
+	await _check_stays_and_braces(ship)
 	await _check_flag_flies_downwind(ship)
 
 	# The hull carries the plank texture: its wood material has a texture, not a flat colour.
@@ -1204,6 +1205,130 @@ func _check_course_clears_stairs(ship: Node3D) -> void:
 				head_room = minf(head_room, p.y - tread)
 		check(aft < Ship.CASTLE_FRONT_Z, "the course bellies back to z %.2f, over the castle (front at %.2f)" % [aft, Ship.CASTLE_FRONT_Z])
 		check(head_room >= 1.9, "the course hangs %.2f m over the quarterdeck's stairs: into the head of anyone on them" % head_room)
+
+
+## The stays and braces, as in the reference. The main topmast stay runs from the main topmast's
+## head, above its topsail yard, to the fore topmast under its topsail foot yard; the fore
+## topmast stay from the fore topmast's head, above its topsail yard, to the bowsprit's tip. A
+## brace runs aft from each course yard's arm to the rail. Every one clear of the spars and
+## tops, the other rigging and the sails (blown from astern and from either beam), and above
+## the head of anyone on deck.
+func _check_stays_and_braces(ship: Node3D) -> void:
+	var stays: Array = ship.get_node("Stays").get_meta("ropes", []) if ship.has_node("Stays") else []
+	var braces: Array = ship.get_node("Braces").get_meta("ropes", []) if ship.has_node("Braces") else []
+	check(stays.size() == 2, "%d stays; there should be the main and fore topmast stays" % stays.size())
+	check(braces.size() == 4, "%d braces; there should be one from each course yard arm" % braces.size())
+	var on := func(point: Vector3, path: String) -> bool:
+		return _bounds(ship, ship.get_node(path) as Node3D).grow(0.05).has_point(point)
+	for stay in stays:
+		var from: Vector3 = stay["from"]
+		var to: Vector3 = stay["to"]
+		if stay["name"] == "MainTopmastStay":
+			check(on.call(from, "Mast/Topmast") and from.y >= _bounds(ship, ship.get_node("Mast/TopsailYard")).end.y,
+					"the main topmast stay does not start on the main topmast's head, above its topsail yard")
+			check(on.call(to, "Foremast/Topmast") and to.y < _bounds(ship, ship.get_node("Foremast/TopsailFoot")).position.y,
+					"the main topmast stay does not end on the fore topmast, under its topsail foot yard")
+		else:
+			var sprit := _bounds(ship, ship.get_node("Bowsprit"))
+			check(on.call(from, "Foremast/Topmast") and from.y >= _bounds(ship, ship.get_node("Foremast/TopsailYard")).end.y,
+					"the fore topmast stay does not start on the fore topmast's head, above its topsail yard")
+			check(sprit.grow(0.05).has_point(to) and to.z - sprit.position.z < 0.3,
+					"the fore topmast stay ends at (%.2f, %.2f, %.2f), not the bowsprit's tip" % [to.x, to.y, to.z])
+	var space := ship.get_world_3d().direct_space_state
+	var rail := ship.get_node("Rail/Body")
+	for brace in braces:
+		var from: Vector3 = brace["from"]
+		var to: Vector3 = brace["to"]
+		var yard_path := ("Mast" if String(brace["name"]).begins_with("Mast") else "Foremast") + "/Yard"
+		var yard := _bounds(ship, ship.get_node(yard_path))
+		check(yard.grow(0.05).has_point(from) and absf(from.x) >= yard.size.x * 0.5 * 0.9,
+				"%s does not start at its yard's arm" % brace["name"])
+		check(to.z > from.z, "%s does not lead aft" % brace["name"])
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(to + Vector3(0.0, 0.3, 0.0)), ship.to_global(to - Vector3(0.0, 0.3, 0.0))))
+		var gap: float = (to - ship.to_local(down.position)).y if not down.is_empty() else INF
+		check(not down.is_empty() and down.collider == rail and absf(gap) <= 0.08,
+				"%s is not belayed to the rail (it ends %.2f m off it)" % [brace["name"], gap])
+
+	var ropes: Array = stays + braces
+	# Everything else in the rigging, as segments.
+	var others: Array = []
+	for path in ["Mast/Shrouds", "Foremast/Shrouds", "Mast/Backstays"]:
+		for r in ship.get_node(path).get_meta("set_up", []):
+			others.append([r["strop"], r["top"]])
+	for r in ship.get_node("Sheets").get_meta("sheets", []):
+		others.append([r["from"], r["to"]])
+	# The spars and tops a rope might pass through, as their meshes' triangles, corner by corner.
+	var spars: Dictionary = {}
+	for path in ["Mast/Top", "Mast/Yard", "Mast/TopsailYard", "Mast/TopsailFoot", "Foremast/Top", "Foremast/Yard",
+			"Foremast/TopsailYard", "Foremast/TopsailFoot"]:
+		var points: Array[Vector3] = []
+		for m in ship.get_node(path).find_children("*", "MeshInstance3D", true, false) + [ship.get_node(path)]:
+			if m is MeshInstance3D and (m as MeshInstance3D).mesh != null:
+				for v in (m as MeshInstance3D).mesh.get_faces():
+					points.append(ship.global_transform.affine_inverse() * (m as MeshInstance3D).global_transform * v)
+		spars[path] = points
+	# The lookout's posts and rail ring on each top. The posts are plain boxes, whose corners
+	# are far from a rope through their middle, so each is tested as its box.
+	var posts: Array[MeshInstance3D] = []
+	for mast in ["Mast", "Foremast"]:
+		var points: Array[Vector3] = []
+		for m in ship.get_node(mast).get_children():
+			if m is MeshInstance3D and String(m.name).begins_with("TopPost"):
+				posts.append(m as MeshInstance3D)
+			elif m is MeshInstance3D and m.name == "TopRail":
+				for v in (m as MeshInstance3D).mesh.get_faces():
+					points.append(ship.global_transform.affine_inverse() * (m as MeshInstance3D).global_transform * v)
+		check(points.size() > 0, "%s has no lookout rail" % mast)
+		spars[mast + "/TopRail"] = points
+	check(posts.size() == 16, "%d lookout posts; there should be eight on each top" % posts.size())
+	for rope in ropes:
+		var from: Vector3 = rope["from"]
+		var to: Vector3 = rope["to"]
+		var along := (to - from).normalized()
+		# Clear of its own ends' spar and fitting: 0.3 m in from each end.
+		var a := from + along * 0.3
+		var b := to - along * 0.3
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(a), ship.to_global(b)))
+		check(hit.is_empty(), "%s runs into %s" % [rope["name"], "" if hit.is_empty() else str((hit.collider as Node).get_path())])
+		for path in spars:
+			var faces: Array[Vector3] = spars[path]
+			var through := false
+			for i in range(0, faces.size(), 3):
+				if Geometry3D.segment_intersects_triangle(a, b, faces[i], faces[i + 1], faces[i + 2]) != null:
+					through = true
+					break
+			check(not through, "%s runs through %s" % [rope["name"], path])
+		for post in posts:
+			var to_post := (ship.global_transform.affine_inverse() * post.global_transform).affine_inverse()
+			var box := post.mesh.get_aabb().grow(0.05)
+			check(box.intersects_segment(to_post * a, to_post * b) == null,
+					"%s runs through the lookout post %s" % [rope["name"], post.get_path()])
+		for other in others + ropes.filter(func(r: Dictionary) -> bool: return r != rope).map(func(r: Dictionary) -> Array: return [r["from"], r["to"]]):
+			var pair := Geometry3D.get_closest_points_between_segments(a, b, other[0], other[1])
+			check(pair[0].distance_to(pair[1]) > 0.08,
+					"%s runs into another rope at (%.2f, %.2f, %.2f)" % [rope["name"], pair[0].x, pair[0].y, pair[0].z])
+		# Over the decks, above the head of anyone walking there.
+		for i in 41:
+			var p := from.lerp(to, i / 40.0)
+			var deck := Ship.QUARTERDECK_Y if p.z > Ship.CASTLE_FRONT_Z else Ship.DECK_Y
+			if absf(p.x) < 2.5 and p.z > -1.0 and p.z < 16.0:
+				check(p.y - deck >= 1.9, "%s hangs %.2f m over the deck at z %.2f" % [rope["name"], p.y - deck, p.z])
+
+	var wind := ship.get_tree().get_first_node_in_group("wind")
+	if wind == null:
+		check(false, "no wind to test the sails against the stays and braces")
+		return
+	for blow in [ship.global_basis.z, ship.global_basis.x, -ship.global_basis.x]:
+		for i in 180:
+			wind.set("_angle", atan2(blow.x, blow.z))
+			await physics_frame
+		for name in ["Sail", "Topsail", "ForeCourse", "ForeTopsail", "Jib"]:
+			var cloth: PackedVector3Array = ship.get_node(name).get("_pos")
+			for rope in ropes:
+				var nearest := INF
+				for p in cloth:
+					nearest = minf(nearest, (Geometry3D.get_closest_point_to_segment(p, rope["from"], rope["to"]) - p).length())
+				check(nearest >= 0.1, "the %s comes %.2f m from the %s" % [name, nearest, rope["name"]])
 
 
 ## A ray straight down in ship space from `from`, `length` long.

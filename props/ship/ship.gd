@@ -111,6 +111,11 @@ const JIB_CLEW := Vector3(0.0, DECK_Y + 2.3, -0.9)
 const JIB_SHEET_Z := -1.2
 ## Where a rope belayed to the rail meets it: the handrail's top is 0.75 m above the deck.
 const HANDRAIL_TOP := 0.75
+## The braces, from each course yard's arms aft to the rail, which swing the yards round to the
+## wind: the main's to the quarterdeck's rail, the fore's to the waist, between the fore sheet
+## and the main tack. Both run outboard of anywhere a man walks.
+const MAIN_BRACE_Z := 12.4
+const FORE_BRACE_Z := 5.5
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
 ## The foremast is built as the mainmast is (_square_mast) - lower mast, top, topmast, course and
@@ -373,6 +378,8 @@ func _ready() -> void:
 	_build_topsail()
 	_build_backstays()
 	_build_sheets()
+	_build_stays()
+	_build_braces()
 	_build_flag()
 	_build_deck_fittings()
 	_build_rail()
@@ -808,9 +815,11 @@ func _square_mast(mast_name: String, at: Vector3, scale: float) -> Node3D:
 	mast.add_child(top)
 	if not _fit_model(top, RIGGING + "mast_top.glb", Vector3(0.0, MAST_TOP_Y, 0.0)):
 		_spar(top, MAIN_LOWER, 1.05, 1.05, 0.18, timber)
+	# Turned half a step off the centreline, so the stay from the mast aft passes between two.
 	for i in 8:
-		var ang := TAU * float(i) / 8.0
-		_box(mast, Vector3(cos(ang) * 0.95, 6.05 + MAIN_LIFT, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
+		var ang := TAU * (float(i) + 0.5) / 8.0
+		var post := _box(mast, Vector3(cos(ang) * 0.95, 6.05 + MAIN_LIFT, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
+		post.name = "TopPost%d" % i
 	var ring := TorusMesh.new()
 	ring.inner_radius = 0.86
 	ring.outer_radius = 1.04
@@ -2031,6 +2040,64 @@ func _build_sheets() -> void:
 		_clew_block(sheets, JIB_CLEW)
 
 
+## The stays, which hold the masts forward as the shrouds hold them sideways: the main topmast
+## stay from the main topmast's head, just above its topsail yard, forward to the fore topmast,
+## just under its topsail foot yard, crossing the fore top's rail ring between two of its posts
+## on the way; the fore topmast stay from the fore topmast's head, above its
+## topsail yard, down to the bowsprit's tip, above the jib's luff, as in the reference. Both on
+## the centreline, forward of the sails, which hang aft of their yards. Listed on the node's
+## "ropes" meta, in ship space, for the tests. No collision, like the rest of the rigging.
+func _build_stays() -> void:
+	var old := get_node_or_null("Stays")
+	if old != null:
+		old.free()
+	if get_node_or_null("Mast") == null or get_node_or_null("Foremast") == null:
+		return
+	var stays := Node3D.new()
+	stays.name = "Stays"
+	stays.set_meta("ropes", [])
+	add_child(stays)
+	# The topmast is 0.18 m in radius at MAST_AT; its head is 3 m above the lower mast's.
+	var main_head := MAST_AT + Vector3(0.0, 8.4 + MAIN_LIFT, -0.18)
+	# Above the fore top's floor, which it would pass through lower down, and low enough under the
+	# topsail foot yard; rising aft, it is 0.14 m over the rail ring where it crosses it.
+	var fore_foot := FOREMAST_AT + Vector3(0.0, MAIN_LOWER + 1.0, 0.18) * FORE_SCALE
+	var fore_head := FOREMAST_AT + Vector3(0.0, 8.4 + MAIN_LIFT, -0.18) * FORE_SCALE
+	_stay(stays, "MainTopmastStay", main_head, fore_foot)
+	if get_node_or_null("Bowsprit") != null:
+		_stay(stays, "ForeTopmastStay", fore_head, _along_bowsprit(BOWSPRIT_LENGTH - 0.1))
+
+
+func _stay(parent: Node3D, label: String, from: Vector3, to: Vector3) -> void:
+	_rope(parent, from, to, 0.025, _flat(Color(0.45, 0.34, 0.22)))
+	var entries: Array = parent.get_meta("ropes")
+	entries.append({"name": label, "from": from, "to": to})
+
+
+## A brace from each course yard's arm, just outside its block, aft and down to the rail
+## (MAIN_BRACE_Z, FORE_BRACE_Z). Listed on the node's "ropes" meta, in ship space, for the tests.
+func _build_braces() -> void:
+	var old := get_node_or_null("Braces")
+	if old != null:
+		old.free()
+	var braces := Node3D.new()
+	braces.name = "Braces"
+	braces.set_meta("ropes", [])
+	add_child(braces)
+	var rope := _flat(Color(0.45, 0.34, 0.22))
+	for side in [-1.0, 1.0]:
+		for spec in [["Mast", MAST_AT, 1.0, MAIN_BRACE_Z, QUARTERDECK_Y], ["Foremast", FOREMAST_AT, FORE_SCALE, FORE_BRACE_Z, DECK_Y]]:
+			if get_node_or_null(spec[0]) == null:
+				continue
+			var at: Vector3 = spec[1]
+			var scale: float = spec[2]
+			var arm := at + Vector3(side * (YARD_BLOCKS[0][1] + 0.1), 4.6 + MAIN_LIFT, 0.0) * scale
+			var to := _rail_top(spec[3], side, spec[4])
+			_rope(braces, arm, to, 0.015, rope)
+			var entries: Array = braces.get_meta("ropes")
+			entries.append({"name": "%sBrace%s" % [spec[0], "Starboard" if side > 0.0 else "Port"], "from": arm, "to": to})
+
+
 ## The foot corner of a sail on `side` (+1 starboard).
 func _clew(sail: Node, side: float) -> Vector3:
 	var from: Vector3 = sail.get("_foot_from")
@@ -2038,10 +2105,10 @@ func _clew(sail: Node, side: float) -> Vector3:
 	return to if (to.x - from.x) * side > 0.0 else from
 
 
-## The top of the rail's handrail `z` along the ship, on `side`.
-func _rail_top(z: float, side: float) -> Vector3:
+## The top of the rail's handrail `z` along the ship, on `side`, on the rail round `deck`.
+func _rail_top(z: float, side: float, deck := DECK_Y) -> Vector3:
 	var at: Vector2 = _outline_at(RAIL_PATH, z)[0]
-	return Vector3(side * at.x, DECK_Y + HANDRAIL_TOP, z)
+	return Vector3(side * at.x, deck + HANDRAIL_TOP, z)
 
 
 ## A single block hung from a clew: its strop at the clew, 0.35 m long below it.
