@@ -579,7 +579,9 @@ vec3 whitecap_event(float dist, float mid, float which, float spill, vec3 fine, 
     float lobe = smoothstep(0.65, 0.05, coarse.x);
     float bump = smoothstep(0.55, 0.05, fine.x);
     float edge = 0.62 + 0.38 * lobe * (0.5 + coarse.y) + 0.16 * bump;
-    float e_aa = max(fwidth(e), 0.01);
+    // Capped: where the crest above changes, e jumps, and an unbounded width smeared the jump
+    // across whole pixel quads, in blocks.
+    float e_aa = clamp(fwidth(e), 0.01, 0.08);
     float shape = 1.0 - smoothstep(edge - e_aa, edge + e_aa, e);
     // The solid heap, shrinking with age, with small round bubble holes in some of the small
     // cells, growing as it ages.
@@ -618,15 +620,15 @@ vec3 wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 co
 // Style 3: whitecap events on the painted lattice's crests. `along` metres along the crests,
 // `below` metres down the face from the crest above, `crest_id` that crest's random number
 // (the tile's alpha). The crests are cut into stretches `stretch` metres long, each breaking on
-// its own; the two stretches nearest are tried, so a whitecap can spread over a stretch's end.
+// its own; this stretch and one either side are tried, so a whitecap can spread over a
+// stretch's end (a whitecap reaches at most about 5.5 m from its middle, which lies at least
+// 1.5 m inside its stretch).
 vec3 lattice_event(float along, float below, float crest_id, vec3 fine, vec3 coarse, float t) {
     const float stretch = 6.0;
     float k = floor(along / stretch);
-    float f = along / stretch - k;
-    float k2 = k + (f < 0.5 ? -1.0 : 1.0);
     vec3 best = vec3(0.0);
-    for (int i = 0; i < 2; i++) {
-        float kk = i == 0 ? k : k2;
+    for (int i = -1; i <= 1; i++) {
+        float kk = k + float(i);
         float which = hash(vec2(kk * 1.31 + 0.5, crest_id * 97.3));
         float centre = (kk + 0.25 + 0.5 * hash(vec2(kk * 5.7, crest_id * 13.1))) * stretch;
         vec3 one = whitecap_event(below, along - centre, which, 1.0, fine, coarse, t);
