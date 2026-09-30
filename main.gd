@@ -894,7 +894,10 @@ func _ready() -> void:
 			tunnel_mode = true
 	# A tunnel used to cancel the coastal layout outright, which is why a cave meant giving up
 	# the shoreline spawn, the moored ship and the rock-and-palm grouping - and why it looked
-	# like the study could not cope with holes in the terrain. It copes fine; it was never asked.
+	# like the study could not cope with holes in the terrain. It was never asked - though once it
+	# was, it turned out not to look for holes either, and stood its rocks in the mouth of a tunnel
+	# that opened on its beach. It keeps clear of openings now: see HOLE_CLEARANCE in
+	# world/coastal_study.gd.
 	#
 	# The exclusion is only right for a GENERATED tunnel. plan_tunnel_ends() is planned around
 	# the spawn as it stands BEFORE the study runs, so letting the study move the spawn
