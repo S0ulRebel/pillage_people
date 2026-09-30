@@ -75,10 +75,12 @@ Done so far:
 - **Trim:** the wale's profile is swept round the castle's walls with its top just under the quarterdeck's edge, where the rail's base overhangs them. It runs round the stern and across the front wall, stopping either side of the stairs. At both ends it turns into the wall, so the stairs see a returned end, not an open one.
 - The castle, stairs and hull collide as their exact meshes.
 - The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
-- **Mizzen:** the foremast's model again (4.2 m), on the quarterdeck between its front edge and the binnacle. It carries the spanker, a fore-and-aft sail laced to the mast, a boom and a gaff. Both spars are the topsail yard's model stretched to length, and they reach aft over the wheel, the boom 2.5 m up, clear of the helmsman's head. The spanker's luff is laced down the mast (`Sail.pin_luff`), so only its leech is free and it fills on either tack. Two shrouds a side hold the mast, with deadeyes just above the quarterdeck's rail. A topping lift holds up the boom's end and a peak halyard the gaff's.
-- **Foremast and bowsprit:** the foremast is the M01 model stretched to 6.8 m (four fifths of the main) and thickened; the bowsprit is M07 stretched to 5.2 m and thickened as far as the knightheads allow. The jib and bobstay follow them.
-- **Fore yards:** the foremast carries the main's two yard models at about four fifths of their size: the fore yard at 4.3 m (6.4 m across) with the fore course, its foot free 2 m above the foredeck, and the fore topsail yard at 6.3 m (4.2 m across) with the fore topsail laced down to the fore yard. There is a block under each arm.
-- The course's foot hangs free, so a following wind swings it back toward the castle. The cloth is kept out of the castle's box and away from the mizzen's foot.
+- **Two masts, as the reference has.** A mizzen with a spanker stood on the quarterdeck for a while. The reference (`art-breakdown/00-corrected-ship.webp`) has none, the rigging sheet marks the spanker, gaff and boom optional, and the mast crowded the helm, so it was taken out.
+- **Mast heights:** the mainmast's lower mast is the M01 model stretched to 7 m (`MAIN_LOWER`), and everything above it (the top, both yards, the topmast, the flag) is raised with it, 10 m to the topmast head. At 5.5 m the course hung across the quarterdeck's stairs, which run up beside the mast. The foremast is the M01 model stretched to 8.2 m, about four fifths of the main, and thickened. The bowsprit is M07 stretched to 5.2 m and thickened as far as the knightheads allow.
+- **Fore yards:** the foremast carries the main's two yard models at about four fifths of their size: the fore yard at 5.3 m (6.4 m across) with the fore course, and the fore topsail yard at 7.6 m (4.2 m across) with the fore topsail laced down to the fore yard. There is a block under each arm. As in the reference, the jib's head is at the fore yard, not the masthead.
+- **Sail canvas:** the cloth sails are painted with Tripo's sails, so they show its seams, patches and hem where they were plain cloth. `python tools/bake_sail_canvas.py` flattens each Tripo sail (`rigging/sail_course.glb`, `sail_topsail.glb`, `sail_jib.glb`), maps the cloth's square onto its corners (the jib's head is one corner), and bakes `rigging/canvas_<sail>.png` in the cloth's own texture coordinates. The canvas just inside each corner's grommet is used, and the gaps where Tripo's edges curve in are mirrored in from across the edge. The courses use `canvas_course.png`, the topsails `canvas_topsail.png`, the jib `canvas_jib.png`, with a warm tint so full sun keeps them cream.
+- **Sheeted courses:** both courses are laced to their yards and sheeted home at the foot, 2.6 m below, as the reference's sails are. They belly in the wind but never swing back over the stairs or the castle. The main course's foot is above the head of anyone on the stairs beside the mast, and above the quarterdeck's rail.
+- **Sheets and tacks:** the sails' feet are made fast as in the reference. A single block hangs from each course clew (its foot's corners), and from it a sheet runs aft and a tack forward, down to the rail's handrail where they are belayed. The fore course's tack goes to its cathead, because the fore shrouds' channels take the rail ahead of it. The jib's foot is no longer laced along the bowsprit: its tack is lashed near the bowsprit's tip, and its clew hangs free above the bow, 2.3 m up, with a block and a sheet to each side's rail. The topsails' feet are laced to the yards below them.
 
 **The rail:** the solid wall round the weather deck is gone, bow to stern, and a rail stands in its place.
 - `python tools/strip_game_bulwarks.py` takes the top tier off the game hull down to the deck. The tier below ends in a flat wall top, 0.2 m wide along the sides.
@@ -104,10 +106,10 @@ Done so far:
 **The wale and the small rigging:**
 - **Wale:** swept round the whole hull at 4.4 m, between the gunport frames and the weather deck, closed round the stem and the stern. `tools/rail_profiles.py` slices and bakes the wale bay like the rail's pieces (`deck/rail_sweep.glb`). Each side follows its own outline measured off the hull, because the kit's bow is not quite symmetrical.
 - **Shrouds and backstays:** every rope is made fast at both ends, as on a real ship.
-  - At the top it leaves its mast from the surface: the main's from the top's collar, under the platform and clear of the course yard; the fore's between its yards; the mizzen's under the gaff; the backstays' from the topmast's aft side, above the topsail yard.
+  - At the top it leaves its mast from the surface: the main's from the top's collar, under the platform and clear of the course yard; the fore's between its yards; the backstays' from the topmast's aft side, above the topsail yard.
   - At the foot it ends in an upper deadeye, with a lanyard to a lower deadeye. The lower deadeye stands on a channel, a 0.3 m plank along the outside of the rail just above its top, so the deadeyes and ropes are clear of the rail. An iron chain plate runs from the lower deadeye down the hull to just above the wale, or on the castle to the top of the trim.
   - Channels at deck level would have had to stand out most of a metre, because the ropes lean in so far toward their masts, which is why they sit above the rail.
-  - Main: 3 a side, with ratlines. Fore: 3 a side, with ratlines, forward of the mast (clear of the fore sails) and forward of the catheads. Mizzen: 2 a side. Backstays: one a side, each to its own channel at the stern quarter.
+  - Main: 3 a side, with ratlines. Fore: 3 a side, with ratlines, forward of the mast (clear of the fore sails) and forward of the catheads. Backstays: one a side, each to its own channel at the stern quarter.
 - **Blocks:** a single block under each end of the course yard and the topsail yard. The double blocks are not placed.
 - **Flag:** on a short staff above the topmast, held by its three rings, and turned each physics frame to stream downwind with the breeze the sails feel. `python tools/rig_flag.py` sets Tripo's flag up for that (`rigging/flag_rigged.glb`):
   - straightens its hoist so the rings stand in one line;
@@ -122,9 +124,10 @@ Done so far:
 - a part sits off its mark;
 - the castle's sides do not meet the hull's;
 - the way up the stairs to the wheel has a step the captain cannot take, or no room for him;
-- the course hangs inside the castle or through the mizzen;
+- the course bellies back over the castle, or hangs into the head room over the quarterdeck's stairs;
+- a sheet or tack does not start at a sail's foot corner, is not belayed to the rail or cathead, or runs through the hull, the rail or a shroud;
 - the castle's trim is off the wall, into the stairs' rails, or over a window or the door;
-- the mizzen stands in a fitting, its boom comes down into the helmsman's head room, or the spanker's luff comes off the mast;
+- a sail has no canvas, or there is a mizzen;
 - a shroud or backstay leaves its mast in the air, or its deadeyes, channel or chain plate are not made fast to the ship, or it runs through the rail, the hull or the fore sails;
 - a pillar is off the wall, not under the trim, or in a window, the door or the stairs' rails; a corner pillar is off its corner, the rail reaches into it or does not stop 0.25 m short, or it does not collide; or the stern window is not framed;
 - the bottom rim is off the deck line or the wall, or runs across the front wall's walkway;
