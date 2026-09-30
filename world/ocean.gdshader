@@ -583,7 +583,7 @@ vec3 whitecap_event(float dist, float mid, float which, float spill, vec3 fine, 
     float shape = 1.0 - smoothstep(edge - e_aa, edge + e_aa, e);
     // The solid heap, shrinking with age, with small round bubble holes in some of the small
     // cells, growing as it ages.
-    float core_edge = edge * (1.0 - smoothstep(0.2, 0.85, a)) * 0.85;
+    float core_edge = edge * (1.0 - smoothstep(0.35, 0.95, a)) * 0.9;
     float core = 1.0 - smoothstep(core_edge - e_aa, core_edge + e_aa, e);
     float aa_f = max(fwidth(fine.x), 0.003);
     float hole_r = mix(0.05, 0.16, a) * step(0.72, fine.y);
@@ -602,7 +602,7 @@ vec3 whitecap_event(float dist, float mid, float which, float spill, vec3 fine, 
     // down the spill, furthest from the crest.
     float valley = 1.0 - smoothstep(0.0, 0.14, coarse.z);
     float low = smoothstep(0.35, 0.95, dist / max(w * edge, 0.001));
-    float shade = clamp(max(valley * 0.8, low * 0.7) * (0.6 + 0.4 * (1.0 - bump)), 0.0, 1.0);
+    float shade = clamp(max(valley * 0.55, low * 0.6) * (0.6 + 0.4 * (1.0 - bump)), 0.0, 1.0);
     float halo = (1.0 - smoothstep(edge, edge * 1.8, e)) * (1.0 - smoothstep(0.6, 1.0, a));
     return vec3(cover, shade, halo) * chosen;
 }
@@ -1060,6 +1060,19 @@ void fragment() {
                 * scale / 7.0;
             vec3 events = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
                 clock * wave_speed);
+            // Where the tile hands one crest over to the next, the crest above changes at a
+            // hard line; fade the whitecap out toward it (the same crest found a little either
+            // way along it) rather than cutting it there.
+            float step_uv = 0.35 / scale;
+            float same = 0.0;
+            for (int i = -2; i <= 2; i++) {
+                if (i == 0) {
+                    continue;
+                }
+                float id_there = texture(wave_lattice_ids, uv + vec2(float(i) * step_uv, 0.0)).a;
+                same += abs(id_there - crest_id) < 0.002 ? 0.25 : 0.0;
+            }
+            events.x *= smoothstep(0.2, 0.95, same);
             crest_shade = events.y * step(crest, events.x);
             crest = max(crest, events.x * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
             event_halo = events.z;
@@ -1073,7 +1086,7 @@ void fragment() {
     // chop is still bigger than the pixels, and near.
     crest *= smoothstep(1.5, 4.0, water_depth) * swell;
     crest *= 1.0 - smoothstep(80.0, 200.0, range_here);
-    crest_glow = max(crest_glow, event_halo * 0.8);
+    crest_glow = max(crest_glow, event_halo * 0.45);
     crest_glow *= (1.0 - smoothstep(0.12, 0.3, metres_per_px)) * smoothstep(1.5, 4.0, water_depth)
         * swell * (1.0 - smoothstep(55.0, 150.0, range_here));
     // Everything white on the water, foam and crests together.
@@ -1216,7 +1229,7 @@ void fragment() {
     // a little like the crest under them; their shade fades out with distance, where the puffs
     // are too small to read.
     float puff_shade = crest_shade * (1.0 - smoothstep(0.03, 0.08, metres_per_px));
-    vec3 crest_colour = mix(foam_colour, mix(foam_colour, sss_colour, 0.3) * 0.82, puff_shade);
+    vec3 crest_colour = mix(foam_colour, mix(foam_colour, sss_colour, 0.22) * 0.9, puff_shade);
     vec3 white_colour = surf >= crest ? shore_white.rgb : crest_colour;
     ALBEDO = mix(banded_water, white_colour * sky_light, white);
     ALPHA = edge * max(contact, max(white, object_band));
