@@ -196,18 +196,31 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   `underwater_view` misses its waterline by 8 mm; clean `main` does exactly the same on this
   software renderer (lavapipe).
 
-## Phase 6: sea level at y = 0, all heights in metres
+## Phase 6: sea level at y = 0, all heights in metres (done)
 
-- **Terrain:** remove `height_scale` and `sea_fraction`. `sea_level()` returns 0. Heights are
-  stored in metres. `find_spawn()` works in metres above sea.
-- **Water:** the water shaders get `terrain_scale` 1, and their `sea_y` defaults change from 18
-  to 0.
-- **Migration script:** subtract 18 m from every hand-placed height in `main.tscn`: the ship,
-  arch, ocean, fish, stamps, tunnel and island (90.0014 becomes 72.0014 m). Tunnel curves are
-  stored relative to their node, so they move with it.
-- **Audit the remaining fixed heights:** the test cameras (`tests/modes.gd`) and
-  `systems/ambience.gd:229`.
-- **Done when:** every test passes and screenshots match the ones taken before the phase.
+- **Terrain:** heights are stored in metres above the sea, which is at the Terrain's own y;
+  `sea_level()` returns 0. The Seabed, `reshape_grid()` and the shore field bake work in
+  metres too. `find_spawn()` looks for ground near 63 m above the sea (what 0.45 of the old
+  180 m range was), so the spawn is the same spot.
+- **Changed from the plan:** `height_scale` and `sea_fraction` are gone from the Terrain, but
+  a height file holds fractions, so until phase 7 removes the loader it is told their meaning
+  as `file_height` and `file_sea_fraction` (in the "Height map file" group). The rock band,
+  which was 50-80% of `height_scale`, is `rock_heights` (72-126 m above the sea).
+- **Water:** `terrain_scale` is gone rather than set to 1 - the height texture is metres - and
+  `sea_y` (and the bubbles' `water_level`) default to 0, the far floor to -60 m.
+- **main.tscn:** every hand-placed world height is 18 m lower: the ship, arch, ocean, fish,
+  cannon, stamps, tunnel and the waterfall's curve points; the Island stands at 72.0014 m
+  with its 90.0014 m of height. The Sun is left at 60 m - a directional light's position does
+  nothing, and `day.gd` sets it. The cloud shadows' deck comes down to 382 m to stay put.
+- **Tests:** the ones that place tunnels at fixed heights (`chunk_check`, `coastal_smoke`) and
+  the overview camera in `modes.gd` come down 18 m; the rest already measured from the ground
+  or the sea. `systems/ambience.gd:229` is relative to the listener and needed nothing.
+- **Checked:** a dump of main.tscn before and after - the ground at 70,000 points in and past
+  the square, and every node's position - shows everything 18 m lower: the ground to 0.009 mm,
+  the nodes exactly, bar the ones moving anyway (the ship on the swell, fish, the captain) and
+  the ashore crates still settling after three physics frames. `island_stamp_check` holds the
+  island to the file at 0.015 mm. Every check passes, and every printed number that is a
+  height is 18 m lower than in phase 5.
 
 ## Phase 7: clean-up and docs
 
