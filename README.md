@@ -297,6 +297,23 @@ under Terrain in `main.tscn` - a Replace, 620 m square, over a Seabed. It used t
 ground, read as `terrain/island.r16`; that file stays until the old loader is removed, so
 `tests/island_stamp_check.gd` can show the stamp gives the same ground (to 0.011 mm).
 
+Its outer slope fades into the **Seabed** (`world/seabed/seabed.gd`, a child of Terrain) over
+`border_fade` (90 m), so at the square's edge the ground is the Seabed alone, and the Terrain
+carries it on as a coarse **far ring** out to `far_extent`, 1200 m - past the camera's 1 km.
+The ring is stitched to the square's own edge vertices, so there is no seam; it has its own
+coarse collider, and the water reads its depth off it. A stamp whose reach crosses the edge
+shapes the ring too. `tests/far_seabed_check.gd` checks the stitch, the collider, the water and
+the far depth; `tests/seabed_view.gd` renders the border from above, the ship, the beach and
+three dives.
+
+| Seabed setting | Default | Meaning |
+|---|---|---|
+| `depth` | 4 m | water over the bed near the island - deeper than the shallows' reef band, so no coastal bed grows out on it |
+| `noise_height`, `noise` | 1 m | bumps on top, from a FastNoiseLite |
+| `shelf_radius` | 200 m | how far from the Terrain's middle the bed stays at `depth` |
+| `deepening_distance` | 350 m | over which it then drops to `far_depth` |
+| `far_depth` | 60 m | the open sea's depth, and the water's bed past the far ring |
+
 Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
 tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, 5 grunts, a reef of
 corals and weed on the dive crater's floor, and about 450 more through the shallows in some
@@ -345,6 +362,8 @@ Useful settings on the Terrain node:
 | `height_samples` | 1025 | height samples per side when the ground starts from a Seabed (2 x `mesh_resolution` + 1). An image stamp the ground's size with this many samples - the island - lands sample on sample and is applied without interpolating. |
 | `collision_resolution` | 513 | collision samples per side (match `mesh_resolution` + 1) |
 | `cut_edges` | on | cut the ground mesh along soft stamps' outlines and bank feet, so a sharp pad edge is a real edge. Off, sharp edges are drawn from the height field alone and come out saw-toothed; edges wider than about 2.5 m look the same either way. No cost per frame. |
+| `far_extent` | 1200 | how far out from the middle the far ring goes, in metres. Only with a Seabed. |
+| `far_cell` | 8 | detail quads per far ring cell (8 is 9.7 m on the island). Must divide `mesh_resolution` / 2. |
 | `chunk_quads` | 32 | quads per chunk side. The ground is built in chunks so an edit only rebuilds the chunks it touches: the whole island is about 3 s, one chunk about 10 ms, so a ticked stamp or tunnel follows the gizmo. Chunks are culled one by one too. |
 | `biome_path` | `terrain/island_biome.png` | the hand-painted overrides on the automatic biome. See Painting the biome below. |
 | `biome_palette_path` | `terrain/biome_palette.png` | the named colours `biome_path` indexes into. See Painting the biome below. |

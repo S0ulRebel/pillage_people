@@ -164,18 +164,37 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   `addons/terrain_live_check` gained a Seabed section and now edits a pad in main.tscn, not
   its first stamp, which is now the island.
 
-## Phase 5: seamless border and far seabed
+## Phase 5: seamless border and far seabed (done)
 
-- **Border:** at the edge of the square the island file is 7–12.6 m deep. Turn on the island
-  stamp's edge fade across its outer slope (roughly 220–310 m from the centre, which is a
-  plain slope with no features), and tune the seabed to meet it.
-- **Far seabed:** a coarse ring of mesh from the square out to about 1.2 km, past the camera's
-  1 km view distance. It gets coarse collision, and a short skirt hides cracks where it meets
-  the detailed grid.
-- **Water shader:** `bed_height()` in `world/waves.gdshaderinc` reads a coarse far-seabed
-  texture instead of the fake drop to 60 m.
-- **Done when:** there is no visible seam from the beach, from the ship or from a dive. Check
-  with `tests/underwater_view.gd` and `tests/dive_hole_view.gd`.
+- **Border:** the Island stamp has `border_fade = 90` m, so across its plain outer slope it
+  fades from the file's heights to the Seabed; at the square's edge the ground is the Seabed
+  alone. `tests/island_stamp_check.gd` checks the island's core is still the file's (0.011 mm),
+  the edge is the bed alone, and the ground inside and outside the edge agree (1 µm at the
+  samples, 2 mm between them).
+- **Seabed:** now deepens from the middle of the Terrain rather than from the square's edge,
+  which drew a square halo from above: `depth` (4 m) out to `shelf_radius` (200 m), then down
+  to `far_depth` (60 m) over `deepening_distance` (350 m), `noise_height` 1 m on top. 4 m
+  rather than 3 so reef.gd's coastal beds (0.9–2.8 m of water) never grow out on the fade.
+- **Far seabed:** a coarse ring of mesh from the square out to `far_extent` (1200 m), in cells
+  of `far_cell` (8) detail quads, 9.7 m. `height_at()` past the square is the Seabed plus every
+  stamp that reaches there, so a pad whose fade crosses the edge carries on across it.
+- **Changed from the plan: no skirt.** The ring's cells along the edge are stitched to the
+  chunks' own edge vertices (a fan through the eight or so on each side), including those a
+  pad's cut lines put on the edge, so there is no crack to hide.
+- **Collision:** a second, coarse HeightMapShape3D with NaN over the square. Its plain cells
+  are drawn split the way Jolt splits the collider's, (i+1, j) to (i, j+1), so the ground
+  walked on out there is the ground drawn.
+- **Water:** `bed_height()` reads a far height texture (`far_height`, `far_size`, and
+  `far_floor` past it) instead of the fake drop to 60 m; `underwater.gd` mirrors them.
+- **Tests:** `tests/far_seabed_check.gd` checks the stitch (every chunk edge vertex is a ring
+  vertex, at the same height, and nothing else is), rays down at and past the edge (no gap;
+  the collider is the drawn ring to 0.1 mm, and height_at() to 0.25 m - the bed's finest bumps
+  are about 20 m across, over 10 m cells), the water's far texture against height_at(), a
+  stamp dug past the edge, and the far depth. `tests/seabed_view.gd` renders the border from
+  above, the ship, the beach and three dives.
+- **Seen in this environment, not caused here:** the dive shots come out solid blue and
+  `underwater_view` misses its waterline by 8 mm; clean `main` does exactly the same on this
+  software renderer (lavapipe).
 
 ## Phase 6: sea level at y = 0, all heights in metres
 
