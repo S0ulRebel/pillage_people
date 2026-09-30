@@ -3,7 +3,8 @@
 # Needs numpy, scipy and Pillow. Also writes a *_look.png preview next to it.
 # Painted wave lattice tile (option 1): rows of overlapping arched crests like the swatches.
 # R: white crest strokes, beads and clumps  G: face (0 just under a crest -> 1 a row below)
-# B: soft glow spilling down the face under the white   A: 255
+# B: soft glow spilling down the face under the white
+# A: which crest is above this pixel (a random number per crest), for the whitecap events
 import numpy as np, sys
 from PIL import Image
 from scipy.ndimage import gaussian_filter
@@ -13,6 +14,7 @@ ROWS = 7
 rng = np.random.default_rng(int(sys.argv[2]) if len(sys.argv) > 2 else 3)
 white = np.zeros((N, N), np.float32)
 face = np.full((N, N), 1e9, np.float32)
+owner = np.zeros((N, N), np.float32)
 vv = np.arange(N, dtype=np.float32)[:, None]
 
 def stamp(u, v, r):
@@ -52,7 +54,10 @@ for r in range(ROWS):
         # the face below this crest: distance down (in v) to each pixel, wrapped
         cols = np.floor(arc_u).astype(int) % N
         d = (vv - arc_v[None, :]) % N
-        face[:, cols] = np.minimum(face[:, cols], d)
+        crest_id = rng.uniform(0.02, 0.98)
+        closer = d < face[:, cols]
+        face[:, cols] = np.where(closer, d, face[:, cols])
+        owner[:, cols] = np.where(closer, crest_id, owner[:, cols])
         # white on part of the crest
         if rng.random() < 0.85:
             a0 = rng.uniform(0.0, 0.35)
@@ -99,7 +104,7 @@ face = np.clip(face / row_h, 0, 1)
 face = gaussian_filter(face, sigma=(2, 18), mode="wrap")
 glow = gaussian_filter(np.roll(white, 7, axis=0), sigma=9, mode="wrap")
 glow = np.clip(glow / max(glow.max(), 1e-6) * 2.2, 0, 1)
-img = np.stack([white, face, glow, np.ones_like(white)], -1)
+img = np.stack([white, face, glow, owner], -1)
 Image.fromarray((img * 255).round().astype(np.uint8), "RGBA").save(sys.argv[1])
 Image.fromarray((np.clip(0.25 + 0.5*(1-face)[..., None] * np.array([0.1, 0.6, 0.8]) + white[..., None], 0, 1) * 255).astype(np.uint8)).save(sys.argv[1].replace(".png", "_look.png"))
 print("white %.1f%%" % (100 * (white > 0.5).mean()))

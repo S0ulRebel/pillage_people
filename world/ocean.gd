@@ -341,7 +341,9 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 		var lattice := Image.load_from_file(lattice_path)
 		if lattice != null:
 			lattice.generate_mipmaps()
-			_push("wave_lattice", ImageTexture.create_from_image(lattice))
+			var lattice_texture := ImageTexture.create_from_image(lattice)
+			_push("wave_lattice", lattice_texture)
+			_push("wave_lattice_ids", lattice_texture)
 			_push("wave_lattice_ready", true)
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:

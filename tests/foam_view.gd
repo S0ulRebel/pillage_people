@@ -192,9 +192,9 @@ func _sea_views(camera: Camera3D, ocean: Node, shore: Vector3, inland: Vector3) 
 
 ## PROTOTYPE comparison (docs/foam-plan.md, 8k): each whitecap_style from the swatch framing
 ## and from the gameplay camera, next to the "choppy" swatch, and style 2's events over time.
-##   styles_low.png       choppy swatch | net | painted lattice | events
-##   styles_gameplay.png  net | painted lattice | events, from the gameplay camera
-##   events_time.png      events at four moments 1.2 s apart
+##   styles_low.png       choppy swatch | net | painted lattice | events | lattice + events
+##   styles_gameplay.png  the same four styles from the gameplay camera
+##   events_time.png      lattice + events at four moments 1.2 s apart
 func _style_views(camera: Camera3D, ocean: Node, open_sea: Vector3, inland: Vector3,
 		low: Image) -> void:
 	var low_xf := camera.global_transform
@@ -206,7 +206,7 @@ func _style_views(camera: Camera3D, ocean: Node, open_sea: Vector3, inland: Vect
 			Image.INTERPOLATE_LANCZOS)
 	var lows: Array[Image] = [swatch]
 	var tops: Array[Image] = []
-	for style in 3:
+	for style in 4:
 		ocean.material.set_shader_parameter("whitecap_style", style)
 		camera.global_transform = low_xf
 		lows.append(_middle(await _capture("style_%d_low" % style), 0.9))
@@ -214,7 +214,7 @@ func _style_views(camera: Camera3D, ocean: Node, open_sea: Vector3, inland: Vect
 		tops.append(_middle(await _capture("style_%d_gameplay" % style), 0.9))
 	_strip(lows, "styles_low")
 	_strip(tops, "styles_gameplay")
-	ocean.material.set_shader_parameter("whitecap_style", 2)
+	ocean.material.set_shader_parameter("whitecap_style", 3)
 	camera.global_transform = low_xf
 	var times: Array[Image] = []
 	for k in 4:
@@ -222,7 +222,7 @@ func _style_views(camera: Camera3D, ocean: Node, open_sea: Vector3, inland: Vect
 		times.append(_middle(await _capture("events_%d" % k), 0.9))
 	ocean.hold_clock = MOMENT
 	_strip(times, "events_time")
-	ocean.material.set_shader_parameter("whitecap_style", 0)
+	ocean.material.set_shader_parameter("whitecap_style", 3)
 
 
 func _middle(image: Image, aspect: float) -> Image:

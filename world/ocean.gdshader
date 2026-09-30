@@ -195,13 +195,17 @@ uniform float crest_strength : hint_range(0.0, 1.0) = 0.45;
 //     way Wind Waker lays its ocean texture; it also shades the faces
 //   2 whitecap events: the net's crest lines as hairlines only, and on them whitecaps that are
 //     born, spread along the crest, turn to lace and go, each at its own moment
-uniform int whitecap_style : hint_range(0, 2) = 0;
+//   3 the two together: the painted lattice, with whitecap events breaking along its crests
+uniform int whitecap_style : hint_range(0, 3) = 3;
 uniform sampler2D wave_lattice : filter_linear_mipmap, repeat_enable;
+// The same tile unfiltered, for its alpha - which crest is above each point - which must not be
+// blended between two crests.
+uniform sampler2D wave_lattice_ids : filter_nearest, repeat_enable;
 uniform bool wave_lattice_ready = false;
 // Metres one lattice tile spans.
 uniform float lattice_size : hint_range(4.0, 40.0) = 18.0;
 // The share of crest walls breaking in any whitecap cycle, and a cycle's seconds.
-uniform float event_rate : hint_range(0.0, 1.0) = 0.4;
+uniform float event_rate : hint_range(0.0, 1.0) = 0.3;
 uniform float event_period : hint_range(1.0, 30.0) = 7.0;
 
 // ---- Object bands -----------------------------------------------------------------------
@@ -551,16 +555,21 @@ vec2 crest_wall_foam(float dist, float ny, float which, float other, float stren
 // the wall's middle, spreads along it and down the face in the first third of its life, and
 // turns to lace, beads and nothing, like the shore foam. `dist` metres from the wall, `ny` its
 // direction, `which` its random number, `mid` metres from its middle.
-float wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 coarse, float t) {
+// A whitecap event at `dist` metres from its crest (down the face; the back takes `spill` of
+// that) and `mid` metres along the crest from its middle, for a crest whose random number is
+// `which`. Every event_period seconds, at its own moment, the crest breaks with chance
+// event_rate: white is born at the middle, spreads along the crest and down the face in the
+// first third of its life - a solid, lumpy core - which shrinks as lace of two sizes opens
+// round it, then goes.
+float whitecap_event(float dist, float mid, float which, float spill, vec3 fine, vec3 coarse,
+        float t) {
     float life = event_period * 0.55;
     float cyc = t / max(event_period, 0.1) + which * 7.13;
     float n = floor(cyc);
     float a = fract(cyc) * event_period / life;
-    float chosen = step(hash(vec2(which * 91.7, n * 1.37)), event_rate) * step(a, 1.0)
-        * step(0.35, abs(ny));
+    float chosen = step(hash(vec2(which * 91.7, n * 1.37)), event_rate) * step(a, 1.0);
     float size = 0.7 + 0.6 * hash(vec2(n * 3.1, which * 17.0));
     float grow = sqrt(clamp(a * 3.0, 0.0, 1.0));
-    float spill = ny < -0.35 ? 1.0 : 0.35;
     float w = mix(0.08, 0.7, grow) * spill * size;
     float r = mix(0.5, 3.4, grow) * size;
     float e = length(vec2(dist / max(w, 0.001), mid / r));
@@ -577,6 +586,33 @@ float wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 c
         foam_holes(coarse, max(lace_age * 1.2 - 0.3, 0.0)).x);
     lace = max(lace, core);
     return shape * lace * chosen;
+}
+
+// Style 2: a whitecap event on one wave-cell wall (distance, direction, random number and
+// distance from its middle as wave_cells gives them). Crest walls and slanting ones break;
+// the spill goes down the face.
+float wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 coarse, float t) {
+    float spill = ny < -0.35 ? 1.0 : 0.35;
+    return whitecap_event(dist, mid, which, spill, fine, coarse, t) * step(0.35, abs(ny));
+}
+
+// Style 3: whitecap events on the painted lattice's crests. `along` metres along the crests,
+// `below` metres down the face from the crest above, `crest_id` that crest's random number
+// (the tile's alpha). The crests are cut into stretches `stretch` metres long, each breaking on
+// its own; the two stretches nearest are tried, so a whitecap can spread over a stretch's end.
+float lattice_event(float along, float below, float crest_id, vec3 fine, vec3 coarse, float t) {
+    const float stretch = 6.0;
+    float k = floor(along / stretch);
+    float f = along / stretch - k;
+    float k2 = k + (f < 0.5 ? -1.0 : 1.0);
+    float best = 0.0;
+    for (int i = 0; i < 2; i++) {
+        float kk = i == 0 ? k : k2;
+        float which = hash(vec2(kk * 1.31 + 0.5, crest_id * 97.3));
+        float centre = (kk + 0.25 + 0.5 * hash(vec2(kk * 5.7, crest_id * 13.1))) * stretch;
+        best = max(best, whitecap_event(below, along - centre, which, 1.0, fine, coarse, t));
+    }
+    return best;
 }
 
 // How much of the waves this pixel keeps, three ways:
@@ -971,7 +1007,7 @@ void fragment() {
         * smoothstep(-1.1, -0.6, 0.5 * swell_up + (crest_info.z - 0.5))
         // ... and fading out toward the cell's other walls rather than stopping at them.
         * (cells.y < -0.35 ? 1.0 : smoothstep(0.0, 0.3, cells.x));
-    if (whitecap_style == 1 && wave_lattice_ready) {
+    if ((whitecap_style == 1 || whitecap_style == 3) && wave_lattice_ready) {
         // The painted lattice: the tile laid in the crest frame, drifting with the waves and
         // wobbled by a few sines (Wind Waker's way of hiding that it is a texture), and a second
         // copy turned 20 degrees and smaller, the two blended by a slow noise about 30 m across
@@ -986,6 +1022,19 @@ void fragment() {
         crest = tile.r;
         crest_glow = tile.b * 0.9;
         cell_face = tile.g;
+        if (whitecap_style == 3 && foam_lace_ready) {
+            // The events break along the crests of whichever copy of the tile shows here.
+            bool second_copy = pick > 0.5;
+            vec2 uv = second_copy ? uv2 : uv1;
+            float scale = lattice_size * (second_copy ? 0.77 : 1.0);
+            float crest_id = texture(wave_lattice_ids, uv).a;
+            float below = (second_copy ? texture(wave_lattice, uv2).g : texture(wave_lattice, uv1).g)
+                * scale / 7.0;
+            float events = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
+                clock * wave_speed);
+            crest = max(crest, events * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
+            crest_glow = max(crest_glow, events * 0.6);
+        }
     }
     // The walls are a few centimetres: gone where a pixel spans more than a quarter metre of
     // sea, before they can shimmer.

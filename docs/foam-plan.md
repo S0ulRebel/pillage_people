@@ -484,3 +484,19 @@ material to compare against the net (0, still the default):
 - tests/foam_view.gd with FOAM_STYLES=1 renders styles_low.png (choppy swatch | 0 | 1 | 2),
   styles_gameplay.png (0 | 1 | 2 from the gameplay camera) and events_time.png (style 2 at
   four moments 1.2 s apart).
+
+### Step 8l: the painted lattice with whitecap events on its crests (now the default)
+
+- `whitecap_style` 3, the default: the painted lattice (style 1) as the base - its crest lines,
+  beads, clumps and connectors, its face shading and glow - with whitecap events breaking along
+  the lattice's own crests, not the net's walls, so the white that comes and goes sits on the
+  painted crests.
+- The tile's alpha now says which crest is above each point (a random number per crest,
+  tools/make_wave_lattice.py), read unfiltered (`wave_lattice_ids`) so it is never blended
+  between two crests. Each crest is cut into 6 m stretches that break on their own
+  (`lattice_event`): white born at a point on the crest, spreading along it and down the face
+  (the tile's green, in metres, is the distance down from the crest), then lace and gone - the
+  same life as style 2's (`whitecap_event`, now shared).
+- `event_rate` 0.3, `event_period` 7 s.
+- The net (style 0) and the two prototypes alone (1, 2) stay switchable for comparing; the net
+  code can go once this is settled.
