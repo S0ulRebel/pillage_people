@@ -120,20 +120,15 @@ func _run() -> void:
 	check(blade.position.z >= Ship.RUDDER_AT.z - TOLERANCE, "the rudder blade reaches forward of its hinge")
 	check(strip.end.z <= Ship.RUDDER_AT.z + TOLERANCE, "the hinge strip is aft of the hinge")
 
-	# A frame on every port, on the hull's side, and every lid standing open above its port.
-	var lids := ship.get_node_or_null("GunPorts/Lids")
-	var ports := 0 if lids == null else lids.get_child_count()
+	# A frame on every port, on the hull's side, and no lid: the reference's ports stand open,
+	# and the model's lid swung up stood out over each port like a shelf.
+	var frames := ship.get_node_or_null("GunPorts/Frames")
+	var ports := 0 if frames == null else frames.get_child_count()
 	var wanted: int = (ship as Ship).gun_port_count * 2
 	check(ports == wanted, "%d gunport frames for %d ports" % [ports, wanted])
-	if lids != null:
-		for port in lids.get_children():
-			var lid := port.find_child("lid", true, false) as Node3D
-			check(lid != null, "%s has no lid node" % port.name)
-			if lid == null:
-				continue
-			var shut := _bounds(ship, lid)
-			check(shut.position.y >= Ship.GUN_PORT_Y + 0.25,
-					"%s's lid comes down to %.2f, into its port (centre %.2f)" % [port.name, shut.position.y, Ship.GUN_PORT_Y])
+	if frames != null:
+		for port in frames.get_children():
+			check(port.find_child("lid", true, false) == null, "%s still has its lid" % port.name)
 			var frame := _bounds(ship, port.find_child("frame", true, false) as Node3D)
 			check(absf(absf(frame.position.x + frame.size.x * 0.5) - Ship.BEAM * 0.5) <= 0.3,
 					"%s's frame is not on the hull's side" % port.name)
@@ -261,7 +256,7 @@ func _check_gun_ports(ship: Node3D) -> void:
 	_check_port_holes(ship, typed.gun_port_z())
 	var before := typed.gun_port_count
 	typed.gun_port_count = 3
-	check(ship.get_node("GunPorts/Lids").get_child_count() == 6 and ship.get_node("GunPorts/Guns").get_child_count() == 6,
+	check(ship.get_node("GunPorts/Frames").get_child_count() == 6 and ship.get_node("GunPorts/Guns").get_child_count() == 6,
 			"with 3 ports a side there should be 6 frames and 6 guns")
 	_check_port_holes(ship, typed.gun_port_z())
 	typed.gun_port_count = before
@@ -288,9 +283,29 @@ func _check_port_holes(ship: Node3D, spots: Array[float]) -> void:
 			var box := _bounds(ship, gun)
 			check(absf(box.position.y - Ship.GUN_DECK_Y) <= TOLERANCE,
 					"the gun at z %.2f stands at %.2f, not on the gun deck at %.2f" % [z, box.position.y, Ship.GUN_DECK_Y])
-			var barrel := _bounds(ship, gun.call("barrel") as Node3D)
+			var barrel_node := gun.call("barrel") as Node3D
+			var barrel := _bounds(ship, barrel_node)
 			check(absf(barrel.get_center().y - Ship.GUN_PORT_Y) <= 0.05,
 					"the gun at z %.2f aims at %.2f, not through its port at %.2f" % [z, barrel.get_center().y, Ship.GUN_PORT_Y])
+			# Run out, as in the reference: the muzzle through the port and clear of its frame's
+			# face, the carriage on the inside of the wall.
+			var muzzle := barrel.end.x if side > 0.0 else -barrel.position.x
+			var face := Ship.BEAM * 0.5
+			for port in ship.get_node("GunPorts/Frames").get_children():
+				var frame := _bounds(ship, port.find_child("frame", true, false) as Node3D)
+				if frame.size != Vector3.ZERO and absf(frame.get_center().z - z) < 0.3 and signf(frame.get_center().x) == side:
+					face = frame.end.x if side > 0.0 else -frame.position.x
+			check(muzzle >= face + 0.1,
+					"the gun at z %.2f is not run out: its muzzle is at %.2f, the port frame's face at %.2f" % [z, muzzle, face])
+			var carriage := AABB()
+			var first := true
+			for m in gun.find_children("*", "MeshInstance3D", true, false):
+				if m != barrel_node:
+					carriage = _bounds(ship, m) if first else carriage.merge(_bounds(ship, m))
+					first = false
+			var front := carriage.end.x if side > 0.0 else -carriage.position.x
+			check(front <= Ship.GUN_WALL_INNER_X,
+					"the gun carriage at z %.2f reaches %.2f, into the wall at %.2f" % [z, front, Ship.GUN_WALL_INNER_X])
 		# Between ports, and past the ends: solid wall.
 		var solid: Array[float] = [Ship.GUN_WALL_FORE_Z + 0.2, Ship.GUN_WALL_AFT_Z - 0.2]
 		for i in spots.size() - 1:

@@ -160,8 +160,11 @@ const BINNACLE_AT := Vector3(0.0, QUARTERDECK_Y, 12.15)
 ## On the aft face of the quarterdeck rail's stern post, on the centreline: the model's origin
 ## is the top of its wall plate, and the lantern hangs aft of it, out over the stern.
 const LANTERN_AT := Vector3(0.0, QUARTERDECK_Y + 0.9, 16.34)
-## How far the gunport lids stand open, so the guns can run out under them.
-const LID_OPEN_DEGREES := 100.0
+## How far each gun stands out from the ship's centreline: its carriage 5 cm short of the gun
+## deck's wall, so its muzzle is run out through the port and clear of the frame, as in the
+## reference. The barrel is 2 m long and the carriage 1.2 m; further in, the muzzle hid inside
+## the port frame.
+const GUN_OUT_X := 2.43
 ## Where the bow's catheads sit: the origin is the top of the timber's inboard end, 25 degrees
 ## forward of square. That lands the supporter's foot, 1.0 m out and 1.35 m down in the model,
 ## on the hull side at z=1.0, and passes the timber through the bulwark at rail height.
@@ -223,7 +226,7 @@ const BALUSTER_PITCH := 0.45
 const RAIL_HEIGHT := 0.81
 ## The wale: the thick strake round the hull, swept from Tripo's wale (rail_sweep.glb, see
 ## tools/rail_profiles.py) along the hull's outer face at WALE_Y, between the gunport frames
-## and the weather deck, above the open lids. Each side's outline is measured off
+## and the weather deck, above the port frames. Each side's outline is measured off
 ## double_deck.glb on its own, as (x, z) from the stem round to the stern's centreline, with the
 ## gun deck's rebuilt walls at x = 3: the kit's bow is not quite symmetrical, and a mirrored
 ## outline stood 2 cm off the port bow. The wale closes round both ends.
@@ -322,7 +325,7 @@ const MAX_HEEL := 0.14
 				old.queue_free()
 			_build_pillars(quarterdeck, quarterdeck.get_node("Cabin") as Node3D)
 
-## Gunports a side. Changing it moves the holes, the frames and lids, and the guns together.
+## Gunports a side. Changing it moves the holes, the frames and the guns together.
 @export_range(1, 6) var gun_port_count := 4:
 	set(value):
 		gun_port_count = value
@@ -2132,8 +2135,9 @@ func gun_port_z() -> Array[float]:
 
 
 ## Everything that goes with the gunports, under one node so a change to them rebuilds it all
-## in step: the gun deck's side walls with a hole at every port, a frame and open lid on each,
-## and a cannon behind each.
+## in step: the gun deck's side walls with a hole at every port, a frame on each, and a
+## cannon run out through each. The ports stand open with no lid, as the reference's do: the
+## model's lid, swung up, stood out from the side like a shelf over every port.
 func _build_gun_ports() -> void:
 	if get_node_or_null("GunPorts") != null:
 		return
@@ -2144,10 +2148,10 @@ func _build_gun_ports() -> void:
 	_build_gun_walls(ports, spots)
 
 	# The frame faces +X with its back on the hull, centred on its opening; turned half round
-	# it serves the port side. The lid is its own node hung on its hinge: +Z swings it out.
-	var lids := Node3D.new()
-	lids.name = "Lids"
-	ports.add_child(lids)
+	# it serves the port side. The model's lid is its own node, taken off.
+	var frames := Node3D.new()
+	frames.name = "Frames"
+	ports.add_child(frames)
 	var guns := Node3D.new()
 	guns.name = "Guns"
 	ports.add_child(guns)
@@ -2157,15 +2161,16 @@ func _build_gun_ports() -> void:
 			port.name = "Port%s%d" % ["Starboard" if side > 0.0 else "Port", k]
 			port.position = Vector3(side * (BEAM * 0.5 + gun_port_offset), GUN_PORT_Y, spots[k])
 			port.rotation_degrees.y = 0.0 if side > 0.0 else 180.0
-			lids.add_child(port)
+			frames.add_child(port)
 			if _fit_model(port, HULL_PARTS + "gunport_lid.glb"):
-				var lid := port.find_child("lid", true, false) as Node3D
+				var lid := port.find_child("lid", true, false)
 				if lid != null:
-					lid.rotation_degrees.z = LID_OPEN_DEGREES
-		# On the deck: the model's origin is under its wheels. Muzzle 1 m along local -Z and
-		# 0.62 m up, level with the port. -90° yaw sends -Z to starboard.
-		_gun(guns, Vector3(2.15, GUN_DECK_Y, spots[k]), -PI * 0.5, "Starboard%d" % k)
-		_gun(guns, Vector3(-2.15, GUN_DECK_Y, spots[k]), PI * 0.5, "Port%d" % k)
+					lid.get_parent().remove_child(lid)
+					lid.free()
+		# On the deck: the model's origin is under its wheels. Muzzle along local -Z and 0.62 m
+		# up, level with the port. -90° yaw sends -Z to starboard.
+		_gun(guns, Vector3(GUN_OUT_X, GUN_DECK_Y, spots[k]), -PI * 0.5, "Starboard%d" % k)
+		_gun(guns, Vector3(-GUN_OUT_X, GUN_DECK_Y, spots[k]), PI * 0.5, "Port%d" % k)
 
 
 func _rebuild_gun_ports() -> void:

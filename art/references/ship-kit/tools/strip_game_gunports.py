@@ -5,8 +5,8 @@
 The kit's MIDDLE_CENTRE_GUN bays cut one port per side in each 2 m bay, so the ports can only
 be where the bays put them. This removes those walls from art/models/ship/double_deck.glb -
 both sides, z 4 to 12, gun deck to weather deck, 0.2 m thick - and ship.gd builds them again
-with a hole wherever its ports are spread (Ship._build_gun_walls), so the holes, frames, lids
-and guns all move together.
+with a hole wherever its ports are spread (Ship._build_gun_walls), so the holes, frames and guns
+all move together.
 
 Kept: the flat wall tops at the weather deck, which the rail stands on and
 build_stern_castle.py reads the hull's outline from, and the bottom tier's top under them.
