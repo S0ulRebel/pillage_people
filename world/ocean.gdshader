@@ -51,8 +51,8 @@ group_uniforms Colour;
 // The three zones, pushed. Sampled from the "Shallow (sand)", lagoon and "Deep ocean"
 // swatches of the art reference.
 uniform vec3 shallow_colour : source_color = vec3(0.08, 0.64, 0.68);
-uniform vec3 lagoon_colour : source_color = vec3(0.025, 0.48, 0.60);
-uniform vec3 deep_colour : source_color = vec3(0.059, 0.336, 0.477);
+uniform vec3 lagoon_colour : source_color = vec3(0.02, 0.45, 0.68);
+uniform vec3 deep_colour : source_color = vec3(0.03, 0.31, 0.56);
 // Metres of still-water depth from shallow_colour to deep_colour, pushed. Twice this also
 // caps the optical path used for absorption (stage 8): deeper than that, water is water.
 uniform float depth_fade : hint_range(1.0, 60.0) = 26.0;
@@ -165,9 +165,10 @@ group_uniforms Chop;
 // things float on (ocean.gd) the same. Material-only.
 uniform float chop_strength : hint_range(0.0, 2.0) = 1.0;
 uniform float chop_longest : hint_range(1.0, 15.0) = 5.0;
-// How strongly the three tones step the water's colour: the trough and turned-away faces this
-// much darker, the tops this much lighter. Material-only.
-uniform float chop_tone : hint_range(0.0, 0.5) = 0.24;
+// How strongly the three tones step the water's colour, 0 none, 1 the swatches': measured on
+// the "small waves" swatch, the dark faces are about 0.7 of the mid tone in red and green and
+// 0.8 in blue, and the lit tops brighter in green and blue, not red. Material-only.
+uniform float chop_tone : hint_range(0.0, 1.5) = 1.0;
 
 // ---- Crest glints -----------------------------------------------------------------------
 group_uniforms Crests;
@@ -734,37 +735,32 @@ void fragment() {
     float strip = 1.0 - smoothstep(0.0, mix(0.09, 0.3, strength), abs(chop.x - level));
     vec2 crest_side = vec2(-d1.y, d1.x);
     vec2 net_p = vec2(dot(crest_p, crest_side), dot(crest_p, d1) * 1.4 + chop.x * 0.6);
+    // Ridged noise: noise folded at its middle value, |2n - 1|, is zero along sharp creases that
+    // wander and zigzag - the lightning the swatches draw. Each crease is drawn a fixed number of
+    // pixels wide (its value over its own slope is the distance to it), so it stays a crisp line
+    // at any distance instead of swelling where the noise is flat. Three octaves, each turned
+    // and finer; the finer creases show only near a coarser one, so they grow off it as
+    // branches. Sampled in the crest-aligned frame, so most creases run along the waves.
+    vec2 rp = net_p / 1.8 + vec2(chop.x * 0.35, 0.0);
     float crest = 0.0;
-    // A pale glow round the white, as the swatches paint it: the same walls, wider, in the
-    // foam's mid tone under the white core.
     float crest_glow = 0.0;
-    for (int n = 0; n < 1; n++) {
-        vec3 lace = foam_lace_at(net_p, 1.2, false);
-        float aa_w = max(fwidth(lace.z), 0.004);
-        float aa_c = max(fwidth(lace.x), 0.004);
-        // (A second, finer net was tried for branches within branches: it put a spike on every
-        // chain and closed cells inside the strip, and is left out.)
-        float here = strip;
-        // Walls fullest on the crest line, tapering to nothing at the strip's edges - each
-        // chain a brush stroke - and a little wider or narrower cell by cell.
-        float w = 0.085 * pow(here, 0.7) * mix(0.75, 1.25, lace.y);
-        float kept = step(lace.y, here * 2.2);
-        float wall = (1.0 - smoothstep(w - aa_w, w + aa_w, lace.z)) * kept * step(0.001, w);
-        float glow = (1.0 - smoothstep(w * 2.4 - aa_w, w * 2.4 + aa_w, lace.z)) * kept
-            * step(0.001, w);
-        // Knots where walls meet, growing toward the crest line into the bright beads the
-        // swatches have at every junction.
-        float k = mix(0.7, 0.6, smoothstep(0.4, 1.0, here));
-        // Measured as distance from the centre less a share of the distance off the wall, so a
-        // knot is a round bead where walls meet, not a star with a spike up each wall.
-        float bead = lace.x - lace.z * 0.9;
-        float knot = smoothstep(k - aa_c, k + aa_c, bead) * step(0.35, here);
-        float knot_glow = smoothstep(k - 0.07 - aa_c, k - 0.07 + aa_c, bead) * step(0.35, here);
-        crest = max(crest, max(wall, knot));
-        crest_glow = max(crest_glow, max(glow, knot_glow));
+    float near_parent = 1.0;
+    for (int o = 0; o < 3; o++) {
+        float n2 = noise(rp) * 2.0 - 1.0;
+        float px_dist = abs(n2) / max(fwidth(n2), 0.0001);
+        // Widest on the crest line, thinning to nothing at the strip's edges; each octave
+        // thinner than the last.
+        float width = mix(0.0, 2.2, strip) * (o == 0 ? 1.0 : (o == 1 ? 0.75 : 0.55)) * near_parent;
+        crest = max(crest, 1.0 - smoothstep(width - 0.5, width + 0.5, px_dist));
+        crest_glow = max(crest_glow, 1.0 - smoothstep(width * 2.2 - 0.5, width * 2.2 + 0.5, px_dist));
+        // The next octave's creases only within a short reach of this one's.
+        near_parent = 1.0 - smoothstep(0.15, 0.45, abs(n2));
+        rp = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8)) * rp * 2.3 + vec2(3.7, 1.3);
     }
-    // The net's walls are a few centimetres: gone where a pixel spans more than a quarter
-    // metre of sea, before they can shimmer.
+    crest *= step(0.02, strip);
+    crest_glow *= step(0.02, strip);
+    // The creases are a few centimetres: gone where a pixel spans more than a quarter metre of
+    // sea, before they can shimmer.
     float metres_per_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
     crest *= 1.0 - smoothstep(0.12, 0.3, metres_per_px);
     // Only offshore, where the shore foam is not already drawing the waves, only where the
@@ -834,10 +830,11 @@ void fragment() {
     float facing_eye = dot(normalize(chop.yz + vec2(0.0001)), to_eye) * min(length(chop.yz) * 2.0, 1.0);
     float tone = chop.x * 0.7 + facing_eye * 0.35;
     float tone_aa = max(fwidth(tone), 0.001);
-    float tone_step = smoothstep(0.3 - tone_aa, 0.3 + tone_aa, tone)
-        - (1.0 - smoothstep(-0.3 - tone_aa, -0.3 + tone_aa, tone));
-    tone_step *= chop_tone * smoothstep(1.0, 4.0, water_depth) * smoothstep(0.35, 0.7, chop.w);
-    shaded_water *= 1.0 + tone_step;
+    float tone_amount = chop_tone * smoothstep(1.0, 4.0, water_depth) * smoothstep(0.35, 0.7, chop.w);
+    float lit_top = smoothstep(0.42 - tone_aa, 0.42 + tone_aa, tone) * tone_amount;
+    float dark_face = (1.0 - smoothstep(-0.3 - tone_aa, -0.3 + tone_aa, tone)) * tone_amount;
+    shaded_water = mix(shaded_water, shaded_water * vec3(0.7, 0.72, 0.8), clamp(dark_face, 0.0, 1.0));
+    shaded_water += vec3(0.04, 0.16, 0.18) * lit_top * sky_light;
 
     // ---- 9. Sky reflection --------------------------------------------------------------
     shaded_water = mix(shaded_water, sky_reflection_colour * sky_light, fresnel * sky_reflection_strength);

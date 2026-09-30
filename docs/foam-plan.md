@@ -393,3 +393,21 @@ project already rejects view-dependent outlines).
 - A pale glow round the white, the swatches' way: the same walls and beads, wider, in the foam's
   mid tone.
 - Open water from the gameplay camera: 1.5% white.
+
+### Step 8f: ridged-noise whitecaps, and the swatches' blue
+
+- Colours measured on the "small waves" swatch against ours: ours were greener and flatter (the
+  lit tone only 14 levels above the mid, the swatch's about 50). Offshore colours moved bluer
+  (`lagoon_colour` (0.02, 0.45, 0.68), `deep_colour` (0.03, 0.31, 0.56)); the chop's dark faces
+  now darken toward blue (0.7, 0.72, 0.8 of the mid) and its tops lift in green and blue. Measured
+  dark / mid / light: ours (7, 79, 130) / (9, 93, 144) / (60, 140, 174) against the swatch's
+  (1, 80, 138) / (5, 112, 172) / (39, 168, 220).
+- Whitecaps are ridged noise (the art director's read of the swatches): value noise folded at
+  its middle, |2n - 1|, is zero along sharp creases that zigzag and wander. Each crease is drawn
+  a fixed number of pixels wide (its value over its own slope), widest on the crest line and
+  thinning to nothing at the strip's edges, with a pale glow round it; three octaves, each finer,
+  each shown only near the coarser one's creases, so the fine ones grow off them as branches. In
+  the crest-aligned frame, so most run along the waves. Replaces the cell net.
+- Tried: thresholding the ridged value itself gave fat blobs where the noise is flat; laying the
+  cell net along the height contours gave glyph-like scribbles.
+- Open water from the gameplay camera: 2.6% white.

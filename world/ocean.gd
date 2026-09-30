@@ -27,11 +27,11 @@ extends MeshInstance3D
 	set(value):
 		shallow_colour = value
 		_push("shallow_colour", value)
-@export var lagoon_colour := Color(0.025, 0.48, 0.60):
+@export var lagoon_colour := Color(0.02, 0.45, 0.68):
 	set(value):
 		lagoon_colour = value
 		_push("lagoon_colour", value)
-@export var deep_colour := Color(0.059, 0.336, 0.477):
+@export var deep_colour := Color(0.03, 0.31, 0.56):
 	set(value):
 		deep_colour = value
 		_push("deep_colour", value)
