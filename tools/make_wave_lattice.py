@@ -51,9 +51,13 @@ for r in range(ROWS):
         wob = (noise1d(len(s), 70) - 0.5) * 0.16 * row_h
         arc_v = vbase - arch * 4 * s * (1 - s) + tilt * (s - 0.5) + wob
         arc_u = u + s * length
-        # the face below this crest: distance down (in v) to each pixel, wrapped
-        cols = np.floor(arc_u).astype(int) % N
-        d = (vv - arc_v[None, :]) % N
+        # the face below this crest: distance down (in v) to each pixel, wrapped - for every
+        # whole column the crest spans (sampling along the crest skipped some, and a skipped
+        # column kept another crest's id: a hard line through each whitecap)
+        col_u = np.arange(int(np.ceil(arc_u[0])), int(np.floor(arc_u[-1])) + 1)
+        col_v = np.interp(col_u, arc_u, arc_v)
+        cols = col_u % N
+        d = (vv - col_v[None, :]) % N
         crest_id = rng.uniform(0.02, 0.98)
         closer = d < face[:, cols]
         face[:, cols] = np.where(closer, d, face[:, cols])
