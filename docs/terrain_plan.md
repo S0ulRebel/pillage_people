@@ -221,6 +221,14 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   the ashore crates still settling after three physics frames. `island_stamp_check` holds the
   island to the file at 0.015 mm. Every check passes, and every printed number that is a
   height is 18 m lower than in phase 5.
+- **Screenshots:** `seabed_view`, `foam_view`, `sun_view`, `sky_view`, `underwater_view` and
+  `waterfall_view`, rendered twice before the phase and once after, match: anything that
+  differs differs as much between the two runs before (the swell, whitecaps and waterfall run
+  on the clock), bar a barrel on the beach that settled a little differently (a rigid body -
+  the ground under it moved 0.01 mm), shadow-map stair-steps (the shadow map snaps to a world
+  grid, which moved 18 m) and one-pixel rounding at the cloud shadows' edges.
+  `underwater_view`'s shallow waterline is 9 mm off the sea's mesh, against 7-8 mm before:
+  the same failure the renderer here always shows, at a different moment of the swell.
 
 ## Phase 7: clean-up and docs
 
