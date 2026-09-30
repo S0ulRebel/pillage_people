@@ -106,33 +106,34 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   floor. `tests/placement_check.gd` and `tests/dive_hole_view.gd` still find the crater as a
   negative Add stamp; phase 3 changes them with the `strength` rename.
 
-## Phase 3: the `.stamp` format and blend modes
+## Phase 3: the `.stamp` format and blend modes (done)
 
-- **Stamp settings** in `world/terrain_stamp/terrain_stamp.gd`:
-  - rename `strength` to `height` (metres)
-  - add an `opacity` slider
-  - add an optional inward edge fade for image stamps; 0 means off
-  - apply the new modes and the rule above
-- **Converter** `tools/make_stamp.py`:
-  - old unsigned `.r16` to `.stamp`
-  - 16-bit height + opacity images to `.stamp`, for ComfyUI
-- **Convert** the four image stamps in `world/terrain_stamp/stamps/` (mountain, mesa, volcano,
-  canyon). They lose one bit of precision: a 40 m mountain goes from 0.6 mm to 1.2 mm steps.
-- **Scene values** in `main.tscn`:
-  - the three levelling stamps (TerrainStamp, TerrainStamp2, TerrainStamp4) get height 0,
-    since their `strength` does nothing today
-  - DiveCrater gets height −10
-- **Export:** add `*.stamp` to the local export filter (`export_presets.cfg` is not in the
-  repo).
-- Update `tests/terrain_stamp_check.gd`, `tests/pad_edge_check.gd` and `tests/chunk_check.gd`.
-- **Done when:** the scene is unchanged sample by sample, and the tests pass.
-
-| Stamp | Today | New |
-|---|---|---|
-| TerrainStamp | Flatten, soft rectangle | Replace, flat |
-| TerrainStamp2 | Fill up, soft rectangle | Max, flat |
-| TerrainStamp4 | Cut down, soft circle | Min, flat |
-| DiveCrater | Add −10 m, soft circle | Add −10 m |
+- `world/terrain_stamp/terrain_stamp.gd`:
+  - modes `{ADD, REPLACE, MIN, MAX}`, numbered as Flatten, Cut down and Fill up were, so saved
+    scenes load unchanged
+  - `strength` is now `height` (metres); new `opacity` slider and `border_fade` (image stamps
+    only, metres faded inside the image's border, 0 = off)
+  - the one rule: level = Y + shape x height (Add: ground + shape x height), then
+    mix(ground, blended, mask x opacity); soft shapes are full height with their edge fade as
+    the mask
+  - loads `.stamp` (header `STMP`, version 1, columns, rows, then uint16 height with 32768 as
+    zero and uint16 mask per sample); images need not be square
+  - the editor's see-through sheet sits at the level a soft shape actually works to, Y + height
+- `tools/make_stamp.py` (stdlib only): `r16` (old stamps, or `--signed` to copy the numbers as
+  they are, `--opacity` for a mask), `png` (grey / grey+alpha / RGB / RGBA, 8 or 16 bit, alpha
+  as the mask) and `info`.
+- The four image stamps are now `.stamp`; the old `.r16` copies are deleted. The largest change
+  is 1.4 mm on a 45 m stamp.
+- `main.tscn`: the three levelling pads have `height = 0`, the crater `height = -10`. The
+  terrain was dumped before and after: all 1,050,625 samples and 100,000 `height_at()` points
+  are bit-identical.
+- A levelling pad made in code needs `height = 0.0` - the default is 40, so a new stamp dragged
+  in is a visible mountain. The tests and the live-check addon set it.
+- `tests/terrain_stamp_check.gd` gained a signed-image check: a `.stamp` written by the test
+  (+0.75 / -0.5 height, a quarter masked off) on every mode, with opacity and border fade, held
+  to the file's own numbers. Ignoring the mask fails it by metres.
+- Still to do by hand: add `*.stamp` to the export filter beside `*.r16`
+  (`export_presets.cfg` is not in the repo).
 
 ## Phase 4: Seabed node and exact island rebuild
 

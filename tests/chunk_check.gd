@@ -61,8 +61,8 @@ func _terrain(chunk_quads: int) -> Node3D:
 func _mountain(at: Vector3) -> TerrainStamp:
 	var stamp := STAMP.instantiate() as TerrainStamp
 	stamp.name = "Mountain"
-	stamp.stamp_path = "res://world/terrain_stamp/stamps/mountain.r16"
-	stamp.strength = 45.0
+	stamp.stamp_path = "res://world/terrain_stamp/stamps/mountain.stamp"
+	stamp.height = 45.0
 	stamp.length = 110.0
 	stamp.width = 90.0
 	stamp.position = at
@@ -73,8 +73,8 @@ func _mountain(at: Vector3) -> TerrainStamp:
 func _corner_stamp(at: Vector3) -> TerrainStamp:
 	var stamp := STAMP.instantiate() as TerrainStamp
 	stamp.name = "Corner"
-	stamp.stamp_path = "res://world/terrain_stamp/stamps/mesa.r16"
-	stamp.strength = 20.0
+	stamp.stamp_path = "res://world/terrain_stamp/stamps/mesa.stamp"
+	stamp.height = 20.0
 	stamp.length = 40.0
 	stamp.width = 40.0
 	stamp.position = at
@@ -84,8 +84,9 @@ func _corner_stamp(at: Vector3) -> TerrainStamp:
 func _pad(pad_name: String, at: Vector3, length: float, width: float) -> TerrainStamp:
 	var stamp := STAMP.instantiate() as TerrainStamp
 	stamp.name = pad_name
-	stamp.mode = TerrainStamp.Mode.FLATTEN
+	stamp.mode = TerrainStamp.Mode.REPLACE
 	stamp.shape = TerrainStamp.Shape.SOFT_RECT
+	stamp.height = 0.0
 	stamp.length = length
 	stamp.width = width
 	stamp.edge_softness = 5.0

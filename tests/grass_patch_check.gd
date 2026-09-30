@@ -43,8 +43,9 @@ func _run() -> void:
 	var plateau: float = probe.height_at(at.x, at.z) + 6.0
 
 	var stamp := STAMP.instantiate() as TerrainStamp
-	stamp.mode = TerrainStamp.Mode.FLATTEN
+	stamp.mode = TerrainStamp.Mode.REPLACE
 	stamp.shape = TerrainStamp.Shape.SOFT_RECT
+	stamp.height = 0.0
 	stamp.length = 20.0
 	stamp.width = 20.0
 	stamp.edge_softness = 4.0

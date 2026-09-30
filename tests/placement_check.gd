@@ -265,7 +265,7 @@ func _check_patch(scene: Node3D, terrain: Node, spawn: Vector3, crater: Vector3)
 func _crater(terrain: Node) -> Vector3:
 	for child in terrain.get_children():
 		var stamp := child as TerrainStamp
-		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.strength >= 0.0:
+		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.height >= 0.0:
 			continue
 		var at := stamp.global_position
 		if terrain.height_at(at.x, at.z) < terrain.sea_level():

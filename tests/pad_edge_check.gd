@@ -93,8 +93,9 @@ func _pad(shape: TerrainStamp.Shape, at: Vector3, length: float, width: float, s
 		lift: float, degrees: float, plain: Node3D) -> TerrainStamp:
 	var pad := STAMP.instantiate() as TerrainStamp
 	pad.name = "Rect" if shape == TerrainStamp.Shape.SOFT_RECT else "Oval"
-	pad.mode = TerrainStamp.Mode.FLATTEN
+	pad.mode = TerrainStamp.Mode.REPLACE
 	pad.shape = shape
+	pad.height = 0.0
 	pad.length = length
 	pad.width = width
 	pad.edge_softness = softness

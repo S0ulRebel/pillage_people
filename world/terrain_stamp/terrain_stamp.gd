@@ -1,29 +1,37 @@
 @tool
 class_name TerrainStamp
 extends Node3D
-## Reshapes the island under it: adds a landform, or levels the ground to a plane.
+## Reshapes the island under it: adds a landform, or sets the ground to a shape or a plane.
 ##
 ## Put it under the Terrain node, move it with the gizmo and turn it about Y. The terrain reads
 ## every stamp among its children, top to bottom, before it builds the mesh, the collider and
 ## the seabed the water sees, so all three follow. The island file itself is never changed -
 ## delete the stamp and the ground is back.
 ##
-## The shape says how much, 0 to 1: black leaves the ground alone, white gets the full effect,
-## grey part of it. That is what makes a flattened pad blend into the hillside instead of
-## ending in a step. A soft rectangle or oval is also cut into the ground mesh along its
-## outline and along the foot of its bank (cut_lines), so its edge is drawn where it is and
-## not where the nearest mesh vertices happen to fall.
+## ONE RULE FOR EVERY STAMP. At each point the shape gives a height, -1 to 1 of `height` metres,
+## and a mask, 0 to 1. Add puts ground + shape x height; the other three aim for the stamp's own
+## Y + shape x height and take it, cut down to it or fill up to it. Then the mask decides how
+## much of that lands: result = mix(ground, blended, mask x opacity). Mask 0 changes nothing,
+## which is what makes a pad blend into the hillside instead of ending in a step.
+##
+## An image (.stamp, see tools/make_stamp.py) carries both: mid-grey is zero height, and its
+## second channel is the mask. A soft rectangle or oval is full height everywhere and its mask
+## is the fade round its edge - so a Replace pad sits at Y + height, and height 0 puts it at the
+## gizmo. It is also cut into the ground mesh along its outline and along the foot of its bank
+## (cut_lines), so its edge is drawn where it is and not where the nearest mesh vertices fall.
 
 signal changed
 
+## In the order Flatten, Cut down and Fill up had, which Replace, Min and Max are - a scene
+## saves the number, so a pad saved as Cut down loads as Min with nothing to edit.
 enum Mode {
-	ADD,       ## strength metres where the shape is white - a mountain, or a canyon when negative
-	FLATTEN,   ## the ground becomes the plane
-	CUT_DOWN,  ## ground above the plane is cut down to it; ground below is left alone
-	FILL_UP,   ## ground below the plane is raised to it; ground above is left alone
+	ADD,      ## ground + shape x height: a mountain, or a canyon when the height is negative
+	REPLACE,  ## the ground becomes Y + shape x height
+	MIN,      ## ground above Y + shape x height is cut down to it; ground below is left alone
+	MAX,      ## ground below Y + shape x height is filled up to it; ground above is left alone
 }
 enum Shape {
-	IMAGE,        ## the .r16 in stamp_path
+	IMAGE,        ## the .stamp in stamp_path
 	SOFT_RECT,    ## the whole length x width at full effect, fading out over edge_softness around it
 	SOFT_CIRCLE,  ## an ellipse filling length x width at full effect, fading out around it
 }
@@ -41,8 +49,8 @@ enum Shape {
 		if Engine.is_editor_hint():
 			_draw_helpers_if_ready()
 			changed.emit()
-## The plane the three levelling modes work to is the stamp's own height: raise or lower the
-## node with the gizmo to move it.
+## Replace, Min and Max work to the stamp's own Y plus the shape times `height`: raise or lower
+## the node with the gizmo to move that.
 @export var mode := Mode.ADD:
 	set(value):
 		mode = value
@@ -51,19 +59,28 @@ enum Shape {
 	set(value):
 		shape = value
 		_changed()
-## For Shape.IMAGE. Any square .r16 of 16-bit values, 0 at its border. The images come from
-## the "Terrain - Stamp" ComfyUI workflow in D:\code\gan and are raw 16-bit for the same
-## reason the island is: Godot's image loader cuts a 16-bit PNG down to 8-bit, and on a 60 m
-## mountain 256 steps are 23 cm terraces.
-@export_file("*.r16") var stamp_path := "res://world/terrain_stamp/stamps/mountain.r16":
+## For Shape.IMAGE: a .stamp, height and mask per sample - see tools/make_stamp.py, which makes
+## one from the "Terrain - Stamp" ComfyUI workflow's output in D:\code\gan. Raw 16-bit for the
+## same reason the island is: Godot's image loader cuts a 16-bit PNG down to 8-bit, and on a
+## 60 m mountain 256 steps are 23 cm terraces.
+@export_file("*.stamp") var stamp_path := "res://world/terrain_stamp/stamps/mountain.stamp":
 	set(value):
 		stamp_path = value
 		_load()
 		_changed()
-## Mode.ADD only: metres added where the shape is white. Negative digs.
-@export_range(-200.0, 200.0, 0.5, "suffix:m") var strength := 40.0:
+## Metres at full height: what the brightest part of an image adds in Add mode, or how far above
+## the stamp's own Y it sits in the other three. Negative digs, or sits below. A soft shape is
+## full height all over, so a Replace, Min or Max pad sits this far above the gizmo - 0 for a
+## pad at the gizmo's own height; the see-through sheet in the editor shows where it lands.
+@export_range(-200.0, 200.0, 0.5, "suffix:m") var height := 40.0:
 	set(value):
-		strength = value
+		height = value
+		_changed()
+## How much of the stamp lands at all, over the whole of it: 1 is the stamp as drawn, 0 is no
+## stamp. Multiplies the image's own mask and the soft shapes' fade.
+@export_range(0.0, 1.0, 0.01) var opacity := 1.0:
+	set(value):
+		opacity = value
 		_changed()
 ## Metres along the stamp's own X.
 @export_range(5.0, 600.0, 1.0, "suffix:m") var length := 120.0:
@@ -87,19 +104,30 @@ enum Shape {
 	set(value):
 		edge_softness = maxf(value, 0.25)
 		_changed()
+## For Shape.IMAGE: how far INSIDE its own border an image fades out, on top of its mask. 0 is
+## off - the image as drawn, which is right when its mask already reaches 0 at the border. For
+## one that does not, this is what stops its edge being a step in the ground.
+@export_range(0.0, 100.0, 0.25, "suffix:m") var border_fade := 0.0:
+	set(value):
+		border_fade = maxf(value, 0.0)
+		_changed()
 
 const _COLOURS := {
 	Mode.ADD: Color(1.0, 0.55, 0.1),
-	Mode.FLATTEN: Color(0.3, 0.9, 0.35),
-	Mode.CUT_DOWN: Color(1.0, 0.3, 0.25),
-	Mode.FILL_UP: Color(0.25, 0.55, 1.0),
+	Mode.REPLACE: Color(0.3, 0.9, 0.35),
+	Mode.MIN: Color(1.0, 0.3, 0.25),
+	Mode.MAX: Color(0.25, 0.55, 1.0),
 }
 ## An ADD stamp that digs is drawn in the fill colour's blue, so a canyon reads as one before
 ## the terrain has rebuilt.
 const _DIG_COLOUR := Color(0.2, 0.6, 1.0)
 
-var _values := PackedFloat32Array()
-var _size := 0
+## The image, from stamp_path: its height (-1 to 1) and its mask (0 to 1) per sample, row by
+## row, `_columns` along the stamp's X and `_rows` along its Z.
+var _heights := PackedFloat32Array()
+var _masks := PackedFloat32Array()
+var _columns := 0
+var _rows := 0
 var _outline: MeshInstance3D
 var _sheet: MeshInstance3D
 ## World to stamp space, kept rather than inverted per sample: the terrain asks tens of
@@ -118,7 +146,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	if _values.is_empty() and shape == Shape.IMAGE:
+	if _heights.is_empty() and shape == Shape.IMAGE:
 		_load()
 	if Engine.is_editor_hint():
 		_draw_helpers()
@@ -152,33 +180,59 @@ func _under_terrain() -> bool:
 
 
 ## The ground height at a world point once this stamp has been applied, both in world metres.
-func reshape(height: float, world_x: float, world_z: float) -> float:
-	var weight := value_at(world_x, world_z)
+func reshape(ground: float, world_x: float, world_z: float) -> float:
+	var rise := height
+	var weight := opacity
+	if shape == Shape.IMAGE:
+		var here := _image_at(world_x, world_z)
+		rise *= here.x
+		weight *= here.y
+	else:
+		weight *= _fade_at(world_x, world_z)
 	if weight <= 0.0:
-		return height
-	var plane := global_position.y
+		return ground
+	if mode == Mode.ADD:
+		return ground + weight * rise
+	var level := global_position.y + rise
 	match mode:
-		Mode.ADD:
-			return height + weight * strength
-		Mode.FLATTEN:
-			return lerpf(height, plane, weight)
-		Mode.CUT_DOWN:
-			return lerpf(height, plane, weight) if height > plane else height
-		Mode.FILL_UP:
-			return lerpf(height, plane, weight) if height < plane else height
-	return height
+		Mode.REPLACE:
+			return lerpf(ground, level, weight)
+		Mode.MIN:
+			return lerpf(ground, level, weight) if ground > level else ground
+		Mode.MAX:
+			return lerpf(ground, level, weight) if ground < level else ground
+	return ground
 
 
-## How much of the effect lands on a world point, 0 outside the footprint.
+## How much of `height` Add would put on a world point: the shape's height times its mask and
+## the opacity. 0 outside the footprint.
 func value_at(world_x: float, world_z: float) -> float:
 	if shape != Shape.IMAGE:
-		return 1.0 - clampf(edge_distance(world_x, world_z) / edge_softness, 0.0, 1.0)
+		return _fade_at(world_x, world_z) * opacity
+	var here := _image_at(world_x, world_z)
+	return here.x * here.y * opacity
+
+
+## A soft shape's mask: 1 inside its outline, falling to 0 across edge_softness outside it. Its
+## height is 1 everywhere, so this is all there is to it. Kept apart from the image's Vector2 -
+## whose parts are 32-bit - so that a pad lands exactly where it did before images had masks.
+func _fade_at(world_x: float, world_z: float) -> float:
+	return 1.0 - clampf(edge_distance(world_x, world_z) / edge_softness, 0.0, 1.0)
+
+
+## The image at a world point: x is its height, -1 to 1 of `height`, and y its mask, 0 to 1,
+## faded inside its border by border_fade. Zero outside it.
+func _image_at(world_x: float, world_z: float) -> Vector2:
 	var local := _to_local * Vector3(world_x, global_position.y, world_z)
 	var half_l := length * 0.5
 	var half_w := width * 0.5
 	if absf(local.x) >= half_l or absf(local.z) >= half_w:
-		return 0.0
-	return _sample(local.x / length + 0.5, local.z / width + 0.5)
+		return Vector2.ZERO
+	var here := _sample(local.x / length + 0.5, local.z / width + 0.5)
+	if border_fade > 0.0:
+		var inside := minf(half_l - absf(local.x), half_w - absf(local.z))
+		here.y *= clampf(inside / border_fade, 0.0, 1.0)
+	return here
 
 
 ## Whether the shape has an outline the terrain can cut its mesh along. An image has none.
@@ -365,38 +419,60 @@ func _fade_reach() -> Vector2:
 	return Vector2.ZERO
 
 
-func _sample(u: float, v: float) -> float:
-	if _size == 0:
-		return 0.0
-	u *= _size - 1
-	v *= _size - 1
+## The image's height and mask at u, v (0 to 1 across it), each read between the four nearest
+## samples. Sample 0 is on the image's near edge and the last on its far edge, the way the
+## terrain lays out its own height map, so an image the terrain's size lands sample on sample.
+func _sample(u: float, v: float) -> Vector2:
+	if _columns == 0 or _rows == 0:
+		return Vector2.ZERO
+	u *= _columns - 1
+	v *= _rows - 1
 	var x0 := int(u)
 	var y0 := int(v)
-	var x1 := mini(x0 + 1, _size - 1)
-	var y1 := mini(y0 + 1, _size - 1)
+	var x1 := mini(x0 + 1, _columns - 1)
+	var y1 := mini(y0 + 1, _rows - 1)
 	var fx := u - x0
 	var fy := v - y0
-	return lerpf(lerpf(_values[y0 * _size + x0], _values[y0 * _size + x1], fx),
-			lerpf(_values[y1 * _size + x0], _values[y1 * _size + x1], fx), fy)
+	var a := y0 * _columns
+	var b := y1 * _columns
+	return Vector2(
+			lerpf(lerpf(_heights[a + x0], _heights[a + x1], fx),
+					lerpf(_heights[b + x0], _heights[b + x1], fx), fy),
+			lerpf(lerpf(_masks[a + x0], _masks[a + x1], fx),
+					lerpf(_masks[b + x0], _masks[b + x1], fx), fy))
 
 
+## Reads stamp_path: a 16-byte header - "STMP", version, columns, rows - then per sample a
+## uint16 height, 32768 for zero, and a uint16 mask. tools/make_stamp.py writes it and says why.
 func _load() -> void:
-	_values = PackedFloat32Array()
-	_size = 0
+	_heights = PackedFloat32Array()
+	_masks = PackedFloat32Array()
+	_columns = 0
+	_rows = 0
 	var file := FileAccess.open(stamp_path, FileAccess.READ)
 	if file == null:
 		push_error("TerrainStamp %s: cannot open %s" % [name, stamp_path])
 		return
 	var bytes := file.get_buffer(file.get_length())
-	var count := bytes.size() / 2
-	var size := int(sqrt(float(count)))
-	if size * size != count:
-		push_error("TerrainStamp %s: %s is not square (%d samples)" % [name, stamp_path, count])
+	if bytes.size() < 16 or bytes.slice(0, 4).get_string_from_ascii() != "STMP":
+		push_error("TerrainStamp %s: %s is not a .stamp - an old .r16 converts with"
+				% [name, stamp_path] + " tools/make_stamp.py r16")
 		return
-	_values.resize(count)
+	var version := bytes.decode_u32(4)
+	var columns := bytes.decode_u32(8)
+	var rows := bytes.decode_u32(12)
+	var count := columns * rows
+	if version != 1 or columns < 2 or rows < 2 or bytes.size() < 16 + count * 4:
+		push_error("TerrainStamp %s: %s is version %d, %d x %d, %d bytes - not a stamp this reads"
+				% [name, stamp_path, version, columns, rows, bytes.size()])
+		return
+	_heights.resize(count)
+	_masks.resize(count)
 	for i in count:
-		_values[i] = bytes.decode_u16(i * 2) / 65535.0
-	_size = size
+		_heights[i] = (bytes.decode_u16(16 + i * 4) - 32768) / 32768.0
+		_masks[i] = bytes.decode_u16(18 + i * 4) / 65535.0
+	_columns = columns
+	_rows = rows
 
 
 ## Any edit: the outline follows at once, and a ticked stamp tells the terrain, which redoes
@@ -421,7 +497,7 @@ func _draw_helpers_if_ready() -> void:
 ## levelling modes the plane itself as a see-through sheet at the height the ground goes to.
 ## Ground poking through the sheet is what gets cut; gaps under it are what gets filled.
 func _draw_helpers() -> void:
-	var colour: Color = _DIG_COLOUR if mode == Mode.ADD and strength < 0.0 else _COLOURS[mode]
+	var colour: Color = _DIG_COLOUR if mode == Mode.ADD and height < 0.0 else _COLOURS[mode]
 	if _outline == null:
 		_outline = _helper(&"StampOutline", true)
 		_sheet = _helper(&"StampSheet", false)
@@ -445,12 +521,18 @@ func _draw_helpers() -> void:
 	# Once ticked, the ground itself shows the plane, and a sheet lying in it would only flicker
 	# against it.
 	_sheet.visible = mode != Mode.ADD and not preview
+	# At the level a soft shape takes the ground to, Y + height - not at the gizmo, or a pad
+	# with the default 40 m of height would show its sheet 40 m below where it puts the ground.
+	# An image's level varies across it; its sheet marks the zero, the stamp's own Y.
+	var lift := Vector3.ZERO
+	if shape != Shape.IMAGE:
+		lift = _to_local * (global_position + Vector3.UP * height)
 	var fill := ImmediateMesh.new()
 	fill.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in rim.size():
-		fill.surface_add_vertex(Vector3.ZERO)
-		fill.surface_add_vertex(rim[i])
-		fill.surface_add_vertex(rim[(i + 1) % rim.size()])
+		fill.surface_add_vertex(Vector3(0.0, lift.y, 0.0))
+		fill.surface_add_vertex(rim[i] + Vector3(0.0, lift.y, 0.0))
+		fill.surface_add_vertex(rim[(i + 1) % rim.size()] + Vector3(0.0, lift.y, 0.0))
 	fill.surface_end()
 	_sheet.mesh = fill
 

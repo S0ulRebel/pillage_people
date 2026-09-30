@@ -40,8 +40,9 @@ func _run() -> void:
 	terrain.height_scale = 180.0
 	var stamp: TerrainStamp = load("res://world/terrain_stamp/terrain_stamp.tscn").instantiate()
 	stamp.name = "Pad"
-	stamp.mode = TerrainStamp.Mode.FLATTEN
+	stamp.mode = TerrainStamp.Mode.REPLACE
 	stamp.shape = TerrainStamp.Shape.SOFT_RECT
+	stamp.height = 0.0
 	stamp.length = 20.0
 	stamp.width = 14.0
 	stamp.edge_softness = 4.0

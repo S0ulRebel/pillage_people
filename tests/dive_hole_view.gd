@@ -61,7 +61,7 @@ func _run() -> void:
 	var holes: Array[TerrainStamp] = []
 	for child in terrain.get_children():
 		var stamp := child as TerrainStamp
-		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.strength >= 0.0:
+		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.height >= 0.0:
 			continue
 		var at := stamp.global_position
 		if plain.height_at(at.x, at.z) < sea:
@@ -88,7 +88,7 @@ func _run() -> void:
 		var at := stamp.global_position
 		var before: float = sea - plain.height_at(at.x, at.z)
 		var after: float = sea - terrain.height_at(at.x, at.z)
-		var expected: float = -stamp.strength * stamp.value_at(at.x, at.z)
+		var expected: float = -stamp.height * stamp.value_at(at.x, at.z)
 		print("%s at (%.0f, %.0f): %.1f m of water before, %.1f m after (dug %.1f m, stamp says %.1f m)"
 				% [stamp.name, at.x, at.z, before, after, after - before, expected])
 		_check(absf((after - before) - expected) < 0.05,
