@@ -76,7 +76,8 @@ const SHADER := "res://props/fish/fish.gdshader"
 
 ## How often a fish re-checks the seabed under itself, in frames. Sampling the terrain for every
 ## fish every frame is by a wide margin the most expensive thing in here, and the seabed does
-## not move, so the checks are spread out and staggered by index.
+## not move, so the checks are spread out and staggered by index. Between checks the bed is
+## carried along the slope the last one saw - see _bed_under.
 const BED_EVERY := 12
 
 ## How often a fish looks around it, in frames - so at 60 Hz, twenty times a second.
@@ -94,6 +95,12 @@ var _speed := PackedFloat32Array()
 var _phase := PackedFloat32Array()
 var _lit := PackedFloat32Array()
 var _bed := PackedFloat32Array()
+## Which way the seabed slopes where each fish last looked, and where that was. Read flat, the
+## bed was out of date for most of the time between looks: a fish swimming up a bank covers a
+## metre in twelve frames, and on the banks round the lagoon a metre along is most of its
+## clearance up.
+var _slope := PackedVector2Array()
+var _bed_at := PackedVector2Array()
 ## The heading each fish is currently turning toward, and how frightened it was when it last
 ## looked. Both are set on a fish's think frame and used on every frame in between.
 var _want := PackedVector3Array()
@@ -211,6 +218,8 @@ func _populate() -> void:
 	_phase.resize(n)
 	_lit.resize(n)
 	_bed.resize(n)
+	_slope.resize(n)
+	_bed_at.resize(n)
 	_next.resize(n)
 	_want.resize(n)
 	_scare.resize(n)
@@ -229,16 +238,32 @@ func _populate() -> void:
 		var on_ball := Vector3(cos(a) * ring, y, sin(a) * ring)
 		# Flattened, because a school is a lens rather than a beach ball.
 		on_ball.y *= 0.45
-		_pos[i] = _home + on_ball * radius
+		var at: Vector3 = _home + on_ball * radius
+		_slope[i] = Vector2.ZERO
+		_bed_at[i] = Vector2(at.x, at.z)
+		if terrain == null:
+			# Below anything, so a bed nobody has looked at cannot push a fish up through the
+			# surface.
+			_bed[i] = -1000.0
+		else:
+			# Fitted into the water it starts in. The node goes wherever looks right from above,
+			# and a lens seven metres deep around it takes no notice of what is there: the first
+			# school in main.tscn sits a metre over a bed three and a half metres down, and began
+			# with fish two metres into the sand and a few in the air. Squeezed rather than cut
+			# off at the walls, so it keeps the even spread this whole function is for.
+			_look_down(i, at)
+			var lowest: float = _bed[i] + above_bed
+			var highest: float = _sea - below_surface
+			var half: float = clampf((highest - lowest) * 0.5, 0.0, ball * 0.45)
+			var middle: float = minf(maxf(_home.y, lowest + half), highest - half)
+			at.y = middle + half * on_ball.y * radius / (ball * 0.45)
+		_pos[i] = at
 		_dir[i] = heading
 		_speed[i] = cruise
 		_phase[i] = _rng.randf()
 		_lit[i] = 0.35
 		_want[i] = heading
 		_scare[i] = 0.0
-		# Below anything, so the first bed sample cannot push a fish up through the surface
-		# before it has been taken.
-		_bed[i] = -1000.0
 
 
 ## A still school in the editor, at wherever this node has been dragged to.
@@ -251,9 +276,13 @@ func _ready() -> void:
 	if not Engine.is_editor_hint():
 		return
 	var sea := global_position.y
-	var terrain := get_node_or_null("../Terrain")
+	# Kept, not just read, so the preview is fitted into the water the way the game will fit it
+	# (see _populate) rather than showing fish in the sand that will never be there.
+	terrain = get_node_or_null("../Terrain") as Node3D
 	if terrain != null and terrain.has_method("sea_level"):
 		sea = terrain.sea_level()
+	else:
+		terrain = null
 	if setup(global_position, sea, 1):
 		_publish()
 
@@ -296,6 +325,11 @@ func _wander() -> void:
 		var r: float = _rng.randf_range(0.35, 0.9) * home_radius
 		var depth: float = _rng.randf_range(below_surface + 0.5, below_surface + 4.5)
 		_target = Vector3(_home.x + cos(a) * r, _sea - depth, _home.z + sin(a) * r)
+		# Over the seabed as well as under the surface. The depth is counted down from the
+		# surface, and the lagoon is shallower than that in places, so a target left where it
+		# fell sat in the sand and steered the whole school into it.
+		if terrain != null:
+			_target.y = maxf(_target.y, terrain.height_at(_target.x, _target.z) + above_bed)
 	_target.y = minf(_target.y, _sea - below_surface)
 
 
@@ -369,8 +403,26 @@ func _steer(delta: float) -> void:
 		# Eased rather than snapped, so one frame of hard steering does not flash.
 		_lit[i] = _lit[i] + (clampf(lit, 0.18, 1.0) - _lit[i]) * minf(delta * 6.0, 1.0)
 
-		_dir[i] = facing
 		var here: Vector3 = _pos[i] + facing * _speed[i] * delta
+		# The limits themselves, where the body would touch the sand or break the surface. The
+		# steering in _decide turns a fish back before it gets here; this is for one that has not
+		# turned in time, and it levels the fish out along the wall rather than leaving it nosing
+		# into it. The surface goes last, so that in water too shallow to hold a fish at all it
+		# ends up hidden in the sand rather than out in the air.
+		# _bed_under, written out: this runs for every fish every frame, and in GDScript the call
+		# costs more than the arithmetic.
+		var lowest: float = _bed[i] + _slope[i].dot(Vector2(here.x, here.z) - _bed_at[i]) \
+				+ _body_half
+		if here.y < lowest:
+			here.y = lowest
+			if facing.y < 0.0:
+				facing = _level(facing)
+		var highest: float = _sea - _body_half
+		if here.y > highest:
+			here.y = highest
+			if facing.y > 0.0:
+				facing = _level(facing)
+		_dir[i] = facing
 		_pos[i] = here
 		sum += here
 		# Phase is carried, never recomputed from the clock, because the beat changes with the
@@ -443,14 +495,20 @@ func _decide(i: int, danger: PackedVector3Array) -> void:
 	_scare[i] = scared
 
 	# Walls. The surface and the seabed are hard limits - a fish through either one is the whole
-	# illusion gone - so they push rather than merely suggest.
+	# illusion gone. This is the steering half: past its clearance a fish stops wanting to go any
+	# further that way, whatever its neighbours want, and is pushed back. Adding the push alone
+	# was not enough. It starts at 1 against up to 4.6 from everything above, so a school heading
+	# down together carried on a metre and more into the sand before it lost the vote. The limit
+	# itself, for a fish that has not turned in time, is in _steer.
 	if (i + _frame) % BED_EVERY == 0 and terrain != null:
-		_bed[i] = terrain.height_at(here.x, here.z)
+		_look_down(i, here)
 	var ceiling := _sea - below_surface
-	var floor_y: float = _bed[i] + above_bed
+	var floor_y: float = _bed_under(i, here) + above_bed
 	if here.y > ceiling:
+		want.y = minf(want.y, 0.0)
 		want += Vector3.DOWN * (1.0 + (here.y - ceiling))
 	elif here.y < floor_y:
+		want.y = maxf(want.y, 0.0)
 		want += Vector3.UP * (1.0 + (floor_y - here.y))
 	var out := Vector3(here.x - _home.x, 0.0, here.z - _home.z)
 	var far := out.length()
@@ -460,6 +518,28 @@ func _decide(i: int, danger: PackedVector3Array) -> void:
 	if want.length_squared() < 0.000001:
 		want = facing
 	_want[i] = want.normalized()
+
+
+## Fish `i` looks at the seabed under `at`: how high it is there and which way it slopes.
+func _look_down(i: int, at: Vector3) -> void:
+	var h: float = terrain.height_at(at.x, at.z)
+	_bed[i] = h
+	_slope[i] = Vector2(terrain.height_at(at.x + 1.0, at.z) - h,
+			terrain.height_at(at.x, at.z + 1.0) - h)
+	_bed_at[i] = Vector2(at.x, at.z)
+
+
+## The seabed under `at` as fish `i` last saw it: the height where it looked, carried along the
+## slope it saw there.
+func _bed_under(i: int, at: Vector3) -> float:
+	return _bed[i] + _slope[i].dot(Vector2(at.x, at.z) - _bed_at[i])
+
+
+## A heading with its climb or dive taken out. Straight up or down has no level version and is
+## left as it is; the steering is already turning that fish away.
+static func _level(facing: Vector3) -> Vector3:
+	var flat := Vector3(facing.x, 0.0, facing.z)
+	return flat.normalized() if flat.length_squared() > 0.000001 else facing
 
 
 func _publish() -> void:
