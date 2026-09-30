@@ -207,6 +207,9 @@ uniform float lattice_size : hint_range(4.0, 40.0) = 18.0;
 // The share of crest walls breaking in any whitecap cycle, and a cycle's seconds.
 uniform float event_rate : hint_range(0.0, 1.0) = 0.3;
 uniform float event_period : hint_range(1.0, 30.0) = 7.0;
+// Draws what the lattice's whitecaps are placed by, for checking: 1 the crest above each point
+// (a colour per crest) and how far below it (brightness), for the first copy of the tile.
+uniform int whitecap_debug : hint_range(0, 1) = 0;
 
 // ---- Object bands -----------------------------------------------------------------------
 group_uniforms Object_Bands;
@@ -1020,6 +1023,7 @@ void fragment() {
     // How shaded the white is (the whitecap events' puffs), and their pale halo.
     float crest_shade = 0.0;
     float event_halo = 0.0;
+    vec3 debug_colour = vec3(-1.0);
     if (whitecap_style == 2 && foam_lace_ready) {
         // Hairlines a little fainter, and the events on top.
         float t_event = clock * wave_speed;
@@ -1079,6 +1083,11 @@ void fragment() {
                     }
                 }
                 float extent = smoothstep(1.0, 5.0, clear) * smoothstep(0.1, 0.6, weight);
+                if (whitecap_debug == 1 && c == 0) {
+                    vec3 hue = 0.5 + 0.5 * cos(6.2832 * (crest_id * 7.31 + vec3(0.0, 0.33, 0.67)));
+                    debug_colour = hue * (1.0 - clamp(below / 2.6, 0.0, 1.0) * 0.8)
+                        * mix(0.4, 1.0, extent);
+                }
                 vec3 one = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
                     clock * wave_speed, extent);
                 events = vec3(max(events.x, one.x), one.x > events.x ? one.y : events.y,
@@ -1243,6 +1252,9 @@ void fragment() {
     vec3 crest_colour = mix(foam_colour, mix(foam_colour, sss_colour, 0.22) * 0.9, puff_shade);
     vec3 white_colour = surf >= crest ? shore_white.rgb : crest_colour;
     ALBEDO = mix(banded_water, white_colour * sky_light, white);
+    if (debug_colour.x >= 0.0) {
+        ALBEDO = debug_colour;
+    }
     ALPHA = edge * max(contact, max(white, object_band));
     ALPHA *= 1.0 - drawn_back * 0.85;
 

@@ -186,6 +186,10 @@ func _sea_views(camera: Camera3D, ocean: Node, shore: Vector3, inland: Vector3) 
 	camera.look_at(camera.global_position + into * cos(deg_to_rad(30.0)) - Vector3.UP * sin(deg_to_rad(30.0)), Vector3.UP)
 	var low := await _capture("open_sea_low")
 	_swatches(low)
+	if OS.get_environment("FOAM_DEBUG") == "1":
+		ocean.material.set_shader_parameter("whitecap_debug", 1)
+		await _capture("debug_low")
+		ocean.material.set_shader_parameter("whitecap_debug", 0)
 	if OS.get_environment("FOAM_STYLES") == "1":
 		await _style_views(camera, ocean, open_sea, inland, low)
 
