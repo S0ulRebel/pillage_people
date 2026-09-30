@@ -18,13 +18,17 @@ extends Node
 ## the ground starts here.
 signal changed
 
-## Metres of water over the seabed round the islands, before any noise.
-@export_range(0.0, 200.0, 0.5, "suffix:m") var depth := 10.0:
+## Metres of water over the seabed round the islands, out to shelf_radius, before any noise.
+##
+## Deeper than the island's own shelf, by a little: reef.gd grows its beds wherever the water is
+## 0.9 to 2.8 m deep, and a bed as shallow as the shelf would have them growing in the open a
+## quarter of a kilometre out. At 4 m with a metre of noise it is never shallower than 3.
+@export_range(0.0, 200.0, 0.5, "suffix:m") var depth := 4.0:
 	set(value):
 		depth = value
 		changed.emit()
 ## How far the noise lifts or lowers the bed, in metres each way.
-@export_range(0.0, 50.0, 0.1, "suffix:m") var noise_height := 1.5:
+@export_range(0.0, 50.0, 0.1, "suffix:m") var noise_height := 1.0:
 	set(value):
 		noise_height = value
 		changed.emit()
@@ -43,10 +47,18 @@ signal changed
 	set(value):
 		far_depth = value
 		changed.emit()
-## How far past the edge of the detailed area the bed takes to drop from `depth` to `far_depth`.
-## Measured from that edge rather than from each island: the islands live inside it, and past it
-## is open sea.
-@export_range(1.0, 5000.0, 1.0, "suffix:m") var deepening_distance := 300.0:
+## How far from the middle the bed stays at `depth` before it starts to drop away.
+##
+## Round the middle rather than from the edge of the Terrain's square: an island's own slope is
+## round, and a bed that deepened from the square's edges had square contours, which the sea's
+## colour drew from above as a lighter square with straight sides round the island.
+@export_range(0.0, 5000.0, 1.0, "suffix:m") var shelf_radius := 200.0:
+	set(value):
+		shelf_radius = maxf(value, 0.0)
+		changed.emit()
+## How far past shelf_radius the bed takes to drop from `depth` to `far_depth`, easing in and
+## out of the slope so it has no crease at either end.
+@export_range(1.0, 5000.0, 1.0, "suffix:m") var deepening_distance := 350.0:
 	set(value):
 		deepening_distance = maxf(value, 1.0)
 		changed.emit()
@@ -57,32 +69,36 @@ func _on_noise_changed() -> void:
 
 
 ## The seabed at a world point, in the asker's metres: `sea_level` is where the water stands,
-## and `area` the detailed area (world x, z) inside which the bed stays at `depth`.
-func height_at(world_x: float, world_z: float, sea_level: float, area: Rect2) -> float:
-	var past := Vector2(maxf(maxf(area.position.x - world_x, world_x - area.end.x), 0.0),
-			maxf(maxf(area.position.y - world_z, world_z - area.end.y), 0.0)).length()
-	var water := lerpf(depth, far_depth, smoothstep(0.0, deepening_distance, past))
+## and `centre` (world x, z) the middle the bed deepens away from.
+func height_at(world_x: float, world_z: float, sea_level: float, centre: Vector2) -> float:
 	var bump := noise.get_noise_2d(world_x, world_z) * noise_height if noise != null else 0.0
-	return sea_level - water + bump
+	return sea_level - _water(Vector2(world_x, world_z).distance_to(centre)) + bump
+
+
+## Metres of water, before the noise, `from_middle` metres out.
+func _water(from_middle: float) -> float:
+	var past := from_middle - shelf_radius
+	if past <= 0.0:
+		return depth
+	return lerpf(depth, far_depth, smoothstep(0.0, deepening_distance, past))
 
 
 ## The same heights over a square grid - `size` samples a side, `spacing` apart, the first at
-## (first, first) - divided by `scale`, row by row. The Terrain's whole grid in one call: a
-## million height_at() calls took 0.6 s, most of it the calls themselves. The grid is the
-## detailed area itself, so the bed there is `depth` plus the noise.
+## (first, first), the middle the bed deepens from at the grid's own middle - divided by
+## `scale`, row by row. The Terrain's whole grid in one call: a million height_at() calls took
+## 0.6 s, most of it the calls themselves.
 func fill(size: int, spacing: float, first: float, sea_level: float,
 		scale: float) -> PackedFloat32Array:
 	var heights := PackedFloat32Array()
 	heights.resize(size * size)
-	var level := sea_level - depth
+	var middle := first + (size - 1) * spacing * 0.5
 	for gz in size:
 		var wz := first + gz * spacing
 		var row := gz * size
-		if noise == null:
-			for gx in size:
-				heights[row + gx] = level / scale
-			continue
 		for gx in size:
-			var bump := noise.get_noise_2d(first + gx * spacing, wz) * noise_height
-			heights[row + gx] = (level + bump) / scale
+			var wx := first + gx * spacing
+			var level := sea_level - _water(Vector2(wx - middle, wz - middle).length())
+			if noise != null:
+				level += noise.get_noise_2d(wx, wz) * noise_height
+			heights[row + gx] = level / scale
 	return heights

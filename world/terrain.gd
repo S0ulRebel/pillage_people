@@ -1050,9 +1050,7 @@ func _roughness(point: Vector3) -> float:
 ## stamp that reaches there on it - so a pad whose fade crosses the edge carries on across it.
 func _far_height(world_x: float, world_z: float) -> float:
 	var base := global_position.y
-	var half := world_size * 0.5
-	var height := _bed.height_at(world_x, world_z, sea_level(),
-			Rect2(-half, -half, world_size, world_size)) + base
+	var height := _bed.height_at(world_x, world_z, sea_level(), Vector2.ZERO) + base
 	var point := Vector2(world_x, world_z)
 	for k in _active_stamps.size():
 		if _active_rects[k].has_point(point) and _active_stamps[k].is_inside_tree():
@@ -1100,6 +1098,7 @@ func _build_far_mesh() -> void:
 	var cells := (_far_count - 1) / 2
 	var detail := world_size / _built_resolution
 	var half := world_size * 0.5
+	var cuts := _edge_cuts()
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for j in _far_count - 1:
@@ -1118,20 +1117,22 @@ func _build_far_mesh() -> void:
 			var inner: Array[Vector3] = []
 			var outer: Array[Vector3] = []
 			if across_z and ci == _far_inner:            # east of the square
-				inner = _edge_run(half, cj * _far_step, false, detail)
+				inner = _edge_run(half, cj * _far_step, false, detail, cuts)
 				outer = [b, c]
 			elif across_z and ci == -_far_inner - 1:     # west
-				inner = _edge_run(-half, cj * _far_step, false, detail)
+				inner = _edge_run(-half, cj * _far_step, false, detail, cuts)
 				outer = [a, d]
 			elif across_x and cj == _far_inner:          # south
-				inner = _edge_run(ci * _far_step, half, true, detail)
+				inner = _edge_run(ci * _far_step, half, true, detail, cuts)
 				outer = [d, c]
 			elif across_x and cj == -_far_inner - 1:     # north
-				inner = _edge_run(ci * _far_step, -half, true, detail)
+				inner = _edge_run(ci * _far_step, -half, true, detail, cuts)
 				outer = [a, b]
 			if inner.is_empty():
-				_far_triangle(st, a, b, c)
-				_far_triangle(st, a, c, d)
+				# Split from b to d, the way Jolt splits the collider's cells, so what is walked
+				# on out here is what is drawn.
+				_far_triangle(st, a, b, d)
+				_far_triangle(st, b, c, d)
 				continue
 			var middle := inner.size() / 2
 			for k in inner.size() - 1:
@@ -1154,8 +1155,9 @@ func _far_vertex(i: int, j: int) -> Vector3:
 
 ## The detailed mesh's own vertices along one far cell's side of the square's edge, from its
 ## low end to its high end: at the chunks' positions, (k * detail - half), so they are the very
-## same points, and at height_at() there, which is what the chunks stand them at.
-func _edge_run(x: float, z: float, along_x: bool, detail: float) -> Array[Vector3]:
+## same points, and at height_at() there, which is what the chunks stand them at - and between
+## them any a stamp's cut line puts on the edge, from `cuts`.
+func _edge_run(x: float, z: float, along_x: bool, detail: float, cuts: PackedVector3Array) -> Array[Vector3]:
 	var half := world_size * 0.5
 	var start := roundi(((x if along_x else z) + half) / detail)
 	var run: Array[Vector3] = []
@@ -1164,7 +1166,43 @@ func _edge_run(x: float, z: float, along_x: bool, detail: float) -> Array[Vector
 		var point := Vector3(t, 0.0, z) if along_x else Vector3(x, 0.0, t)
 		point.y = height_at(point.x, point.z)
 		run.append(point)
+	var low := start * detail - half
+	var high := (start + far_cell) * detail - half
+	var added := false
+	for p in cuts:
+		var on_line := absf((p.z if along_x else p.x) - (z if along_x else x)) < 0.0001
+		var along := p.x if along_x else p.z
+		if on_line and along > low and along < high:
+			run.append(p)
+			added = true
+	if added:
+		if along_x:
+			run.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.x < b.x)
+		else:
+			run.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.z < b.z)
+		# A cut line through a grid vertex puts a second one on top of it.
+		for k in range(run.size() - 1, 0, -1):
+			if run[k].distance_to(run[k - 1]) < 0.0001:
+				run.remove_at(k)
 	return run
+
+
+## The vertices a stamp's cut lines put on the square's edge, off the grid's own: the chunks
+## have them, so the far ring has to as well or there is a crack at each. Read off the cut
+## geometry the border chunks keep for their collider, which is where every cut vertex is.
+func _edge_cuts() -> PackedVector3Array:
+	var half := world_size * 0.5
+	var cuts := PackedVector3Array()
+	var last := _chunks_per_side - 1
+	for index in _rim_by_chunk.size():
+		var cx := index % _chunks_per_side
+		var cz := index / _chunks_per_side
+		if cx != 0 and cx != last and cz != 0 and cz != last:
+			continue
+		for p in _rim_by_chunk[index]:
+			if absf(absf(p.x) - half) < 0.0001 or absf(absf(p.z) - half) < 0.0001:
+				cuts.append(p)
+	return cuts
 
 
 ## One triangle of the far ring, wound the way the chunks wind theirs, with the chunks' colour
