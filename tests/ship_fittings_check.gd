@@ -145,6 +145,7 @@ func _run() -> void:
 	_check_wale(ship)
 	_check_rigging(ship)
 	_check_canvas(ship)
+	_check_sheets(ship)
 	_check_flag_rings(ship)
 	await _check_course_clears_stairs(ship)
 	await _check_flag_flies_downwind(ship)
@@ -1052,6 +1053,64 @@ func _check_canvas(ship: Node3D) -> void:
 				"the %s's cloth has no texture coordinates for its canvas" % name)
 	check(ship.get_node_or_null("Mizzen") == null and ship.get_node_or_null("Spanker") == null,
 			"there is a mizzen on the quarterdeck; the reference has two masts")
+
+
+## The sails' feet are made fast as in the reference. From a block at each course clew a sheet runs
+## aft and a tack forward to the rail (the fore tack to its cathead), and from a block at the
+## jib's clew a sheet runs to each side's rail. Each rope starts under its block, at a sail's foot
+## corner, and ends on what it is belayed to. It passes clear of the hull, the rail and the
+## shrouds on its way. The jib's clew, free above the bow, is above the head of anyone there.
+func _check_sheets(ship: Node3D) -> void:
+	var sheets := ship.get_node_or_null("Sheets")
+	var ropes: Array = [] if sheets == null else sheets.get_meta("sheets", [])
+	check(ropes.size() == 10, "%d sheets and tacks; there should be a sheet and a tack from each course clew and two jib sheets" % ropes.size())
+	if sheets == null:
+		return
+	var blocks := sheets.find_children("Block*", "", false, false)
+	check(blocks.size() == 5 and blocks.all(func(b: Node) -> bool: return b.get_node_or_null("Model") != null),
+			"%d clew blocks with models; there should be one at each course clew and the jib's" % blocks.size())
+	var corners: Array[Vector3] = []
+	for name in ["Sail", "ForeCourse", "Jib"]:
+		var sail := ship.get_node(name)
+		corners.append_array([sail.get("_foot_from") as Vector3, sail.get("_foot_to") as Vector3])
+	var catheads: Array[Vector3] = []
+	for name in ["CatheadStarboard", "CatheadPort"]:
+		var cathead := ship.get_node("DeckFittings/" + name) as Node3D
+		for m in cathead.find_children("*", "MeshInstance3D", true, false):
+			var mesh_node := m as MeshInstance3D
+			for v in mesh_node.mesh.get_faces():
+				catheads.append(ship.global_transform.affine_inverse() * mesh_node.global_transform * v)
+	var shrouds: Array = []
+	for path in ["Mast/Shrouds", "Foremast/Shrouds", "Mast/Backstays"]:
+		shrouds.append_array(ship.get_node(path).get_meta("set_up", []))
+	var space := ship.get_world_3d().direct_space_state
+	var rail := ship.get_node("Rail/Body")
+	for rope in ropes:
+		var clew: Vector3 = rope["clew"]
+		var from: Vector3 = rope["from"]
+		var to: Vector3 = rope["to"]
+		var label := "the rope from (%.2f, %.2f, %.2f)" % [clew.x, clew.y, clew.z]
+		check(corners.any(func(c: Vector3) -> bool: return c.distance_to(clew) < 0.01), "%s does not start at a sail's foot corner" % label)
+		check(absf(from.y - (clew.y - 0.33)) < 0.01 and Vector2(from.x - clew.x, from.z - clew.z).length() < 0.01,
+				"%s does not start under its clew's block" % label)
+		if rope["onto"] == "rail":
+			var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(to + Vector3(0.0, 0.3, 0.0)), ship.to_global(to - Vector3(0.0, 0.3, 0.0))))
+			var gap: float = (to - ship.to_local(down.position)).y if not down.is_empty() else INF
+			check(not down.is_empty() and down.collider == rail and absf(gap) <= 0.08,
+					"%s is not belayed to the rail (it ends %.2f m off it)" % [label, gap])
+		else:
+			var nearest := INF
+			for v in catheads:
+				nearest = minf(nearest, v.distance_to(to))
+			check(nearest < 0.1, "%s is not made fast to the cathead (%.2f m off it)" % [label, nearest])
+		# Clear of the hull, the castle and the rail until it reaches what it is belayed to.
+		var end := to + (from - to).normalized() * 0.15
+		var run := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(from), ship.to_global(end)))
+		check(run.is_empty(), "%s runs into %s" % [label, "" if run.is_empty() else str((run.collider as Node).get_path())])
+		for shroud in shrouds:
+			var pair := Geometry3D.get_closest_points_between_segments(from, to, shroud["strop"], shroud["top"])
+			check(pair[0].distance_to(pair[1]) > 0.08, "%s runs into a shroud at (%.2f, %.2f, %.2f)" % [label, pair[0].x, pair[0].y, pair[0].z])
+	check(Ship.JIB_CLEW.y >= Ship.DECK_Y + 1.9, "the jib's clew hangs %.2f m over the bow, into the head of anyone there" % (Ship.JIB_CLEW.y - Ship.DECK_Y))
 
 
 ## The flag hangs on its staff by its three rings: the staff's axis passes through each ring's

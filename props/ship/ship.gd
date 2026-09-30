@@ -97,6 +97,20 @@ const MAIN_LIFT := MAIN_LOWER - 5.5
 ## it bellies but never swings back over the stairs or the castle. This deep, its foot is above
 ## the head of anyone on the stairs beside the mast, and above the quarterdeck's rail.
 const COURSE_DROP := 2.6
+## How the sails' feet are made fast, as in the reference: a block hangs from each course's clews
+## (its foot's corners), and from it a sheet runs aft and a tack forward, down to the rail's
+## handrail, where they are belayed: these far along the rail. The fore course's tack goes to
+## its cathead instead, the rail ahead of it being taken by the fore shrouds' channels.
+const MAIN_SHEET_Z := 9.45
+const MAIN_TACK_Z := 6.8
+const FORE_SHEET_Z := 3.2
+## The jib's clew, its foot's after corner: free above the bow, clear of the head of anyone
+## there, with a sheet from it down to each side's rail JIB_SHEET_Z along. Its tack is lashed
+## to the bowsprit's tip.
+const JIB_CLEW := Vector3(0.0, DECK_Y + 2.3, -0.9)
+const JIB_SHEET_Z := -1.2
+## Where a rope belayed to the rail meets it: the handrail's top is 0.75 m above the deck.
+const HANDRAIL_TOP := 0.75
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
 ## The foremast: the M01 model (4.2 m, 0.4 m across at the deck) stretched to about four fifths of
@@ -363,6 +377,7 @@ func _ready() -> void:
 	_build_topsail()
 	_build_backstays()
 	_build_blocks()
+	_build_sheets()
 	_build_flag()
 	_build_deck_fittings()
 	_build_rail()
@@ -1752,8 +1767,8 @@ func _build_sail() -> void:
 	var old_jib := get_node_or_null("Jib")
 	if old_jib != null:
 		old_jib.free()
-	# Along the bowsprit from just clear of the knightheads to just short of its tip.
-	var foot_from := _along_bowsprit(BOWSPRIT_LENGTH * 0.13)
+	# The foot from the clew, free above the bow, to the tack, lashed near the bowsprit's tip.
+	var foot_from := JIB_CLEW
 	var foot_to := _along_bowsprit(BOWSPRIT_LENGTH * 0.95)
 	# A short span on the forward side of the foremast, up to the fore yard, as the reference's jib
 	# is: not to the masthead, above the topsail.
@@ -2027,6 +2042,73 @@ func _set_up(parent: Node3D, top: Vector3, foot: Vector3, plate_end: Vector3, la
 	_rope(parent, strop, top, 0.02, rope)
 	_rope(parent, foot, plate_end, 0.018, iron)
 	return strop
+
+
+## The sails' feet made fast (MAIN_SHEET_Z and the rest): a block at each course clew, a sheet
+## aft and a tack forward from it, belayed to the rail's handrail (the fore tack to its
+## cathead); a block at the jib's clew and a sheet from it down to each side's rail. Listed on
+## the node's "sheets" meta, in ship space, for the tests. The topsails' feet are laced to the
+## yards below them and need none.
+func _build_sheets() -> void:
+	var old := get_node_or_null("Sheets")
+	if old != null:
+		old.free()
+	var sheets := Node3D.new()
+	sheets.name = "Sheets"
+	sheets.set_meta("sheets", [])
+	add_child(sheets)
+	var main := get_node_or_null("Sail")
+	var fore := get_node_or_null("ForeCourse")
+	var jib := get_node_or_null("Jib")
+	for side in [-1.0, 1.0]:
+		if main != null:
+			var clew := _clew(main, side)
+			_sheet(sheets, clew, _rail_top(MAIN_SHEET_Z, side), "rail")
+			_sheet(sheets, clew, _rail_top(MAIN_TACK_Z, side), "rail")
+		if fore != null:
+			var clew := _clew(fore, side)
+			_sheet(sheets, clew, _rail_top(FORE_SHEET_Z, side), "rail")
+			# On the cathead's top, where it stands out over the bow, 1.2 m along it.
+			var along := Vector3(side * cos(deg_to_rad(CATHEAD_YAW)), 0.0, -sin(deg_to_rad(CATHEAD_YAW)))
+			_sheet(sheets, clew, Vector3(side * CATHEAD_AT.x, CATHEAD_AT.y, CATHEAD_AT.z) + along * 1.2, "cathead")
+		if jib != null:
+			_sheet(sheets, JIB_CLEW, _rail_top(JIB_SHEET_Z, side), "rail")
+	for sail in [main, fore]:
+		if sail != null:
+			for side in [-1.0, 1.0]:
+				_clew_block(sheets, _clew(sail, side))
+	if jib != null:
+		_clew_block(sheets, JIB_CLEW)
+
+
+## The foot corner of a sail on `side` (+1 starboard).
+func _clew(sail: Node, side: float) -> Vector3:
+	var from: Vector3 = sail.get("_foot_from")
+	var to: Vector3 = sail.get("_foot_to")
+	return to if (to.x - from.x) * side > 0.0 else from
+
+
+## The top of the rail's handrail `z` along the ship, on `side`.
+func _rail_top(z: float, side: float) -> Vector3:
+	var at: Vector2 = _outline_at(RAIL_PATH, z)[0]
+	return Vector3(side * at.x, DECK_Y + HANDRAIL_TOP, z)
+
+
+## A single block hung from a clew: its strop at the clew, 0.35 m long below it.
+func _clew_block(parent: Node3D, clew: Vector3) -> void:
+	var block := Node3D.new()
+	block.name = "Block%d" % parent.get_child_count()
+	block.position = clew
+	parent.add_child(block)
+	_fit_model(block, RIGGING + "block_single.glb")
+
+
+## One sheet or tack from the block at `clew` down to `to`, on the `onto` it is belayed to.
+func _sheet(parent: Node3D, clew: Vector3, to: Vector3, onto: String) -> void:
+	var from := clew - Vector3(0.0, 0.33, 0.0)
+	_rope(parent, from, to, 0.015, _flat(Color(0.45, 0.34, 0.22)))
+	var entries: Array = parent.get_meta("sheets")
+	entries.append({"clew": clew, "from": from, "to": to, "onto": onto})
 
 
 ## A single block under each end of the course yard and the topsail yard (YARD_BLOCKS).

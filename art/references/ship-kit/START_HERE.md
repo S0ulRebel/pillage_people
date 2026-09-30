@@ -80,6 +80,7 @@ Done so far:
 - **Fore yards:** the foremast carries the main's two yard models at about four fifths of their size: the fore yard at 5.3 m (6.4 m across) with the fore course, and the fore topsail yard at 7.6 m (4.2 m across) with the fore topsail laced down to the fore yard. There is a block under each arm. As in the reference, the jib's head is at the fore yard, not the masthead.
 - **Sail canvas:** the cloth sails are painted with Tripo's sails, so they show its seams, patches and hem where they were plain cloth. `python tools/bake_sail_canvas.py` flattens each Tripo sail (`rigging/sail_course.glb`, `sail_topsail.glb`, `sail_jib.glb`), maps the cloth's square onto its corners (the jib's head is one corner), and bakes `rigging/canvas_<sail>.png` in the cloth's own texture coordinates. The canvas just inside each corner's grommet is used, and the gaps where Tripo's edges curve in are mirrored in from across the edge. The courses use `canvas_course.png`, the topsails `canvas_topsail.png`, the jib `canvas_jib.png`, with a warm tint so full sun keeps them cream.
 - **Sheeted courses:** both courses are laced to their yards and sheeted home at the foot, 2.6 m below, as the reference's sails are. They belly in the wind but never swing back over the stairs or the castle. The main course's foot is above the head of anyone on the stairs beside the mast, and above the quarterdeck's rail.
+- **Sheets and tacks:** the sails' feet are made fast as in the reference. A single block hangs from each course clew (its foot's corners), and from it a sheet runs aft and a tack forward, down to the rail's handrail where they are belayed. The fore course's tack goes to its cathead, because the fore shrouds' channels take the rail ahead of it. The jib's foot is no longer laced along the bowsprit: its tack is lashed near the bowsprit's tip, and its clew hangs free above the bow, 2.3 m up, with a block and a sheet to each side's rail. The topsails' feet are laced to the yards below them.
 
 **The rail:** the solid wall round the weather deck is gone, bow to stern, and a rail stands in its place.
 - `python tools/strip_game_bulwarks.py` takes the top tier off the game hull down to the deck. The tier below ends in a flat wall top, 0.2 m wide along the sides.
@@ -124,6 +125,7 @@ Done so far:
 - the castle's sides do not meet the hull's;
 - the way up the stairs to the wheel has a step the captain cannot take, or no room for him;
 - the course bellies back over the castle, or hangs into the head room over the quarterdeck's stairs;
+- a sheet or tack does not start at a sail's foot corner, is not belayed to the rail or cathead, or runs through the hull, the rail or a shroud;
 - the castle's trim is off the wall, into the stairs' rails, or over a window or the door;
 - a sail has no canvas, or there is a mizzen;
 - a shroud or backstay leaves its mast in the air, or its deadeyes, channel or chain plate are not made fast to the ship, or it runs through the rail, the hull or the fore sails;
