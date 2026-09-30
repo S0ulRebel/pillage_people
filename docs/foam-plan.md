@@ -500,3 +500,13 @@ material to compare against the net (0, still the default):
 - `event_rate` 0.3, `event_period` 7 s.
 - The net (style 0) and the two prototypes alone (1, 2) stay switchable for comparing; the net
   code can go once this is settled.
+
+### Step 8m: fluffier whitecaps
+
+- Up close a young whitecap was one flat white shape. Now it is a heap of round puffs: the
+  outline scalloped at two sizes (big lobes round the larger lace's cells, small round bumps on
+  them from the smaller lace), the valleys between the big puffs and the part spilling furthest
+  down the face shaded blue-grey (a little of `sss_colour`), a few small bubble holes opening in
+  the solid foam as it ages, spray dots in a ring just off the edge while it is young, and a
+  pale halo round it. `whitecap_event` returns (cover, shade, halo); the shade fades out with
+  distance, where the puffs are too small to read.

@@ -550,18 +550,20 @@ vec2 crest_wall_foam(float dist, float ny, float which, float other, float stren
     return vec2(lace, plain) * shown;
 }
 
-// PROTOTYPE (whitecap_style 2): a whitecap event on one wave-cell wall. Each wall, once every
-// event_period seconds (at its own moment), breaks with chance event_rate: white is born at
-// the wall's middle, spreads along it and down the face in the first third of its life, and
-// turns to lace, beads and nothing, like the shore foam. `dist` metres from the wall, `ny` its
-// direction, `which` its random number, `mid` metres from its middle.
 // A whitecap event at `dist` metres from its crest (down the face; the back takes `spill` of
 // that) and `mid` metres along the crest from its middle, for a crest whose random number is
 // `which`. Every event_period seconds, at its own moment, the crest breaks with chance
 // event_rate: white is born at the middle, spreads along the crest and down the face in the
-// first third of its life - a solid, lumpy core - which shrinks as lace of two sizes opens
-// round it, then goes.
-float whitecap_event(float dist, float mid, float which, float spill, vec3 fine, vec3 coarse,
+// first third of its life, then opens into lace and goes.
+//
+// Fluffy, as the swatches paint breaking foam: a heap of round puffs, not one flat shape. The
+// outline is scalloped at two sizes - big lobes round the cells of the larger lace, small
+// round bumps on them from the smaller lace - like cauliflower. Inside, the valleys between
+// the big puffs and the part spilling furthest down the face are shaded blue-grey, so the
+// puffs read as round; a few small bubble holes open in the solid foam, and spray dots fly
+// just off its edge. As it ages the solid heap shrinks and lace of two sizes opens round it.
+// Returns (cover, shade 0 lit .. 1 shaded, pale halo round it).
+vec3 whitecap_event(float dist, float mid, float which, float spill, vec3 fine, vec3 coarse,
         float t) {
     float life = event_period * 0.55;
     float cyc = t / max(event_period, 0.1) + which * 7.13;
@@ -573,25 +575,42 @@ float whitecap_event(float dist, float mid, float which, float spill, vec3 fine,
     float w = mix(0.08, 0.7, grow) * spill * size;
     float r = mix(0.5, 3.4, grow) * size;
     float e = length(vec2(dist / max(w, 0.001), mid / r));
-    // Lumpy: the edge bulges round the cells of the larger lace.
-    float edge = 0.7 + 0.5 * smoothstep(0.65, 0.1, coarse.x) * (0.5 + coarse.y);
+    // The scalloped outline: big lobes, and small round bumps on them.
+    float lobe = smoothstep(0.65, 0.05, coarse.x);
+    float bump = smoothstep(0.55, 0.05, fine.x);
+    float edge = 0.62 + 0.38 * lobe * (0.5 + coarse.y) + 0.16 * bump;
     float e_aa = max(fwidth(e), 0.01);
     float shape = 1.0 - smoothstep(edge - e_aa, edge + e_aa, e);
-    // A solid, fluffy core while young that shrinks as the whitecap ages, and lace round it
-    // that opens with age: holes of two sizes together, so it is not a honeycomb.
+    // The solid heap, shrinking with age, with small round bubble holes in some of the small
+    // cells, growing as it ages.
     float core_edge = edge * (1.0 - smoothstep(0.2, 0.85, a)) * 0.85;
     float core = 1.0 - smoothstep(core_edge - e_aa, core_edge + e_aa, e);
+    float aa_f = max(fwidth(fine.x), 0.003);
+    float hole_r = mix(0.05, 0.16, a) * step(0.72, fine.y);
+    core *= smoothstep(hole_r - aa_f, hole_r + aa_f, fine.x);
+    // Lace round it that opens with age: holes of two sizes together.
     float lace_age = clamp(mix(0.3, 1.0, a) + (e - core_edge) * 0.25, 0.0, 1.0);
     float lace = min(foam_holes(fine, lace_age).x,
         foam_holes(coarse, max(lace_age * 1.2 - 0.3, 0.0)).x);
-    lace = max(lace, core);
-    return shape * lace * chosen;
+    float cover = max(lace, core) * shape;
+    // Spray: the small lace's knots, in some cells, in a ring just outside the edge.
+    float ring = step(edge, e) * (1.0 - smoothstep(edge * 1.15, edge * 1.4, e));
+    float dots = smoothstep(0.6 - aa_f, 0.6 + aa_f, fine.x) * step(0.55, fine.y) * ring
+        * (1.0 - smoothstep(0.5, 1.0, a));
+    cover = max(cover, dots);
+    // Shade: in the valleys between the big puffs (near the larger lace's cell walls), and
+    // down the spill, furthest from the crest.
+    float valley = 1.0 - smoothstep(0.0, 0.14, coarse.z);
+    float low = smoothstep(0.35, 0.95, dist / max(w * edge, 0.001));
+    float shade = clamp(max(valley * 0.8, low * 0.7) * (0.6 + 0.4 * (1.0 - bump)), 0.0, 1.0);
+    float halo = (1.0 - smoothstep(edge, edge * 1.8, e)) * (1.0 - smoothstep(0.6, 1.0, a));
+    return vec3(cover, shade, halo) * chosen;
 }
 
 // Style 2: a whitecap event on one wave-cell wall (distance, direction, random number and
 // distance from its middle as wave_cells gives them). Crest walls and slanting ones break;
 // the spill goes down the face.
-float wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 coarse, float t) {
+vec3 wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 coarse, float t) {
     float spill = ny < -0.35 ? 1.0 : 0.35;
     return whitecap_event(dist, mid, which, spill, fine, coarse, t) * step(0.35, abs(ny));
 }
@@ -600,17 +619,19 @@ float wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 c
 // `below` metres down the face from the crest above, `crest_id` that crest's random number
 // (the tile's alpha). The crests are cut into stretches `stretch` metres long, each breaking on
 // its own; the two stretches nearest are tried, so a whitecap can spread over a stretch's end.
-float lattice_event(float along, float below, float crest_id, vec3 fine, vec3 coarse, float t) {
+vec3 lattice_event(float along, float below, float crest_id, vec3 fine, vec3 coarse, float t) {
     const float stretch = 6.0;
     float k = floor(along / stretch);
     float f = along / stretch - k;
     float k2 = k + (f < 0.5 ? -1.0 : 1.0);
-    float best = 0.0;
+    vec3 best = vec3(0.0);
     for (int i = 0; i < 2; i++) {
         float kk = i == 0 ? k : k2;
         float which = hash(vec2(kk * 1.31 + 0.5, crest_id * 97.3));
         float centre = (kk + 0.25 + 0.5 * hash(vec2(kk * 5.7, crest_id * 13.1))) * stretch;
-        best = max(best, whitecap_event(below, along - centre, which, 1.0, fine, coarse, t));
+        vec3 one = whitecap_event(below, along - centre, which, 1.0, fine, coarse, t);
+        // The shade goes with whichever covers more.
+        best = vec3(max(best.x, one.x), one.x > best.x ? one.y : best.y, max(best.z, one.z));
     }
     return best;
 }
@@ -992,13 +1013,20 @@ void fragment() {
     vec2 walls = max(wall_one, wall_two);
     // The lace until it is too small to see, then the plain line, before the lace can shimmer.
     float crest = mix(foam_lace_ready ? walls.x : walls.y, walls.y, smoothstep(0.03, 0.07, lace_px));
+    // How shaded the white is (the whitecap events' puffs), and their pale halo.
+    float crest_shade = 0.0;
+    float event_halo = 0.0;
     if (whitecap_style == 2 && foam_lace_ready) {
         // Hairlines a little fainter, and the events on top.
         float t_event = clock * wave_speed;
-        float events = max(
-            wall_event(cells.x, cells.y, cells.w, wall_mids.x, fine, coarse, t_event),
-            wall_event(second_wall.x, second_wall.y, second_wall.z, wall_mids.y, fine, coarse, t_event));
-        crest = max(crest * 0.8, events * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
+        vec3 ev_one = wall_event(cells.x, cells.y, cells.w, wall_mids.x, fine, coarse, t_event);
+        vec3 ev_two = wall_event(second_wall.x, second_wall.y, second_wall.z, wall_mids.y, fine,
+            coarse, t_event);
+        vec3 events = ev_one.x >= ev_two.x ? vec3(ev_one.xy, max(ev_one.z, ev_two.z))
+            : vec3(ev_two.xy, max(ev_one.z, ev_two.z));
+        crest_shade = events.y * step(crest * 0.8, events.x);
+        crest = max(crest * 0.8, events.x * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
+        event_halo = events.z;
     }
     // A pale glow down the face below the white.
     // Measured from this wave's own crest, not the nearest wall, so it runs on past connectors.
@@ -1030,10 +1058,11 @@ void fragment() {
             float crest_id = texture(wave_lattice_ids, uv).a;
             float below = (second_copy ? texture(wave_lattice, uv2).g : texture(wave_lattice, uv1).g)
                 * scale / 7.0;
-            float events = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
+            vec3 events = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
                 clock * wave_speed);
-            crest = max(crest, events * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
-            crest_glow = max(crest_glow, events * 0.6);
+            crest_shade = events.y * step(crest, events.x);
+            crest = max(crest, events.x * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
+            event_halo = events.z;
         }
     }
     // The walls are a few centimetres: gone where a pixel spans more than a quarter metre of
@@ -1044,6 +1073,7 @@ void fragment() {
     // chop is still bigger than the pixels, and near.
     crest *= smoothstep(1.5, 4.0, water_depth) * swell;
     crest *= 1.0 - smoothstep(80.0, 200.0, range_here);
+    crest_glow = max(crest_glow, event_halo * 0.8);
     crest_glow *= (1.0 - smoothstep(0.12, 0.3, metres_per_px)) * smoothstep(1.5, 4.0, water_depth)
         * swell * (1.0 - smoothstep(55.0, 150.0, range_here));
     // Everything white on the water, foam and crests together.
@@ -1182,7 +1212,12 @@ void fragment() {
     // The glow round the white: pale, lit through like the crest under it.
     banded_water = mix(banded_water, mix(shaded_water, mix(sss_colour, vec3(1.0), 0.55) * sky_light, 0.6),
         crest_glow * 0.45);
-    vec3 white_colour = surf >= crest ? shore_white.rgb : foam_colour;
+    // The whitecaps' puffs shaded blue-grey in their valleys and down their spill, lit through
+    // a little like the crest under them; their shade fades out with distance, where the puffs
+    // are too small to read.
+    float puff_shade = crest_shade * (1.0 - smoothstep(0.03, 0.08, metres_per_px));
+    vec3 crest_colour = mix(foam_colour, mix(foam_colour, sss_colour, 0.3) * 0.82, puff_shade);
+    vec3 white_colour = surf >= crest ? shore_white.rgb : crest_colour;
     ALBEDO = mix(banded_water, white_colour * sky_light, white);
     ALPHA = edge * max(contact, max(white, object_band));
     ALPHA *= 1.0 - drawn_back * 0.85;
