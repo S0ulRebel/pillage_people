@@ -44,9 +44,10 @@ func _run() -> void:
 		return
 
 	# Every slot holds its model, not the placeholder built when the file was missing.
-	for path in ["Helm", "Capstan", "Foremast", "Bowsprit", "Rudder", "Rudder/Hinges",
+	for path in ["Helm", "Capstan", "Bowsprit", "Rudder", "Rudder/Hinges",
 			"Mast/Lower", "Mast/Topmast", "Mast/Top", "Mast/Yard", "Mast/TopsailYard",
-			"Mast/TopsailFoot", "DeckFittings/Binnacle", "DeckFittings/MastCollar",
+			"Mast/TopsailFoot", "Foremast/Lower", "Foremast/Topmast", "Foremast/Top", "Foremast/Yard",
+			"Foremast/TopsailYard", "Foremast/TopsailFoot", "DeckFittings/Binnacle", "DeckFittings/MastCollar",
 			"DeckFittings/ForemastCollar", "DeckFittings/SternLantern", "Quarterdeck/Cabin",
 			"Quarterdeck/Stairs"]:
 		var slot := ship.get_node_or_null(path)
@@ -81,9 +82,14 @@ func _run() -> void:
 	check(absf(topmast.position.y - lower.end.y) <= TOLERANCE, "the topmast does not sit on the mainmast's head")
 	check(absf(topmast.end.y - (Ship.DECK_Y + Ship.MAIN_LOWER + 3.0)) <= TOLERANCE,
 			"the topmast ends at %.3f, not %.1f m above the deck" % [topmast.end.y, Ship.MAIN_LOWER + 3.0])
-	var fore := _bounds(ship, ship.get_node_or_null("Foremast/Model"))
-	check(absf(fore.size.y - Ship.FOREMAST_HEIGHT) <= TOLERANCE and absf(fore.position.y - Ship.DECK_Y) <= TOLERANCE,
-			"the foremast stands %.2f to %.2f, not %.1f m up from the deck" % [fore.position.y, fore.end.y, Ship.FOREMAST_HEIGHT])
+	# The foremast is the main again, smaller: its lower mast and topmast FORE_SCALE of the main's.
+	var fore_lower := _bounds(ship, ship.get_node_or_null("Foremast/Lower"))
+	var fore_top := _bounds(ship, ship.get_node_or_null("Foremast/Topmast"))
+	var fore_height := (Ship.MAIN_LOWER + 3.0) * Ship.FORE_SCALE
+	check(absf(fore_lower.position.y - Ship.DECK_Y) <= TOLERANCE and absf(fore_top.end.y - (Ship.DECK_Y + fore_height)) <= TOLERANCE
+			and absf(fore_top.position.y - fore_lower.end.y) <= TOLERANCE,
+			"the foremast stands %.2f to %.2f, not %.2f m up from the deck, its topmast on its lower mast's head" % [fore_lower.position.y, fore_top.end.y, fore_height])
+	var fore := fore_lower.merge(fore_top)
 	check(fore.size.y >= 0.75 * (topmast.end.y - Ship.DECK_Y), "the foremast is %.2f m, a stub beside the main's %.2f" % [fore.size.y, topmast.end.y - Ship.DECK_Y])
 	var yard := _bounds(ship, ship.get_node_or_null("Mast/Yard"))
 	check(absf(yard.size.x - 8.0) <= TOLERANCE and yard.size.z < 0.5,
@@ -162,23 +168,19 @@ func _run() -> void:
 	_finish()
 
 
-## The foremast's two yards: each its model, athwartships at its length, at its height on the
-## mast, below the mast's head and not in the jib's head; a block under each arm; the fore
-## course laced to the fore yard with its foot hanging above head height over the foredeck, and
-## the fore topsail laced between the fore topsail yard and the fore yard.
+## The foremast is rigged as the main is, at FORE_SCALE: its course yard, topsail yard and topsail
+## foot yard each at the main's height and length times FORE_SCALE, athwartships, with a block
+## under each arm of the two big yards and its top on its lower mast's head. The fore course is
+## laced to the fore yard with its foot above head height over the foredeck, and the fore topsail
+## is laced between its topsail yard and topsail foot yard.
 func _check_fore_yards(ship: Node3D) -> void:
-	var fore := _bounds(ship, ship.get_node_or_null("Foremast/Model"))
-	for spec in [["Yard", Ship.FORE_YARD], ["TopsailYard", Ship.FORE_TOPSAIL_YARD]]:
-		var node := ship.get_node_or_null("Foremast/" + spec[0])
-		check(node != null and node.get_node_or_null("Model") != null, "the foremast's %s has no model" % spec[0])
-		if node == null:
-			continue
-		var box := _bounds(ship, node)
-		var want: Vector2 = spec[1]
-		check(absf(box.size.x - want.y) <= 0.05 and box.size.z < 0.4,
-				"the foremast's %s is %.2f m across and %.2f deep; it should run %.1f m athwartships" % [spec[0], box.size.x, box.size.z, want.y])
-		check(absf(box.get_center().y - (Ship.FOREMAST_AT.y + want.x)) <= 0.05 and box.end.y < fore.end.y,
-				"the foremast's %s is at %.2f, not %.2f up the mast and under its head" % [spec[0], box.get_center().y, Ship.FOREMAST_AT.y + want.x])
+	var s := Ship.FORE_SCALE
+	for pair in [["Yard", "Mast/Yard"], ["TopsailYard", "Mast/TopsailYard"], ["TopsailFoot", "Mast/TopsailFoot"], ["Top", "Mast/Top"]]:
+		var fore := _bounds(ship, ship.get_node_or_null("Foremast/" + pair[0]))
+		var main := _bounds(ship, ship.get_node_or_null(pair[1]))
+		check(absf(fore.size.x - main.size.x * s) <= 0.05 and absf((fore.get_center().y - Ship.DECK_Y) - (main.get_center().y - Ship.DECK_Y) * s) <= 0.05,
+				"the foremast's %s is %.2f m across at %.2f; it should be the main's at %.2f scale (%.2f across at %.2f)"
+				% [pair[0], fore.size.x, fore.get_center().y, s, main.size.x * s, Ship.DECK_Y + (main.get_center().y - Ship.DECK_Y) * s])
 	var blocks := ship.get_node_or_null("Foremast/Blocks")
 	check(blocks != null and blocks.get_child_count() == 4
 			and blocks.get_children().all(func(b: Node) -> bool: return b.get_node_or_null("Model") != null),
@@ -188,15 +190,16 @@ func _check_fore_yards(ship: Node3D) -> void:
 	check(course != null and topsail != null, "the foremast's sails are missing")
 	if course == null or topsail == null:
 		return
-	var yard_y := Ship.FOREMAST_AT.y + Ship.FORE_YARD.x
+	var yard := _bounds(ship, ship.get_node("Foremast/Yard")).get_center().y
 	var lowest := INF
 	for p in course.get("_pos") as PackedVector3Array:
 		lowest = minf(lowest, p.y)
 	check(lowest >= Ship.DECK_Y + 1.9, "the fore course hangs down to %.2f, %.2f m over the foredeck: into the heads of anyone there" % [lowest, lowest - Ship.DECK_Y])
-	check(absf((course.get("_head_from") as Vector3).y - yard_y) <= 0.05, "the fore course is not laced to the fore yard")
-	check(absf((topsail.get("_head_from") as Vector3).y - (Ship.FOREMAST_AT.y + Ship.FORE_TOPSAIL_YARD.x)) <= 0.05
-			and absf((topsail.get("_foot_from") as Vector3).y - yard_y) <= 0.15,
-			"the fore topsail is not laced between the fore topsail yard and the fore yard")
+	check(absf((course.get("_head_from") as Vector3).y - yard) <= 0.1, "the fore course is not laced to the fore yard")
+	var top_yard := _bounds(ship, ship.get_node("Foremast/TopsailYard")).get_center().y
+	var top_foot := _bounds(ship, ship.get_node("Foremast/TopsailFoot")).get_center().y
+	check(absf((topsail.get("_head_from") as Vector3).y - top_yard) <= 0.1 and absf((topsail.get("_foot_from") as Vector3).y - top_foot) <= 0.1,
+			"the fore topsail is not laced between the fore topsail yard and its foot yard")
 
 
 ## The bowsprit passes between the knightheads, the rail's first posts either side of it at the
@@ -228,7 +231,6 @@ func _check_bowsprit_clears_knightheads(ship: Node3D) -> void:
 ## short of its tip; and the bobstay holds the bowsprit down from its tip.
 func _check_jib(ship: Node3D) -> void:
 	var jib := ship.get_node_or_null("Jib")
-	var fore := _bounds(ship, ship.get_node_or_null("Foremast/Model"))
 	var sprit := _bounds(ship, ship.get_node_or_null("Bowsprit"))
 	if jib == null:
 		check(false, "the jib is missing")
@@ -237,7 +239,7 @@ func _check_jib(ship: Node3D) -> void:
 	var head_to: Vector3 = jib.get("_head_to")
 	var foot_to: Vector3 = jib.get("_foot_to")
 	# As in the reference, the jib's head is at the fore yard, not up at the masthead.
-	var fore_yard := Ship.FOREMAST_AT.y + Ship.FORE_YARD.x
+	var fore_yard := _bounds(ship, ship.get_node("Foremast/Yard")).get_center().y
 	check(absf(head_to.y - fore_yard) <= 0.5 and head_from.y < head_to.y and head_to.z < Ship.FOREMAST_AT.z,
 			"the jib's head runs %.2f to %.2f, not on the forward side of the foremast up to its fore yard (%.2f)" % [head_from.y, head_to.y, fore_yard])
 	check(foot_to.z > sprit.position.z and foot_to.z < sprit.position.z + 0.6,
@@ -941,7 +943,7 @@ func _check_rigging(ship: Node3D) -> void:
 ## forward of the fore sails.
 func _check_shrouds(ship: Node3D) -> void:
 	var space := ship.get_world_3d().direct_space_state
-	var sets := [["Mast/Shrouds", 6, "Mast/Top"], ["Foremast/Shrouds", 6, "Foremast/Model"],
+	var sets := [["Mast/Shrouds", 6, "Mast/Top"], ["Foremast/Shrouds", 6, "Foremast/Top"],
 			["Mast/Backstays", 2, "Mast/Topmast"]]
 	var catheads: Array[Vector3] = []
 	for name in ["CatheadStarboard", "CatheadPort"]:

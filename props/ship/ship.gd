@@ -113,17 +113,12 @@ const JIB_SHEET_Z := -1.2
 const HANDRAIL_TOP := 0.75
 ## Deck contact of the foremast, on the bow deck forward of the hatch. Shorter than the main.
 const FOREMAST_AT := Vector3(0.0, DECK_Y, 1.5)
-## The foremast: the M01 model (4.2 m, 0.4 m across at the deck) stretched to about four fifths of
-## the main's height (MAIN_LOWER and the 3 m topmast) and thickened to 0.46 m across, next to the
-## main's 0.5. As modelled it stood barely half the main's height, a stub on the bow.
-const FOREMAST_HEIGHT := 8.2
-const FOREMAST_GIRTH := 1.15
-## The foremast's yards, mast-local, as (height, length): the main's two yard models at about
-## four fifths of their size, as the mast is. The fore yard carries the fore course, sheeted home
-## FORE_COURSE_DROP below, above the head of anyone on the foredeck. The fore topsail yard
-## carries the fore topsail, laced below to the fore yard. The jib's head is at the fore yard.
-const FORE_YARD := Vector2(5.3, 6.4)
-const FORE_TOPSAIL_YARD := Vector2(7.6, 4.2)
+## The foremast is built as the mainmast is (_square_mast) - lower mast, top, topmast, course and
+## topsail yards and their blocks - at this scale, as the reference's foremast is a smaller
+## copy of its main. Its course is sheeted home FORE_COURSE_DROP below its yard, above the head of
+## anyone on the foredeck; its topsail is laced between its topsail yard and topsail foot yard;
+## the jib's head is at its course yard.
+const FORE_SCALE := 0.85
 const FORE_COURSE_DROP := 2.6
 ## Heel of the bowsprit, resting on the deck just inboard of the stem. The spar's own length
 ## runs forward from here, over the stem head between the two knightheads the rail ends on. A
@@ -259,10 +254,9 @@ const WALE_PORT := [
 const CHANNEL_OUT := 0.3
 const CHANNEL_THICK := 0.1
 const DEADEYE_LANYARD := 0.25
-## Mast-local: where the foremast's shrouds leave it, between its two yards, on its sides; and
-## how far forward of the mast their feet stand. Forward, as the main's are, clear of the fore
-## sails, which hang aft of the mast; and forward of the catheads and the anchors under them.
-const FORE_SHROUD_Y := 6.4
+## How far forward of the foremast its shrouds' feet stand. Forward, as the main's are, clear of
+## the fore sails, which hang aft of the mast; and forward of the catheads and the anchors under
+## them.
 const FORE_SHROUD_FEET := [-2.1, -1.75, -1.4]
 ## Where each backstay's foot stands along the castle's side: on the wall panel nearest this z,
 ## at the stern quarter, well aft of the mast it holds.
@@ -365,7 +359,6 @@ func _ready() -> void:
 	_build_quarterdeck()
 	_build_helm()
 	_build_mast()
-	_build_top_rail()
 	_build_shrouds()
 	_build_foremast()
 	_build_bowsprit()
@@ -376,7 +369,6 @@ func _ready() -> void:
 	_build_sail()
 	_build_topsail()
 	_build_backstays()
-	_build_blocks()
 	_build_sheets()
 	_build_flag()
 	_build_deck_fittings()
@@ -769,15 +761,20 @@ func _helm_body(helm: Node3D) -> void:
 ## when they are missing. The node is named Mast and sits on MAST_AT so the swap is a mesh,
 ## not a new place.
 func _build_mast() -> void:
-	var existing := get_node_or_null("Mast") as Node3D
-	if existing != null:
-		var old_foot := existing.get_node_or_null("FootYard")
-		if old_foot != null:
-			old_foot.free()
-		return
+	if get_node_or_null("Mast") == null:
+		_square_mast("Mast", MAST_AT, 1.0)
+
+
+## A square-rigged mast at `at`, named `mast_name`, built at `scale` of the mainmast: the lower
+## mast, the top on its head with the lookout's posts and rail ring, the topmast, the course yard
+## under the top, the topsail yard and topsail foot yard on the topmast, a block under each yard
+## arm, and the lower mast's collision. Everything is laid out in the mainmast's own measures;
+## the node's scale makes the foremast of them.
+func _square_mast(mast_name: String, at: Vector3, scale: float) -> Node3D:
 	var mast := Node3D.new()
-	mast.name = "Mast"
-	mast.position = MAST_AT
+	mast.name = mast_name
+	mast.position = at
+	mast.scale = Vector3.ONE * scale
 	add_child(mast)
 	var timber := _flat(Color(0.55, 0.36, 0.18))
 	var iron := _flat(Color(0.22, 0.22, 0.24))
@@ -811,6 +808,17 @@ func _build_mast() -> void:
 	for i in 8:
 		var ang := TAU * float(i) / 8.0
 		_box(mast, Vector3(cos(ang) * 0.95, 6.05 + MAIN_LIFT, sin(ang) * 0.95), Vector3(0.08, 1.1, 0.08), timber)
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.86
+	ring.outer_radius = 1.04
+	ring.rings = 24
+	ring.ring_segments = 6
+	var rail := MeshInstance3D.new()
+	rail.name = "TopRail"
+	rail.mesh = ring
+	rail.position = Vector3(0.0, 6.6 + MAIN_LIFT, 0.0)
+	rail.material_override = timber
+	mast.add_child(rail)
 	# One course yard under the top. The kit never sized one; this is the crosspiece that
 	# makes the pole read as a mast. Eight metres, so it clears the six-metre beam.
 	var yard := Node3D.new()
@@ -824,9 +832,19 @@ func _build_mast() -> void:
 		_spar(yard, -2.0, 0.06, 0.12, 4.0, timber)
 		_spar(yard, 2.0, 0.12, 0.06, 4.0, timber)
 		_spar(yard, 0.0, 0.2, 0.2, 0.12, iron)
-	var old_foot := mast.get_node_or_null("FootYard")
-	if old_foot != null:
-		old_foot.free()
+	# The topsail's yards: just under the topmast's tip, and just clear of the lookout's rails.
+	_crossyard(mast, "TopsailYard", 8.15 + MAIN_LIFT, 2.6, 0.09, timber, iron)
+	_crossyard(mast, "TopsailFoot", 6.9 + MAIN_LIFT, 2.6, 0.07, timber, iron)
+	# A single block under each end of the course yard and the topsail yard (YARD_BLOCKS).
+	var blocks := Node3D.new()
+	blocks.name = "Blocks"
+	mast.add_child(blocks)
+	for spot in YARD_BLOCKS:
+		for side in [1.0, -1.0]:
+			var block := Node3D.new()
+			block.position = Vector3(side * spot[1], spot[0], spot[2])
+			blocks.add_child(block)
+			_fit_model(block, RIGGING + "block_single.glb")
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var col := CylinderShape3D.new()
@@ -836,96 +854,27 @@ func _build_mast() -> void:
 	shape.position = Vector3(0.0, MAIN_LOWER * 0.5, 0.0)
 	body.add_child(shape)
 	mast.add_child(body)
+	return mast
 
 
-## A ring on the post tops. The floor was already there; this is the fence around it.
-func _build_top_rail() -> void:
-	var mast := get_node_or_null("Mast") as Node3D
-	if mast == null or mast.get_node_or_null("TopRail") != null:
-		return
-	var mesh := TorusMesh.new()
-	mesh.inner_radius = 0.86
-	mesh.outer_radius = 1.04
-	mesh.rings = 24
-	mesh.ring_segments = 6
-	var rail := MeshInstance3D.new()
-	rail.name = "TopRail"
-	rail.mesh = mesh
-	rail.position = Vector3(0.0, 6.6 + MAIN_LIFT, 0.0)
-	rail.material_override = _flat(Color(0.55, 0.36, 0.18))
-	mast.add_child(rail)
-
-
-## A shorter mast on the bow, forward of the hatch. The jib stays to this, not to the main.
+## The foremast, on the bow forward of the hatch: the mainmast again at FORE_SCALE
+## (_square_mast), with three shrouds a side from its top's collar down to channels on the bow.
+## The jib stays to it, not to the main.
 func _build_foremast() -> void:
 	if get_node_or_null("Foremast") != null:
 		return
-	var mast := Node3D.new()
-	mast.name = "Foremast"
-	mast.position = FOREMAST_AT
-	add_child(mast)
-	# The M01 model is 4.2 m from its deck contact: stretched to FOREMAST_HEIGHT.
-	if _fit_model(mast, RIGGING + "foremast.glb"):
-		(mast.get_node("Model") as Node3D).scale = Vector3(FOREMAST_GIRTH, FOREMAST_HEIGHT / 4.2, FOREMAST_GIRTH)
-	else:
-		var timber := _flat(Color(0.55, 0.36, 0.18))
-		var iron := _flat(Color(0.22, 0.22, 0.24))
-		_spar(mast, FOREMAST_HEIGHT * 0.5, 0.23, 0.14, FOREMAST_HEIGHT, timber)
-		_spar(mast, 1.8, 0.27, 0.27, 0.08, iron)
-		_spar(mast, 5.3, 0.19, 0.19, 0.08, iron)
-	var body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var col := CylinderShape3D.new()
-	col.radius = 0.2 * FOREMAST_GIRTH + 0.02
-	col.height = FOREMAST_HEIGHT
-	shape.shape = col
-	shape.position = Vector3(0.0, FOREMAST_HEIGHT * 0.5, 0.0)
-	body.add_child(shape)
-	mast.add_child(body)
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	_yard(mast, "Yard", FORE_YARD, RIGGING + "lower_yard.glb", 8.0, 0.12, timber)
-	_yard(mast, "TopsailYard", FORE_TOPSAIL_YARD, RIGGING + "topsail_yard.glb", 5.2, 0.09, timber)
-	# A single block under each arm of both yards, as on the main.
-	var blocks := Node3D.new()
-	blocks.name = "Blocks"
-	mast.add_child(blocks)
-	for yard in [FORE_YARD, FORE_TOPSAIL_YARD]:
-		for side in [1.0, -1.0]:
-			var block := Node3D.new()
-			block.position = Vector3(side * (yard.y * 0.5 - 0.2), yard.x - 0.13, 0.1)
-			blocks.add_child(block)
-			_fit_model(block, RIGGING + "block_single.glb")
-	# Three shrouds a side from the mast's sides between its yards, down to channels on the bow.
+	var mast := _square_mast("Foremast", FOREMAST_AT, FORE_SCALE)
 	var shrouds := _rigging_node(mast, "Shrouds")
-	var radius := 0.15 * FOREMAST_GIRTH
+	# As the main's: on the top's collar, forward, clear of the course yard.
+	var upper_z: Array[float] = [-0.4, -0.33, -0.26]
 	for side in [-1.0, 1.0]:
 		var tops: Array[Vector3] = []
 		var hull: Array[Vector3] = []
 		for i in FORE_SHROUD_FEET.size():
-			# Round the mast's surface from its side toward its front, the foremost rope foremost.
-			var round := deg_to_rad(20.0 * (FORE_SHROUD_FEET.size() - 1 - i))
-			tops.append(FOREMAST_AT + Vector3(side * radius * cos(round), FORE_SHROUD_Y, -radius * sin(round)))
+			tops.append(FOREMAST_AT + Vector3(side * 0.25, 5.05 + MAIN_LIFT, upper_z[i]) * FORE_SCALE)
 			hull.append(_hull_edge(FOREMAST_AT.z + FORE_SHROUD_FEET[i], side))
 		var mid: float = FOREMAST_AT.z + (FORE_SHROUD_FEET[0] + FORE_SHROUD_FEET[FORE_SHROUD_FEET.size() - 1]) * 0.5
 		_ratlines(shrouds, tops, _shroud_side(shrouds, tops, hull, _hull_out(mid, side), false))
-
-
-## A yard across `mast` at `at` (mast-local height, length), just aft of the mast's axis: the
-## yard model at `path`, `model_length` long along X from its sling, stretched to the length and
-## thinned with it; or a plain spar `thick` at the sling, tapering to both arms.
-func _yard(mast: Node3D, yard_name: String, at: Vector2, path: String, model_length: float, thick: float, timber: Material) -> void:
-	var yard := Node3D.new()
-	yard.name = yard_name
-	yard.position = Vector3(0.0, at.x, 0.1)
-	mast.add_child(yard)
-	var scale := at.y / model_length
-	if _fit_model(yard, path):
-		(yard.get_node("Model") as Node3D).scale = Vector3(scale, lerpf(scale, 1.0, 0.5), lerpf(scale, 1.0, 0.5))
-		return
-	yard.rotation_degrees.z = -90.0
-	var half := at.y * 0.5
-	_spar(yard, -half * 0.5, thick * 0.5, thick, half, timber)
-	_spar(yard, half * 0.5, thick, thick * 0.5, half, timber)
 
 
 ## The bowsprit, BOWSPRIT_LENGTH out over the stem, rising BOWSPRIT_RISE as it goes forward.
@@ -1770,11 +1719,12 @@ func _build_sail() -> void:
 	# The foot from the clew, free above the bow, to the tack, lashed near the bowsprit's tip.
 	var foot_from := JIB_CLEW
 	var foot_to := _along_bowsprit(BOWSPRIT_LENGTH * 0.95)
-	# A short span on the forward side of the foremast, up to the fore yard, as the reference's jib
-	# is: not to the masthead, above the topsail.
-	var ahead := Vector3(0.0, 0.0, -0.2 * FOREMAST_GIRTH - 0.02)
-	var head_from := FOREMAST_AT + Vector3(0.0, FORE_YARD.x - 1.0, 0.0) + ahead
-	var head_to := FOREMAST_AT + Vector3(0.0, FORE_YARD.x + 0.2, 0.0) + ahead
+	# A short span on the forward side of the foremast up to its course yard, as the reference's
+	# jib is: not up at the masthead.
+	var fore_yard_y := FOREMAST_AT.y + (4.6 + MAIN_LIFT) * FORE_SCALE
+	var ahead := Vector3(0.0, 0.0, -0.2 * FORE_SCALE - 0.02)
+	var head_from := Vector3(0.0, fore_yard_y - 1.0, FOREMAST_AT.z) + ahead
+	var head_to := Vector3(0.0, fore_yard_y + 0.2, FOREMAST_AT.z) + ahead
 	var jib := SailScript.new() as Node3D
 	jib.name = "Jib"
 	_canvas(jib, "jib")
@@ -1784,29 +1734,31 @@ func _build_sail() -> void:
 
 
 ## The fore course, laced to the fore yard and sheeted home at its foot, and above it the fore
-## topsail, laced to the fore topsail yard and down to the fore yard's arms. Both just aft of
+## topsail, laced between the fore topsail yard and the fore topsail foot yard. Both just aft of
 ## the foremast, as the main's are.
 func _build_fore_sails() -> void:
 	for old_name in ["ForeCourse", "ForeTopsail"]:
 		var old := get_node_or_null(old_name)
 		if old != null:
 			old.free()
-	var z := FOREMAST_AT.z + 0.12
-	var course_y := FOREMAST_AT.y + FORE_YARD.x
-	var course_half := FORE_YARD.y * 0.5 - 0.3
+	# As the main's, at FORE_SCALE.
+	var z := FOREMAST_AT.z + 0.12 * FORE_SCALE
+	var course_y := FOREMAST_AT.y + (4.6 + MAIN_LIFT) * FORE_SCALE
+	var course_half := SailScript.HALF_WIDTH * FORE_SCALE
 	var course := SailScript.new() as Node3D
 	course.name = "ForeCourse"
 	_canvas(course, "course")
 	course.call("rig_between", Vector3(-course_half, course_y, z), Vector3(course_half, course_y, z),
 			Vector3(-course_half, course_y - FORE_COURSE_DROP, z), Vector3(course_half, course_y - FORE_COURSE_DROP, z), Vector3(0.0, 0.0, 0.4))
 	add_child(course)
-	var top_y := FOREMAST_AT.y + FORE_TOPSAIL_YARD.x
-	var top_half := FORE_TOPSAIL_YARD.y * 0.5 - 0.2
+	var top_y := FOREMAST_AT.y + (8.15 + MAIN_LIFT) * FORE_SCALE
+	var foot_y := FOREMAST_AT.y + (6.9 + MAIN_LIFT) * FORE_SCALE
+	var top_half := 2.3 * FORE_SCALE
 	var topsail := SailScript.new() as Node3D
 	topsail.name = "ForeTopsail"
 	_canvas(topsail, "topsail")
 	topsail.call("rig_between", Vector3(-top_half, top_y, z), Vector3(top_half, top_y, z),
-			Vector3(-course_half, course_y + 0.1, z), Vector3(course_half, course_y + 0.1, z), Vector3(0.0, 0.0, 0.3))
+			Vector3(-top_half, foot_y, z), Vector3(top_half, foot_y, z), Vector3(0.0, 0.0, 0.3 * FORE_SCALE))
 	add_child(topsail)
 
 
@@ -1823,11 +1775,6 @@ func _build_topsail() -> void:
 	var mast := get_node_or_null("Mast") as Node3D
 	if mast == null:
 		return
-	var timber := _flat(Color(0.55, 0.36, 0.18))
-	var iron := _flat(Color(0.22, 0.22, 0.24))
-	# Just under the tip, and just clear of the lookout rails. Shorter than the course yard.
-	_crossyard(mast, "TopsailYard", 8.15 + MAIN_LIFT, 2.6, 0.09, timber, iron)
-	_crossyard(mast, "TopsailFoot", 6.9 + MAIN_LIFT, 2.6, 0.07, timber, iron)
 	if get_node_or_null("Topsail") != null:
 		return
 	var head_y := MAST_AT.y + 8.15 + MAIN_LIFT
@@ -1914,7 +1861,7 @@ func _build_shrouds() -> void:
 func _rigging_node(mast: Node3D, node_name: String) -> Node3D:
 	var node := Node3D.new()
 	node.name = node_name
-	node.position = -mast.position
+	node.transform = mast.transform.affine_inverse()
 	node.set_meta("set_up", [])
 	mast.add_child(node)
 	return node
@@ -2109,22 +2056,6 @@ func _sheet(parent: Node3D, clew: Vector3, to: Vector3, onto: String) -> void:
 	_rope(parent, from, to, 0.015, _flat(Color(0.45, 0.34, 0.22)))
 	var entries: Array = parent.get_meta("sheets")
 	entries.append({"clew": clew, "from": from, "to": to, "onto": onto})
-
-
-## A single block under each end of the course yard and the topsail yard (YARD_BLOCKS).
-func _build_blocks() -> void:
-	var mast := get_node_or_null("Mast") as Node3D
-	if mast == null or mast.get_node_or_null("Blocks") != null:
-		return
-	var blocks := Node3D.new()
-	blocks.name = "Blocks"
-	mast.add_child(blocks)
-	for yard in YARD_BLOCKS:
-		for side in [1.0, -1.0]:
-			var block := Node3D.new()
-			block.position = Vector3(side * yard[1], yard[0], yard[2])
-			blocks.add_child(block)
-			_fit_model(block, RIGGING + "block_single.glb")
 
 
 ## The flag on a short staff above the topmast, held on it by its three rings, its fly out
