@@ -94,6 +94,38 @@ func _run() -> void:
 	terrain.queue_free()
 	await tree.process_frame
 
+	# --- a Seabed: under every sample, so any change to it is the whole ground again ---
+	var bed_terrain := StaticBody3D.new()
+	bed_terrain.name = "Terrain"
+	bed_terrain.set_script(load("res://world/terrain.gd"))
+	bed_terrain.world_size = 620.0
+	bed_terrain.height_scale = 180.0
+	var seabed := Seabed.new()
+	seabed.name = "Seabed"
+	seabed.noise = FastNoiseLite.new()
+	bed_terrain.add_child(seabed)
+	tree.root.add_child(bed_terrain)
+	await tree.process_frame
+	var bed_before: float = bed_terrain.height_at(100.0, 50.0)
+	var bed_meshes: Array = []
+	for chunk in bed_terrain._chunks:
+		bed_meshes.append(chunk.mesh)
+	seabed.depth += 2.0
+	await tree.create_timer(2.0).timeout
+	var bed_after: float = bed_terrain.height_at(100.0, 50.0)
+	var bed_rebuilt := 0
+	for index in bed_terrain._chunks.size():
+		if bed_terrain._chunks[index].mesh != bed_meshes[index]:
+			bed_rebuilt += 1
+	print("seabed 2 m deeper: ground %.2f -> %.2f m, %d of %d chunks rebuilt"
+			% [bed_before, bed_after, bed_rebuilt, bed_terrain._chunks.size()])
+	check(absf(bed_before - bed_after - 2.0) < 0.01, "the ground did not follow the Seabed's depth")
+	check(bed_rebuilt == bed_terrain._chunks.size(),
+			"a Seabed change rebuilt %d of %d chunks - it is under all of them"
+			% [bed_rebuilt, bed_terrain._chunks.size()])
+	bed_terrain.queue_free()
+	await tree.process_frame
+
 	# --- and in main.tscn itself, with everything else that is in it ---
 	print("opening main.tscn...")
 	started = Time.get_ticks_msec()
@@ -111,6 +143,9 @@ func _run() -> void:
 				Time.get_ticks_msec() - started, stamps.map(func(node) -> String:
 				return "%s (preview %s)" % [node.name, node.preview])])
 		check(not stamps.is_empty(), "main.tscn has no TerrainStamp under Terrain")
+		# A pad, not the first stamp: that is the island, and raising it is the whole map.
+		stamps = stamps.filter(func(stamp: TerrainStamp) -> bool: return stamp.has_outline())
+		check(not stamps.is_empty(), "main.tscn has no soft-shape stamp to edit")
 		if not stamps.is_empty():
 			var theirs: TerrainStamp = stamps[0]
 			if not theirs.preview:

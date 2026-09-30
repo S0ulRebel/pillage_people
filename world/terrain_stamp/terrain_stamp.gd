@@ -83,12 +83,12 @@ enum Shape {
 		opacity = value
 		_changed()
 ## Metres along the stamp's own X.
-@export_range(5.0, 600.0, 1.0, "suffix:m") var length := 120.0:
+@export_range(5.0, 600.0, 1.0, "or_greater", "suffix:m") var length := 120.0:
 	set(value):
 		length = value
 		_changed()
 ## Metres along the stamp's own Z.
-@export_range(5.0, 600.0, 1.0, "suffix:m") var width := 120.0:
+@export_range(5.0, 600.0, 1.0, "or_greater", "suffix:m") var width := 120.0:
 	set(value):
 		width = value
 		_changed()
@@ -189,6 +189,12 @@ func reshape(ground: float, world_x: float, world_z: float) -> float:
 		weight *= here.y
 	else:
 		weight *= _fade_at(world_x, world_z)
+	return _blend(ground, rise, weight)
+
+
+## The mode, applied: `rise` is the shape's height in metres here and `weight` how much of it
+## lands, mask times opacity.
+func _blend(ground: float, rise: float, weight: float) -> float:
 	if weight <= 0.0:
 		return ground
 	if mode == Mode.ADD:
@@ -202,6 +208,76 @@ func reshape(ground: float, world_x: float, world_z: float) -> float:
 		Mode.MAX:
 			return lerpf(ground, level, weight) if ground < level else ground
 	return ground
+
+
+## What grid_offset() answers for an image that does not land sample on sample.
+const OFF_GRID := Vector2i(-2147483648, -2147483648)
+
+
+## For a ground grid of samples `spacing` apart with its first at (first, first), which of its
+## samples this image's first sample lands on - or OFF_GRID when it lands between them, or is
+## turned, scaled or sampled at another spacing. On the grid, each ground sample IS one image
+## sample, and reshape_grid() reads it straight.
+func grid_offset(spacing: float, first: float) -> Vector2i:
+	if shape != Shape.IMAGE or _columns < 2 or _rows < 2 \
+			or not global_transform.basis.is_equal_approx(Basis.IDENTITY):
+		return OFF_GRID
+	if absf(length / (_columns - 1) - spacing) > spacing * 0.000001 \
+			or absf(width / (_rows - 1) - spacing) > spacing * 0.000001:
+		return OFF_GRID
+	var fx := (global_position.x - length * 0.5 - first) / spacing
+	var fz := (global_position.z - width * 0.5 - first) / spacing
+	if absf(fx - roundf(fx)) > 0.001 or absf(fz - roundf(fz)) > 0.001:
+		return OFF_GRID
+	return Vector2i(roundi(fx), roundi(fz))
+
+
+## The image's samples along its X and its Z.
+func image_size() -> Vector2i:
+	return Vector2i(_columns, _rows)
+
+
+## reshape() over a block of a ground grid this image lands on sample for sample - see
+## grid_offset(), which gives `offset`, the grid sample under the image's first. `heights` is
+## the grid, `size` samples a row, each a fraction of `scale` metres above `base`; samples
+## gx0..gx1 by gz0..gz1 are reshaped and the grid handed back.
+##
+## Read straight from the image, with no transform and nothing read between samples, so it is
+## exact rather than right to a float's width. And the rule is _blend()'s written out in the
+## loop: the island is a million samples, and through reshape() - a transform, a read between
+## four samples and two calls each - it took 1.55 s; a call per sample was still 0.68 s.
+func reshape_grid(heights: PackedFloat32Array, size: int, offset: Vector2i, gx0: int, gx1: int,
+		gz0: int, gz1: int, scale: float, base: float) -> PackedFloat32Array:
+	var y := global_position.y
+	var step_l := length / (_columns - 1)
+	var step_w := width / (_rows - 1)
+	var half_l := length * 0.5
+	var half_w := width * 0.5
+	for gz in range(gz0, gz1 + 1):
+		var row := gz * size
+		var image_row := (gz - offset.y) * _columns
+		var z := (gz - offset.y) * step_w - half_w
+		for gx in range(gx0, gx1 + 1):
+			var column := gx - offset.x
+			var weight := opacity * _masks[image_row + column]
+			if border_fade > 0.0:
+				var x := column * step_l - half_l
+				weight *= clampf(minf(half_l - absf(x), half_w - absf(z)) / border_fade, 0.0, 1.0)
+			if weight <= 0.0:
+				continue
+			var ground := heights[row + gx] * scale + base
+			var rise := height * _heights[image_row + column]
+			var shaped := ground
+			if mode == Mode.ADD:
+				shaped = ground + weight * rise
+			else:
+				var level := y + rise
+				if mode == Mode.REPLACE or (mode == Mode.MIN and ground > level) \
+						or (mode == Mode.MAX and ground < level):
+					shaped = lerpf(ground, level, weight)
+			if shaped != ground:
+				heights[row + gx] = (shaped - base) / scale
+	return heights
 
 
 ## How much of `height` Add would put on a world point: the shape's height times its mask and
@@ -226,7 +302,10 @@ func _image_at(world_x: float, world_z: float) -> Vector2:
 	var local := _to_local * Vector3(world_x, global_position.y, world_z)
 	var half_l := length * 0.5
 	var half_w := width * 0.5
-	if absf(local.x) >= half_l or absf(local.z) >= half_w:
+	# The edge samples are the image's own: an island as big as the ground has its outermost
+	# ring of samples exactly on its border, and left out, the seabed showed through there. A
+	# hair's slack, because the point comes through a 32-bit transform.
+	if absf(local.x) > half_l + 0.001 or absf(local.z) > half_w + 0.001:
 		return Vector2.ZERO
 	var here := _sample(local.x / length + 0.5, local.z / width + 0.5)
 	if border_fade > 0.0:

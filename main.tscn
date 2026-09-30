@@ -28,6 +28,11 @@
 [ext_resource type="PackedScene" path="res://props/seaweed/seaweed_blades.tscn" id="103_seaweed_blades"]
 [ext_resource type="PackedScene" path="res://props/seaweed/seaweed_fleshy.tscn" id="104_seaweed_fleshy"]
 [ext_resource type="PackedScene" path="res://props/seaweed/seaweed_arching.tscn" id="105_seaweed_arching"]
+[ext_resource type="Script" path="res://world/seabed/seabed.gd" id="106_seabed"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_seabed"]
+frequency = 0.012
+fractal_octaves = 3
 
 [sub_resource type="Sky" id="Sky_2"]
 sky_material = ExtResource("11_sky")
@@ -117,11 +122,23 @@ transform = Transform3D(0.49329036, -0.032950465, -0.8692406, 1.8626451e-09, 0.9
 
 [node name="Terrain" type="StaticBody3D" parent="." unique_id=873208375]
 script = ExtResource("2_terrain")
-raw_path = "res://terrain/island.r16"
 world_size = 620.0
 height_scale = 180.0
 material = ExtResource("8_tmat")
 cut_edges = false
+
+[node name="Seabed" type="Node" parent="Terrain" unique_id=1449563389]
+script = ExtResource("106_seabed")
+noise = SubResource("FastNoiseLite_seabed")
+
+[node name="Island" parent="Terrain" unique_id=920899478 instance=ExtResource("18_074og")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 90.001373291015625, 0)
+preview = true
+mode = 1
+stamp_path = "res://terrain/island.stamp"
+height = 90.001373291015625
+length = 620.0
+width = 620.0
 
 [node name="TerrainStamp2" parent="Terrain" unique_id=1158743273 instance=ExtResource("18_074og")]
 transform = Transform3D(0.8862036, 0, 0.46329597, 0, 1, 0, -0.46329606, 0, 0.8862034, 62.98949, 27.705587, -16.816555)

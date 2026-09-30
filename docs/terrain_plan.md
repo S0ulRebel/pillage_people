@@ -135,22 +135,33 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
 - Still to do by hand: add `*.stamp` to the export filter beside `*.r16`
   (`export_presets.cfg` is not in the repo).
 
-## Phase 4: Seabed node and exact island rebuild
+## Phase 4: Seabed node and exact island rebuild (done)
 
-- **Seabed node:** `world/seabed/seabed.gd` (a `Seabed` node under Terrain). Settings: depth,
-  noise height, a `FastNoiseLite` resource, far depth and deepening distance. Changing any
-  setting in the editor rebuilds the terrain.
-- **Terrain:** builds its base heights from the Seabed node, then applies the stamps in child
-  order. Only soft-shape stamps use the exact-height path. Measure load time, and add a fast
-  path for unrotated, grid-aligned image stamps if the island adds more than about 0.5 s.
-- **Island:** convert `terrain/island.r16` to `island.stamp` and add it as the first stamp
-  under Terrain. Keep the old `raw_path` loader for now, only so a test can compare old
-  against new.
-- **New test `tests/island_stamp_check.gd`:** compare old against new at every sample and at
-  random `height_at()` points (difference under 1 mm), plus the mesh vertices.
-- **Also update:** `addons/terrain_live_check`, `addons/biome_painter_live_check` and the tests
-  that set `raw_path`.
-- **Done when:** the island matches to within 1 mm everywhere, and the tests pass.
+- `world/seabed/seabed.gd` (`Seabed`, under Terrain): `depth`, `noise_height`, a
+  `FastNoiseLite`, `far_depth` and `deepening_distance`, measured from the edge of the detailed
+  area (the Terrain's square) rather than from each island. `height_at()` for one point,
+  `fill()` for the whole grid at once. Any change rebuilds the whole ground in the editor.
+- Terrain: a Seabed child wins over `raw_path`; `height_samples` (1025) sets the grid when the
+  ground starts from the Seabed. Only soft-shape stamps use the exact-height path. An image's
+  edge samples now count as inside it - the island's outer ring was being left to the seabed.
+- `terrain/island.stamp` (made with `make_stamp.py r16 --signed`) is the `Island` stamp, first
+  under Terrain in `main.tscn`: Replace, 620 m, Y = height = 90.001373291015625 (180 x 32768 /
+  65535 to a 32-bit float's width).
+- Speed: an image that lands sample on sample on the ground's grid is applied by
+  `TerrainStamp.reshape_grid()`, with no transform and no interpolation. The island went from
+  1.55 s to about 0.2 s; the Seabed's grid is 0.27 s. The Terrain is ready in about 0.5 s
+  against 0.04 s from the height file.
+- `tests/island_stamp_check.gd`: the old and new islands differ by at most 0.011 mm at a
+  sample (one 32-bit step, in 1.8% of them), 0.003 mm between samples, 0.015 mm at a mesh
+  vertex; and main.tscn's Island is checked to be the stamp the test builds. `main.tscn` as a
+  whole matches the phase 3 dump to 0.006 mm everywhere inside the square.
+- Outside the square there is no ground yet. `height_at()` there, inside a pad's reach (only
+  TerrainStamp4's fade crosses the edge), now reads the seabed rather than repeating the
+  island's edge. Phase 5 builds that ground.
+- Changed from the plan: the tests that build their own terrain still use `raw_path` - the
+  comparison test shows it is the same ground - and move over when phase 7 removes the loader.
+  `addons/terrain_live_check` gained a Seabed section and now edits a pad in main.tscn, not
+  its first stamp, which is now the island.
 
 ## Phase 5: seamless border and far seabed
 

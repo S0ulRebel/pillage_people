@@ -1,9 +1,11 @@
 @tool
 extends StaticBody3D
-## Builds a terrain mesh + collision from a 16-bit height map PNG.
+## Builds a terrain mesh + collision: the heights of a Seabed child, with every TerrainStamp
+## child laid on top in order - the island is one of those stamps. Without a Seabed the ground
+## starts from a 16-bit height map instead (raw_path), which is how it used to be built.
 ##
-## The image is read at runtime with Image.load_from_file, so Godot's texture importer
-## cannot quietly convert it to 8-bit or apply sRGB - both of which flatten the heights.
+## A height map is read at runtime rather than imported, so Godot's texture importer cannot
+## quietly convert it to 8-bit or apply sRGB - both of which flatten the heights.
 
 ## The heights are new: once when they are first laid down, and in the editor again after every
 ## edit that rebuilds the ground. For things that stand on the ground and cannot be asked to sit
@@ -12,9 +14,9 @@ extends StaticBody3D
 ## before there was any.
 signal reshaped
 
-## Raw 16-bit heights (make_heightmap.py writes these). Godot's Image loader converts a
-## 16-bit PNG down to 8-bit, which shows up as visible terracing, so the .r16 is preferred
-## and the PNG is only a fallback.
+## Raw 16-bit heights (make_heightmap.py writes these), read only when there is no Seabed child.
+## Godot's Image loader converts a 16-bit PNG down to 8-bit, which shows up as visible
+## terracing, so the .r16 is preferred and the PNG is only a fallback.
 @export_file("*.r16") var raw_path := "res://terrain/heightmap.r16"
 @export_file("*.png") var heightmap_path := "res://terrain/heightmap.png"
 
@@ -167,6 +169,13 @@ func _push_colour(name: StringName, value: Variant) -> void:
 		mesh_resolution = value
 		_setting_changed()
 @export var collision_resolution := 513  ## samples per side for the collision shape (match mesh_resolution + 1)
+## Height samples per side when the ground starts from a Seabed; a height file says for itself.
+## One mesh vertex on every second sample, as with the file - so 2 x mesh_resolution + 1. An
+## island stamp the same size as the ground, with this many samples, lands sample on sample.
+@export var height_samples := 1025:
+	set(value):
+		height_samples = maxi(value, 2)
+		_setting_changed()
 ## Quads per chunk side. The mesh is built as a grid of square chunks rather than one piece,
 ## so that a stamp or tunnel edited in the editor only rebuilds the chunks it touches: the whole
 ## island takes about 2.5 s, one chunk of 32 quads about 10 ms, and a small stamp follows the
@@ -266,13 +275,11 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	var source := "raw" if _load_raw() else ("png" if _load_png() else "")
-	if source == "":
+	if not _read_base():
 		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
 		return
 	_biome_image = _load_biome_image()
 	_biome_palette_image = _load_biome_palette_image()
-	_base_heights = _heights.duplicate()
 	_built_quads = maxi(chunk_quads, 1)
 	_built_resolution = mesh_resolution
 	_chunks_per_side = ceili(float(_built_resolution) / _built_quads)
@@ -315,7 +322,31 @@ func _plant_grass() -> void:
 
 ## The children whose edits reshape the ground or what stands on it.
 func _tracked(child: Node) -> bool:
-	return child is TerrainStamp or child is Tunnel or child is GrassPatch
+	return child is TerrainStamp or child is Tunnel or child is GrassPatch or child is Seabed
+
+
+## The Seabed child the ground starts from, or null. `leaving` is one on its way out.
+func _seabed(leaving: Node = null) -> Seabed:
+	for child in get_children():
+		if child is Seabed and child != leaving:
+			return child
+	return null
+
+
+## Lays the ground down before any stamp, into _base_heights, and sets _size: from the Seabed
+## child if there is one, else from the height file. False if there was nothing to read.
+func _read_base(leaving: Node = null) -> bool:
+	var seabed := _seabed(leaving)
+	if seabed == null:
+		if not _load_raw() and not _load_png():
+			return false
+		_base_heights = _heights.duplicate()
+		return true
+	_size = height_samples
+	_base_heights = seabed.fill(_size, world_size / float(_size - 1), -world_size * 0.5,
+			sea_level(), height_scale)
+	_heights = _base_heights.duplicate()
+	return true
 
 
 ## Whether a stamp or tunnel is part of the terrain: always in the game, and in the editor
@@ -384,6 +415,14 @@ func _restamp(x0: int, x1: int, z0: int, z1: int) -> void:
 		var sz1 := mini(z1, clampi(ceili((rect.end.y + half) / spacing), 0, _size - 1))
 		if sx0 > sx1 or sz0 > sz1:
 			continue
+		var offset := stamp.grid_offset(spacing, -half)
+		if offset != TerrainStamp.OFF_GRID:
+			# Sample on sample, as the island is: each ground sample is one image sample.
+			var cells := stamp.image_size()
+			_heights = stamp.reshape_grid(_heights, _size, offset,
+					maxi(sx0, offset.x), mini(sx1, offset.x + cells.x - 1),
+					maxi(sz0, offset.y), mini(sz1, offset.y + cells.y - 1), height_scale, base)
+			continue
 		for gz in range(sz0, sz1 + 1):
 			var wz := gz * spacing - half
 			for gx in range(sx0, sx1 + 1):
@@ -399,7 +438,7 @@ func _restamp(x0: int, x1: int, z0: int, z1: int) -> void:
 # --- edits -----------------------------------------------------------------------------------
 
 func _watch(child: Node) -> void:
-	if child is TerrainStamp or child is Tunnel:
+	if child is TerrainStamp or child is Tunnel or child is Seabed:
 		var on_changed := _on_child_changed.bind(child)
 		_connections[child] = on_changed
 		child.changed.connect(on_changed)
@@ -431,6 +470,15 @@ func _on_child_exiting(child: Node) -> void:
 
 func _on_child_changed(child: Node) -> void:
 	_mark(child)
+	_queue_rebuild()
+
+
+## The Seabed is under every sample, so any change to it - a setting, the noise, arriving or
+## leaving - is the whole ground again, like a Terrain setting.
+func _on_seabed_changed() -> void:
+	if not Engine.is_editor_hint() or not is_node_ready():
+		return
+	_full_rebuild_wanted = true
 	_queue_rebuild()
 
 
@@ -472,6 +520,8 @@ func _mark(child: Node, leaving := false) -> void:
 		_changed_tunnels[child] = not leaving
 	elif child is GrassPatch:
 		_changed_grass[child] = not leaving
+	elif child is Seabed:
+		_on_seabed_changed()
 
 
 ## Editor only: rebuilds what changed a moment after it did. A drag sends a change every
@@ -503,6 +553,9 @@ func rebuild_changed() -> void:
 	if _full_rebuild_wanted:
 		_full_rebuild_wanted = false
 		_forget_edits()
+		# Read again: a Seabed setting, or a Terrain one it depends on (the size, the sea
+		# level), changes every sample it laid down.
+		_read_base()
 		_restamp(0, _size - 1, 0, _size - 1)
 		_stamp_order = _stamps()
 		_build_tunnels()
@@ -630,7 +683,11 @@ func _refresh_stamps(leaving: Node = null) -> void:
 		# first - one that has already gone
 		if stamp != leaving and stamp.is_inside_tree():
 			_active_stamps.append(stamp)
-			_stamp_rects.append(stamp.footprint().grow(margin))
+			# Only a soft shape's reach. Its sharp edge is what the exact path is for; an image
+			# is smooth between its samples, so the baked ground already is it there - and an
+			# island stamp reaches every sample, so it would send every lookup the slow way.
+			if stamp.has_outline():
+				_stamp_rects.append(stamp.footprint().grow(margin))
 
 
 func _forget_edits() -> void:

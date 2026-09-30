@@ -38,7 +38,8 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `actors/grunt/` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
 | `actors/parts/` | Shared by both: the blade (hung off a hand bone with a hitbox along it) and the hit spark. |
 | `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, fish schools, the shark, the cannon, the waterfall, the double-deck ship moored off the beach, and corals and seaweed with one scene per kind. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. The reef is a `ScatterPatch` (`world/scatter_patch.tscn`) under the dive crater in `main.tscn`, so it moves with the crater. |
-| `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
+| `world/terrain.*` | Lays down its Seabed, applies every stamp under it in order - the island is the first - and builds the mesh + a `HeightMapShape3D` collider. |
+| `world/seabed/` | The sea floor the ground starts from, under Terrain: a depth, a `FastNoiseLite` for bumps, and how it deepens past the island's area. Worked out on the CPU, so the collider, `height_at()` and the water all read it. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
 | `world/sky.*` | The sky, day, golden hour and night: the dome's gradients, sun, moon and stars, and the clouds - see Clouds and weather below. `world/cloud_shadow.gdshaderinc` lays the clouds' shadows on the ground and the sea. |
 | `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
@@ -243,9 +244,10 @@ Wading becomes swimming past `swim_depth` (1.3 m, about chest height).
 
 ## The island
 
-`terrain/heightmap.r16` is a **stylised** map: wide flat plains with a few isolated flat-topped
-mesas, about 78% of it near-level. Deliberate — the first map was ridges edge to edge, which
-left nowhere to build.
+The island is a stamp: `terrain/island.stamp`, the TerrainStamp named **Island** that comes first
+under Terrain in `main.tscn` - a Replace, 620 m square, over a Seabed. It used to be the whole
+ground, read as `terrain/island.r16`; that file stays until the old loader is removed, so
+`tests/island_stamp_check.gd` can show the stamp gives the same ground (to 0.011 mm).
 
 Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
 tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, and 5 grunts.
@@ -263,6 +265,7 @@ Useful settings on the Terrain node:
 | `world_size` | 400 | metres across |
 | `height_scale` | 60 | metres from lowest to highest |
 | `mesh_resolution` | 512 | quads per side (visual detail) |
+| `height_samples` | 1025 | height samples per side when the ground starts from a Seabed (2 x `mesh_resolution` + 1). An image stamp the ground's size with this many samples - the island - lands sample on sample and is applied without interpolating. |
 | `collision_resolution` | 513 | collision samples per side (match `mesh_resolution` + 1) |
 | `cut_edges` | on | cut the ground mesh along soft stamps' outlines and bank feet, so a sharp pad edge is a real edge. Off, sharp edges are drawn from the height field alone and come out saw-toothed; edges wider than about 2.5 m look the same either way. No cost per frame. |
 | `chunk_quads` | 32 | quads per chunk side. The ground is built in chunks so an edit only rebuilds the chunks it touches: the whole island is about 3 s, one chunk about 10 ms, so a ticked stamp or tunnel follows the gizmo. Chunks are culled one by one too. |
@@ -494,8 +497,8 @@ in `docs/` and the art in `art/references/` are data rather than textures, so ea
 `terrain/` must NOT carry one, whatever it looks like it saves. A `.gdignore` hides a folder
 from the exporter as well as from the editor, and no export filter reaches back in: `*.r16` in
 the preset looked right and shipped nothing, so the exported game opened with no island. The
-game reads `res://terrain/island.r16` with `FileAccess` at run time, and a file the exporter
-cannot see is a file the build does not have.
+game reads `res://terrain/island.stamp` with `FileAccess` at run time, and a file the exporter
+cannot see is a file the build does not have - so the preset needs `*.stamp` as well as `*.r16`.
 
 If Working Copy says a pull was aborted because of uncommitted changes, check what they are
 first: if they are only `.import`/`.godot` files, discard them and pull again.
