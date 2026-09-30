@@ -71,16 +71,16 @@ func _run() -> void:
 	var binnacle := _bounds(ship, ship.get_node_or_null("DeckFittings/Binnacle"))
 	check(not binnacle.intersects(helm), "the binnacle overlaps the helm")
 
-	# The masts: the lower mast's head is where the topmast's heel sits, 5.5 m up, and the
+	# The masts: the lower mast's head is where the topmast's heel sits, MAIN_LOWER up, and the
 	# topmast ends 3 m above that - the lengths ship.gd's sails and ropes are rigged to.
 	var lower := _bounds(ship, ship.get_node_or_null("Mast/Lower"))
 	var topmast := _bounds(ship, ship.get_node_or_null("Mast/Topmast"))
 	check(absf(lower.position.y - Ship.DECK_Y) <= TOLERANCE, "the mainmast does not stand on the deck")
-	check(absf(lower.end.y - (Ship.DECK_Y + 5.5)) <= TOLERANCE,
-			"the mainmast's head is at %.3f, not 5.5 m above the deck" % lower.end.y)
+	check(absf(lower.end.y - (Ship.DECK_Y + Ship.MAIN_LOWER)) <= TOLERANCE,
+			"the mainmast's head is at %.3f, not %.1f m above the deck" % [lower.end.y, Ship.MAIN_LOWER])
 	check(absf(topmast.position.y - lower.end.y) <= TOLERANCE, "the topmast does not sit on the mainmast's head")
-	check(absf(topmast.end.y - (Ship.DECK_Y + 8.5)) <= TOLERANCE,
-			"the topmast ends at %.3f, not 8.5 m above the deck" % topmast.end.y)
+	check(absf(topmast.end.y - (Ship.DECK_Y + Ship.MAIN_LOWER + 3.0)) <= TOLERANCE,
+			"the topmast ends at %.3f, not %.1f m above the deck" % [topmast.end.y, Ship.MAIN_LOWER + 3.0])
 	var fore := _bounds(ship, ship.get_node_or_null("Foremast/Model"))
 	check(absf(fore.size.y - Ship.FOREMAST_HEIGHT) <= TOLERANCE and absf(fore.position.y - Ship.DECK_Y) <= TOLERANCE,
 			"the foremast stands %.2f to %.2f, not %.1f m up from the deck" % [fore.position.y, fore.end.y, Ship.FOREMAST_HEIGHT])
@@ -91,11 +91,11 @@ func _run() -> void:
 			% [yard.size.x, yard.size.z])
 
 	# The mast top wraps the joint: its collar clears the course yard below, and its rim sits
-	# between the mast head and the rail ring the lookout's posts carry (6.6 m up).
+	# between the mast head and the rail ring the lookout's posts carry.
 	var top := _bounds(ship, ship.get_node_or_null("Mast/Top"))
 	check(top.position.y >= yard.end.y - TOLERANCE,
 			"the mast top's collar comes down to %.2f, into the course yard (top at %.2f)" % [top.position.y, yard.end.y])
-	check(top.end.y > Ship.DECK_Y + 5.5 and top.end.y <= Ship.DECK_Y + 6.6,
+	check(top.end.y > Ship.DECK_Y + Ship.MAIN_LOWER and top.end.y <= Ship.DECK_Y + 6.6 + Ship.MAIN_LIFT,
 			"the mast top's rim is at %.2f, not between the mast head and the rail ring" % top.end.y)
 
 	# The bowsprit reaches forward of its mount and rises, as the jib and bobstay expect.
@@ -146,7 +146,7 @@ func _run() -> void:
 	_check_rigging(ship)
 	_check_canvas(ship)
 	_check_flag_rings(ship)
-	await _check_course_clears_cabin(ship)
+	await _check_course_clears_stairs(ship)
 	await _check_flag_flies_downwind(ship)
 
 	# The hull carries the plank texture: its wood material has a texture, not a flat colour.
@@ -235,9 +235,10 @@ func _check_jib(ship: Node3D) -> void:
 	var head_from: Vector3 = jib.get("_head_from")
 	var head_to: Vector3 = jib.get("_head_to")
 	var foot_to: Vector3 = jib.get("_foot_to")
-	check(head_to.y <= fore.end.y and head_to.y > fore.position.y + fore.size.y * 0.9 and head_from.y > fore.position.y + fore.size.y * 0.75
-			and head_from.y < head_to.y and head_to.z < Ship.FOREMAST_AT.z,
-			"the jib's head runs %.2f to %.2f, not on the forward side of the foremast's head (top %.2f)" % [head_from.y, head_to.y, fore.end.y])
+	# As in the reference, the jib's head is at the fore yard, not up at the masthead.
+	var fore_yard := Ship.FOREMAST_AT.y + Ship.FORE_YARD.x
+	check(absf(head_to.y - fore_yard) <= 0.5 and head_from.y < head_to.y and head_to.z < Ship.FOREMAST_AT.z,
+			"the jib's head runs %.2f to %.2f, not on the forward side of the foremast up to its fore yard (%.2f)" % [head_from.y, head_to.y, fore_yard])
 	check(foot_to.z > sprit.position.z and foot_to.z < sprit.position.z + 0.6,
 			"the jib's foot ends at z %.2f; the bowsprit's tip is at %.2f" % [foot_to.z, sprit.position.z])
 	var stay := _bounds(ship, ship.get_node_or_null("Bobstay"))
@@ -980,7 +981,7 @@ func _check_shrouds(ship: Node3D) -> void:
 			# Its top on the mast: no further from the axis than the mast reaches at that height.
 			# A plain spar has vertices only at its ends and bands: look wider until some are found.
 			var reach := 0.0
-			for band in [0.15, 0.6, 1.2]:
+			for band in [0.15, 0.6, 1.2, 2.5]:
 				for v in part_verts:
 					if absf(v.y - top.y) < band:
 						reach = maxf(reach, Vector2(v.x - axis.x, v.z - axis.z).length())
@@ -1103,28 +1104,30 @@ func _check_flag_flies_downwind(ship: Node3D) -> void:
 			"the flag flies toward %s with the wind blowing toward %s" % [fly, blows])
 
 
-## The course's foot hangs free. With the breeze from dead astern it swings back over the
-## quarterdeck; the cloth must drape on the cabin, never hang inside it.
-func _check_course_clears_cabin(ship: Node3D) -> void:
+## The course is sheeted home at its foot. With the breeze from dead astern and from abeam it
+## bellies, but never out over the castle, and wherever it hangs over the quarterdeck's stairs
+## it is above the head of anyone climbing them.
+func _check_course_clears_stairs(ship: Node3D) -> void:
 	var wind := ship.get_tree().get_first_node_in_group("wind")
 	var sail := ship.get_node_or_null("Sail")
-	var cabin_node := ship.get_node_or_null("Quarterdeck/Cabin") as Node3D
-	if wind == null or sail == null or cabin_node == null:
-		check(false, "no wind, course or cabin to test the course against")
+	if wind == null or sail == null:
+		check(false, "no wind or course to test the course against")
 		return
-	var aft := ship.global_basis.z
-	for i in 240:
-		wind.set("_angle", atan2(aft.x, aft.z))
-		await physics_frame
-	var cabin := _bounds(ship, cabin_node).grow(-0.01)
-	var inside := 0
-	var reach := -INF
-	for p in sail.get("_pos") as PackedVector3Array:
-		reach = maxf(reach, p.z)
-		if cabin.has_point(p):
-			inside += 1
-	check(reach > cabin.position.z, "the test wind never swung the course back to the cabin (reached z %.2f)" % reach)
-	check(inside == 0, "%d points of the course hang inside the stern cabin" % inside)
+	var stairs := Ship.QUARTERDECK_STAIRS_AT
+	var run := Ship.CASTLE_FRONT_Z + 0.1 - stairs.z
+	for blow in [ship.global_basis.z, ship.global_basis.x]:
+		for i in 180:
+			wind.set("_angle", atan2(blow.x, blow.z))
+			await physics_frame
+		var aft := -INF
+		var head_room := INF
+		for p in sail.get("_pos") as PackedVector3Array:
+			aft = maxf(aft, p.z)
+			if absf(p.x - stairs.x) < Ship.STAIR_RAIL_OUT and p.z > stairs.z and p.z < stairs.z + run:
+				var tread := Ship.DECK_Y + (p.z - stairs.z) / run * (Ship.QUARTERDECK_Y - Ship.DECK_Y)
+				head_room = minf(head_room, p.y - tread)
+		check(aft < Ship.CASTLE_FRONT_Z, "the course bellies back to z %.2f, over the castle (front at %.2f)" % [aft, Ship.CASTLE_FRONT_Z])
+		check(head_room >= 1.9, "the course hangs %.2f m over the quarterdeck's stairs: into the head of anyone on them" % head_room)
 
 
 ## A ray straight down in ship space from `from`, `length` long.

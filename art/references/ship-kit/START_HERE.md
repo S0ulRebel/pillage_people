@@ -76,10 +76,10 @@ Done so far:
 - The castle, stairs and hull collide as their exact meshes.
 - The wheel, the binnacle, a rope coil and two cleats stand on the quarterdeck. The capstan is on the gun deck under it.
 - **Two masts, as the reference has.** A mizzen with a spanker stood on the quarterdeck for a while. The reference (`art-breakdown/00-corrected-ship.webp`) has none, the rigging sheet marks the spanker, gaff and boom optional, and the mast crowded the helm, so it was taken out.
-- **Foremast and bowsprit:** the foremast is the M01 model stretched to 6.8 m (four fifths of the main) and thickened; the bowsprit is M07 stretched to 5.2 m and thickened as far as the knightheads allow. The jib and bobstay follow them.
-- **Fore yards:** the foremast carries the main's two yard models at about four fifths of their size: the fore yard at 4.3 m (6.4 m across) with the fore course, its foot free 2 m above the foredeck, and the fore topsail yard at 6.3 m (4.2 m across) with the fore topsail laced down to the fore yard. There is a block under each arm.
+- **Mast heights:** the mainmast's lower mast is the M01 model stretched to 7 m (`MAIN_LOWER`), and everything above it (the top, both yards, the topmast, the flag) is raised with it, 10 m to the topmast head. At 5.5 m the course hung across the quarterdeck's stairs, which run up beside the mast. The foremast is the M01 model stretched to 8.2 m, about four fifths of the main, and thickened. The bowsprit is M07 stretched to 5.2 m and thickened as far as the knightheads allow.
+- **Fore yards:** the foremast carries the main's two yard models at about four fifths of their size: the fore yard at 5.3 m (6.4 m across) with the fore course, and the fore topsail yard at 7.6 m (4.2 m across) with the fore topsail laced down to the fore yard. There is a block under each arm. As in the reference, the jib's head is at the fore yard, not the masthead.
 - **Sail canvas:** the cloth sails are painted with Tripo's sails, so they show its seams, patches and hem where they were plain cloth. `python tools/bake_sail_canvas.py` flattens each Tripo sail (`rigging/sail_course.glb`, `sail_topsail.glb`, `sail_jib.glb`), maps the cloth's square onto its corners (the jib's head is one corner), and bakes `rigging/canvas_<sail>.png` in the cloth's own texture coordinates. The canvas just inside each corner's grommet is used, and the gaps where Tripo's edges curve in are mirrored in from across the edge. The courses use `canvas_course.png`, the topsails `canvas_topsail.png`, the jib `canvas_jib.png`, with a warm tint so full sun keeps them cream.
-- The course's foot hangs free, so a following wind swings it back toward the castle. The cloth is kept out of the castle's box.
+- **Sheeted courses:** both courses are laced to their yards and sheeted home at the foot, 2.6 m below, as the reference's sails are. They belly in the wind but never swing back over the stairs or the castle. The main course's foot is above the head of anyone on the stairs beside the mast, and above the quarterdeck's rail.
 
 **The rail:** the solid wall round the weather deck is gone, bow to stern, and a rail stands in its place.
 - `python tools/strip_game_bulwarks.py` takes the top tier off the game hull down to the deck. The tier below ends in a flat wall top, 0.2 m wide along the sides.
@@ -123,7 +123,7 @@ Done so far:
 - a part sits off its mark;
 - the castle's sides do not meet the hull's;
 - the way up the stairs to the wheel has a step the captain cannot take, or no room for him;
-- the course hangs inside the castle;
+- the course bellies back over the castle, or hangs into the head room over the quarterdeck's stairs;
 - the castle's trim is off the wall, into the stairs' rails, or over a window or the door;
 - a sail has no canvas, or there is a mizzen;
 - a shroud or backstay leaves its mast in the air, or its deadeyes, channel or chain plate are not made fast to the ship, or it runs through the rail, the hull or the fore sails;
