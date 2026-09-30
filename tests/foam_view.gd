@@ -186,6 +186,66 @@ func _sea_views(camera: Camera3D, ocean: Node, shore: Vector3, inland: Vector3) 
 	camera.look_at(camera.global_position + into * cos(deg_to_rad(30.0)) - Vector3.UP * sin(deg_to_rad(30.0)), Vector3.UP)
 	var low := await _capture("open_sea_low")
 	_swatches(low)
+	if OS.get_environment("FOAM_STYLES") == "1":
+		await _style_views(camera, ocean, open_sea, inland, low)
+
+
+## PROTOTYPE comparison (docs/foam-plan.md, 8k): each whitecap_style from the swatch framing
+## and from the gameplay camera, next to the "choppy" swatch, and style 2's events over time.
+##   styles_low.png       choppy swatch | net | painted lattice | events
+##   styles_gameplay.png  net | painted lattice | events, from the gameplay camera
+##   events_time.png      events at four moments 1.2 s apart
+func _style_views(camera: Camera3D, ocean: Node, open_sea: Vector3, inland: Vector3,
+		low: Image) -> void:
+	var low_xf := camera.global_transform
+	var sheet := Image.load_from_file(ProjectSettings.globalize_path(WATER_SHEET))
+	sheet.convert(Image.FORMAT_RGB8)
+	var h := low.get_height()
+	var swatch := sheet.get_region(WATER_SWATCHES[2])
+	swatch.resize(int(round(float(h) * float(WATER_SWATCHES[2].size.x) / float(WATER_SWATCHES[2].size.y))), h,
+			Image.INTERPOLATE_LANCZOS)
+	var lows: Array[Image] = [swatch]
+	var tops: Array[Image] = []
+	for style in 3:
+		ocean.material.set_shader_parameter("whitecap_style", style)
+		camera.global_transform = low_xf
+		lows.append(_middle(await _capture("style_%d_low" % style), 0.9))
+		_aim(camera, open_sea + Vector3.UP * TARGET_HEIGHT, inland, ARM)
+		tops.append(_middle(await _capture("style_%d_gameplay" % style), 0.9))
+	_strip(lows, "styles_low")
+	_strip(tops, "styles_gameplay")
+	ocean.material.set_shader_parameter("whitecap_style", 2)
+	camera.global_transform = low_xf
+	var times: Array[Image] = []
+	for k in 4:
+		ocean.hold_clock = MOMENT + 1.2 * float(k)
+		times.append(_middle(await _capture("events_%d" % k), 0.9))
+	ocean.hold_clock = MOMENT
+	_strip(times, "events_time")
+	ocean.material.set_shader_parameter("whitecap_style", 0)
+
+
+func _middle(image: Image, aspect: float) -> Image:
+	var img := image.duplicate() as Image
+	img.convert(Image.FORMAT_RGB8)
+	var h := img.get_height()
+	var w := int(round(float(h) * aspect))
+	return img.get_region(Rect2i((img.get_width() - w) / 2, 0, w, h))
+
+
+func _strip(parts: Array[Image], tag: String) -> void:
+	var h := parts[0].get_height()
+	var total := 0
+	for part in parts:
+		total += part.get_width() + 12
+	var out := Image.create_empty(total, h, false, Image.FORMAT_RGB8)
+	out.fill(Color(0.08, 0.09, 0.12))
+	var x := 0
+	for part in parts:
+		out.blit_rect(part, Rect2i(Vector2i.ZERO, part.get_size()), Vector2i(x, 0))
+		x += part.get_width() + 12
+	out.save_png("%s/%s.png" % [SHOTS, tag])
+	print("  %s" % tag)
 
 
 func _wave_views(camera: Camera3D, ocean: Node, shore: Vector3, inland: Vector3) -> void:

@@ -334,6 +334,15 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 		_foam_lace = FoamLace.make()
 	_push_both("foam_lace", _foam_lace)
 	_push_both("foam_lace_ready", true)
+	# PROTOTYPE (whitecap_style 1): the painted wave lattice, read straight from the PNG so no
+	# import step is needed while comparing.
+	var lattice_path := ProjectSettings.globalize_path("res://world/wave_lattice.png")
+	if FileAccess.file_exists(lattice_path):
+		var lattice := Image.load_from_file(lattice_path)
+		if lattice != null:
+			lattice.generate_mipmaps()
+			_push("wave_lattice", ImageTexture.create_from_image(lattice))
+			_push("wave_lattice_ready", true)
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())

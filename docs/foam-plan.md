@@ -463,3 +463,24 @@ project already rejects view-dependent outlines).
 - The fringe round each crest was the small lace's walls breaking, which read as hooks. It is
   now only the lace's knots - round beads, shrinking outward.
 - Open water from the gameplay camera: 1.4% white.
+
+### Step 8k: PROTOTYPES - a painted lattice, and whitecap events
+
+Two other ways to draw the whitecaps, from the research (Wind Waker's ocean texture; Sea of
+Thieves' foam; stylized-water breakdowns), switchable with `whitecap_style` on the ocean
+material to compare against the net (0, still the default):
+
+- 1, a painted lattice. One tile (world/wave_lattice.png, 18 m, made by
+  tools/make_wave_lattice.py) painted like the swatches: rows of overlapping arched crests,
+  white on part of each, beaded, with dots, breaking clumps and diagonal connectors down to the
+  next crest; its green channel shades each face from under its crest to the trough, its blue
+  is the glow. Laid in the crest frame drifting with the waves, wobbled by a few sines, and a
+  second copy turned 20 degrees and smaller blended in by a slow noise so it does not repeat.
+  Read from the PNG at load (no import step) while it is a prototype.
+- 2, whitecap events. The net's crest lines as hairlines only; on them, each wall breaks every
+  `event_period` (7 s) with chance `event_rate` (0.4), at its own moment: white born at the
+  wall's middle, spreading along it and down the face in the first third of its life, a solid
+  lumpy core that shrinks while lace of two sizes opens round it, then gone.
+- tests/foam_view.gd with FOAM_STYLES=1 renders styles_low.png (choppy swatch | 0 | 1 | 2),
+  styles_gameplay.png (0 | 1 | 2 from the gameplay camera) and events_time.png (style 2 at
+  four moments 1.2 s apart).

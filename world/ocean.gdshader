@@ -188,6 +188,21 @@ group_uniforms Crests;
 // the sea gets up - the swatches go from about 1% white (calm) to 4% (choppy) and 6% (stormy).
 // 0 none, 0.45 a fair day, 1 a storm. Material-only.
 uniform float crest_strength : hint_range(0.0, 1.0) = 0.45;
+// PROTOTYPES of other ways to draw the whitecaps, for comparing (docs/foam-plan.md, 8k):
+//   0 the wave-cell net (above)
+//   1 a painted lattice: one painted tile of arched crests, beads, clumps and connectors
+//     (world/wave_lattice.png) laid over the sea twice, at two scales and angles, wobbled, the
+//     way Wind Waker lays its ocean texture; it also shades the faces
+//   2 whitecap events: the net's crest lines as hairlines only, and on them whitecaps that are
+//     born, spread along the crest, turn to lace and go, each at its own moment
+uniform int whitecap_style : hint_range(0, 2) = 0;
+uniform sampler2D wave_lattice : filter_linear_mipmap, repeat_enable;
+uniform bool wave_lattice_ready = false;
+// Metres one lattice tile spans.
+uniform float lattice_size : hint_range(4.0, 40.0) = 18.0;
+// The share of crest walls breaking in any whitecap cycle, and a cycle's seconds.
+uniform float event_rate : hint_range(0.0, 1.0) = 0.4;
+uniform float event_period : hint_range(1.0, 30.0) = 7.0;
 
 // ---- Object bands -----------------------------------------------------------------------
 group_uniforms Object_Bands;
@@ -406,7 +421,7 @@ vec2 shore_wave_slope(vec2 p, vec4 field) {
 // becomes the nearest wall; and `second`: the second-nearest wall as (distance in metres, y, w
 // as above), so the foam of two walls meeting at a corner is drawn from both, without a seam.
 vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out vec3 crest_info,
-        out vec3 second) {
+        out vec3 second, out vec2 mids) {
     vec2 q = vec2(dot(p, along) / size.x, (dot(p, travel) - drift) / size.y);
     float wx = noise(q * 0.9 + vec2(3.1, 0.0));
     float wy = noise(q * 0.9 + vec2(0.0, 5.7));
@@ -441,6 +456,8 @@ vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out vec
     float behind_which = 1.0;
     float normal_y2 = 0.0;
     float which2 = 1.0;
+    vec2 mid1 = vec2(0.0);
+    vec2 mid2 = vec2(0.0);
     for (int j = -1; j <= 1; j++) {
         for (int i = -1; i <= 1; i++) {
             vec2 id = near_id + vec2(float(i), float(j));
@@ -465,17 +482,21 @@ vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out vec
             vec2 lo = min(near_id, id);
             vec2 hi = max(near_id, id);
             float this_which = hash(lo * 1.7 + hi * 3.1 + vec2(5.1, 0.3));
+            vec2 mid = 0.5 * (near + r);
             if (border < b1) {
                 b2 = b1;
                 normal_y2 = normal_y;
                 which2 = which;
+                mid2 = mid1;
                 b1 = border;
                 normal_y = d.y / len;
                 which = this_which;
+                mid1 = mid;
             } else if (border < b2) {
                 b2 = border;
                 normal_y2 = d.y / len;
                 which2 = this_which;
+                mid2 = mid;
             }
         }
     }
@@ -488,6 +509,8 @@ vec4 wave_cells(vec2 p, vec2 along, vec2 travel, vec2 size, float drift, out vec
     float normal_x2 = sqrt(max(1.0 - normal_y2 * normal_y2, 0.0));
     float to_metres2 = 1.0 / max(length(vec2(normal_x2 / size.x, normal_y2 / size.y)), 0.0001);
     second = vec3(b2 * to_metres2, normal_y2, which2);
+    // Metres from the point to each wall's middle (the midpoint between the two centres).
+    mids = vec2(length(mid1 * size), length(mid2 * size));
     return vec4(b1 * to_metres, normal_y, b2 * to_metres2, which);
 }
 
@@ -521,6 +544,39 @@ vec2 crest_wall_foam(float dist, float ny, float which, float other, float stren
     float plain = clamp((max(band * 0.45, px * 0.6) - dist) / aa * 0.5 + 0.5, 0.0, 1.0) * 0.85
         * smoothstep(0.3, 0.45, beads + 0.25 * breaking);
     return vec2(lace, plain) * shown;
+}
+
+// PROTOTYPE (whitecap_style 2): a whitecap event on one wave-cell wall. Each wall, once every
+// event_period seconds (at its own moment), breaks with chance event_rate: white is born at
+// the wall's middle, spreads along it and down the face in the first third of its life, and
+// turns to lace, beads and nothing, like the shore foam. `dist` metres from the wall, `ny` its
+// direction, `which` its random number, `mid` metres from its middle.
+float wall_event(float dist, float ny, float which, float mid, vec3 fine, vec3 coarse, float t) {
+    float life = event_period * 0.55;
+    float cyc = t / max(event_period, 0.1) + which * 7.13;
+    float n = floor(cyc);
+    float a = fract(cyc) * event_period / life;
+    float chosen = step(hash(vec2(which * 91.7, n * 1.37)), event_rate) * step(a, 1.0)
+        * step(0.35, abs(ny));
+    float size = 0.7 + 0.6 * hash(vec2(n * 3.1, which * 17.0));
+    float grow = sqrt(clamp(a * 3.0, 0.0, 1.0));
+    float spill = ny < -0.35 ? 1.0 : 0.35;
+    float w = mix(0.08, 0.7, grow) * spill * size;
+    float r = mix(0.5, 3.4, grow) * size;
+    float e = length(vec2(dist / max(w, 0.001), mid / r));
+    // Lumpy: the edge bulges round the cells of the larger lace.
+    float edge = 0.7 + 0.5 * smoothstep(0.65, 0.1, coarse.x) * (0.5 + coarse.y);
+    float e_aa = max(fwidth(e), 0.01);
+    float shape = 1.0 - smoothstep(edge - e_aa, edge + e_aa, e);
+    // A solid, fluffy core while young that shrinks as the whitecap ages, and lace round it
+    // that opens with age: holes of two sizes together, so it is not a honeycomb.
+    float core_edge = edge * (1.0 - smoothstep(0.2, 0.85, a)) * 0.85;
+    float core = 1.0 - smoothstep(core_edge - e_aa, core_edge + e_aa, e);
+    float lace_age = clamp(mix(0.3, 1.0, a) + (e - core_edge) * 0.25, 0.0, 1.0);
+    float lace = min(foam_holes(fine, lace_age).x,
+        foam_holes(coarse, max(lace_age * 1.2 - 0.3, 0.0)).x);
+    lace = max(lace, core);
+    return shape * lace * chosen;
 }
 
 // How much of the waves this pixel keeps, three ways:
@@ -870,8 +926,9 @@ void fragment() {
     float cell_drift = sqrt(9.8 * chop_longest / TAU) * clock * wave_speed;
     vec3 crest_info;
     vec3 second_wall;
+    vec2 wall_mids;
     vec4 cells = wave_cells(crest_p, crest_side, d1, wave_cell_size, cell_drift, crest_info,
-        second_wall);
+        second_wall, wall_mids);
     float cell_face = crest_info.x;
     // Each shown wall is white (crest_wall_foam): a solid core swelling into round lobes, with a
     // fringe of beads - fluffy, as the swatches paint breaking crests - wide where the wave is
@@ -880,23 +937,33 @@ void fragment() {
     // nearest wall and the next one too, so where two meet their foam joins without a seam.
     vec2 along_q = vec2(dot(crest_p, crest_side), dot(crest_p, d1) - cell_drift);
     vec2 lace_p = crest_p - d1 * cell_drift;
-    vec3 fine = foam_lace_at(lace_p, 0.24, false);
+    vec3 fine = foam_lace_at(lace_p, 0.2, false);
     vec3 coarse = foam_lace_at(lace_p, 0.6, true);
     float beads = noise(along_q * vec2(2.2, 2.2) + vec2(1.0, 4.0));
     float lace_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
     float aa_c = max(fwidth(fine.x), 0.003);
+    // (Style 2 draws its breaking as events instead: bare hairlines here.)
+    float no_breaking = whitecap_style == 2 ? 0.0 : 1.0;
     float breaking = smoothstep(0.5, 0.85,
-        noise(along_q * vec2(0.45, 0.9) + vec2(7.0, 3.0) + cells.w * 13.0));
+        noise(along_q * vec2(0.45, 0.9) + vec2(7.0, 3.0) + cells.w * 13.0)) * no_breaking;
     vec2 wall_one = crest_wall_foam(cells.x, cells.y, cells.w, second_wall.x, strength, beads,
         breaking, fine, coarse, max(fwidth(cells.x), 0.0005), aa_c, lace_px, swell_up);
     float breaking_two = smoothstep(0.5, 0.85,
-        noise(along_q * vec2(0.45, 0.9) + vec2(7.0, 3.0) + second_wall.z * 13.0));
+        noise(along_q * vec2(0.45, 0.9) + vec2(7.0, 3.0) + second_wall.z * 13.0)) * no_breaking;
     vec2 wall_two = crest_wall_foam(second_wall.x, second_wall.y, second_wall.z, cells.x,
         strength, beads, breaking_two, fine, coarse, max(fwidth(second_wall.x), 0.0005), aa_c,
         lace_px, swell_up);
     vec2 walls = max(wall_one, wall_two);
     // The lace until it is too small to see, then the plain line, before the lace can shimmer.
     float crest = mix(foam_lace_ready ? walls.x : walls.y, walls.y, smoothstep(0.03, 0.07, lace_px));
+    if (whitecap_style == 2 && foam_lace_ready) {
+        // Hairlines a little fainter, and the events on top.
+        float t_event = clock * wave_speed;
+        float events = max(
+            wall_event(cells.x, cells.y, cells.w, wall_mids.x, fine, coarse, t_event),
+            wall_event(second_wall.x, second_wall.y, second_wall.z, wall_mids.y, fine, coarse, t_event));
+        crest = max(crest * 0.8, events * (1.0 - smoothstep(0.05, 0.12, lace_px) * 0.5));
+    }
     // A pale glow down the face below the white.
     // Measured from this wave's own crest, not the nearest wall, so it runs on past connectors.
     float crest_glow = (1.0 - smoothstep(0.02, 0.2 + 0.35 * breaking, crest_info.y))
@@ -904,6 +971,22 @@ void fragment() {
         * smoothstep(-1.1, -0.6, 0.5 * swell_up + (crest_info.z - 0.5))
         // ... and fading out toward the cell's other walls rather than stopping at them.
         * (cells.y < -0.35 ? 1.0 : smoothstep(0.0, 0.3, cells.x));
+    if (whitecap_style == 1 && wave_lattice_ready) {
+        // The painted lattice: the tile laid in the crest frame, drifting with the waves and
+        // wobbled by a few sines (Wind Waker's way of hiding that it is a texture), and a second
+        // copy turned 20 degrees and smaller, the two blended by a slow noise about 30 m across
+        // so the tile does not repeat visibly. R white, G the face, B the glow.
+        vec2 wob = vec2(sin(along_q.y * 0.9 + clock * 0.4) + 0.5 * sin(along_q.y * 2.3 + along_q.x * 0.7 - clock * 0.6),
+            sin(along_q.x * 0.6 + clock * 0.3) + 0.5 * sin(along_q.x * 1.7 - along_q.y * 0.5)) * 0.25;
+        vec2 uv1 = (along_q + wob) / lattice_size;
+        vec2 lat2 = mat2(vec2(0.94, 0.342), vec2(-0.342, 0.94)) * along_q;
+        vec2 uv2 = (lat2 + wob.yx) / (lattice_size * 0.77) + vec2(0.37, 0.61);
+        float pick = smoothstep(0.4, 0.6, noise(crest_p * 0.035 + vec2(5.0, 1.0)));
+        vec4 tile = mix(texture(wave_lattice, uv1), texture(wave_lattice, uv2), pick);
+        crest = tile.r;
+        crest_glow = tile.b * 0.9;
+        cell_face = tile.g;
+    }
     // The walls are a few centimetres: gone where a pixel spans more than a quarter metre of
     // sea, before they can shimmer.
     float metres_per_px = length(vec2(fwidth(crest_p.x), fwidth(crest_p.y)));
