@@ -84,8 +84,8 @@ func _build() -> void:
 ## Flat shading and no back-face culling, the same pass every prop here applies plus the one
 ## line the leafy ones need.
 ##
-## Static, so the reef can dress a model it instantiated itself without going through a Seaweed
-## node - a scattered plant and an authored one are then the same thing.
+## A scattered plant and an authored one both come through here: the reef places seaweed
+## scenes, one per kind, not bare models.
 static func dress(model: Node) -> void:
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := node as MeshInstance3D
@@ -113,6 +113,6 @@ func bounds() -> AABB:
 	return Ground.mesh_box(self)
 
 
-## How tall it stands, in metres. What the reef checks the water against.
+## How tall it stands, in metres.
 func height() -> float:
 	return bounds().size.y

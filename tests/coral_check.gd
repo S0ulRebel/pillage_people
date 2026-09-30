@@ -33,11 +33,17 @@ func _run() -> void:
 
 	var terrain := scene.get_node("Terrain")
 	var sea: float = terrain.sea_level()
-	var reef := scene.get_node_or_null("Reef")
-	check(reef != null, "there is no Reef node - no corals were grown at all")
+	var reef := scene.find_child("Reef", true, false) as ScatterPatch
+	check(reef != null, "there is no Reef ScatterPatch in the scene - no corals were grown at all")
 	if reef == null:
 		_finish()
 		return
+	# Under the crater it fills, so moving the crater in the editor takes the reef with it. It
+	# used to be grown by main.gd, which found the crater by guessing: any stamp that dug below
+	# the waterline.
+	check(reef.get_parent() is TerrainStamp,
+			"the Reef is under %s, not under a stamp - it will not follow the crater it fills"
+			% reef.get_parent().name)
 
 	# --- the models, before anything placed is believed ---
 	#
@@ -121,22 +127,21 @@ func _run() -> void:
 
 	print("reef: %d growths, water %.1f to %.1f m, worst perch %.3f m off the bed, nearest pair %.2f m"
 			% [corals.size(), shallowest, deepest, worst_perch, nearest])
-	# Which family planted each one, by the name the reef gave it.
+	# Which family each one came from, by the script it carries.
 	#
-	# The reef picks from two families and asks the one it picked to dress what it planted. If
-	# that dispatch collapsed to a single family - one wrong index, one preload dropped - the
-	# reef would still be full, still be on the bed, and would still pass every measurement
-	# above while quietly being one thing.
+	# The reef picks from nine scenes across two families. If that pick collapsed to a single
+	# family - one wrong index, one scene dropped from the list - the reef would still be full,
+	# still be on the bed, and would still pass every measurement above while quietly being one
+	# thing.
 	#
 	# This read the MATERIAL first, on the grounds that seaweed turns back-face culling off and
 	# coral does not. That measured the asset, not the code: coral_fingers and coral_branch
 	# arrive from Tripo doubleSided and coral_plate and coral_tubes do not, so breaking the
-	# dispatch to plant nothing but coral_fingers reported 26 seaweed and passed. The name is
-	# written from the same pick the model comes from, so it cannot disagree with it.
+	# dispatch to plant nothing but coral_fingers reported 26 seaweed and passed. The script
+	# comes with the scene that was picked, so it cannot disagree with the pick.
 	var counted := {}
 	for coral in corals:
-		var family: String = String(coral.name).trim_suffix(
-				String(coral.name).lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"))
+		var family: String = (coral.get_script() as Script).resource_path.get_file().get_basename()
 		counted[family] = int(counted.get(family, 0)) + 1
 	print("reef: %s" % str(counted))
 	check(counted.size() >= 2,
@@ -155,12 +160,39 @@ func _run() -> void:
 	check(worst_perch < 0.25,
 			"a coral sits %.2f m off the seabed. They are planted at terrain.height_at, so this"
 			% worst_perch + " is a placement written in the wrong space")
-	check(shallowest >= reef.min_depth,
+	check(shallowest >= reef.water_band.x,
 			"a coral grew in %.1f m of water against a %.1f m minimum - the reef is reaching"
-			% [shallowest, reef.min_depth] + " into the shallows at the crater's edge")
+			% [shallowest, reef.water_band.x] + " into the shallows at the crater's edge")
 	check(nearest >= reef.spacing - 0.01,
 			"two corals are %.2f m apart against a %.2f m spacing - they will read as one"
 			% [nearest, reef.spacing] + " broken coral")
+
+	# --- the crater carries its reef ---
+	#
+	# Moved and rebuilt, the way an edit in the editor rebuilds it, the reef has to replant on
+	# the new floor. The first time this was tried it crashed the engine: the patch freed its
+	# corals inside the move notification, while Godot was still handing that move to them.
+	var crater := reef.get_parent() as Node3D
+	crater.global_position += Vector3(-60.0, 0.0, 0.0)
+	await process_frame
+	await process_frame
+	terrain.rebuild_changed()
+	var middle := Vector2(crater.global_position.x, crater.global_position.z)
+	var moved_shallowest := 1e9
+	var moved_farthest := 0.0
+	for child in reef.get_children():
+		var at := (child as Node3D).global_position
+		moved_shallowest = minf(moved_shallowest, sea - terrain.height_at(at.x, at.z))
+		moved_farthest = maxf(moved_farthest, Vector2(at.x, at.z).distance_to(middle))
+	print("reef after moving the crater 60 m: %d growths, shallowest %.1f m, farthest %.1f m out"
+			% [reef.planted, moved_shallowest, moved_farthest])
+	check(reef.planted >= 8, "only %d corals replanted after the crater moved" % reef.planted)
+	check(moved_farthest <= reef.radius + 0.01,
+			"a coral stands %.1f m from the moved crater's middle against a %.1f m radius - the"
+			% [moved_farthest, reef.radius] + " reef stayed where the crater was")
+	check(moved_shallowest >= reef.water_band.x,
+			"after the crater moved a coral grew in %.1f m of water - the reef read the ground"
+			% moved_shallowest + " from before the rebuild")
 	_finish()
 
 

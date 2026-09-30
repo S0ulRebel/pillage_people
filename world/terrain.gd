@@ -5,6 +5,13 @@ extends StaticBody3D
 ## The image is read at runtime with Image.load_from_file, so Godot's texture importer
 ## cannot quietly convert it to 8-bit or apply sRGB - both of which flatten the heights.
 
+## The heights are new: once when they are first laid down, and in the editor again after every
+## edit that rebuilds the ground. For things that stand on the ground and cannot be asked to sit
+## down again - a ScatterPatch replants on it. One placed under the Terrain is ready before the
+## Terrain is, since children are readied first, and without this it would read the ground
+## before there was any.
+signal reshaped
+
 ## Raw 16-bit heights (make_heightmap.py writes these). Godot's Image loader converts a
 ## 16-bit PNG down to 8-bit, which shows up as visible terracing, so the .r16 is preferred
 ## and the PNG is only a fallback.
@@ -284,6 +291,7 @@ func _ready() -> void:
 		_build_tunnels()
 		_plant_grass()
 		_build_ground()
+	reshaped.emit()
 
 
 ## Builds the tunnels, then the mesh and colliders cut for them. Any stamp edited since the
@@ -501,6 +509,7 @@ func rebuild_changed() -> void:
 		_plant_grass()
 		_build_ground()
 		last_rebuilt = _chunks.size()
+		reshaped.emit()
 		return
 	var spacing := world_size / float(_size - 1)
 	# 1. The ground.
@@ -508,6 +517,7 @@ func rebuild_changed() -> void:
 	_stamp_order = _stamps()
 	if _chunks.is_empty():
 		_forget_edits()   # nothing built yet: the heights were all there was to do
+		reshaped.emit()
 		return
 
 	# 2. The tunnels: any edited, any standing on ground that moved (a tube is trimmed to the
@@ -589,6 +599,7 @@ func rebuild_changed() -> void:
 			if _changed_grass.get(child, false) or on_moved_ground:
 				child.plant(self)
 	_forget_edits()
+	reshaped.emit()
 
 
 ## The ground under every stamp edit since the last build: put the island back and the stamps

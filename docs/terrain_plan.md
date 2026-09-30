@@ -81,17 +81,30 @@ PNG, which Godot drops to 8-bit. `*.stamp` goes into the export filter next to `
   `main.gd` and the tests.
 - **Done when:** no group names are left as plain strings, and the tests pass.
 
-## Phase 2: the reef becomes a ScatterPatch
+## Phase 2: the reef becomes a ScatterPatch (done)
 
-- Put a `ScatterPatch` under `DiveCrater` with `props/coral/coral.tscn` and
-  `props/seaweed/seaweed.tscn`, a water band of at least 4 m deep, and `stay_submerged` on.
-- Check that the coral and seaweed scenes apply their own look (today `props/reef/reef.gd`
-  calls each family's `dress()` for them), and fix it if not.
-- Remove `_grow_reef()`, `coral_count` and the crater search ("Add stamp with negative
-  strength") from `main.gd`. This also removes `main.gd`'s dependency on stamp modes before
-  phase 3.
-- Update `tests/coral_check.gd` and `tests/placement_check.gd`.
-- **Done when:** the reef grows in the same crater, and the tests pass.
+- A `ScatterPatch` named `Reef` sits under `DiveCrater` in `main.tscn`, with the old reef's
+  numbers: 26 plants, 22 m radius, 2.2 m spacing, size 0.7-1.45, sink 0.06 m, at least 4 m of
+  water, `stay_submerged` with 1.5 m clearance.
+- The coral and seaweed scenes already dress themselves. To keep the mix of all nine models,
+  each kind got its own scene inheriting `coral.tscn` / `seaweed.tscn`
+  (`props/coral/coral_fingers.tscn` ... `props/seaweed/seaweed_arching.tscn`).
+- Removed `_grow_reef()`, `coral_count` and the crater search from `main.gd`, and deleted
+  `props/reef/reef.gd`.
+- `ScatterPatch` fixes this needed:
+  - Terrain emits a new `reshaped` signal when its heights are laid down or rebuilt, and a
+    patch replants on it. Under the Terrain a patch is ready before the ground is, so without
+    this nothing grew at all.
+  - `height_of()` builds the scene in the tree before measuring it. Measured outside the tree,
+    every coral was 0 m tall and `stay_submerged` let any height through.
+  - A move replants at the end of the frame, not inside the move notification, which crashed
+    the engine when the crater moved with its reef under it. It skips moves that leave the
+    position unchanged.
+- Changes in behaviour: the reef is the same every run (the patch's `seed`, where the old reef
+  was random per run), and like the other hand-placed nodes it stays under `--noassets`.
+- `tests/coral_check.gd` now also moves the crater 60 m and checks the reef replants on the new
+  floor. `tests/placement_check.gd` and `tests/dive_hole_view.gd` still find the crater as a
+  negative Add stamp; phase 3 changes them with the `strength` rename.
 
 ## Phase 3: the `.stamp` format and blend modes
 

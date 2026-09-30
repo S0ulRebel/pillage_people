@@ -18,6 +18,16 @@
 [ext_resource type="Script" uid="uid://d01ysgn2hxx6n" path="res://props/fish/fish_school.gd" id="91_fish"]
 [ext_resource type="PackedScene" uid="uid://btmjjhgk6x2j4" path="res://props/ship/ship.tscn" id="92_ship"]
 [ext_resource type="PackedScene" path="res://props/cannon/cannon.tscn" id="95_cannon"]
+[ext_resource type="PackedScene" path="res://world/scatter_patch.tscn" id="96_reef"]
+[ext_resource type="PackedScene" path="res://props/coral/coral_fingers.tscn" id="97_coral_fingers"]
+[ext_resource type="PackedScene" path="res://props/coral/coral_plate.tscn" id="98_coral_plate"]
+[ext_resource type="PackedScene" path="res://props/coral/coral_branch.tscn" id="99_coral_branch"]
+[ext_resource type="PackedScene" path="res://props/coral/coral_tubes.tscn" id="100_coral_tubes"]
+[ext_resource type="PackedScene" path="res://props/seaweed/seaweed_leafy.tscn" id="101_seaweed_leafy"]
+[ext_resource type="PackedScene" path="res://props/seaweed/seaweed_fan.tscn" id="102_seaweed_fan"]
+[ext_resource type="PackedScene" path="res://props/seaweed/seaweed_blades.tscn" id="103_seaweed_blades"]
+[ext_resource type="PackedScene" path="res://props/seaweed/seaweed_fleshy.tscn" id="104_seaweed_fleshy"]
+[ext_resource type="PackedScene" path="res://props/seaweed/seaweed_arching.tscn" id="105_seaweed_arching"]
 
 [sub_resource type="Sky" id="Sky_2"]
 sky_material = ExtResource("11_sky")
@@ -147,6 +157,17 @@ strength = -10.0
 length = 50.0
 width = 50.0
 edge_softness = 10.0
+
+[node name="Reef" parent="Terrain/DiveCrater" unique_id=2003980591 instance=ExtResource("96_reef")]
+scenes = Array[PackedScene]([ExtResource("97_coral_fingers"), ExtResource("98_coral_plate"), ExtResource("99_coral_branch"), ExtResource("100_coral_tubes"), ExtResource("101_seaweed_leafy"), ExtResource("102_seaweed_fan"), ExtResource("103_seaweed_blades"), ExtResource("104_seaweed_fleshy"), ExtResource("105_seaweed_arching")])
+count = 26
+radius = 22.0
+spacing = 2.2
+size_jitter = Vector2(0.7, 1.45)
+sink = 0.06
+water_band = Vector2(4, 1000)
+stay_submerged = true
+surface_clearance = 1.5
 
 [node name="TerrainStamp4" parent="Terrain" unique_id=120105537 instance=ExtResource("18_074og")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 158.06839, 0.824131, 277.98004)

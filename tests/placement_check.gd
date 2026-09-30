@@ -188,7 +188,7 @@ func _check_patch(scene: Node3D, terrain: Node, spawn: Vector3, crater: Vector3)
 	for spot in wet:
 		var at: Vector3 = spot["at"]
 		shallowest = minf(shallowest, Ground.depth(terrain, at.x, at.z))
-		if at.y + ScatterPatch._height_of(reef.scenes[0]) * spot["basis"].get_scale().y 				+ reef.surface_clearance > sea:
+		if at.y + reef.height_of(reef.scenes[0]) * spot["basis"].get_scale().y 				+ reef.surface_clearance > sea:
 			proud += 1
 		for other in wet:
 			if other == spot:

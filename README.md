@@ -37,7 +37,7 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `actors/captain/` | The captain. `CharacterBody3D`: camera-relative movement, jumping, swimming, swinging a cutlass, taking hits, dying. |
 | `actors/grunt/` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
 | `actors/parts/` | Shared by both: the blade (hung off a hand bone with a hitbox along it) and the hit spark. |
-| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
+| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, fish schools, the shark, the cannon, the waterfall, the double-deck ship moored off the beach, and corals and seaweed with one scene per kind. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. The reef is a `ScatterPatch` (`world/scatter_patch.tscn`) under the dive crater in `main.tscn`, so it moves with the crater. |
 | `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
 | `world/sky.*` | The sky, day, golden hour and night: the dome's gradients, sun, moon and stars, and the clouds - see Clouds and weather below. `world/cloud_shadow.gdshaderinc` lays the clouds' shadows on the ground and the sea. |
@@ -463,7 +463,8 @@ and a rock field up the beach with nothing between them but a signed water band.
 `coral_check` measures the reef on the crater floor: that the corals carry their size in the
 `.glb` rather than a gitignored `.import`, that every one sits on the seabed, and that none
 breaks the surface — which is what makes it correct for a coral to be the one prop here that
-stays off the ocean's layer 20. `coastal_smoke` checks the island builds and the captain stands
+stays off the ocean's layer 20 — and that moving the crater replants the reef on its new floor.
+`coastal_smoke` checks the island builds and the captain stands
 on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below

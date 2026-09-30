@@ -1,7 +1,7 @@
 @tool
 extends Node3D
-## One coral head on the seabed. Drag it into a scene to place one by hand, or let corals.gd
-## scatter a reef of them.
+## One coral head on the seabed. Drag it into a scene to place one by hand, or let a
+## ScatterPatch scatter a reef of them - main.tscn has one under the dive crater.
 ##
 ## These are the Tripo corals in art/models/props - about a thousand triangles each, matching
 ## art/references/nature-kit/03-corals-v1.png, where every coral in the sheet grows out of a
@@ -99,8 +99,8 @@ func _build() -> void:
 ## highlight reads as a different game from the one it is sitting in - and these come out of
 ## Tripo with roughness 0.5 and a metallic slot, which is exactly that.
 ##
-## Static, so corals.gd can dress a model it instantiated itself without going through a Coral
-## node. A scattered coral and an authored one are then the same thing.
+## A scattered coral and an authored one both come through here: the reef places coral scenes,
+## one per kind, not bare models, so there is no second path that could forget this.
 static func dress(model: Node) -> void:
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := node as MeshInstance3D
@@ -124,8 +124,8 @@ static func dress(model: Node) -> void:
 		# to the foam band whatever this bit says. grass.gd leaves it off for the same kind of
 		# reason and says so.
 		#
-		# What keeps that true is corals.gd refusing any spot where the coral would breach the
-		# surface, and coral_check measuring it.
+		# What keeps that true is the reef's ScatterPatch refusing any spot where the coral would
+		# breach the surface (stay_submerged), and coral_check measuring it.
 		mesh_node.layers = 1
 
 
@@ -136,6 +136,6 @@ func bounds() -> AABB:
 	return Ground.mesh_box(self)
 
 
-## How tall it stands, in metres. What corals.gd checks the water against.
+## How tall it stands, in metres.
 func height() -> float:
 	return bounds().size.y
