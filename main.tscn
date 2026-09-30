@@ -139,6 +139,7 @@ stamp_path = "res://terrain/island.stamp"
 height = 90.001373291015625
 length = 620.0
 width = 620.0
+border_fade = 90.0
 
 [node name="TerrainStamp2" parent="Terrain" unique_id=1158743273 instance=ExtResource("18_074og")]
 transform = Transform3D(0.8862036, 0, 0.46329597, 0, 1, 0, -0.46329606, 0, 0.8862034, 62.98949, 27.705587, -16.816555)

@@ -111,6 +111,7 @@ extends MeshInstance3D
 ## terrain numbers are the seabed, which the waves shoal over.
 const MIRRORED: Array[StringName] = [
 	&"terrain_height", &"terrain_size", &"terrain_scale", &"terrain_center", &"terrain_base_y",
+	&"far_height", &"far_size", &"far_floor",
 	&"sea_y", &"preview_time", &"wave_1", &"wave_2", &"wave_3", &"wave_4", &"wave_height",
 	&"wave_speed", &"shoal_depth", &"choppiness", &"sun_direction", &"daylight",
 ]

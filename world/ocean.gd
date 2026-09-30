@@ -213,6 +213,12 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 		water.set_shader_parameter("sea_y", sea_level)
 		water.set_shader_parameter("terrain_center", Vector2(terrain.global_position.x, terrain.global_position.z))
 		water.set_shader_parameter("terrain_base_y", terrain.global_position.y)
+		# The bed past the map, when the Terrain builds one out there.
+		var far: ImageTexture = terrain.far_texture() if terrain.has_method("far_texture") else null
+		if far != null:
+			water.set_shader_parameter("far_height", far)
+			water.set_shader_parameter("far_size", terrain.far_size())
+			water.set_shader_parameter("far_floor", terrain.far_floor())
 	var sun := get_node_or_null("../Sun") as DirectionalLight3D
 	if sun != null:
 		water.set_shader_parameter("sun_direction", sun.global_transform.basis.z.normalized())

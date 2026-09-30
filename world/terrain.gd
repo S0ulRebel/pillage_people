@@ -199,6 +199,23 @@ func _push_colour(name: StringName, value: Variant) -> void:
 		cut_edges = value
 		_setting_changed()
 
+@export_group("Far seabed")
+## How far out from the middle the ground goes on past the detailed square, in metres: a coarse
+## ring of seabed round it, with a collider, which is also the bed the water reads out there.
+## Past the camera's 1000 m, so the sea never shows where it stops. Only with a Seabed child.
+@export_range(0.0, 5000.0, 10.0, "suffix:m") var far_extent := 1200.0:
+	set(value):
+		far_extent = value
+		_setting_changed()
+## Detail mesh quads per far ring cell. A whole number of them, so every cell corner along the
+## square's edge is a vertex of the detailed mesh too - the ring is stitched to the detailed
+## edge vertex for vertex, and there is no crack to hide.
+@export_range(1, 64) var far_cell := 8:
+	set(value):
+		far_cell = maxi(value, 1)
+		_setting_changed()
+@export_group("")
+
 ## The Tunnel children being built: all of them in the game, the ticked ones in the editor.
 ## Each is asked where its tube is and the terrain is cut to exactly that shape - so an opening
 ## always matches its tunnel, whatever the slope, with nothing to line up by hand.
@@ -239,6 +256,19 @@ var _nan_by_chunk: Array[PackedInt32Array] = []
 ## baked samples - see height_exact().
 var _active_stamps: Array[TerrainStamp] = []
 var _stamp_rects: Array[Rect2] = []
+## Each active stamp's own reach, in the same order: past the square every stamp is evaluated
+## where it reaches, and this is how the far ground skips the ones that do not.
+var _active_rects: Array[Rect2] = []
+## The Seabed the ground started from, or null when it came from a height file.
+var _bed: Seabed = null
+## The far ring, as of the last build: heights over a grid `_far_count` samples a side,
+## `_far_step` apart and centred on the Terrain, in metres above it, NAN strictly inside the
+## detailed square, where the ground is the chunks'. Empty without a Seabed.
+var _far_heights := PackedFloat32Array()
+var _far_count := 0
+var _far_step := 0.0
+## Far cells from the middle to the square's edge.
+var _far_inner := 0
 var _chunks_per_side := 0
 ## The grid as it was built. Read instead of the exports by everything that maps ground to
 ## chunks, so a setting changed in the inspector cannot address the old chunks with the new
@@ -286,6 +316,7 @@ func _ready() -> void:
 	# Children are ready before their parent, so every stamp has read its file by now - and
 	# this runs before main.gd places anything on the ground, so props land on stamped ground.
 	_restamp(0, _size - 1, 0, _size - 1)
+	_read_far()
 	_stamp_order = _stamps()
 	child_entered_tree.connect(_on_child_entered)
 	child_exiting_tree.connect(_on_child_exiting)
@@ -306,6 +337,7 @@ func _ready() -> void:
 ## calling this would otherwise get the ground as it was.
 func generate() -> void:
 	_restamp_changed()
+	_read_far()
 	_build_tunnels()
 	_plant_grass()
 	_build_ground()
@@ -337,6 +369,7 @@ func _seabed(leaving: Node = null) -> Seabed:
 ## child if there is one, else from the height file. False if there was nothing to read.
 func _read_base(leaving: Node = null) -> bool:
 	var seabed := _seabed(leaving)
+	_bed = seabed
 	if seabed == null:
 		if not _load_raw() and not _load_png():
 			return false
@@ -557,6 +590,7 @@ func rebuild_changed() -> void:
 		# level), changes every sample it laid down.
 		_read_base()
 		_restamp(0, _size - 1, 0, _size - 1)
+		_read_far()
 		_stamp_order = _stamps()
 		_build_tunnels()
 		_plant_grass()
@@ -641,6 +675,15 @@ func rebuild_changed() -> void:
 	for index in chunks:
 		_build_chunk(index)
 	last_rebuilt = chunks.size()
+	# The far ring, when the ground that moved reaches the square's edge: its inner row is
+	# stitched to the edge's own vertices, and past the edge a stamp shapes it directly.
+	var half := world_size * 0.5
+	for rect in moved_ground:
+		if rect.position.x <= -half or rect.position.y <= -half or rect.end.x >= half \
+				or rect.end.y >= half:
+			_read_far()
+			_build_far_mesh()
+			break
 
 	# 4. The grass: patches that changed, and patches on ground that did.
 	for child in get_children():
@@ -674,6 +717,7 @@ func _restamp_changed() -> void:
 func _refresh_stamps(leaving: Node = null) -> void:
 	_active_stamps = []
 	_stamp_rects = []
+	_active_rects = []
 	# A sample's margin round the reach: just outside a fade the baked samples inside it still
 	# lean on what is read between them, so exact and baked only agree a sample further out.
 	# Without it a foot vertex right on the edge of the reach read baked ground, 0.3 m off.
@@ -684,6 +728,7 @@ func _refresh_stamps(leaving: Node = null) -> void:
 		# first - one that has already gone
 		if stamp != leaving and stamp.is_inside_tree():
 			_active_stamps.append(stamp)
+			_active_rects.append(stamp.footprint())
 			# Not an image that lands sample on sample on the grid: the baked samples are its
 			# own, and read between them the same way, so the exact path would add nothing - and
 			# the island is one, covering every sample, so it would send every lookup the slow
@@ -986,6 +1031,176 @@ func _roughness(point: Vector3) -> float:
 	return total * 0.25
 
 
+# --- the far seabed --------------------------------------------------------------------------
+
+## Past the square, where there are no baked samples: the Seabed at the point itself, with every
+## stamp that reaches there on it - so a pad whose fade crosses the edge carries on across it.
+func _far_height(world_x: float, world_z: float) -> float:
+	var base := global_position.y
+	var half := world_size * 0.5
+	var height := _bed.height_at(world_x, world_z, sea_level(),
+			Rect2(-half, -half, world_size, world_size)) + base
+	var point := Vector2(world_x, world_z)
+	for k in _active_stamps.size():
+		if _active_rects[k].has_point(point) and _active_stamps[k].is_inside_tree():
+			height = _active_stamps[k].reshape(height, world_x, world_z)
+	return height - base
+
+
+## The far ring's heights, read through height_at() so they are the ground everything else
+## reads. Nothing without a Seabed, or when far_extent does not reach past the square.
+func _read_far() -> void:
+	_far_heights = PackedFloat32Array()
+	_far_count = 0
+	var half := world_size * 0.5
+	if _bed == null or far_extent <= half:
+		return
+	# The square's edge has to fall on a far sample, or the ring cannot be stitched to it.
+	if _built_resolution % (2 * far_cell) != 0:
+		push_error("far_cell %d does not divide mesh_resolution %d into halves - no far seabed"
+				% [far_cell, _built_resolution])
+		return
+	_far_step = world_size / _built_resolution * far_cell
+	_far_inner = _built_resolution / (2 * far_cell)
+	var cells := _far_inner + ceili((far_extent - half) / _far_step)
+	_far_count = cells * 2 + 1
+	_far_heights.resize(_far_count * _far_count)
+	for j in _far_count:
+		var z := (j - cells) * _far_step
+		for i in _far_count:
+			var x := (i - cells) * _far_step
+			var inside := absf(x) < half and absf(z) < half
+			_far_heights[j * _far_count + i] = NAN if inside else height_at(x, z)
+
+
+## The far ring as ground you can see: a coarse grid from the square's edge out to far_extent,
+## coloured and shaded like the chunks. Its cells along the edge are stitched to the edge's
+## own vertices - a fan from each of the cell's two outer corners through the eight or so
+## detail vertices on its inner side - so nothing needs hiding where the two meet.
+func _build_far_mesh() -> void:
+	var old := get_node_or_null(^"FarSeabed")
+	if old != null:
+		remove_child(old)
+		old.queue_free()
+	if _far_count == 0:
+		return
+	var cells := (_far_count - 1) / 2
+	var detail := world_size / _built_resolution
+	var half := world_size * 0.5
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in _far_count - 1:
+		var cj := j - cells
+		for i in _far_count - 1:
+			var ci := i - cells
+			var across_x := ci >= -_far_inner and ci < _far_inner
+			var across_z := cj >= -_far_inner and cj < _far_inner
+			if across_x and across_z:
+				continue                                 # inside the square: the chunks' ground
+			var a := _far_vertex(i, j)
+			var b := _far_vertex(i + 1, j)
+			var c := _far_vertex(i + 1, j + 1)
+			var d := _far_vertex(i, j + 1)
+			# A cell sharing a side with the square: that side is the detailed edge instead.
+			var inner: Array[Vector3] = []
+			var outer: Array[Vector3] = []
+			if across_z and ci == _far_inner:            # east of the square
+				inner = _edge_run(half, cj * _far_step, false, detail)
+				outer = [b, c]
+			elif across_z and ci == -_far_inner - 1:     # west
+				inner = _edge_run(-half, cj * _far_step, false, detail)
+				outer = [a, d]
+			elif across_x and cj == _far_inner:          # south
+				inner = _edge_run(ci * _far_step, half, true, detail)
+				outer = [d, c]
+			elif across_x and cj == -_far_inner - 1:     # north
+				inner = _edge_run(ci * _far_step, -half, true, detail)
+				outer = [a, b]
+			if inner.is_empty():
+				_far_triangle(st, a, b, c)
+				_far_triangle(st, a, c, d)
+				continue
+			var middle := inner.size() / 2
+			for k in inner.size() - 1:
+				_far_triangle(st, inner[k], inner[k + 1], outer[0] if k < middle else outer[1])
+			_far_triangle(st, inner[middle], outer[1], outer[0])
+	st.index()
+	var instance := MeshInstance3D.new()
+	instance.name = "FarSeabed"
+	instance.material_override = material
+	instance.mesh = st.commit()
+	add_child(instance)
+
+
+## A far grid sample as a point on the ground.
+func _far_vertex(i: int, j: int) -> Vector3:
+	var cells := (_far_count - 1) / 2
+	return Vector3((i - cells) * _far_step, _far_heights[j * _far_count + i],
+			(j - cells) * _far_step)
+
+
+## The detailed mesh's own vertices along one far cell's side of the square's edge, from its
+## low end to its high end: at the chunks' positions, (k * detail - half), so they are the very
+## same points, and at height_at() there, which is what the chunks stand them at.
+func _edge_run(x: float, z: float, along_x: bool, detail: float) -> Array[Vector3]:
+	var half := world_size * 0.5
+	var start := roundi(((x if along_x else z) + half) / detail)
+	var run: Array[Vector3] = []
+	for k in range(start, start + far_cell + 1):
+		var t := k * detail - half
+		var point := Vector3(t, 0.0, z) if along_x else Vector3(x, 0.0, t)
+		point.y = height_at(point.x, point.z)
+		run.append(point)
+	return run
+
+
+## One triangle of the far ring, wound the way the chunks wind theirs, with the chunks' colour
+## and a normal read off the ground itself, and its UV held to the square's edge - the biome map
+## has nothing painted out here, and read past its edge it would wrap round to the other side.
+func _far_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
+	if (b - a).cross(c - a).y > 0.0:
+		var swap := b
+		b = c
+		c = swap
+	for p in [a, b, c]:
+		st.set_uv(Vector2(clampf(p.x / world_size + 0.5, 0.0, 1.0),
+				clampf(p.z / world_size + 0.5, 0.0, 1.0)))
+		st.set_color(_terrain_colour(p.y))
+		st.set_normal(_surface_normal(p.x, p.z))
+		st.add_vertex(p)
+
+
+## The far ring's heights as a texture, for the water: metres above the Terrain. The square's
+## inside is filled in from the baked samples rather than left NAN, which filtering would
+## spread across the edge; the water reads the detailed texture in there anyway. Null without
+## a far ring.
+func far_texture() -> ImageTexture:
+	if _far_count == 0:
+		return null
+	var cells := (_far_count - 1) / 2
+	var bytes := PackedByteArray()
+	bytes.resize(_far_count * _far_count * 4)
+	for j in _far_count:
+		for i in _far_count:
+			var h := _far_heights[j * _far_count + i]
+			if is_nan(h):
+				h = height_at((i - cells) * _far_step, (j - cells) * _far_step)
+			bytes.encode_float((j * _far_count + i) * 4, h)
+	var image := Image.create_from_data(_far_count, _far_count, false, Image.FORMAT_RF, bytes)
+	return ImageTexture.create_from_image(image)
+
+
+## How many metres far_texture() spans, centred on the Terrain; 0 without a far ring.
+func far_size() -> float:
+	return (_far_count - 1) * _far_step if _far_count > 0 else 0.0
+
+
+## World height of the bed past the far ring: sea level less the Seabed's far depth.
+func far_floor() -> float:
+	var below := _bed.far_depth if _bed != null else 60.0
+	return global_position.y + sea_level() - below
+
+
 ## The height map as a texture, so a shader can read the seabed.
 ##
 ## The water needs to know how deep it is at every point - to flatten the swell as it shoals,
@@ -1002,6 +1217,9 @@ func height_texture() -> ImageTexture:
 
 ## World-space height under a point, for dropping things onto the ground.
 func height_at(world_x: float, world_z: float) -> float:
+	var half := world_size * 0.5
+	if _bed != null and (absf(world_x) > half or absf(world_z) > half):
+		return _far_height(world_x, world_z)
 	for rect in _stamp_rects:
 		if rect.has_point(Vector2(world_x, world_z)):
 			return height_exact(world_x, world_z)
@@ -1050,6 +1268,7 @@ func _build_ground() -> void:
 		_nan_by_chunk.append(PackedInt32Array())
 	for index in count:
 		_build_chunk(index)
+	_build_far_mesh()
 	_forget_edits()
 
 
@@ -1665,7 +1884,7 @@ func _terrain_colour(height_m: float) -> Color:
 func _build_collision() -> void:
 	# The previous build's shapes go first, or a second build stacks its own on top of them
 	# and the old rim keeps answering rays where the new one has nothing.
-	for name in [^"HeightField", ^"Rim"]:
+	for name in [^"HeightField", ^"Rim", ^"FarHeightField"]:
 		var old := get_node_or_null(name)
 		if old != null:
 			remove_child(old)
@@ -1711,3 +1930,16 @@ func _build_collision() -> void:
 	owner_node.scale = Vector3(world_size / (collision_resolution - 1), 1.0,
 			world_size / (collision_resolution - 1))
 	add_child(owner_node)
+	# The far ring's own, coarse: the square's inside is NAN, holes, and the height field above
+	# answers there. Its samples ON the edge are solid, so the cells just outside it are too
+	# and there is no gap to fall through between the two.
+	if _far_count > 0:
+		var far_shape := HeightMapShape3D.new()
+		far_shape.map_width = _far_count
+		far_shape.map_depth = _far_count
+		far_shape.map_data = _far_heights
+		var far_node := CollisionShape3D.new()
+		far_node.name = "FarHeightField"
+		far_node.shape = far_shape
+		far_node.scale = Vector3(_far_step, 1.0, _far_step)
+		add_child(far_node)
