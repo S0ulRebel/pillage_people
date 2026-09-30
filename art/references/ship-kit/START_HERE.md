@@ -103,6 +103,11 @@ Done so far:
 - The stairs' two rails run up the slope and on into the quarterdeck's front rail as one line. On the slope the swept profile stays upright, so the handrail and base are sheared like the balusters. They stand 0.1 m outside the treads, leaving the stairs' full 1 m clear. Each has a post only at its foot and its head, with balusters all the way between. Where two legs of rail meet, their corner post stands once.
 - A turn sharper than 30 degrees (the quarterdeck's front corners, the head of each stair rail) always gets a post.
 - At the bow the rail ends on two knightheads. The bowsprit rests on the deck and passes over the stem between them.
+- **The bow's sheer:** in the reference the hull's side sweeps up to the stem, and the rail with it. `bow_sheer` lifts the hull's wall top as a curve that starts level at z 1.0 (`BOW_SHEER_FROM`), just forward of the catheads, and reaches 0.6 m at the knightheads (`BOW_SHEER`).
+  - `_build_bow_bulwark` fills that rise with a wall on the hull's wall top: 0.2 m thick like the top, its outer face flush with the hull's, planked with the hull's material and colliding.
+  - The rail stands on the bulwark, with a point every 0.25 m along the curve, and keeps its even post spacing. Only a leg that climbs in one straight run, up the stairs, has posts at its ends alone.
+  - The fore shrouds' channel slopes with the sheer, as a real channel follows it, and the jib sheets belay to the raised rail.
+  - The bowsprit still passes between the knightheads, now at the top of the rise.
 - Each straight length collides as one box.
 
 **The gunports:** `python tools/strip_game_gunports.py` takes the kit's gun-deck side walls, with their fixed holes, out of the game hull (z 4 to 12, both sides). ship.gd builds them again with a hole wherever its ports go:

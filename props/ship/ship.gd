@@ -213,6 +213,13 @@ const RAIL_PATH := [
 	Vector2(2.05, 14.825), Vector2(1.615, 15.39), Vector2(1.11, 15.82), Vector2(0.57, 16.085),
 	Vector2(0.0, 16.18),
 ]
+## The bow's sheer, as in the reference, where the hull's side sweeps up to the stem: from
+## BOW_SHEER_FROM, just forward of the catheads, the side rises along a curve that starts level,
+## BOW_SHEER at the knightheads. A planked bulwark (_build_bow_bulwark) fills it on the hull's
+## wall top, and the rail stands on it; the fore shrouds' channels and everything belayed to the
+## rail rise with it (bow_sheer).
+const BOW_SHEER_FROM := 1.0
+const BOW_SHEER := 0.6
 ## Posts stand evenly along the whole rail, bow to stern, no more than this apart. They do not
 ## follow the hull's corners: the stern is eight short panels, and a post on each would crowd
 ## it. The handrail and base are swept through the posts and round the corners unbroken.
@@ -383,6 +390,7 @@ func _ready() -> void:
 	_build_flag()
 	_build_deck_fittings()
 	_build_rail()
+	_build_bow_bulwark()
 	_build_wale()
 
 
@@ -1394,9 +1402,9 @@ func _lay_rail(line: Array[Vector3], post_width: float, baluster_box: AABB,
 	var last := line[line.size() - 1]
 	if absf(first.x) > 0.01 and absf(first.x + last.x) < 0.01 and absf(first.z - last.z) < 0.01:
 		bays += bays % 2
-	# A leg that climbs, up the stairs, has a post only at its foot and its head, and
-	# balusters all the way between.
-	if absf(first.y - last.y) > 0.01:
+	# A leg that climbs straight, up the stairs, has a post only at its foot and its head, and
+	# balusters all the way between. The rail rising with the bow's sheer keeps its spacing.
+	if line.size() == 2 and absf(first.y - last.y) > 0.01:
 		bays = 1
 	var posts: Array[float] = []
 	var standing: Array[Transform3D] = []
@@ -1465,9 +1473,10 @@ func _rail_legs(before_pillars := false) -> Array:
 	for i in range(RAIL_PATH.size() - 1, -1, -1):
 		if RAIL_PATH[i].y < front:
 			starboard.append(Vector3(RAIL_PATH[i].x, DECK_Y, RAIL_PATH[i].y))
+	starboard = _sheer_line(starboard)
 	var port: Array[Vector3] = []
 	for i in range(starboard.size() - 1, -1, -1):
-		port.append(Vector3(-starboard[i].x, DECK_Y, starboard[i].z))
+		port.append(Vector3(-starboard[i].x, starboard[i].y, starboard[i].z))
 
 	var edge := CASTLE_FRONT_Z + 0.1
 	var landing := QUARTERDECK_STAIRS_AT.x
@@ -1930,13 +1939,17 @@ func _shroud_side(parent: Node3D, tops: Array[Vector3], hull: Array[Vector3], ou
 	var timber := _rail_profile("wale", _flat(Color(0.45, 0.28, 0.14)))["material"] as Material
 	var side := signf(out.x)
 	var deck_y := (QUARTERDECK_Y if on_castle else DECK_Y) + RAIL_HEIGHT + 0.02 + CHANNEL_THICK
-	var first := Vector3(hull[0].x, deck_y, hull[0].z)
-	var last := Vector3(hull[hull.size() - 1].x, deck_y, hull[hull.size() - 1].z)
+	# On the weather deck the channel rises with the rail over the bow's sheer, as a real
+	# channel follows the sheer line.
+	var first := Vector3(hull[0].x, deck_y + (0.0 if on_castle else bow_sheer(hull[0].z)), hull[0].z)
+	var last := Vector3(hull[hull.size() - 1].x, deck_y + (0.0 if on_castle else bow_sheer(hull[hull.size() - 1].z)), hull[hull.size() - 1].z)
 	_channel(parent, first, last, out, CHANNEL_OUT, timber, "Channel%s" % ("Starboard" if side > 0.0 else "Port"))
 	var ends: Array[Vector3] = []
 	var listed: Array = parent.get_meta("set_up")
 	for i in tops.size():
-		var foot := Vector3(hull[i].x, deck_y, hull[i].z) + out * (CHANNEL_OUT - 0.08)
+		# On the channel's line, which runs straight from its first foot to its last.
+		var t := (hull[i].z - first.z) / (last.z - first.z) if absf(last.z - first.z) > 0.001 else 0.0
+		var foot := Vector3(hull[i].x, lerpf(first.y, last.y, t), hull[i].z) + out * (CHANNEL_OUT - 0.08)
 		var plate_end: Vector3
 		if on_castle:
 			# On the trim's top, near its outer edge.
@@ -1948,7 +1961,7 @@ func _shroud_side(parent: Node3D, tops: Array[Vector3], hull: Array[Vector3], ou
 		var strop := _set_up(parent, tops[i], foot, plate_end, label, rope, iron)
 		ends.append(strop)
 		listed.append({"top": tops[i], "strop": strop, "foot": foot, "plate_end": plate_end, "out": out,
-				"hull": Vector3(hull[i].x, deck_y, hull[i].z), "on_castle": on_castle})
+				"hull": Vector3(hull[i].x, foot.y, hull[i].z), "on_castle": on_castle})
 	return ends
 
 
@@ -2108,7 +2121,30 @@ func _clew(sail: Node, side: float) -> Vector3:
 ## The top of the rail's handrail `z` along the ship, on `side`, on the rail round `deck`.
 func _rail_top(z: float, side: float, deck := DECK_Y) -> Vector3:
 	var at: Vector2 = _outline_at(RAIL_PATH, z)[0]
-	return Vector3(side * at.x, deck + HANDRAIL_TOP, z)
+	var sheer := bow_sheer(z) if deck == DECK_Y else 0.0
+	return Vector3(side * at.x, deck + sheer + HANDRAIL_TOP, z)
+
+
+## How far the hull's wall top stands above the weather deck `z` along the ship: nothing aft of
+## BOW_SHEER_FROM, rising on a curve that starts level to BOW_SHEER at the knightheads.
+static func bow_sheer(z: float) -> float:
+	var stem: float = (RAIL_PATH[0] as Vector2).y
+	var t := clampf((BOW_SHEER_FROM - z) / (BOW_SHEER_FROM - stem), 0.0, 1.0)
+	return BOW_SHEER * t * t
+
+
+## `line`, on the weather deck, with a point every 0.25 m where it rises with the bow's sheer, and
+## each point lifted by it.
+func _sheer_line(line: Array[Vector3]) -> Array[Vector3]:
+	var out: Array[Vector3] = [line[0] + Vector3.UP * bow_sheer(line[0].z)]
+	for i in range(1, line.size()):
+		var a := line[i - 1]
+		var b := line[i]
+		var steps := ceili(a.distance_to(b) / 0.25) if minf(a.z, b.z) < BOW_SHEER_FROM else 1
+		for k in range(1, steps + 1):
+			var p := a.lerp(b, float(k) / steps)
+			out.append(Vector3(p.x, a.y + bow_sheer(p.z), p.z))
+	return out
 
 
 ## A single block hung from a clew: its strop at the clew, 0.35 m long below it.
@@ -2271,16 +2307,7 @@ func _build_gun_walls(parent: Node3D, spots: Array[float]) -> void:
 		gaps.append(Vector2(from, z - half))
 		from = z + half
 	gaps.append(Vector2(from, GUN_WALL_AFT_Z))
-	var material: Material = null
-	var hull := get_node_or_null("Model")
-	if hull != null:
-		for node in _descendants(hull):
-			var mesh_node := node as MeshInstance3D
-			if mesh_node == null or mesh_node.mesh == null:
-				continue
-			for surface in mesh_node.mesh.get_surface_count():
-				if mesh_node.mesh.surface_get_material(surface) != null and mesh_node.mesh.surface_get_material(surface).resource_name == "wood":
-					material = mesh_node.get_surface_override_material(surface)
+	var material := _hull_wood()
 	for side in [1.0, -1.0]:
 		var wall := SurfaceTool.new()
 		wall.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -2306,6 +2333,101 @@ func _build_gun_walls(parent: Node3D, spots: Array[float]) -> void:
 			node.material_override = material
 		parent.add_child(node)
 		node.create_trimesh_collision()
+
+
+## The hull's own planked material (its toon copy), or null without the hull.
+func _hull_wood() -> Material:
+	var material: Material = null
+	var hull := get_node_or_null("Model")
+	if hull != null:
+		for node in _descendants(hull):
+			var mesh_node := node as MeshInstance3D
+			if mesh_node == null or mesh_node.mesh == null:
+				continue
+			for surface in mesh_node.mesh.get_surface_count():
+				if mesh_node.mesh.surface_get_material(surface) != null and mesh_node.mesh.surface_get_material(surface).resource_name == "wood":
+					material = mesh_node.get_surface_override_material(surface)
+	return material
+
+
+## The bow's raised side (bow_sheer): a wall on the hull's wall top each side, 0.2 m thick like
+## it, its outer face flush with the hull's, from BOW_SHEER_FROM to the knighthead, its top
+## rising with the sheer and the rail standing on it. Its inner and outer faces, its top and its
+## end at the knighthead, planked with the hull's material; planks run along it (u is metres
+## along it over 2, v height over 2.6, as the hull's side). It collides exactly, under the rail.
+func _build_bow_bulwark() -> void:
+	var old := get_node_or_null("BowBulwark")
+	if old != null:
+		old.free()
+	var path: Array[Vector3] = [Vector3(RAIL_PATH[0].x, DECK_Y, RAIL_PATH[0].y)]
+	for i in range(1, RAIL_PATH.size()):
+		var p: Vector2 = RAIL_PATH[i]
+		if p.y >= BOW_SHEER_FROM:
+			var q: Vector2 = RAIL_PATH[i - 1]
+			path.append(Vector3(lerpf(q.x, p.x, (BOW_SHEER_FROM - q.y) / (p.y - q.y)), DECK_Y, BOW_SHEER_FROM))
+			break
+		path.append(Vector3(p.x, DECK_Y, p.y))
+	path = _sheer_line(path)
+	var node := MeshInstance3D.new()
+	node.name = "BowBulwark"
+	var wall := SurfaceTool.new()
+	wall.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for side in [1.0, -1.0]:
+		var reach := 0.0
+		var rows: Array = []
+		for i in path.size():
+			var p := Vector3(side * path[i].x, path[i].y, path[i].z)
+			if i > 0:
+				reach += path[i].distance_to(path[i - 1])
+			var n := _hull_out(p.z - 0.001, side) if i == 0 else _hull_out(p.z + 0.001, side)
+			if i > 0 and i < path.size() - 1:
+				n = (_hull_out(p.z - 0.001, side) + _hull_out(p.z + 0.001, side)).normalized()
+			rows.append({"outer": p + n * 0.1, "inner": p - n * 0.1, "n": n, "top": p.y, "u": reach / 2.0})
+		for i in rows.size() - 1:
+			var a: Dictionary = rows[i]
+			var b: Dictionary = rows[i + 1]
+			# Each face from a little down in the hull's wall top, so no seam shows at the deck.
+			for face in [["outer", 1.0], ["inner", -1.0]]:
+				var normal: Vector3 = ((a["n"] as Vector3) + (b["n"] as Vector3)).normalized() * face[1]
+				var a0: Vector3 = a[face[0]]
+				var b0: Vector3 = b[face[0]]
+				_bulwark_quad(wall, [Vector3(a0.x, DECK_Y - 0.02, a0.z), Vector3(b0.x, DECK_Y - 0.02, b0.z), b0, a0],
+						[Vector2(a["u"], (DECK_Y - 0.02) / -2.6), Vector2(b["u"], (DECK_Y - 0.02) / -2.6), Vector2(b["u"], b0.y / -2.6), Vector2(a["u"], a0.y / -2.6)], normal)
+			var ai: Vector3 = a["inner"]
+			var ao: Vector3 = a["outer"]
+			var bi: Vector3 = b["inner"]
+			var bo: Vector3 = b["outer"]
+			_bulwark_quad(wall, [ai, bi, bo, ao], [Vector2(a["u"], ai.x / 2.6), Vector2(b["u"], bi.x / 2.6), Vector2(b["u"], bo.x / 2.6), Vector2(a["u"], ao.x / 2.6)], Vector3.UP)
+		# Its end at the knighthead, facing forward along the rail.
+		var end: Dictionary = rows[0]
+		var ei: Vector3 = end["inner"]
+		var eo: Vector3 = end["outer"]
+		var ahead := (Vector3(rows[0]["outer"]) - Vector3(rows[1]["outer"]))
+		ahead.y = 0.0
+		_bulwark_quad(wall, [Vector3(ei.x, DECK_Y - 0.02, ei.z), Vector3(eo.x, DECK_Y - 0.02, eo.z), eo, ei],
+				[Vector2(ei.x / 2.0, (DECK_Y - 0.02) / -2.6), Vector2(eo.x / 2.0, (DECK_Y - 0.02) / -2.6), Vector2(eo.x / 2.0, eo.y / -2.6), Vector2(ei.x / 2.0, ei.y / -2.6)], ahead.normalized())
+	node.mesh = wall.commit()
+	node.layers = 1 | (1 << 19)
+	var material := _hull_wood()
+	if material != null:
+		node.material_override = material
+	add_child(node)
+	node.create_trimesh_collision()
+
+
+## A four-cornered face through `corners` in order round it, with their `uvs`, facing `normal`.
+## Wound clockwise from the front, as Godot draws front faces.
+func _bulwark_quad(into: SurfaceTool, corners: Array, uvs: Array, normal: Vector3) -> void:
+	var order := [0, 1, 2, 0, 2, 3]
+	var a: Vector3 = corners[0]
+	var b: Vector3 = corners[1]
+	var c: Vector3 = corners[2]
+	if (b - a).cross(c - a).dot(normal) > 0.0:
+		order = [0, 2, 1, 0, 3, 2]
+	for i in order:
+		into.set_normal(normal)
+		into.set_uv(uvs[i])
+		into.add_vertex(corners[i])
 
 
 ## A flat rectangle between opposite corners `a` and `b` (they share one coordinate), facing

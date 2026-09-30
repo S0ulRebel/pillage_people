@@ -206,9 +206,14 @@ func _check_bowsprit_clears_knightheads(ship: Node3D) -> void:
 	for line in ship.get_node("Rail").get_meta("post_lines"):
 		for at in line:
 			var o := (at as Transform3D).origin
-			if o.z < Ship.BOWSPRIT_AT.z and absf(o.y - Ship.DECK_Y) < 0.01:
+			if o.z < Ship.BOWSPRIT_AT.z and knightheads.all(func(k: Vector3) -> bool: return k.distance_to(o) > 0.001):
 				knightheads.append(o)
 	check(knightheads.size() == 2, "%d knightheads at the bow; there should be one either side of the bowsprit" % knightheads.size())
+	# The bow rises to them with its sheer, as in the reference, on a planked bulwark.
+	for k in knightheads:
+		check(absf(k.y - (Ship.DECK_Y + Ship.BOW_SHEER)) <= 0.01,
+				"the knighthead at x %.2f stands at %.2f; the bow's sheer should lift it to %.2f" % [k.x, k.y, Ship.DECK_Y + Ship.BOW_SHEER])
+	_check_bow_bulwark(ship)
 	var to_ship := ship.global_transform.affine_inverse()
 	var widest := 0.0
 	var model := ship.get_node("Bowsprit/Model") as Node3D
@@ -221,6 +226,58 @@ func _check_bowsprit_clears_knightheads(ship: Node3D) -> void:
 					widest = maxf(widest, absf(p.x))
 	for k in knightheads:
 		check(widest < absf(k.x) - post_half, "the bowsprit is %.3f m out from the centreline between the knightheads, into their posts (%.3f)" % [widest, absf(k.x) - post_half])
+
+
+## The bow's raised side: planked like the hull, its outer face flush with the hull's, as tall as
+## the sheer all along it, closed under the rail so nobody slips out under it, and nothing aft of
+## BOW_SHEER_FROM.
+func _check_bow_bulwark(ship: Node3D) -> void:
+	var wall := ship.get_node_or_null("BowBulwark") as MeshInstance3D
+	var material := null if wall == null else wall.material_override as BaseMaterial3D
+	check(wall != null and material != null and material.albedo_texture != null, "the bow's bulwark is missing or not planked like the hull")
+	if wall == null:
+		return
+	var box := _bounds(ship, wall)
+	check(box.end.z <= Ship.BOW_SHEER_FROM + 0.05 and box.end.y <= Ship.DECK_Y + Ship.BOW_SHEER + 0.01,
+			"the bow's bulwark reaches aft to %.2f or up to %.2f" % [box.end.z, box.end.y])
+	var space := ship.get_world_3d().direct_space_state
+	var rail := ship.get_node("Rail/Body")
+	for side in [1.0, -1.0]:
+		for z in [-1.8, -1.2, -0.6, 0.0, 0.6]:
+			var edge := _outline_at_rail(z)
+			var out := Vector3(side * edge[1].x, 0.0, edge[1].y)
+			var on := Vector3(side * edge[0].x, 0.0, edge[0].y)
+			var sheer := Ship.bow_sheer(z)
+			# Across the wall at half its height: its outer face on the hull's.
+			if sheer > 0.1:
+				var mid := on + Vector3(0.0, Ship.DECK_Y + sheer * 0.5, 0.0)
+				var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(mid + out * 0.5), ship.to_global(mid)))
+				var face: float = (ship.to_local(hit.position) - on).dot(out) if not hit.is_empty() else INF
+				check(absf(face - 0.1) <= 0.01, "the bow's bulwark at z %.2f: its outer face is %.3f m out, not flush with the hull's" % [z, face])
+			# From the deck outward, from the deck up to the handrail: always something in the way.
+			for h in [0.05, 0.3, 0.6, 0.9, 1.2]:
+				if h > sheer + Ship.RAIL_HEIGHT - 0.05:
+					continue
+				var from := on - out * 0.6 + Vector3(0.0, Ship.DECK_Y + h, 0.0)
+				var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(ship.to_global(from), ship.to_global(from + out * 1.0)))
+				check(not hit.is_empty() and (hit.collider == rail or (hit.collider as Node).get_parent() == wall),
+						"at z %.2f, %.2f m up, nothing closes the bow's side (%s)" % [z, h, "open" if hit.is_empty() else str((hit.collider as Node).get_path())])
+
+
+## The point `z` along the rail's line (Ship.RAIL_PATH), and its outward normal there, as
+## ship.gd's _outline_at reads it.
+func _outline_at_rail(z: float) -> Array:
+	var outline: Array = Ship.RAIL_PATH
+	for i in outline.size() - 1:
+		var a: Vector2 = outline[i]
+		var b: Vector2 = outline[i + 1]
+		if (z >= a.y and z <= b.y) or i == outline.size() - 2:
+			var t := clampf((z - a.y) / (b.y - a.y), 0.0, 1.0)
+			var normal := Vector2(b.y - a.y, a.x - b.x).normalized()
+			if normal.x < 0.0:
+				normal = -normal
+			return [a.lerp(b, t), normal]
+	return [outline[0], Vector2.RIGHT]
 
 
 ## The jib: its head on the forward side of the foremast's head, its foot along the bowsprit,
@@ -615,10 +672,17 @@ func _check_rail(ship: Node3D) -> void:
 			# 5 cm along the rail: posts stand on the hull's panel joins, and a ray exactly on
 			# the seam between two triangles can slip through it.
 			else:
-				var foot := at.origin + at.basis.x * 0.05 + Vector3(0.0, 0.02, 0.0)
+				# Toward the next post along the rail, or back from a line's last, where the wall
+				# top may end; the bow's sheer rises or falls over those 5 cm.
+				var toward := (line[i + 1] as Transform3D).origin if i + 1 < (line as Array).size() else (line[i - 1] as Transform3D).origin
+				var flat := Vector3(toward.x - at.origin.x, 0.0, toward.z - at.origin.z).normalized()
+				var foot := at.origin + flat * 0.05 + Vector3(0.0, 0.02, 0.0)
 				var under := _ray_down(ship, foot, 0.3)
 				var y := ship.to_local(under.position).y if not under.is_empty() else -INF
-				check(absf(y - at.origin.y) <= 0.03, "rail post at (%.2f, %.2f) is not on the hull (met %.2f)" % [at.origin.x, at.origin.z, y])
+				var wall_top := at.origin.y
+				if at.origin.y < Ship.QUARTERDECK_Y - 0.5:
+					wall_top += Ship.bow_sheer(foot.z) - Ship.bow_sheer(at.origin.z)
+				check(absf(y - wall_top) <= 0.03, "rail post at (%.2f, %.2f) is not on the hull (met %.2f, wall top %.2f)" % [at.origin.x, at.origin.z, y, wall_top])
 				var past := foot + out * 0.3
 				var down := PhysicsRayQueryParameters3D.create(ship.to_global(past), ship.to_global(past - Vector3(0.0, 0.3, 0.0)))
 				down.exclude = stairs
@@ -627,9 +691,10 @@ func _check_rail(ship: Node3D) -> void:
 			if i + 1 == (line as Array).size():
 				continue
 			var next: Vector3 = (line[i + 1] as Transform3D).origin
-			# Level legs only: a stair rail's one bay runs the whole flight.
-			if absf(next.y - at.origin.y) < 0.01:
-				gaps.append(at.origin.distance_to(next))
+			# Not the stair rails, whose one bay runs the whole flight: along the ground, so the
+			# bow's rise does not count.
+			if absf(next.y - at.origin.y) < 0.5:
+				gaps.append(Vector2(at.origin.x - next.x, at.origin.z - next.z).length())
 			# No gap in the collision between this post and the next: a ray across the rail's
 			# line meets the rail's own body all the way along.
 			for k in range(1, 10):
@@ -1035,7 +1100,7 @@ func _check_shrouds(ship: Node3D) -> void:
 				check(absf(plate_gap) <= 0.06, "%s: its chain plate ends %.3f m off the hull" % [label, plate_gap])
 			check(plate_end.y < foot.y - 0.5, "%s: its chain plate does not reach down the hull" % label)
 			# The deadeyes wholly above the rail's top, and the lower one outboard of it.
-			var rail_top: float = (Ship.QUARTERDECK_Y if rope["on_castle"] else Ship.DECK_Y) + Ship.RAIL_HEIGHT
+			var rail_top: float = (Ship.QUARTERDECK_Y if rope["on_castle"] else Ship.DECK_Y + Ship.bow_sheer(foot.z)) + Ship.RAIL_HEIGHT
 			check(lower.position.y > rail_top and (foot - hull).dot(out) >= 0.13,
 					"%s: its deadeyes are not clear above and outboard of the rail (%.2f, rail top %.2f)" % [label, lower.position.y, rail_top])
 			# The rope itself clear of the rail, the hull and the castle, from its deadeye up.
