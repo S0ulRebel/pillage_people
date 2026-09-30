@@ -5,8 +5,9 @@ extends SceneTree
 ##
 ## It used to BE the ground: terrain/island.r16, read as the height map. Now the ground starts
 ## as a Seabed and the island is a Replace stamp on it - terrain/island.stamp, the same numbers
-## read with mid-grey as zero, so the stamp's Y and its height are both 180 x 32768 / 65535 m,
-## and Y + value x height gives back exactly what the file said. This builds both and compares
+## read with mid-grey as zero, so the stamp's height is 180 x 32768 / 65535 m and its Y the
+## same less the 18 m the file puts its sea at, and Y + value x height gives back exactly what
+## the file said, measured from the sea. This builds both and compares
 ## every height sample, height_at() between them, and every vertex of the mesh; and checks
 ## main.tscn's Island is the stamp built here, so the two cannot drift apart.
 ##
@@ -22,10 +23,13 @@ extends SceneTree
 const TERRAIN := preload("res://world/terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 ## 180 x 32768 / 65535, to a float's width: the transform that carries the stamp's Y is 32-bit,
-## so its height is given the same number and Y + value x height stays H x (1 + value). That
-## number is 2e-10 short of the exact one, which tips about one sample in fifty to the next
-## 32-bit value over - 0.011 mm. Everything is held to a millimetre.
+## and this and the Y below are both exact in it, so Y + value x height is H x (1 + value) less
+## 18 m to the last bit of a double. The heights are stored 32-bit, and about one sample in
+## fifty lands a step or two away from the file's - 0.015 mm. Everything is held to a millimetre.
 const ISLAND_HEIGHT := 90.001373291015625
+## Where it stands: its lowest value, the file's 0, is 18 m under the sea - the file's sea is a
+## tenth of the way up its 180 m.
+const ISLAND_Y := ISLAND_HEIGHT - 18.0
 ## main.tscn's Island's border_fade: metres inside its border over which it gives way to the bed.
 const ISLAND_FADE := 90.0
 const TOLERANCE := 0.001
@@ -47,7 +51,7 @@ func _terrain() -> Node3D:
 	var terrain := StaticBody3D.new()
 	terrain.set_script(TERRAIN)
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	return terrain
 
 
@@ -67,7 +71,7 @@ func _new_island(fade := 0.0) -> Node3D:
 	island.length = 620.0
 	island.width = 620.0
 	island.border_fade = fade
-	island.position = Vector3(0.0, ISLAND_HEIGHT, 0.0)
+	island.position = Vector3(0.0, ISLAND_Y, 0.0)
 	terrain.add_child(island)
 	return terrain
 
@@ -104,7 +108,7 @@ func _run() -> void:
 	var worst := 0.0
 	var worst_at := -1
 	for i in mini(a.size(), b.size()):
-		var gap := absf(a[i] - b[i]) * 180.0
+		var gap := absf(a[i] - b[i])
 		if gap > 0.0:
 			differ += 1
 		if gap > worst:
@@ -174,9 +178,9 @@ func _check_scene() -> void:
 				and island.border_fade == ISLAND_FADE,
 				"main.tscn's Island is not a full Replace of terrain/island.stamp, faded over %.0f m"
 				% ISLAND_FADE)
-		check(island.height == ISLAND_HEIGHT and island.position.y == ISLAND_HEIGHT,
-				"main.tscn's Island stands at %.6f m with %.6f m of height, not %.6f m for both"
-				% [island.position.y, island.height, ISLAND_HEIGHT])
+		check(island.height == ISLAND_HEIGHT and island.position.y == ISLAND_Y,
+				"main.tscn's Island stands at %.6f m with %.6f m of height, not %.6f m with %.6f m"
+				% [island.position.y, island.height, ISLAND_Y, ISLAND_HEIGHT])
 		check(island.length == 620.0 and island.width == 620.0
 				and Vector2(island.position.x, island.position.z) == Vector2.ZERO
 				and island.basis.is_equal_approx(Basis.IDENTITY),
@@ -200,7 +204,7 @@ func _check_seabed_alone() -> void:
 	for i in 200:
 		var x := -310.0 + (i * 37 % 1025) * spacing
 		var z := -310.0 + (i * 91 % 1025) * spacing
-		worst = maxf(worst, absf(terrain.height_at(x, z) - seabed.height_at(x, z, sea, Vector2.ZERO)))
+		worst = maxf(worst, absf(terrain.height_at(x, z) - seabed.height_at(x, z) - sea))
 	print("seabed alone: the ground is at worst %.6f m from the bed it describes" % worst)
 	check(worst < TOLERANCE, "with only a Seabed the ground is %.4f m off its bed" % worst)
 	terrain.free()
@@ -226,9 +230,9 @@ func _check_fade(filed: Node3D) -> void:
 			var i := gz * size + gx
 			var inside := minf(minf(gx, size - 1 - gx), minf(gz, size - 1 - gz)) * spacing
 			if inside >= ISLAND_FADE:
-				core = maxf(core, absf(a[i] - b[i]) * 180.0)
+				core = maxf(core, absf(a[i] - b[i]))
 			elif inside == 0.0:
-				edge = maxf(edge, absf(b[i] - c[i]) * 180.0)
+				edge = maxf(edge, absf(b[i] - c[i]))
 			else:
 				faded_samples += 1
 	# ON the edge, the same point read both ways: as the chunks read it, from the baked samples,

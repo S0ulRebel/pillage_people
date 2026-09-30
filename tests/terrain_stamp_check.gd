@@ -30,7 +30,7 @@ func _terrain(stamps: Array) -> Node3D:
 	terrain.set_script(TERRAIN)
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	for stamp in stamps:
 		terrain.add_child(stamp)
 	root.add_child(terrain)

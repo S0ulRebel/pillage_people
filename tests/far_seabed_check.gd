@@ -17,6 +17,7 @@ extends SceneTree
 const TERRAIN := preload("res://world/terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 const ISLAND_HEIGHT := 90.001373291015625
+const ISLAND_Y := ISLAND_HEIGHT - 18.0
 
 var failures := 0
 
@@ -35,7 +36,6 @@ func _run() -> void:
 	var terrain := StaticBody3D.new()
 	terrain.set_script(TERRAIN)
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
 	var seabed := Seabed.new()
 	seabed.noise = FastNoiseLite.new()
 	terrain.add_child(seabed)
@@ -46,7 +46,7 @@ func _run() -> void:
 	island.length = 620.0
 	island.width = 620.0
 	island.border_fade = 90.0
-	island.position = Vector3(0.0, ISLAND_HEIGHT, 0.0)
+	island.position = Vector3(0.0, ISLAND_Y, 0.0)
 	terrain.add_child(island)
 	# A hole dug at the island's edge, its fade reaching sixteen metres past it.
 	var dig := STAMP.instantiate() as TerrainStamp
@@ -196,7 +196,7 @@ func _run() -> void:
 
 	# --- a stamp past the edge ---
 	var outside := Vector2(314.0, -100.0)
-	var bare: float = seabed.height_at(outside.x, outside.y, terrain.sea_level(), Vector2.ZERO)
+	var bare: float = seabed.height_at(outside.x, outside.y) + terrain.sea_level()
 	var dug: float = terrain.height_at(outside.x, outside.y) - bare
 	var wanted: float = dig.height * dig.value_at(outside.x, outside.y)
 	print("past the edge the dig takes the ground %.2f m down; the stamp says %.2f m" % [-dug, -wanted])

@@ -29,7 +29,7 @@ func _run() -> void:
 	terrain.set_script(TERRAIN)
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	var at := Vector3(-60.0, 0.0, 40.0)
 
 	# A plain terrain first, only to read the island's height there.
@@ -37,7 +37,7 @@ func _run() -> void:
 	probe.set_script(TERRAIN)
 	probe.raw_path = terrain.raw_path
 	probe.world_size = terrain.world_size
-	probe.height_scale = terrain.height_scale
+	probe.file_height = terrain.file_height
 	root.add_child(probe)
 	await process_frame
 	var plateau: float = probe.height_at(at.x, at.z) + 6.0

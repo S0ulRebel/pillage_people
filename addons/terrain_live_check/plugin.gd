@@ -37,7 +37,7 @@ func _run() -> void:
 	terrain.set_script(load("res://world/terrain.gd"))
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	var stamp: TerrainStamp = load("res://world/terrain_stamp/terrain_stamp.tscn").instantiate()
 	stamp.name = "Pad"
 	stamp.mode = TerrainStamp.Mode.REPLACE
@@ -99,7 +99,6 @@ func _run() -> void:
 	bed_terrain.name = "Terrain"
 	bed_terrain.set_script(load("res://world/terrain.gd"))
 	bed_terrain.world_size = 620.0
-	bed_terrain.height_scale = 180.0
 	var seabed := Seabed.new()
 	seabed.name = "Seabed"
 	seabed.noise = FastNoiseLite.new()

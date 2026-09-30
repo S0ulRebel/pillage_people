@@ -17,22 +17,21 @@
 
 // ---- Seabed and sea level ---------------------------------------------------------------
 // The terrain's height map and how to place it: the map is `terrain_size` metres across,
-// centred on `terrain_center`, and a texel's value times `terrain_scale` above
-// `terrain_base_y` is the ground. Defaults are main.tscn's Terrain (620 m, 180 m); the
-// Terrain script's own defaults are smaller, but whatever the scene says is what gets pushed.
+// centred on `terrain_center`, and a texel's value is the ground in metres above
+// `terrain_base_y`. The size default is main.tscn's Terrain (620 m); the Terrain script's own
+// default is smaller, but whatever the scene says is what gets pushed.
 uniform sampler2D terrain_height : filter_linear, repeat_disable;
 uniform float terrain_size = 620.0;
-uniform float terrain_scale = 180.0;
 uniform vec2 terrain_center = vec2(0.0);
 uniform float terrain_base_y = 0.0;
-// Still-water level, world y. The Terrain node's sea_level().
-uniform float sea_y = 18.0;
+// Still-water level, world y. The Terrain's own y: its sea_level() is 0.
+uniform float sea_y = 0.0;
 // The far seabed round the map, from the Terrain's far ring: `far_size` metres across, centred
 // like the map, a texel being metres above `terrain_base_y`; `far_floor` is the bed's world y
 // beyond it. A far_size of 0 - no far ring - leaves the old fall-off past the map's edge.
 uniform sampler2D far_height : filter_linear, repeat_disable;
 uniform float far_size = 0.0;
-uniform float far_floor = -42.0;
+uniform float far_floor = -60.0;
 
 // ---- Clock ------------------------------------------------------------------------------
 // The water clock, pushed from ocean.gd so the CPU and every shader agree on it. Negative
@@ -129,7 +128,7 @@ float bed_height(vec2 p) {
     // the mesh draws. Measured by tests/underwater_view.gd.
     vec2 texels = vec2(textureSize(terrain_height, 0));
     uv = (uv * (texels - 1.0) + 0.5) / texels;
-    float bed = terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
+    float bed = terrain_base_y + textureLod(terrain_height, uv, 0.0).r;
     return mix(bed, sea_y - 60.0, smoothstep(0.0, 40.0, outside));
 }
 

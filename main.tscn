@@ -96,7 +96,7 @@ height = 1.9
 
 [sub_resource type="Curve3D" id="Curve_waterfall"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 54.36615, 30.792988, -29.031517, 0, 0, 0, 0, 0, 0, 57.79328, 29.201221, -30.28627, 0, 0, 0, 0, 0, 0, 60.489952, 21.897467, -31.149483, 0, 0, 0, 0, 0, 0, 67.09, 18.0, -33.11),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 54.36615, 12.792988, -29.031517, 0, 0, 0, 0, 0, 0, 57.79328, 11.201221, -30.28627, 0, 0, 0, 0, 0, 0, 60.489952, 3.897467, -31.149483, 0, 0, 0, 0, 0, 0, 67.09, 0, -33.11),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
@@ -115,15 +115,14 @@ directional_shadow_max_distance = 160.0
 directional_shadow_pancake_size = 0.0
 
 [node name="Ship" parent="." unique_id=1902847561 instance=ExtResource("92_ship")]
-transform = Transform3D(0.814127, 0, 0.580686, 0, 1, 0, -0.580686, 0, 0.814127, 176.5263, 16, -128.2173)
+transform = Transform3D(0.814127, 0, 0.580686, 0, 1, 0, -0.580686, 0, 0.814127, 176.5263, -2, -128.2173)
 
 [node name="RockArch" parent="." unique_id=882351900 instance=ExtResource("90_arch")]
-transform = Transform3D(0.49329036, -0.032950465, -0.8692406, 1.8626451e-09, 0.9992823, -0.037879992, 0.8698649, 0.018685829, 0.4929363, 59.66324, 27.444424, -14.530999)
+transform = Transform3D(0.49329036, -0.032950465, -0.8692406, 1.8626451e-09, 0.9992823, -0.037879992, 0.8698649, 0.018685829, 0.4929363, 59.66324, 9.444424, -14.530999)
 
 [node name="Terrain" type="StaticBody3D" parent="." unique_id=873208375]
 script = ExtResource("2_terrain")
 world_size = 620.0
-height_scale = 180.0
 material = ExtResource("8_tmat")
 cut_edges = false
 
@@ -132,7 +131,7 @@ script = ExtResource("106_seabed")
 noise = SubResource("FastNoiseLite_seabed")
 
 [node name="Island" parent="Terrain" unique_id=920899478 instance=ExtResource("18_074og")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 90.001373291015625, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 72.001373291015625, 0)
 preview = true
 mode = 1
 stamp_path = "res://terrain/island.stamp"
@@ -142,7 +141,7 @@ width = 620.0
 border_fade = 90.0
 
 [node name="TerrainStamp2" parent="Terrain" unique_id=1158743273 instance=ExtResource("18_074og")]
-transform = Transform3D(0.8862036, 0, 0.46329597, 0, 1, 0, -0.46329606, 0, 0.8862034, 62.98949, 27.705587, -16.816555)
+transform = Transform3D(0.8862036, 0, 0.46329597, 0, 1, 0, -0.46329606, 0, 0.8862034, 62.98949, 9.705587, -16.816555)
 preview = true
 mode = 3
 shape = 1
@@ -152,13 +151,13 @@ width = 10.0
 edge_softness = 2.5
 
 [node name="Tunnel" parent="Terrain" unique_id=1478619970 instance=ExtResource("8_cegan")]
-transform = Transform3D(0.5532379, 0.1894927, -0.81118447, -0.07007245, 0.9809185, 0.18135236, 0.8300708, -0.043489326, 0.5559595, 62.71433, 30.065115, -16.551996)
+transform = Transform3D(0.5532379, 0.1894927, -0.81118447, -0.07007245, 0.9809185, 0.18135236, 0.8300708, -0.043489326, 0.5559595, 62.71433, 12.065115, -16.551996)
 preview = true
 width = 4.8
 height = 4.0
 
 [node name="TerrainStamp" parent="Terrain" unique_id=106981825 instance=ExtResource("18_074og")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 91.400154, 50.287575, 45.037216)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 91.400154, 32.287575, 45.037216)
 preview = true
 mode = 1
 shape = 1
@@ -168,7 +167,7 @@ width = 5.0
 edge_softness = 2.5
 
 [node name="DiveCrater" parent="Terrain" unique_id=2068613840 instance=ExtResource("18_074og")]
-transform = Transform3D(0.96, 0, -0.28, 0, 1, 0, 0.28, 0, 0.96, 225, 13.2, -140)
+transform = Transform3D(0.96, 0, -0.28, 0, 1, 0, 0.28, 0, 0.96, 225, -4.8, -140)
 preview = true
 shape = 2
 height = -10.0
@@ -188,7 +187,7 @@ stay_submerged = true
 surface_clearance = 1.5
 
 [node name="TerrainStamp4" parent="Terrain" unique_id=120105537 instance=ExtResource("18_074og")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 158.06839, 0.824131, 277.98004)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 158.06839, -17.175869, 277.98004)
 preview = true
 mode = 2
 shape = 2
@@ -197,7 +196,7 @@ length = 60.0
 edge_softness = 20.0
 
 [node name="Ocean" type="MeshInstance3D" parent="." unique_id=1592415177]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.29843903, 18, 0.31744766)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.29843903, 0, 0.31744766)
 material_override = ExtResource("9_omat")
 cast_shadow = 0
 custom_aabb = AABB(-4000, -60, -4000, 8000, 120, 8000)
@@ -205,19 +204,19 @@ script = ExtResource("7_ocean")
 material = ExtResource("9_omat")
 
 [node name="FishSchool0" type="MultiMeshInstance3D" parent="." unique_id=131334904]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 184, 15.5, -152)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 184, -2.5, -152)
 material_override = SubResource("ShaderMaterial_cegan")
 custom_aabb = AABB(-34, -34, -34, 68, 68, 68)
 script = ExtResource("91_fish")
 
 [node name="FishSchool1" type="MultiMeshInstance3D" parent="." unique_id=1524691467]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 198, 15.5, -132)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 198, -2.5, -132)
 material_override = SubResource("ShaderMaterial_82xsv")
 custom_aabb = AABB(-34, -34, -34, 68, 68, 68)
 script = ExtResource("91_fish")
 
 [node name="FishSchool2" type="MultiMeshInstance3D" parent="." unique_id=2104653121]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 211, 15.5, -112)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 211, -2.5, -112)
 material_override = SubResource("ShaderMaterial_getpj")
 custom_aabb = AABB(-34, -34, -34, 68, 68, 68)
 script = ExtResource("91_fish")
@@ -281,4 +280,4 @@ Keyboard: WASD move, Space jump, C dive (C down, Space up), Q/E turn, middle-dra
 Fight: 1 cutlass, 2 flintlock, left click uses it, hold right click guards, Z spyglass"
 
 [node name="Cannon" parent="." unique_id=37007866 instance=ExtResource("95_cannon")]
-transform = Transform3D(0.96269184, 0, -0.27060047, 0, 1, 0, 0.27060047, 0, 0.96269184, 92.93805, 50.287575, 43.70261)
+transform = Transform3D(0.96269184, 0, -0.27060047, 0, 1, 0, 0.27060047, 0, 0.96269184, 92.93805, 32.287575, 43.70261)

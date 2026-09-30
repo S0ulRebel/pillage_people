@@ -17,8 +17,8 @@ global uniform float cloud_cover;
 global uniform float cloud_storm;
 global uniform vec2 cloud_drift;
 
-// Metres up the deck is. Only matters for how far the shadows slide with the sun.
-const float cloud_shadow_height = 400.0;
+// Metres above the sea the deck is. Only matters for how far the shadows slide with the sun.
+const float cloud_shadow_height = 382.0;
 // Metres across a typical cloud's shadow. The island is 620 m across: a few shadows at once.
 const float cloud_shadow_size = 150.0;
 // How much of the sun a cloud takes away: most of it in a squall, half on a fair day.

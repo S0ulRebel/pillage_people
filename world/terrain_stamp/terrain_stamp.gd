@@ -239,15 +239,15 @@ func image_size() -> Vector2i:
 
 ## reshape() over a block of a ground grid this image lands on sample for sample - see
 ## grid_offset(), which gives `offset`, the grid sample under the image's first. `heights` is
-## the grid, `size` samples a row, each a fraction of `scale` metres above `base`; samples
-## gx0..gx1 by gz0..gz1 are reshaped and the grid handed back.
+## the grid, `size` samples a row, each in metres above `base`; samples gx0..gx1 by gz0..gz1
+## are reshaped and the grid handed back.
 ##
 ## Read straight from the image, with no transform and nothing read between samples, so it is
 ## exact rather than right to a float's width. And the rule is _blend()'s written out in the
 ## loop: the island is a million samples, and through reshape() - a transform, a read between
 ## four samples and two calls each - it took 1.55 s; a call per sample was still 0.68 s.
 func reshape_grid(heights: PackedFloat32Array, size: int, offset: Vector2i, gx0: int, gx1: int,
-		gz0: int, gz1: int, scale: float, base: float) -> PackedFloat32Array:
+		gz0: int, gz1: int, base: float) -> PackedFloat32Array:
 	var y := global_position.y
 	var step_l := length / (_columns - 1)
 	var step_w := width / (_rows - 1)
@@ -265,7 +265,7 @@ func reshape_grid(heights: PackedFloat32Array, size: int, offset: Vector2i, gx0:
 				weight *= clampf(minf(half_l - absf(x), half_w - absf(z)) / border_fade, 0.0, 1.0)
 			if weight <= 0.0:
 				continue
-			var ground := heights[row + gx] * scale + base
+			var ground := heights[row + gx] + base
 			var rise := height * _heights[image_row + column]
 			var shaped := ground
 			if mode == Mode.ADD:
@@ -276,7 +276,7 @@ func reshape_grid(heights: PackedFloat32Array, size: int, offset: Vector2i, gx0:
 						or (mode == Mode.MAX and ground < level):
 					shaped = lerpf(ground, level, weight)
 			if shaped != ground:
-				heights[row + gx] = (shaped - base) / scale
+				heights[row + gx] = shaped - base
 	return heights
 
 

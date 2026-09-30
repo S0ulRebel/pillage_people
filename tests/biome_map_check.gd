@@ -43,7 +43,7 @@ func _make_terrain(biome_path: String, palette_path: String) -> Node:
 	terrain.set_script(TERRAIN)
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	terrain.biome_path = biome_path
 	terrain.biome_palette_path = palette_path
 	root.add_child(terrain)

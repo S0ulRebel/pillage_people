@@ -295,7 +295,7 @@ Wading becomes swimming past `swim_depth` (1.3 m, about chest height).
 The island is a stamp: `terrain/island.stamp`, the TerrainStamp named **Island** that comes first
 under Terrain in `main.tscn` - a Replace, 620 m square, over a Seabed. It used to be the whole
 ground, read as `terrain/island.r16`; that file stays until the old loader is removed, so
-`tests/island_stamp_check.gd` can show the stamp gives the same ground (to 0.011 mm).
+`tests/island_stamp_check.gd` can show the stamp gives the same ground (to 0.015 mm).
 
 Its outer slope fades into the **Seabed** (`world/seabed/seabed.gd`, a child of Terrain) over
 `border_fade` (90 m), so at the square's edge the ground is the Seabed alone, and the Terrain
@@ -352,12 +352,18 @@ grass grows against a boulder the way it does in life. An even scatter reads as 
 rather than as plants, however many you use.
 
 Swapping the map means re-drawing any tunnel curve, since the curve is world-space geometry.
+
+**Heights are metres, and the sea is at y = 0** - the Terrain's own y, which is 0 in
+`main.tscn`. A height is how far above (or below) the sea something is, so a stamp at Y = 12 is
+a plateau 12 m up, and the shallows are 0 to 3 m down. `Terrain.sea_level()` returns 0 and is
+still what code asks, so that everything which needs the sea says so.
+
 Useful settings on the Terrain node:
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `world_size` | 400 | metres across |
-| `height_scale` | 60 | metres from lowest to highest |
+| `rock_heights` | 72, 126 | metres above the sea where the ground turns to rock, from starting to all rock |
 | `mesh_resolution` | 512 | quads per side (visual detail) |
 | `height_samples` | 1025 | height samples per side when the ground starts from a Seabed (2 x `mesh_resolution` + 1). An image stamp the ground's size with this many samples - the island - lands sample on sample and is applied without interpolating. |
 | `collision_resolution` | 513 | collision samples per side (match `mesh_resolution` + 1) |
@@ -365,6 +371,7 @@ Useful settings on the Terrain node:
 | `far_extent` | 1200 | how far out from the middle the far ring goes, in metres. Only with a Seabed. |
 | `far_cell` | 8 | detail quads per far ring cell (8 is 9.7 m on the island). Must divide `mesh_resolution` / 2. |
 | `chunk_quads` | 32 | quads per chunk side. The ground is built in chunks so an edit only rebuilds the chunks it touches: the whole island is about 3 s, one chunk about 10 ms, so a ticked stamp or tunnel follows the gizmo. Chunks are culled one by one too. |
+| `file_height`, `file_sea_fraction` | 60, 0.1 | only for a ground read from a height file (`raw_path`) rather than a Seabed: the metres the file's range spans, and how far up it the sea is |
 | `biome_path` | `terrain/island_biome.png` | the hand-painted overrides on the automatic biome. See Painting the biome below. |
 | `biome_palette_path` | `terrain/biome_palette.png` | the named colours `biome_path` indexes into. See Painting the biome below. |
 

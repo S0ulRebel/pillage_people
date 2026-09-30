@@ -59,7 +59,6 @@ func _run() -> void:
 	var plain := StaticBody3D.new()
 	plain.set_script(load("res://world/terrain.gd"))
 	plain.world_size = terrain.world_size
-	plain.height_scale = terrain.height_scale
 	for child in terrain.get_children():
 		if child is Seabed or (child is TerrainStamp and not diggers.has(child)):
 			plain.add_child(child.duplicate())

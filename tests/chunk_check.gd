@@ -53,7 +53,7 @@ func _terrain(chunk_quads: int) -> Node3D:
 	terrain.set_script(TERRAIN)
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	terrain.chunk_quads = chunk_quads
 	return terrain
 
@@ -128,12 +128,12 @@ func _scenario(chunk_quads: int) -> void:
 	var corner_before := Vector3(290.0, 0.0, 290.0)
 	var corner_after := Vector3(282.0, 0.0, 296.0)
 	var pad_at := Vector3(90.0, 0.0, -70.0)
-	var cave_from := Vector3(-110.0, 26.5, -10.0)
-	var cave_to := Vector3(-84.0, 25.5, -10.0)
+	var cave_from := Vector3(-110.0, 8.5, -10.0)
+	var cave_to := Vector3(-84.0, 7.5, -10.0)
 	var cave_shift := Vector3(0.0, 0.0, 40.0)
 	# Along z at x = -97, at the cave's depth: it crosses the cave where the cave was and
 	# where it goes.
-	var crossing_points: Array = [Vector3(-97.0, 26.5, -30.0), Vector3(-97.0, 25.5, 50.0)]
+	var crossing_points: Array = [Vector3(-97.0, 8.5, -30.0), Vector3(-97.0, 7.5, 50.0)]
 	var patch_at := Vector3(84.0, 0.0, 6.0)   # under the mountain once it has moved
 
 	# --- A: built one way, then edited ---
@@ -147,11 +147,11 @@ func _scenario(chunk_quads: int) -> void:
 		a.add_child(child)
 	root.add_child(a)
 	await process_frame
-	# Under the moved mountain. At 23 m it opens out of the hillside at (88, -2), where the old
-	# mountain leaves the ground at 22.6 m, and dead-ends uphill; the new mountain lifts the
-	# ground there to 55 m, burying it end to end.
-	var buried_from := Vector3(88.0, 23.0, -2.0)
-	var buried_to := Vector3(64.0, 23.0, 9.0)
+	# Under the moved mountain. At 5 m it opens out of the hillside at (88, -2), where the old
+	# mountain leaves the ground at 4.6 m, and dead-ends uphill; the new mountain lifts the
+	# ground there to 37 m, burying it end to end.
+	var buried_from := Vector3(88.0, 5.0, -2.0)
+	var buried_to := Vector3(64.0, 5.0, 9.0)
 	var buried := _tunnel("Buried", [buried_from, buried_to])
 	a.add_child(buried)
 	# The pad joins after _ready() has laid the heights down, 2 m above natural ground: an edit

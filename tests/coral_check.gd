@@ -98,8 +98,8 @@ func _run() -> void:
 		var at: Vector3 = node.global_position
 		var ground: float = terrain.height_at(at.x, at.z)
 		# IN WORLD METRES. This read _mesh_bounds, which answers in the node's own space, and
-		# then compared it against sea level - so `top` was about 1.2 and `sea` was 18.0 and no
-		# coral could ever breach. It passed with every coral lifted fourteen metres to the
+		# then compared it against sea level - so `top` was about 1.2 and `sea`, then at 18 m,
+		# 18.0, and no coral could ever breach. It passed with every coral lifted fourteen metres to the
 		# surface, which is exactly the thing it exists to catch.
 		var top: float = _world_bounds(node).end.y
 		# On the seabed, not hovering over it and not sunk into it. Measured against the height

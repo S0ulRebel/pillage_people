@@ -85,7 +85,7 @@ func _run() -> void:
 	terrain.set_script(load("res://world/terrain.gd"))
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	terrain.biome_palette_path = TMP_PALETTE
 	var scene := Node3D.new()
 	root.add_child(scene)

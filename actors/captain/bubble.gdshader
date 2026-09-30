@@ -20,8 +20,8 @@ render_mode blend_mix, unshaded, cull_disabled, depth_draw_never, fog_disabled;
 // ---- Surface ----------------------------------------------------------------------------
 group_uniforms Surface;
 // Still-water level, world y: the ocean's sea_y, pushed by bubbles.gd's set_water_level() on
-// the first dive. 18 is only what the shader shows before that.
-uniform float water_level = 18.0;
+// the first dive. 0 - where the sea is in main.tscn - is only what the shader shows before that.
+uniform float water_level = 0.0;
 // How far under the flat level a bubble pops: a little over the swell's height (the ocean's
 // wave_height, 0.32), so none ever comes up in air over a trough. Edit both together.
 uniform float pop_margin = 0.35;

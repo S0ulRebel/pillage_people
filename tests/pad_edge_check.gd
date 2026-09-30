@@ -33,7 +33,7 @@ func _run() -> void:
 	plain.set_script(TERRAIN)
 	plain.raw_path = "res://terrain/island.r16"
 	plain.world_size = 620.0
-	plain.height_scale = 180.0
+	plain.file_height = 180.0
 	root.add_child(plain)
 	await process_frame
 
@@ -41,7 +41,7 @@ func _run() -> void:
 	terrain.set_script(TERRAIN)
 	terrain.raw_path = "res://terrain/island.r16"
 	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	terrain.file_height = 180.0
 	root.add_child(terrain)
 	await process_frame
 	# A rectangle turned 27 degrees with a 0.5 m fade, 6 m up; an oval turned the other way

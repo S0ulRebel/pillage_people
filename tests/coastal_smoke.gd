@@ -147,7 +147,7 @@ func _check_authored_tunnel() -> void:
 	var tun := Tunnel.new()
 	tun.name = "SmokeTunnel"
 	# Deep enough in the middle to actually be underground. The first version of this dipped to
-	# 24 m over ground at 22.4, never went under, and was dropped as empty - so Terrain.tunnels
+	# 6 m over ground at 4.4, never went under, and was dropped as empty - so Terrain.tunnels
 	# never held it, and the rule this guards against, no study while that list holds anything,
 	# would have passed too.
 	var curve := Curve3D.new()
@@ -155,7 +155,7 @@ func _check_authored_tunnel() -> void:
 	curve.add_point(Vector3(0, -12, 18))
 	curve.add_point(Vector3(0, -2, 34))
 	tun.curve = curve
-	tun.position = Vector3(135, 24, -90)
+	tun.position = Vector3(135, 6, -90)
 	# Added under Terrain before the scene enters the tree, exactly where one drawn in the
 	# editor sits.
 	var terrain := scene.get_node("Terrain")

@@ -242,8 +242,8 @@ func _overview() -> void:
 	_main.add_child(camera)
 	camera.fov = 55.0
 	camera.far = 6000.0
-	camera.global_position = Vector3(0.0, _terrain.height_scale * 3.2, _terrain.world_size * 1.15)
-	camera.look_at(Vector3(0.0, _terrain.height_scale * 0.2, 0.0), Vector3.UP)
+	camera.global_position = Vector3(0.0, 558.0, _terrain.world_size * 1.15)
+	camera.look_at(Vector3(0.0, 18.0, 0.0), Vector3.UP)
 	camera.current = true
 	_screenshot_and_quit()
 

@@ -4,6 +4,9 @@ extends StaticBody3D
 ## child laid on top in order - the island is one of those stamps. Without a Seabed the ground
 ## starts from a 16-bit height map instead (raw_path), which is how it used to be built.
 ##
+## Every height is in metres, and the sea is at the Terrain's own y - 0 in main.tscn - so a
+## height is also how far above or below the sea it is.
+##
 ## A height map is read at runtime rather than imported, so Godot's texture importer cannot
 ## quietly convert it to 8-bit or apply sRGB - both of which flatten the heights.
 
@@ -16,11 +19,25 @@ const ShoreField = preload("res://world/shore_field.gd")
 ## before there was any.
 signal reshaped
 
+@export_group("Height map file")
 ## Raw 16-bit heights (make_heightmap.py writes these), read only when there is no Seabed child.
 ## Godot's Image loader converts a 16-bit PNG down to 8-bit, which shows up as visible
 ## terracing, so the .r16 is preferred and the PNG is only a fallback.
 @export_file("*.r16") var raw_path := "res://terrain/heightmap.r16"
 @export_file("*.png") var heightmap_path := "res://terrain/heightmap.png"
+## Metres from the file's lowest value to its highest. A height file holds fractions of a range
+## rather than metres, so it has to be told how tall that range is.
+@export var file_height := 60.0:
+	set(value):
+		file_height = value
+		_setting_changed()
+## How far up that range the file puts the sea. make_heightmap.py bakes the same number into
+## the island, so it has to match or the shoreline lands in the wrong place.
+@export var file_sea_fraction := 0.10:
+	set(value):
+		file_sea_fraction = value
+		_setting_changed()
+@export_group("")
 
 ## Hand-painted overrides on top of the automatic biome (grass/sand/rock from height and
 ## slope): where a rock, or a patch of sand in the grass, is a choice rather than what the
@@ -57,16 +74,6 @@ signal reshaped
 @export var world_size := 400.0:   ## metres across
 	set(value):
 		world_size = value
-		_setting_changed()
-@export var height_scale := 60.0:  ## metres from lowest to highest point
-	set(value):
-		height_scale = value
-		_setting_changed()
-## Fraction of the height range that sits under water. make_heightmap.py bakes the same
-## number into the island, so it has to match or the shoreline lands in the wrong place.
-@export var sea_fraction := 0.10:
-	set(value):
-		sea_fraction = value
 		_setting_changed()
 ## The material, so its colours can be tuned in the inspector instead of only in the shader.
 ## Only the values that depend on the scene (sea level, sun) are written from here.
@@ -129,6 +136,12 @@ signal reshaped
 	set(value):
 		rock_colour = value
 		_push_colour("rock_colour", value)
+## Where the ground turns to rock with height, in metres above the sea: it starts at x and is
+## all rock by y. Baked into the mesh, so a change rebuilds it.
+@export var rock_heights := Vector2(72.0, 126.0):
+	set(value):
+		rock_heights = value
+		_setting_changed()
 
 @export_group("Caustics")
 @export_range(0.02, 4.0) var caustic_scale := 0.90:
@@ -388,8 +401,7 @@ func _read_base(leaving: Node = null) -> bool:
 		_base_heights = _heights.duplicate()
 		return true
 	_size = height_samples
-	_base_heights = seabed.fill(_size, world_size / float(_size - 1), -world_size * 0.5,
-			sea_level(), height_scale)
+	_base_heights = seabed.fill(_size, world_size / float(_size - 1), -world_size * 0.5)
 	_heights = _base_heights.duplicate()
 	return true
 
@@ -448,8 +460,8 @@ func _restamp(x0: int, x1: int, z0: int, z1: int) -> void:
 				_heights[row + gx] = _base_heights[row + gx]
 	var spacing := world_size / float(_size - 1)
 	var half := world_size * 0.5
-	# The map holds heights as a fraction of height_scale; the stamp works in world metres,
-	# so a levelling plane can be read straight off its position.
+	# The map holds metres above the Terrain; the stamp works in world metres, so a levelling
+	# plane can be read straight off its position.
 	var base := global_position.y
 	_refresh_stamps()
 	for stamp in _active_stamps:
@@ -467,18 +479,18 @@ func _restamp(x0: int, x1: int, z0: int, z1: int) -> void:
 			var cells := stamp.image_size()
 			_heights = stamp.reshape_grid(_heights, _size, offset,
 					maxi(sx0, offset.x), mini(sx1, offset.x + cells.x - 1),
-					maxi(sz0, offset.y), mini(sz1, offset.y + cells.y - 1), height_scale, base)
+					maxi(sz0, offset.y), mini(sz1, offset.y + cells.y - 1), base)
 			continue
 		for gz in range(sz0, sz1 + 1):
 			var wz := gz * spacing - half
 			for gx in range(sx0, sx1 + 1):
 				var i := gz * _size + gx
-				var height := _heights[i] * height_scale + base
+				var height := _heights[i] + base
 				var reshaped := stamp.reshape(height, gx * spacing - half, wz)
-				# Written only when it changed: the round trip through metres is not exact, and
-				# ground a stamp leaves alone should stay bit-for-bit the island.
+				# Written only when it changed: the round trip through the Terrain's height is
+				# not exact, and ground a stamp leaves alone should stay bit-for-bit what it was.
 				if reshaped != height:
-					_heights[i] = (reshaped - base) / height_scale
+					_heights[i] = reshaped - base
 
 
 # --- edits -----------------------------------------------------------------------------------
@@ -850,7 +862,7 @@ func _load_raw() -> bool:
 	_heights = PackedFloat32Array()
 	_heights.resize(count)
 	for i in count:
-		_heights[i] = bytes.decode_u16(i * 2) / 65535.0
+		_heights[i] = (bytes.decode_u16(i * 2) / 65535.0 - file_sea_fraction) * file_height
 	return true
 
 
@@ -863,7 +875,7 @@ func _load_png() -> bool:
 	_heights.resize(_size * _size)
 	for y in _size:
 		for x in _size:
-			_heights[y * _size + x] = image.get_pixel(x, y).r
+			_heights[y * _size + x] = (image.get_pixel(x, y).r - file_sea_fraction) * file_height
 	return true
 
 
@@ -968,7 +980,7 @@ func reload_biome_palette() -> void:
 
 ## Bilinear sample of the height map in 0..1 texture space.
 func sample_height(u: float, v: float) -> float:
-	return _bilinear(_heights, u, v) * height_scale
+	return _bilinear(_heights, u, v)
 
 
 func _bilinear(values: PackedFloat32Array, u: float, v: float) -> float:
@@ -987,12 +999,17 @@ func _bilinear(values: PackedFloat32Array, u: float, v: float) -> float:
 	return lerpf(lerpf(h00, h10, fx), lerpf(h01, h11, fx), fy)
 
 
-## A spawn point on gentle mid-altitude ground, so the view starts somewhere interesting
-## rather than on a peak or in a pit.
-## Sea level in metres, the single source of truth for the ocean plane and for swimming.
+## Sea level, in the Terrain's own metres: always 0, the sea is at the Terrain's y. Still asked
+## rather than assumed, so that everything which needs the sea says so.
 func sea_level() -> float:
-	return height_scale * sea_fraction
+	return 0.0
 
+
+## A spawn point on gentle mid-altitude ground, so the view starts somewhere interesting
+## rather than on a peak or in a pit: SPAWN_HEIGHT above the sea at best, worth nothing
+## SPAWN_HEIGHT_FALL higher or lower.
+const SPAWN_HEIGHT := 63.0
+const SPAWN_HEIGHT_FALL := 90.0
 
 func find_spawn() -> Vector3:
 	var best := Vector3.ZERO
@@ -1001,10 +1018,9 @@ func find_spawn() -> Vector3:
 		var wx := randf_range(-world_size, world_size) * 0.35
 		var wz := randf_range(-world_size, world_size) * 0.35
 		var h := height_at(wx, wz)
-		var t := h / height_scale
 		# prefer mid heights, and flat-ish ground (small difference to neighbours)
 		var slope: float = absf(height_at(wx + 4.0, wz) - h) + absf(height_at(wx, wz + 4.0) - h)
-		var score: float = 1.0 - absf(t - 0.45) * 2.0 - slope * 0.25
+		var score: float = 1.0 - absf(h - SPAWN_HEIGHT) / SPAWN_HEIGHT_FALL - slope * 0.25
 		if score > best_score:
 			best_score = score
 			best = Vector3(wx, h, wz)
@@ -1050,7 +1066,7 @@ func _roughness(point: Vector3) -> float:
 ## stamp that reaches there on it - so a pad whose fade crosses the edge carries on across it.
 func _far_height(world_x: float, world_z: float) -> float:
 	var base := global_position.y
-	var height := _bed.height_at(world_x, world_z, sea_level(), Vector2.ZERO) + base
+	var height := _bed.height_at(world_x, world_z) + base
 	var point := Vector2(world_x, world_z)
 	for k in _active_stamps.size():
 		if _active_rects[k].has_point(point) and _active_stamps[k].is_inside_tree():
@@ -1246,7 +1262,7 @@ func far_size() -> float:
 	return (_far_count - 1) * _far_step if _far_count > 0 else 0.0
 
 
-## World height of the bed past the far ring: sea level less the Seabed's far depth.
+## World height of the bed past the far ring: the Seabed's far depth under the sea.
 func far_floor() -> float:
 	var below := _bed.far_depth if _bed != null else 60.0
 	return global_position.y + sea_level() - below
@@ -1271,8 +1287,8 @@ func height_texture() -> ImageTexture:
 ## included, and again after any restamp. The sea's and the sand's foam both read it.
 func shore_field() -> ShoreField:
 	if _shore_field == null and not _heights.is_empty():
-		_shore_field = ShoreField.new().bake(_heights, _size, world_size, height_scale,
-				global_position.y, sea_level(),
+		_shore_field = ShoreField.new().bake(_heights, _size, world_size,
+				global_position.y, global_position.y + sea_level(),
 				Vector2(global_position.x, global_position.z))
 		print("shore field: %d x %d texels, %.2f m apart, baked in %d ms" % [int(_shore_field.rect.w),
 				int(_shore_field.rect.w), _shore_field.rect.z, _shore_field.bake_msec])
@@ -1308,7 +1324,7 @@ func height_at(world_x: float, world_z: float) -> float:
 func height_exact(world_x: float, world_z: float) -> float:
 	var base := global_position.y
 	var height := _bilinear(_base_heights, world_x / world_size + 0.5, world_z / world_size + 0.5) \
-			* height_scale + base
+			+ base
 	for stamp in _active_stamps:
 		if stamp.is_inside_tree():
 			height = stamp.reshape(height, world_x, world_z)
@@ -1865,7 +1881,7 @@ func _line_reach(p: Vector3, pads: Array[TerrainStamp]) -> float:
 func _setup_material() -> void:
 	if material == null:
 		material = load("res://world/terrain_material.tres")
-	material.set_shader_parameter("sea_y", sea_level())
+	material.set_shader_parameter("sea_y", global_position.y + sea_level())
 	for entry in [["caustic_colour", caustic_colour], ["seabed_colour", seabed_colour],
 			["deep_seabed_colour", deep_seabed_colour], ["seabed_weed", seabed_weed],
 			["seabed_rock_colour", seabed_rock_colour], ["dry_sand_colour", dry_sand_colour],
@@ -1948,7 +1964,7 @@ func _terrain_colour(height_m: float) -> Color:
 	var above := height_m - sea_level()
 	var c: Color = seabed.lerp(sand, smoothstep(-1.5, 0.3, above))
 	c = c.lerp(jungle, smoothstep(1.5, 6.0, above))
-	c = c.lerp(rock, smoothstep(height_scale * 0.50, height_scale * 0.80, height_m))
+	c = c.lerp(rock, smoothstep(rock_heights.x, rock_heights.y, above))
 	return c.srgb_to_linear()
 
 

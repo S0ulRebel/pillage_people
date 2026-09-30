@@ -321,7 +321,6 @@ func setup(sea_level: float, terrain: Node3D = null, band_focus := Vector3.ZERO)
 	if terrain != null:
 		water.set_shader_parameter("terrain_height", terrain.height_texture())
 		water.set_shader_parameter("terrain_size", terrain.world_size)
-		water.set_shader_parameter("terrain_scale", terrain.height_scale)
 		water.set_shader_parameter("sea_y", sea_level)
 		water.set_shader_parameter("terrain_center", Vector2(terrain.global_position.x, terrain.global_position.z))
 		water.set_shader_parameter("terrain_base_y", terrain.global_position.y)

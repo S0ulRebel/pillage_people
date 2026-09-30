@@ -11,8 +11,8 @@ extends Node
 ## height, and a shader's answer cannot be read back by any of them. Fine detail that only has
 ## to be seen, not stood on, is the terrain shader's business, as before.
 ##
-## Heights come back in the Terrain's own metres, measured from the sea level it passes in, so
-## this node needs to know nothing about the Terrain and could stand under anything that asks.
+## Heights come back in metres from the sea, which is at 0 - the Terrain's own metres - so this
+## node needs to know nothing about the Terrain and could stand under anything that asks.
 
 ## Any setting changed. The Terrain listens and rebuilds, in the editor, since every sample of
 ## the ground starts here.
@@ -68,11 +68,11 @@ func _on_noise_changed() -> void:
 	changed.emit()
 
 
-## The seabed at a world point, in the asker's metres: `sea_level` is where the water stands,
-## and `centre` (world x, z) the middle the bed deepens away from.
-func height_at(world_x: float, world_z: float, sea_level: float, centre: Vector2) -> float:
+## The seabed at a world point, in metres from the sea: `centre` (world x, z) is the middle the
+## bed deepens away from.
+func height_at(world_x: float, world_z: float, centre := Vector2.ZERO) -> float:
 	var bump := noise.get_noise_2d(world_x, world_z) * noise_height if noise != null else 0.0
-	return sea_level - _water(Vector2(world_x, world_z).distance_to(centre)) + bump
+	return bump - _water(Vector2(world_x, world_z).distance_to(centre))
 
 
 ## Metres of water, before the noise, `from_middle` metres out.
@@ -84,11 +84,10 @@ func _water(from_middle: float) -> float:
 
 
 ## The same heights over a square grid - `size` samples a side, `spacing` apart, the first at
-## (first, first), the middle the bed deepens from at the grid's own middle - divided by
-## `scale`, row by row. The Terrain's whole grid in one call: a million height_at() calls took
-## 0.6 s, most of it the calls themselves.
-func fill(size: int, spacing: float, first: float, sea_level: float,
-		scale: float) -> PackedFloat32Array:
+## (first, first), the middle the bed deepens from at the grid's own middle - row by row. The
+## Terrain's whole grid in one call: a million height_at() calls took 0.6 s, most of it the
+## calls themselves.
+func fill(size: int, spacing: float, first: float) -> PackedFloat32Array:
 	var heights := PackedFloat32Array()
 	heights.resize(size * size)
 	var middle := first + (size - 1) * spacing * 0.5
@@ -97,8 +96,8 @@ func fill(size: int, spacing: float, first: float, sea_level: float,
 		var row := gz * size
 		for gx in size:
 			var wx := first + gx * spacing
-			var level := sea_level - _water(Vector2(wx - middle, wz - middle).length())
+			var level := -_water(Vector2(wx - middle, wz - middle).length())
 			if noise != null:
 				level += noise.get_noise_2d(wx, wz) * noise_height
-			heights[row + gx] = level / scale
+			heights[row + gx] = level
 	return heights
