@@ -453,3 +453,13 @@ project already rejects view-dependent outlines).
 - The crests reach further: far off they are drawn at least most of a pixel wide, and fade out
   over 0.2-0.45 m a pixel and 80-200 m, not 0.12-0.3 m and 55-150 m.
 - Open water from the gameplay camera: 1.4% white.
+
+### Step 8j: whitecaps, joins and beads
+
+- Where two walls meet, each drew its foam only up to the line half-way between them, so the
+  foam of a junction had a straight seam. `wave_cells` now also returns the second-nearest wall
+  (distance, direction, random number), and the white is drawn from both walls
+  (`crest_wall_foam`, once each, the larger kept): junctions are one lump of foam.
+- The fringe round each crest was the small lace's walls breaking, which read as hooks. It is
+  now only the lace's knots - round beads, shrinking outward.
+- Open water from the gameplay camera: 1.4% white.
