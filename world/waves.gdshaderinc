@@ -17,16 +17,21 @@
 
 // ---- Seabed and sea level ---------------------------------------------------------------
 // The terrain's height map and how to place it: the map is `terrain_size` metres across,
-// centred on `terrain_center`, and a texel's value times `terrain_scale` above
-// `terrain_base_y` is the ground. Defaults are main.tscn's Terrain (620 m, 180 m); the
-// Terrain script's own defaults are smaller, but whatever the scene says is what gets pushed.
+// centred on `terrain_center`, and a texel's value is the ground in metres above
+// `terrain_base_y`. The size default is main.tscn's Terrain (620 m); the Terrain script's own
+// default is smaller, but whatever the scene says is what gets pushed.
 uniform sampler2D terrain_height : filter_linear, repeat_disable;
 uniform float terrain_size = 620.0;
-uniform float terrain_scale = 180.0;
 uniform vec2 terrain_center = vec2(0.0);
 uniform float terrain_base_y = 0.0;
-// Still-water level, world y. The Terrain node's sea_level().
-uniform float sea_y = 18.0;
+// Still-water level, world y. The Terrain's own y: its sea_level() is 0.
+uniform float sea_y = 0.0;
+// The far seabed round the map, from the Terrain's far ring: `far_size` metres across, centred
+// like the map, a texel being metres above `terrain_base_y`; `far_floor` is the bed's world y
+// beyond it. A far_size of 0 - no far ring - leaves the old fall-off past the map's edge.
+uniform sampler2D far_height : filter_linear, repeat_disable;
+uniform float far_size = 0.0;
+uniform float far_floor = -60.0;
 
 // ---- Clock ------------------------------------------------------------------------------
 // The water clock, pushed from ocean.gd so the CPU and every shader agree on it. Negative
@@ -102,6 +107,18 @@ float bed_height(vec2 p) {
     // beach.
     vec2 past = max(max(-uv, uv - 1.0), vec2(0.0)) * max(terrain_size, 0.001);
     float outside = length(past);
+    // Past the map there is real ground now, the Terrain's far ring, and the water reads it the
+    // way it reads the map - so the colour out there is the bed you would swim down to, and
+    // meets the map's at its edge, where the two are the same ground.
+    if (far_size > 0.0 && outside > 0.0) {
+        vec2 far_uv = (p - terrain_center) / far_size + 0.5;
+        if (far_uv.x < 0.0 || far_uv.y < 0.0 || far_uv.x > 1.0 || far_uv.y > 1.0) {
+            return far_floor;
+        }
+        vec2 far_texels = vec2(textureSize(far_height, 0));
+        far_uv = (far_uv * (far_texels - 1.0) + 0.5) / far_texels;
+        return terrain_base_y + textureLod(far_height, far_uv, 0.0).r;
+    }
     uv = clamp(uv, vec2(0.0), vec2(1.0));
     // The height map is a grid of samples at the CORNERS of the world: terrain.gd reads it as
     // index u * (N - 1), and builds the ground from it that way. A texture keeps its samples
@@ -111,7 +128,7 @@ float bed_height(vec2 p) {
     // the mesh draws. Measured by tests/underwater_view.gd.
     vec2 texels = vec2(textureSize(terrain_height, 0));
     uv = (uv * (texels - 1.0) + 0.5) / texels;
-    float bed = terrain_base_y + textureLod(terrain_height, uv, 0.0).r * terrain_scale;
+    float bed = terrain_base_y + textureLod(terrain_height, uv, 0.0).r;
     return mix(bed, sea_y - 60.0, smoothstep(0.0, 40.0, outside));
 }
 

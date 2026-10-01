@@ -22,7 +22,7 @@ extends SceneTree
 ##   All of it twice: with the default 32-quad chunks, and with 48-quad ones, which 512 quads
 ##   do not divide, so the last row and column are ragged.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 const PATCH := preload("res://props/grass/grass_patch.tscn")
 
@@ -49,11 +49,7 @@ func _run() -> void:
 # --- the pieces --------------------------------------------------------------------------------
 
 func _terrain(chunk_quads: int) -> Node3D:
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	var terrain := ISLAND.make()
 	terrain.chunk_quads = chunk_quads
 	return terrain
 
@@ -61,8 +57,8 @@ func _terrain(chunk_quads: int) -> Node3D:
 func _mountain(at: Vector3) -> TerrainStamp:
 	var stamp := STAMP.instantiate() as TerrainStamp
 	stamp.name = "Mountain"
-	stamp.stamp_path = "res://world/terrain_stamp/stamps/mountain.r16"
-	stamp.strength = 45.0
+	stamp.stamp_path = "res://world/terrain_stamp/stamps/mountain.stamp"
+	stamp.height = 45.0
 	stamp.length = 110.0
 	stamp.width = 90.0
 	stamp.position = at
@@ -73,8 +69,8 @@ func _mountain(at: Vector3) -> TerrainStamp:
 func _corner_stamp(at: Vector3) -> TerrainStamp:
 	var stamp := STAMP.instantiate() as TerrainStamp
 	stamp.name = "Corner"
-	stamp.stamp_path = "res://world/terrain_stamp/stamps/mesa.r16"
-	stamp.strength = 20.0
+	stamp.stamp_path = "res://world/terrain_stamp/stamps/mesa.stamp"
+	stamp.height = 20.0
 	stamp.length = 40.0
 	stamp.width = 40.0
 	stamp.position = at
@@ -84,8 +80,9 @@ func _corner_stamp(at: Vector3) -> TerrainStamp:
 func _pad(pad_name: String, at: Vector3, length: float, width: float) -> TerrainStamp:
 	var stamp := STAMP.instantiate() as TerrainStamp
 	stamp.name = pad_name
-	stamp.mode = TerrainStamp.Mode.FLATTEN
+	stamp.mode = TerrainStamp.Mode.REPLACE
 	stamp.shape = TerrainStamp.Shape.SOFT_RECT
+	stamp.height = 0.0
 	stamp.length = length
 	stamp.width = width
 	stamp.edge_softness = 5.0
@@ -127,12 +124,12 @@ func _scenario(chunk_quads: int) -> void:
 	var corner_before := Vector3(290.0, 0.0, 290.0)
 	var corner_after := Vector3(282.0, 0.0, 296.0)
 	var pad_at := Vector3(90.0, 0.0, -70.0)
-	var cave_from := Vector3(-110.0, 26.5, -10.0)
-	var cave_to := Vector3(-84.0, 25.5, -10.0)
+	var cave_from := Vector3(-110.0, 8.5, -10.0)
+	var cave_to := Vector3(-84.0, 7.5, -10.0)
 	var cave_shift := Vector3(0.0, 0.0, 40.0)
 	# Along z at x = -97, at the cave's depth: it crosses the cave where the cave was and
 	# where it goes.
-	var crossing_points: Array = [Vector3(-97.0, 26.5, -30.0), Vector3(-97.0, 25.5, 50.0)]
+	var crossing_points: Array = [Vector3(-97.0, 8.5, -30.0), Vector3(-97.0, 7.5, 50.0)]
 	var patch_at := Vector3(84.0, 0.0, 6.0)   # under the mountain once it has moved
 
 	# --- A: built one way, then edited ---
@@ -146,11 +143,11 @@ func _scenario(chunk_quads: int) -> void:
 		a.add_child(child)
 	root.add_child(a)
 	await process_frame
-	# Under the moved mountain. At 23 m it opens out of the hillside at (88, -2), where the old
-	# mountain leaves the ground at 22.6 m, and dead-ends uphill; the new mountain lifts the
-	# ground there to 55 m, burying it end to end.
-	var buried_from := Vector3(88.0, 23.0, -2.0)
-	var buried_to := Vector3(64.0, 23.0, 9.0)
+	# Under the moved mountain. At 5 m it opens out of the hillside at (88, -2), where the old
+	# mountain leaves the ground at 4.6 m, and dead-ends uphill; the new mountain lifts the
+	# ground there to 37 m, burying it end to end.
+	var buried_from := Vector3(88.0, 5.0, -2.0)
+	var buried_to := Vector3(64.0, 5.0, 9.0)
 	var buried := _tunnel("Buried", [buried_from, buried_to])
 	a.add_child(buried)
 	# The pad joins after _ready() has laid the heights down, 2 m above natural ground: an edit

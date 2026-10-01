@@ -26,6 +26,16 @@ const MODELS := {
 	Kind.ARCHING: "res://art/models/props/seaweed_arching.glb",
 }
 
+## The least water the reef plants one in, in metres. None: a weed is something he may wade
+## through, so it grows right up to where the water stops - see SHALLOWEST in coral.gd.
+const SHALLOWEST := 0.0
+## How a patch of them grows along the coast (reef.gd, fringe). Tighter and smaller than a coral
+## reef, and not for taste: these are blades a handspan deep, and at a reef's spacing twenty of
+## them over a reef's ground read as stalks dotted about the sand. Packed into a smaller patch,
+## the same twenty read as one clump of weed.
+const BED_RADIUS := 2.0
+const BED_SPACING := 0.3
+
 @export var kind: Kind = Kind.LEAFY:
 	set(value):
 		kind = value
@@ -76,16 +86,21 @@ func _build() -> void:
 	var model := (load(path) as PackedScene).instantiate()
 	model.name = "Model"
 	add_child(model)
-	if Engine.is_editor_hint() and get_tree() != null and get_tree().edited_scene_root != null:
-		model.owner = get_tree().edited_scene_root
+	# Only to a scene root this is inside. main.tscn opened by a test, rather than as the edited
+	# scene, is under some other root - and an owner that is not an ancestor is an error, one
+	# for every coral in the reef.
+	var root := get_tree().edited_scene_root if get_tree() != null else null
+	if Engine.is_editor_hint() and root != null and (root == self or root.is_ancestor_of(self)):
+		model.owner = root
 	dress(model)
 
 
 ## Flat shading and no back-face culling, the same pass every prop here applies plus the one
 ## line the leafy ones need.
 ##
-## Static, so the reef can dress a model it instantiated itself without going through a Seaweed
-## node - a scattered plant and an authored one are then the same thing.
+## Static, so reef.gd can dress a model it instantiated itself without going through a Seaweed
+## node - its beds along the coast plant the models bare. A ScatterPatch's reef places seaweed
+## scenes, which come through here from _build(). Either way it is the same plant.
 static func dress(model: Node) -> void:
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := node as MeshInstance3D
@@ -113,6 +128,6 @@ func bounds() -> AABB:
 	return Ground.mesh_box(self)
 
 
-## How tall it stands, in metres. What the reef checks the water against.
+## How tall it stands, in metres.
 func height() -> float:
 	return bounds().size.y

@@ -25,6 +25,7 @@ extends Node3D
 @export var scenes: Array[PackedScene] = []:
 	set(value):
 		scenes = value
+		_tall.clear()
 		_replant()
 @export var count := 24:
 	set(value):
@@ -142,15 +143,46 @@ enum Spread {EVEN, CENTRE_HEAVY}
 ## How many the last pass actually planted. Fewer than `count` means the filters are refusing;
 ## read it before blaming the seed.
 var planted := 0
+## Where the last pass planted from. Only the position decides the placements - they are laid
+## out in world space - so a move that leaves it where it was, like the one Godot reports the
+## frame after a node enters the tree, is no reason to plant everything again.
+var _planted_from := Vector3.INF
+var _replant_queued := false
+## Each scene's height, from height_of(). Kept across passes because measuring builds the scene,
+## and dragging a patch - or the crater a reef stands in - replants it every frame.
+var _tall := {}
 
 
 func _ready() -> void:
+	# Replants whenever the ground under it is rebuilt - in the editor that is every stamp edit,
+	# and without it a reef under a crater that is dragged sat on the ground the crater left.
+	var terrain := Ground.find(self)
+	if terrain != null and terrain.has_signal(&"reshaped") \
+			and not terrain.reshaped.is_connected(_replant):
+		terrain.reshaped.connect(_replant)
 	_replant()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSFORM_CHANGED:
-		_replant()
+	if what == NOTIFICATION_TRANSFORM_CHANGED \
+			and not global_position.is_equal_approx(_planted_from):
+		_queue_replant()
+
+
+## At the end of the frame, never inline from a move. The move is reported while Godot is still
+## handing the same move to every other node that moved - the planted children among them - and
+## freeing those children in the middle of that crashed the engine the first time a crater was
+## moved with its reef under it. One replant however many moves arrive in the frame.
+func _queue_replant() -> void:
+	if _replant_queued:
+		return
+	_replant_queued = true
+	_replant_now.call_deferred()
+
+
+func _replant_now() -> void:
+	_replant_queued = false
+	_replant()
 
 
 func _enter_tree() -> void:
@@ -199,7 +231,10 @@ func placements() -> Array[Dictionary]:
 			var which: int = rng.randi() % maxi(scenes.size(), 1)
 			var size := rng.randf_range(size_jitter.x, size_jitter.y)
 			if terrain != null and stay_submerged and scenes.size() > which:
-				var tall := _height_of(scenes[which]) * size
+				var packed := scenes[which]
+				if not _tall.has(packed) and is_inside_tree():
+					_tall[packed] = height_of(packed)
+				var tall: float = _tall.get(packed, 0.0) * size
 				if at.y + tall + surface_clearance > terrain.sea_level():
 					continue
 			var basis := Basis.IDENTITY
@@ -223,12 +258,19 @@ func _ground_allows(terrain: Node, at: Vector3) -> bool:
 func _replant() -> void:
 	if not is_inside_tree() or baked:
 		return
+	var terrain := Ground.find(self)
+	# Under the Terrain - a reef under its crater - this is ready before the ground is: children
+	# are readied first, and the heights are only laid down in the Terrain's own _ready. Planting
+	# now would read an empty height map; the Terrain's reshaped signal plants it once there is
+	# ground to read.
+	if terrain != null and not terrain.is_node_ready():
+		return
 	for child in get_children():
 		child.free()
 	planted = 0
+	_planted_from = global_position
 	if scenes.is_empty():
 		return
-	var terrain := Ground.find(self)
 	for spot in placements():
 		var packed: PackedScene = scenes[spot["scene"]]
 		if packed == null:
@@ -269,22 +311,19 @@ func _clear() -> void:
 	_replant()
 
 
-## How tall one of these scenes stands, before scaling. Instantiated and thrown away, because a
-## PackedScene will not tell you without building it.
-static func _height_of(packed: PackedScene) -> float:
-	if packed == null:
+## How tall one of these scenes stands, before scaling. Built under this node and thrown away,
+## because a PackedScene will not tell you without building it.
+##
+## Built IN THE TREE, not just instantiated. coral.tscn and seaweed.tscn load their model in
+## _ready, which a node outside the tree never runs, so measured that way every coral was 0 m
+## tall and stay_submerged would have planted one of any height.
+func height_of(packed: PackedScene) -> float:
+	if packed == null or not is_inside_tree():
 		return 0.0
 	var probe := packed.instantiate() as Node3D
 	if probe == null:
 		return 0.0
-	var box := AABB()
-	var first := true
-	for node in probe.find_children("*", "MeshInstance3D", true, false):
-		var mesh_node := node as MeshInstance3D
-		if mesh_node.mesh == null:
-			continue
-		var here: AABB = mesh_node.transform * mesh_node.mesh.get_aabb()
-		box = here if first else box.merge(here)
-		first = false
+	add_child(probe)
+	var box := Ground.mesh_box(probe)
 	probe.free()
 	return box.size.y

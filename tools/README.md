@@ -23,6 +23,7 @@ not a convenience that happens to exist on one machine. Half the comments in `pr
 | `make_loop.py` | Cut a generated music track into a seamless loop and encode it. |
 | `make_bed.py` | Pick the best ambience take and cut it into a seamless loop. Imports `make_loop`. |
 | `encode_ogg.py` | Encode a WAV to OGG Vorbis through Blender's libvorbis. |
+| `make_stamp.py` | Make a terrain `.stamp` (16-bit height + mask) from a 16-bit PNG or an `.r16`, or report what one holds. |
 
 ## Running them
 
@@ -41,6 +42,9 @@ glTF container, stdlib only, on whatever Python is to hand. `repair_rig.py` impo
 helpers from `retexture_model.py`, so the two have to stay siblings. Use it when a model is right but its texture is
 not: re-exporting to carry one new image puts the mesh, the rig, the pivot and the import
 scale back in play, and those are usually the settled part.
+
+`make_stamp.py` is stdlib only too, including its 16-bit PNG reader: Pillow drops 16-bit colour
+and alpha to 8 bits, which is the precision a stamp exists to keep.
 
 `simplify_mesh.py`, `make_loop.py` and `make_bed.py` are ordinary Python and want packages —
 `fast_simplification`, `scipy` and `trimesh` for the first, `av` for the second, `numpy` for the
@@ -64,8 +68,9 @@ and a distributable ZIP, which the game does not need. The last three do not exi
 disk - the doc is stale about them.
 
 The line is import-shaped rather than a matter of taste: a tool belongs here when it runs
-against an asset on its own. `make_heightmap.py` is the one the game names that stayed behind,
-because it does `from comfy import ...` and would not run without that workspace.
+against an asset on its own. `make_heightmap.py`, which made the old `.r16` height maps, stayed
+behind because it does `from comfy import ...` and would not run without that workspace; what it
+makes now goes through `make_stamp.py` into a `.stamp`.
 
 ## The thing these exist to prevent
 

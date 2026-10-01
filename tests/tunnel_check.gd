@@ -11,7 +11,7 @@ extends SceneTree
 ##   a crossing        two tunnels in an X. Each must be clear along its whole length: the
 ##                     other's walls, which would otherwise wall the junction off, are trimmed.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 
 var failures := 0
 var _space: PhysicsDirectSpaceState3D
@@ -28,11 +28,7 @@ func check(condition: bool, message: String) -> void:
 
 
 func _run() -> void:
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	var terrain := ISLAND.make()
 	root.add_child(terrain)
 	await process_frame
 

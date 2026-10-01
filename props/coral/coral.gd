@@ -1,7 +1,8 @@
 @tool
 extends Node3D
-## One coral head on the seabed. Drag it into a scene to place one by hand, or let corals.gd
-## scatter a reef of them.
+## One coral head on the seabed. Drag it into a scene to place one by hand, let a ScatterPatch
+## scatter a reef of them - main.tscn has one under the dive crater - or let reef.gd grow beds
+## of them along the coast.
 ##
 ## These are the Tripo corals in art/models/props - about a thousand triangles each, matching
 ## art/references/nature-kit/03-corals-v1.png, where every coral in the sheet grows out of a
@@ -27,6 +28,16 @@ const MODELS := {
 	Kind.BRANCH: "res://art/models/props/coral_branch.glb",
 	Kind.TUBES: "res://art/models/props/coral_tubes.glb",
 }
+
+## The least water the reef plants one in, in metres. A coral has no collider, so one in
+## water he wades through is one he walks straight through - which reads as a bug, where
+## walking through weed reads as weed. He swims past captain.gd's swim_depth, 1.3 m.
+const SHALLOWEST := 1.4
+## How a bed of them grows along the coast (reef.gd, fringe): a reef this many metres from its
+## middle to its rim, the heads this close together - nearer than they are wide, so they grow
+## into one another as one reef rather than standing apart as corals.
+const BED_RADIUS := 2.5
+const BED_SPACING := 0.45
 
 @export var kind: Kind = Kind.FINGERS:
 	set(value):
@@ -90,8 +101,12 @@ func _build() -> void:
 	model.name = "Model"
 	add_child(model)
 	# An editor-instanced child with no owner vanishes on the next reload.
-	if Engine.is_editor_hint() and get_tree() != null and get_tree().edited_scene_root != null:
-		model.owner = get_tree().edited_scene_root
+	# Only to a scene root this is inside. main.tscn opened by a test, rather than as the edited
+	# scene, is under some other root - and an owner that is not an ancestor is an error, one
+	# for every coral in the reef.
+	var root := get_tree().edited_scene_root if get_tree() != null else null
+	if Engine.is_editor_hint() and root != null and (root == self or root.is_ancestor_of(self)):
+		model.owner = root
 	dress(model)
 
 
@@ -99,8 +114,9 @@ func _build() -> void:
 ## highlight reads as a different game from the one it is sitting in - and these come out of
 ## Tripo with roughness 0.5 and a metallic slot, which is exactly that.
 ##
-## Static, so corals.gd can dress a model it instantiated itself without going through a Coral
-## node. A scattered coral and an authored one are then the same thing.
+## Static, so reef.gd can dress a model it instantiated itself without going through a Coral
+## node - its beds along the coast plant the models bare. A ScatterPatch's reef places coral
+## scenes, which come through here from _build(). Either way it is the same coral.
 static func dress(model: Node) -> void:
 	for node in model.find_children("*", "MeshInstance3D", true, false):
 		var mesh_node := node as MeshInstance3D
@@ -124,8 +140,9 @@ static func dress(model: Node) -> void:
 		# to the foam band whatever this bit says. grass.gd leaves it off for the same kind of
 		# reason and says so.
 		#
-		# What keeps that true is corals.gd refusing any spot where the coral would breach the
-		# surface, and coral_check measuring it.
+		# What keeps that true is everything that plants one refusing any spot where it would
+		# breach the surface - the crater's ScatterPatch (stay_submerged) and reef.gd's beds - and
+		# coral_check measuring both.
 		mesh_node.layers = 1
 
 
@@ -136,6 +153,6 @@ func bounds() -> AABB:
 	return Ground.mesh_box(self)
 
 
-## How tall it stands, in metres. What corals.gd checks the water against.
+## How tall it stands, in metres.
 func height() -> float:
 	return bounds().size.y

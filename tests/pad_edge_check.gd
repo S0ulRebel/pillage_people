@@ -11,7 +11,7 @@ extends SceneTree
 ## has to land exactly on the plane, at the foot exactly on the natural ground, and halfway
 ## down the wall exactly on the stamp's own fade - at any angle, for a rectangle and an oval.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 
 var failures := 0
@@ -29,19 +29,11 @@ func check(condition: bool, message: String) -> void:
 
 
 func _run() -> void:
-	var plain := StaticBody3D.new()
-	plain.set_script(TERRAIN)
-	plain.raw_path = "res://terrain/island.r16"
-	plain.world_size = 620.0
-	plain.height_scale = 180.0
+	var plain := ISLAND.make()
 	root.add_child(plain)
 	await process_frame
 
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	var terrain := ISLAND.make()
 	root.add_child(terrain)
 	await process_frame
 	# A rectangle turned 27 degrees with a 0.5 m fade, 6 m up; an oval turned the other way
@@ -93,8 +85,9 @@ func _pad(shape: TerrainStamp.Shape, at: Vector3, length: float, width: float, s
 		lift: float, degrees: float, plain: Node3D) -> TerrainStamp:
 	var pad := STAMP.instantiate() as TerrainStamp
 	pad.name = "Rect" if shape == TerrainStamp.Shape.SOFT_RECT else "Oval"
-	pad.mode = TerrainStamp.Mode.FLATTEN
+	pad.mode = TerrainStamp.Mode.REPLACE
 	pad.shape = shape
+	pad.height = 0.0
 	pad.length = length
 	pad.width = width
 	pad.edge_softness = softness

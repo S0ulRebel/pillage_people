@@ -27,17 +27,25 @@ func _run() -> void:
 	var player := scene.get_node("Player") as CharacterBody3D
 	var ocean := scene.get_node("Ocean") as Ocean
 	var study := scene.get_node_or_null("CoastalStudy")
-	if authored or "--noassets" in OS.get_cmdline_user_args():
-		check(study == null, "Study must be absent in noassets/authored runs")
-		if authored:
-			check(terrain.tunnels.size() == 1, "Authored tunnel must be registered")
-			check(not scene.get_node("Terrain/AuthoredFixture").find_children("*", "CollisionShape3D", true, false).is_empty(), "Authored tunnel collision missing")
-		else:
-			seed(20260920)
-			check(player.global_position.distance_to(terrain.find_spawn() + Vector3.UP * 2.0) < 0.2, "Original spawn changed")
+	if authored:
+		var fixture := scene.get_node("Terrain/AuthoredFixture")
+		# has(), not size() == 1: main.tscn draws a tunnel of its own, so the fixture is the second
+		# and the count was never going to be one.
+		check(terrain.tunnels.has(fixture), "Authored tunnel must be registered")
+		check(not fixture.find_children("*", "CollisionShape3D", true, false).is_empty(), "Authored tunnel collision missing")
+	if "--noassets" in OS.get_cmdline_user_args():
+		check(study == null, "Study must be absent in noassets runs")
+		# An authored tunnel does not move the start either - see _check_authored_tunnel.
+		seed(20260920)
+		check(player.global_position.distance_to(terrain.find_spawn() + Vector3.UP * 2.0) < 0.2, "Original spawn changed")
 	else:
+		# With an authored tunnel as well. This asked for NO study when the fixture was placed,
+		# which was the rule before a tunnel drawn in the scene stopped cancelling the beach, and
+		# it had been failing ever since. The fixture opens on the very beach the study picks
+		# without it, so this run is also where the study is seen to move off an opening.
 		check(study != null and study.valid, "No valid shoreline study")
 		if study != null and study.valid:
+			_check_clear_of_openings(study, terrain)
 			var saved_position := player.global_position
 			player.global_position.y = terrain.sea_level() - 1.35
 			await process_frame
@@ -124,36 +132,98 @@ func _run() -> void:
 ##
 ## It used to. The study was skipped whenever Terrain.tunnels held anything, so placing a tunnel
 ## cost the shoreline spawn, the moored ship and the rock-and-palm grouping - and from outside it
-## looked as though the study could not cope with holes cut in the terrain. It copes fine. It was
-## never called.
+## looked as though the study could not cope with holes cut in the terrain. It was never called -
+## and once it was, it did not look for holes either, and laid its rocks and palm in the mouth of
+## a tunnel that opened on its beach.
 ##
 ## Skipping IS right for a GENERATED tunnel, which plan_tunnel_ends() lays out around the spawn
 ## BEFORE the study runs; let the study move the spawn afterwards and that tunnel is left punched
 ## through the shoreline. An authored one is where it was drawn and reads nothing.
+##
+## "Laid out around it" is meant literally. This tunnel opens on the beach the study picks when
+## there is none, so the study has to go somewhere else rather than stand its rocks in the hole.
 func _check_authored_tunnel() -> void:
 	var scene := (load("res://main.tscn") as PackedScene).instantiate() as Node3D
 	var tun := Tunnel.new()
 	tun.name = "SmokeTunnel"
+	# Deep enough in the middle to actually be underground. The first version of this dipped to
+	# 6 m over ground at 4.4, never went under, and was dropped as empty - so Terrain.tunnels
+	# never held it, and the rule this guards against, no study while that list holds anything,
+	# would have passed too.
 	var curve := Curve3D.new()
 	curve.add_point(Vector3(0, 0, 0))
-	curve.add_point(Vector3(0, -6, 18))
+	curve.add_point(Vector3(0, -12, 18))
 	curve.add_point(Vector3(0, -2, 34))
 	tun.curve = curve
-	tun.position = Vector3(120, 30, -80)
+	tun.position = Vector3(135, 6, -90)
 	# Added under Terrain before the scene enters the tree, exactly where one drawn in the
 	# editor sits.
-	scene.get_node("Terrain").add_child(tun)
+	var terrain := scene.get_node("Terrain")
+	terrain.add_child(tun)
 	root.add_child(scene)
 	for i in 120:
 		await process_frame
 
+	check(terrain.tunnels.has(tun),
+			"SmokeTunnel never went underground, so it was never built and this proved nothing")
 	var study := scene.get_node_or_null("CoastalStudy")
-	check(study != null,
-			"a tunnel in the scene cancelled the coastal study. An authored tunnel sits where it"
-			+ " was drawn and nothing places it from the spawn, so the beach should still be laid"
-			+ " out around it")
-	if study != null:
-		check(study.valid, "the study ran alongside a tunnel but found no shoreline")
-		print("with an authored tunnel: study anchor ", study.anchor.round(), ", ship ",
-				"moored" if scene.get_node_or_null("Ship") != null else "MISSING")
+	var player := scene.get_node("Player") as Node3D
+	if "--noassets" in OS.get_cmdline_user_args():
+		# --noassets never lays the study out, tunnel or none - _run checks exactly that - so
+		# whether a tunnel cancels it cannot be asked in this mode. The other half of the promise
+		# can: nothing moves the start for an authored tunnel. Only a generated one, or a tunnel
+		# test mode, puts the player at a tunnel's mouth.
+		check(study == null, "Study must be absent in noassets runs")
+		seed(20260920)
+		var start: Vector3 = terrain.find_spawn()
+		check(Vector2(player.global_position.x - start.x, player.global_position.z - start.z).length() < 1.0,
+				"an authored tunnel moved the start from %s to %s" % [start.round(), player.global_position.round()])
+	else:
+		check(study != null,
+				"a tunnel in the scene cancelled the coastal study. An authored tunnel sits where it"
+				+ " was drawn and nothing places it from the spawn, so the beach should still be laid"
+				+ " out around it")
+		if study != null:
+			check(study.valid, "the study ran alongside a tunnel but found no shoreline")
+			if study.valid:
+				_check_clear_of_openings(study, terrain)
+				check(Vector2(player.global_position.x - study.spawn.x,
+						player.global_position.z - study.spawn.z).length() < 1.0,
+						"the player did not start at the study's spawn with an authored tunnel in the scene")
+			print("with an authored tunnel: study anchor ", study.anchor.round(), ", ship ",
+					"moored" if scene.get_node_or_null("Ship") != null else "MISSING")
 	scene.queue_free()
+
+
+## Nothing the study put down stands in a tunnel's opening: not the spawn, not the palm's trunk,
+## and no part of any rock - its whole footprint is sampled, not its origin, because a boulder
+## centred half a metre outside a hole still overhangs it.
+func _check_clear_of_openings(study: Node3D, terrain: Node) -> void:
+	var over := PackedStringArray()
+	if terrain.hole_field(study.spawn.x, study.spawn.z) < 0.0:
+		over.append("the spawn")
+	for piece in study.get_children():
+		if piece.name == "Grass":
+			continue
+		if piece.name == "Palm":
+			var foot: Vector3 = piece.global_position
+			if terrain.hole_field(foot.x, foot.z) < 0.0:
+				over.append("Palm")
+			continue
+		var box := AABB()
+		var first := true
+		for mesh in piece.find_children("*", "MeshInstance3D", true, false):
+			var part: AABB = mesh.global_transform * mesh.get_aabb()
+			box = part if first else box.merge(part)
+			first = false
+		var x := box.position.x
+		var inside := false
+		while x <= box.end.x and not inside:
+			var z := box.position.z
+			while z <= box.end.z and not inside:
+				inside = terrain.hole_field(x, z) < 0.0
+				z += 0.5
+			x += 0.5
+		if inside:
+			over.append(piece.name)
+	check(over.is_empty(), "standing in a tunnel's opening: " + ", ".join(over))

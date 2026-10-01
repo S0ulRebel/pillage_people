@@ -4,11 +4,22 @@ extends Node3D
 ## The first thing in this world that is scattered UNDER water. Every other scatterer excludes
 ## the sea explicitly - rocks want 0.6 m of clearance above it, palms a band 0.8 to 6 m up,
 ## grass 3.6 to 9 - so none of them could be pointed at a seabed by changing a number. This one
-## inverts the test: it wants water, and enough of it to swim over what it plants.
+## inverts the test: it wants water, and enough of it to keep what it plants under the swell.
 ##
-## Where it plants is not written down here. main.gd finds the dive crater in the scene and
-## passes its middle, the same way it hands every other scatterer the player's spawn - so
-## moving the crater in the editor moves the reef with it, and a second crater gets its own.
+## It grows in two kinds of place:
+##
+##   scatter()  a disc round a point. Not the dive crater's reef, any more: that is a
+##              ScatterPatch under the crater in main.tscn, so it moves with the crater and
+##              nothing has to go looking for one.
+##   fringe()   beds in the shallows along the coast, found by their depth - so a different
+##              height map, or a stamp that pushes the beach out, is followed without anyone
+##              writing down where the coast is. Near a point, or all the way round. Each bed is
+##              ONE family, packed tight: a coral reef, or a patch of weed. That is how they
+##              grow, and a bed that mixes the two a metre apart reads as single plants dotted
+##              about rather than as either.
+##
+## Both hand each spot to the same _plant(), which is where every rule about what may grow
+## there lives. The two differ only in how they choose the spots.
 ##
 ## What a coral or a weed is made of - the model, the flat shading, the render layer it stays
 ## OFF - lives in its own script, which is also what you drag into a scene to place one by
@@ -17,8 +28,9 @@ extends Node3D
 ## It was corals.gd until the weed arrived. A file called corals that plants seaweed is a file
 ## nobody can grep for.
 
-## The families it draws from. Each is a prop script with a MODELS dictionary and a static
-## dress(); adding a third is one line here and nothing else.
+## The families it draws from. Each is a prop script with a MODELS dictionary, a SHALLOWEST
+## depth, the BED_RADIUS and BED_SPACING of a bed of them, and a static dress(); adding a third
+## is one line here and nothing else.
 const FAMILIES := [
 	preload("res://props/coral/coral.gd"),
 	preload("res://props/seaweed/seaweed.gd"),
@@ -28,43 +40,93 @@ const FAMILIES := [
 ## How far from the middle of the reef they spread. The dive crater is 25 m of full-depth floor
 ## before the ground ramps back up over the next ten, so this stays inside the floor.
 @export var spread := 22.0
-## Metres of water a coral needs over the seabed before it will plant there. Not the same as
-## the clearance below: this is what keeps the reef off the shallows at the crater's edge,
-## where a coral would be scenery nobody swims through.
+## Metres of water a growth needs over the seabed before it will plant there. In the crater
+## this is what keeps the reef off the shallows at its edge, where a coral would be scenery
+## nobody swims through; along the coast it keeps the beds out of the breaking foam.
 @export var min_depth := 4.0
-## Metres of clear water that must remain over the top of the coral once it is planted.
+## Metres of water past which nothing plants. The crater has no need of one. The coast is
+## nothing but one: the shelf round this island falls to 2.5 m over its first 30 m out and then
+## barely deepens for another thirty, so without a ceiling the "shallows" are mostly a lagoon
+## floor too far out to see from the beach.
+@export var max_depth := 1000.0
+## Metres of clear water that must stay over the top of a growth when the swell is at its
+## LOWEST there - see Ocean.deepest_trough, which is added to this at every spot, in the share
+## trough_share asks for. Whatever that share, this much still water is always kept.
 ##
 ## THIS IS WHAT KEEPS LAYER 20 OFF - see coral.gd. A coral that breached the surface would need
 ## to punch a hole in the ocean's foam band like a rock does; one that stays under does not,
 ## because the band camera cannot see it. Rather than carry that case, the reef refuses to
 ## plant anything that would break through.
-@export var surface_clearance := 1.5
-## Nothing plants within this of another coral. Rocks do not bother - a boulder half inside
+##
+## It was 1.5 m of still water, which is the full swell (1.32 m) plus a little, worked out by
+## hand for the crater. That is right fifteen metres down and wrong on the coast, where the
+## shoal flattens the waves and 1.5 m would leave nothing growing inside two metres of water.
+@export var surface_clearance := 0.15
+## How much of the swell's deepest trough a growth stays under, 0 to 1.
+##
+## At 1 nothing ever breaks the surface - right for the crater, where it costs nothing. In the
+## shallows it costs almost everything: the trough there is most of the water, so a metre deep
+## the tallest thing that stays under it is 0.38 m. Below 1 the tallest growths' tips come out
+## at the bottom of the biggest troughs, and in exchange the plants by the beach can be twice
+## the size. The still level and surface_clearance under it hold whatever this is, and that is
+## the line layer 20 needs - see coral.gd.
+@export_range(0.0, 1.0) var trough_share := 1.0
+## Nothing plants within this of another growth. Rocks do not bother - a boulder half inside
 ## another boulder still reads as rock - but two coral heads in the same place read as one
-## broken coral.
+## broken coral. scatter() only: a bed along the coast packs as tight as its family says
+## (BED_SPACING), because a reef is heads grown together.
 @export var spacing := 2.2
 ## Each one a little off its authored size. A handful of models across two dozen corals is
 ## repetition the eye finds at once without this.
+##
+## The upper end is a wish, not a promise: a growth is never planted taller than the water over
+## it allows, so in the shallows the range is cut down to what fits, and a model that does not
+## fit even at the lower end is not picked there at all. That is what makes the weed near the
+## beach small and the corals further out bigger, without a rule that says so.
 @export var size_jitter := Vector2(0.7, 1.45)
 ## Sunk a little, so a coral on the crater's slope does not stand on one edge of its base.
 @export var sink := 0.06
 
+@export_group("Beds")
+## fringe() only. How many growths a bed tries for, fewest to most. How far a bed reaches and
+## how close its growths stand is the family's own (BED_RADIUS, BED_SPACING); thinner toward
+## the rim and smaller there too, so a bed has a shape rather than a fence round it.
+@export var bed_size := Vector2i(4, 9)
+## The least distance between two beds' middles. At least twice the widest family's BED_RADIUS
+## plus its BED_SPACING, so two beds can never crowd each other - which is what lets a bed
+## check its spacing against its own growths only, rather than against the whole coast.
+@export var bed_spacing := 14.0
+
+@export_group("Drawing")
+## Metres from the camera past which a growth is not drawn. 0 draws them at any distance.
+##
+## For the coast, where there are a few hundred of them round the whole island and most of
+## them are behind the hill or the horizon. Seen low across the water from further than about
+## this, the sea has absorbed all but the blue of them anyway (ocean.gdshader, optical_depth).
+@export var visible_within := 0.0
+
+## Boxes in world space that nothing grows under - the hull moored over the shallows. Its keel
+## sits two metres into water the beds grow in, so a coral there stands inside it. Only the
+## footprint is read: whatever floats over a bed is lower than the swell lets a growth reach.
+var keep_clear: Array[AABB] = []
+
 var _planted: Array[Vector3] = []
+## The middle of every bed fringe() has grown, across calls, so a second call keeps its beds
+## clear of the first's.
+var _middles: Array[Vector3] = []
+## Every model the families offer, measured once: {scene, family, tall}.
+var _pool: Array[Dictionary] = []
+var _ocean: Ocean
+var _warned := false
 
 
 ## Plants the reef and returns how many went down. `around` is the middle of the water it
-## should fill; `terrain` answers for the seabed and the waterline.
-func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
-	var loaded: Array[Dictionary] = []
-	for family in FAMILIES:
-		for kind in family.MODELS:
-			var path: String = family.MODELS[kind]
-			if ResourceLoader.exists(path):
-				loaded.append({"scene": load(path) as PackedScene, "family": family})
-	if loaded.is_empty():
-		push_warning("reef.gd: no coral or weed models found under art/models/props.")
+## should fill; `terrain` answers for the seabed and the waterline, `ocean` for how low the
+## swell pulls the water.
+func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator,
+		ocean: Ocean = null) -> int:
+	if not _prepare(ocean):
 		return 0
-	var sea: float = terrain.sea_level()
 	var grown := 0
 	for i in count:
 		# Eight tries each, like the rocks. A reef that comes up short is a thinner reef; a reef
@@ -74,54 +136,216 @@ func scatter(terrain: Node, around: Vector3, rng: RandomNumberGenerator) -> int:
 			# sqrt, so they spread evenly over the area rather than crowding the middle.
 			var away: float = sqrt(rng.randf()) * spread
 			var at := Vector3(around.x + cos(angle) * away, 0.0, around.z + sin(angle) * away)
-			var ground: float = terrain.height_at(at.x, at.z)
-			var depth := sea - ground
-			if depth < min_depth:
-				continue
-			var too_near := false
-			for other in _planted:
-				if Vector2(other.x - at.x, other.z - at.z).length() < spacing:
-					too_near = true
-					break
-			if too_near:
-				continue
-			var pick: Dictionary = loaded[rng.randi() % loaded.size()]
-			var coral := (pick["scene"] as PackedScene).instantiate() as Node3D
-			var size := rng.randf_range(size_jitter.x, size_jitter.y)
-			# Measured from the model rather than assumed, and BEFORE it is planted: whether
-			# this one fits under the water is the question, and a coral that does not fit must
-			# never be added and then moved - a half-second of a coral standing out of the sea
-			# is still a coral standing out of the sea.
-			var tall := _height_of(coral) * size
-			if ground + tall + surface_clearance > sea:
-				coral.free()
-				continue
-			# Named for the family that planted it. Not decoration: it is the only honest
-			# record of which branch the pick took. A check tried to read that off the
-			# material instead - seaweed forces two-sided shading and coral does not - and it
-			# was measuring the asset rather than the code, because two of the four corals
-			# come out of Tripo doubleSided already and two do not.
-			coral.name = "%s%d" % [(pick["family"] as Script).resource_path.get_file()
-					.get_basename().capitalize(), grown]
-			add_child(coral)
-			coral.global_position = Vector3(at.x, ground, at.z)
-			# Ground puts the model's BOTTOM on the bed rather than its node origin. For these
-			# three that is the same thing to within 5 mm, but it is the same call the hand
-			# placed ones make, so a scattered coral and a dragged one cannot drift apart.
-			Ground.sit(coral, terrain, sink)
-			coral.rotation.y = rng.randf() * TAU
-			coral.scale *= size
-			pick["family"].dress(coral)
-			_planted.append(coral.global_position)
-			grown += 1
-			break
+			if _plant(terrain, at, rng, _planted, spacing):
+				grown += 1
+				break
 	return grown
 
 
-## Where each coral went. The scatterer's own list, because the nodes are the only other record
-## and a test that walks children is measuring the tree rather than the decision.
+## Grows up to `beds` beds in the shallows within `reach` metres of `around` - or anywhere
+## round the island when `reach` is 0 - and returns how many growths went down in them.
+##
+## A bed's middle is a spot whose water is between min_depth and max_depth. Picked by area
+## rather than walked along a traced coastline: there is no coastline to trace - the island has
+## a lake, and a crater, and whatever a stamp does next - and the band is about an eighth of
+## the map, so sixty tries a bed almost never come back empty. By area, so they spread along the
+## coast about as evenly as the band is wide.
+func fringe(terrain: Node, beds: int, rng: RandomNumberGenerator, ocean: Ocean = null,
+		around := Vector3.ZERO, reach := 0.0) -> int:
+	if not _prepare(ocean):
+		return 0
+	var sea: float = terrain.sea_level()
+	var half: float = terrain.world_size * 0.5
+	var widest := 0.0
+	for family in FAMILIES:
+		widest = maxf(widest, family.BED_RADIUS)
+	var middles: Array[Vector3] = []
+	for i in beds:
+		for attempt in 60:
+			var at: Vector3
+			if reach > 0.0:
+				var angle := rng.randf() * TAU
+				var away: float = sqrt(rng.randf()) * reach
+				at = Vector3(around.x + cos(angle) * away, 0.0, around.z + sin(angle) * away)
+			else:
+				at = Vector3(rng.randf_range(-half, half), 0.0, rng.randf_range(-half, half))
+			var depth: float = sea - terrain.height_at(at.x, at.z)
+			if depth < min_depth or depth > max_depth or _kept_clear(at, widest):
+				continue
+			var crowded := false
+			for other in _middles:
+				if Vector2(other.x - at.x, other.z - at.z).length() < bed_spacing:
+					crowded = true
+					break
+			if crowded:
+				continue
+			middles.append(at)
+			_middles.append(at)
+			break
+	var grown := 0
+	for middle in middles:
+		var family := _bed_family(terrain, middle, rng)
+		if family == null:
+			continue
+		# A node per bed, named for what it is, so a reef can be found, moved or deleted in the
+		# editor as one thing - and so a check can ask which bed a growth belongs to.
+		var bed := Node3D.new()
+		bed.name = "%sBed%d" % [_family_name(family), get_child_count()]
+		add_child(bed)
+		bed.global_position = Vector3(middle.x, terrain.height_at(middle.x, middle.z), middle.z)
+		var spots: Array[Vector3] = []
+		for i in rng.randi_range(bed_size.x, bed_size.y):
+			for attempt in 8:
+				var angle := rng.randf() * TAU
+				# Even in distance from the middle, so thinning toward the rim: a plant's share of
+				# the ground grows with how far out it is. Not grass.gd's two randoms multiplied,
+				# which packs most of a bed into its middle metre and leaves the rest as single
+				# plants standing on their own round it - the look a bed exists to avoid.
+				var out: float = rng.randf()
+				var away: float = out * family.BED_RADIUS
+				var at := Vector3(middle.x + cos(angle) * away, 0.0, middle.z + sin(angle) * away)
+				# Down to 60% of full size at the rim, so a bed has a shape - a mound of coral,
+				# a clump of weed thickest in the middle.
+				if _plant(terrain, at, rng, spots, family.BED_SPACING, bed, family,
+						lerpf(1.0, 0.6, out)):
+					grown += 1
+					break
+		if spots.is_empty():
+			bed.free()
+	return grown
+
+
+## Where each growth went. The scatterer's own list, because the nodes are the only other
+## record and a test that walks children is measuring the tree rather than the decision.
 func planted() -> Array[Vector3]:
 	return _planted
+
+
+## Which family a bed at `middle` belongs to: one of those that can grow across all of it, at
+## even odds, or null if none can.
+##
+## ACROSS ALL OF IT, not just at the middle. The shelf rises toward the beach by about a tenth
+## of a metre for every metre out (see max_depth), so a bed's shoreward rim is up to a tenth of
+## its BED_RADIUS shallower than its middle; a coral reef whose middle only just cleared
+## Coral.SHALLOWEST would be cut off in a straight line along that side.
+func _bed_family(terrain: Node, middle: Vector3, rng: RandomNumberGenerator) -> Script:
+	var depth: float = terrain.sea_level() - terrain.height_at(middle.x, middle.z)
+	var able: Array[Script] = []
+	for family in FAMILIES:
+		if depth - family.BED_RADIUS * 0.1 < family.SHALLOWEST:
+			continue
+		for entry in _pool:
+			if entry["family"] == family:
+				able.append(family)
+				break
+	if able.is_empty():
+		return null
+	return able[rng.randi() % able.size()]
+
+
+## Loads and measures every model once, and takes the ocean. False if there is nothing to plant.
+func _prepare(ocean: Ocean) -> bool:
+	_ocean = ocean
+	if _ocean == null and not _warned:
+		# Not a silent fallback: without the sea's troughs only the still water is kept clear,
+		# and on the coast that is a coral standing in the air every time the swell goes by.
+		push_warning("reef.gd: no Ocean handed in - only still water is kept clear of the"
+				+ " growths, and the swell will uncover the tall ones.")
+		_warned = true
+	if not _pool.is_empty():
+		return true
+	for family in FAMILIES:
+		for kind in family.MODELS:
+			var path: String = family.MODELS[kind]
+			if not ResourceLoader.exists(path):
+				continue
+			var packed := load(path) as PackedScene
+			# Measured from the model rather than assumed, and BEFORE any is planted: whether
+			# one fits under the water is the question, and a growth that does not fit must
+			# never be added and then moved - a half-second of a coral standing out of the sea
+			# is still a coral standing out of the sea.
+			var probe := packed.instantiate()
+			_pool.append({"scene": packed, "family": family, "tall": _height_of(probe)})
+			probe.free()
+	if _pool.is_empty():
+		push_warning("reef.gd: no coral or weed models found under art/models/props.")
+		return false
+	return true
+
+
+## Plants one growth at `at` if the water there allows one, and says whether it did. `near` is
+## what it must keep `apart` metres from, and it is added to that list too. It goes under
+## `into`, or this node; `only` limits it to one family; `taper` scales down the largest size it
+## may take.
+func _plant(terrain: Node, at: Vector3, rng: RandomNumberGenerator, near: Array[Vector3],
+		apart: float, into: Node3D = null, only: Script = null, taper := 1.0) -> bool:
+	var sea: float = terrain.sea_level()
+	var ground: float = terrain.height_at(at.x, at.z)
+	var depth := sea - ground
+	if depth < min_depth or depth > max_depth or _kept_clear(at, 1.0):
+		return false
+	for other in near:
+		if Vector2(other.x - at.x, other.z - at.z).length() < apart:
+			return false
+	# The tallest thing that stays under here with the swell as low as trough_share allows for.
+	var trough := _ocean.deepest_trough(depth) * trough_share if _ocean != null else 0.0
+	var room := depth - trough - surface_clearance
+	# Only what may grow at this depth and fits even at its smallest. Picked from those,
+	# rather than picked from everything and then refused, so the shallow edge of a bed fills
+	# with the short weeds instead of coming up empty after eight tries at a tall coral.
+	var fits: Array[Dictionary] = []
+	for entry in _pool:
+		if only != null and entry["family"] != only:
+			continue
+		if depth >= entry["family"].SHALLOWEST and entry["tall"] * size_jitter.x <= room:
+			fits.append(entry)
+	if fits.is_empty():
+		return false
+	var pick: Dictionary = fits[rng.randi() % fits.size()]
+	var size := rng.randf_range(size_jitter.x,
+			minf(size_jitter.y * taper, room / pick["tall"]))
+	var growth := (pick["scene"] as PackedScene).instantiate() as Node3D
+	# Named for the family that planted it. Not decoration: it is the only honest record of
+	# which branch the pick took. A check tried to read that off the material instead - seaweed
+	# forces two-sided shading and coral does not - and it was measuring the asset rather than
+	# the code, because two of the four corals come out of Tripo doubleSided already and two do
+	# not.
+	growth.name = "%s%d" % [_family_name(pick["family"]), _planted.size()]
+	(into if into != null else self).add_child(growth)
+	growth.global_position = Vector3(at.x, ground, at.z)
+	# Ground puts the model's BOTTOM on the bed rather than its node origin. For these that is
+	# the same thing to within 5 mm, but it is the same call the hand placed ones make, so a
+	# scattered coral and a dragged one cannot drift apart.
+	Ground.sit(growth, terrain, sink)
+	growth.rotation.y = rng.randf() * TAU
+	growth.scale *= size
+	pick["family"].dress(growth)
+	if visible_within > 0.0:
+		for node in growth.find_children("*", "GeometryInstance3D", true, false):
+			var drawn := node as GeometryInstance3D
+			drawn.visibility_range_end = visible_within
+			# Faded over the last stretch rather than popped, which is what the margin is for.
+			drawn.visibility_range_end_margin = visible_within * 0.15
+			drawn.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	near.append(growth.global_position)
+	# is_same, not !=: arrays compare by their contents, and the crater hands in _planted itself.
+	if not is_same(near, _planted):
+		_planted.append(growth.global_position)
+	return true
+
+
+## "Coral" or "Seaweed": the family's script name, which is what growths and beds are named for.
+static func _family_name(family: Script) -> String:
+	return family.resource_path.get_file().get_basename().capitalize()
+
+
+## Whether `at` is within `margin` of the footprint of anything in keep_clear.
+func _kept_clear(at: Vector3, margin: float) -> bool:
+	for box in keep_clear:
+		var footprint := Rect2(box.position.x, box.position.z, box.size.x, box.size.z)
+		if footprint.grow(margin).has_point(Vector2(at.x, at.z)):
+			return true
+	return false
 
 
 ## The height of a model that is not in the tree yet, from its meshes. It has no global

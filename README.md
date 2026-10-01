@@ -38,19 +38,20 @@ Laid out by thing rather than by file type — see [CONVENTIONS.md](CONVENTIONS.
 | `actors/grunt/` | A grunt. Idles, chases, swings back, staggers, dies. 3 hp against the captain's 5. |
 | `actors/parts/` | Shared by both: the blade (hung off a hand bone with a hitbox along it) and the hit spark. |
 | `actors/outfit/` | Modular characters: a rigged body plus swappable pieces (heads, hats, coats, boots), and the workshop scene they are tried on in. See Modular characters below. |
-| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
-| `world/terrain.*` | Reads the height map and builds the mesh + a `HeightMapShape3D` collider. |
+| `props/` | Placeable prefabs, one folder each, every one a `.tscn`: rocks, the rock arch, cargo (barrels and crates, which float), palms, grass, corals and seaweed with one scene per kind (the dive crater's reef is a `ScatterPatch` under the crater in `main.tscn`, so it moves with it; `reef/` grows beds of them through the shallows), fish schools, the shark, the cannon, the waterfall, and the double-deck ship moored off the beach. `grass/grass_patch.tscn` is a clump you place by hand under Terrain; `grass/grass.tscn` is the island-wide scatter. |
+| `world/terrain.*` | Lays down its Seabed, applies every stamp under it in order - the island is the first - and builds the mesh + a `HeightMapShape3D` collider. |
+| `world/seabed/` | The sea floor the ground starts from, under Terrain: a depth, a `FastNoiseLite` for bumps, and how it deepens past the island's area. Worked out on the CPU, so the collider, `height_at()` and the water all read it. |
 | `world/ocean.*` | The sea: waves, depth colour, shoreline foam, and an overhead camera that lets objects push a band through the surface. |
 | `world/sky.*` | The sky, day, golden hour and night: the dome's gradients, sun, moon and stars, and the clouds - see Clouds and weather below. `world/cloud_shadow.gdshaderinc` lays the clouds' shadows on the ground and the sea. |
 | `world/underwater.*` | The sea from below: a full-screen pass that fogs everything under the waterline blue, splits the screen along the swell when the camera is half in, and lays light shafts through the water. `world/waves.gdshaderinc` is the surface both it and the ocean draw. |
 | `world/tunnel.gd` | Tunnels and caves, placed under Terrain: draw a curve, pick a section (round, arch, shaft). Dead ends are capped, corners mitred, crossings opened. See Tunnels below. |
-| `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. **Add** puts a mountain, mesa, volcano or canyon on top (strength in m, negative digs); **Flatten**, **Cut down** and **Fill up** level the ground to the stamp's own height, shown in the editor as a see-through sheet. Shapes: a stamp image, or a soft rectangle or circle; the ground mesh is cut along a soft shape's outline and along the foot of its bank, so an edge as sharp as 0.25 m is a real edge at any angle, with a straight lip, a straight shadow and a collider that matches (Terrain's `cut_edges` turns this off). Stamp images come from the "Terrain - Stamp" ComfyUI workflow in `D:\code\gan`, stored as `.r16`. |
+| `world/terrain_stamp/` | Reshapes the island under it. Instance `terrain_stamp.tscn` under Terrain, place and turn it. Every stamp follows one rule: its shape gives a height (a signed fraction of the stamp's `height` in metres) and a mask, and the mode blends that into the ground - **Add** puts it on top (a mountain, mesa, volcano or canyon; negative digs), **Replace** sets the ground to the stamp's own Y plus the shape, **Min** only cuts down to that and **Max** only fills up to it, then mask x `opacity` decides how much lands. Replace, Min and Max show a see-through sheet in the editor at the level they work to. Shapes: a `.stamp` image, or a soft rectangle or circle (full height, with a fade round its edge - so a levelling pad wants `height` 0 to sit at the gizmo); the ground mesh is cut along a soft shape's outline and along the foot of its bank, so an edge as sharp as 0.25 m is a real edge at any angle, with a straight lip, a straight shadow and a collider that matches (Terrain's `cut_edges` turns this off). A `.stamp` holds a 16-bit height (mid-grey is zero) and a 16-bit mask per sample; `tools/make_stamp.py` makes one from the "Terrain - Stamp" ComfyUI workflow's output in `D:\code\gan`, or from an old `.r16` stamp. Add `*.stamp` to the export filter. |
 | `addons/biome_painter/` | Editor plugin: a brush that hand-overrides the automatic ground biome (grass, sand, rock, jungle) straight in the 3D viewport. See Painting the biome below. |
 | `ui/` | HUD, the floating health bars over the grunts, the touch controls, and the `SpringArm3D` chase camera. |
 | `systems/` | Sound: `sfx.gd`, `music.gd`, `ambience.gd`. See below. |
 | `art/` | Data only — imported models, generated audio, reference images. Nothing here is loaded as code. |
 | `art/models/characters/` | Bodies and pieces for the modular characters, named `<slot>_<name>.glb`. See the README there. |
-| `terrain/*.r16` | Height maps from `tools\make_heightmap.py` in `D:\code\gan`. |
+| `terrain/island.stamp` | The island: the image the **Island** stamp in `main.tscn` lays over the Seabed. |
 
 ## The fight
 
@@ -291,31 +292,121 @@ Wading becomes swimming past `swim_depth` (1.3 m, about chest height).
 
 ## The island
 
-`terrain/heightmap.r16` is a **stylised** map: wide flat plains with a few isolated flat-topped
-mesas, about 78% of it near-level. Deliberate — the first map was ridges edge to edge, which
-left nowhere to build.
+The island is a stamp: `terrain/island.stamp`, the TerrainStamp named **Island** that comes first
+under Terrain in `main.tscn` - a Replace, 620 m square, over a Seabed. It used to be the whole
+ground, read from a height file, `terrain/island.r16`; the stamp was shown to give the same
+ground to 0.015 mm at every sample before the file and its loader were removed. Tests that
+build a Terrain of their own build this island with `tests/island_terrain.gd`, and
+`tests/island_stamp_check.gd` holds main.tscn's Island to it.
+
+Its outer slope fades into the **Seabed** (`world/seabed/seabed.gd`, a child of Terrain) over
+`border_fade` (90 m), so at the square's edge the ground is the Seabed alone, and the Terrain
+carries it on as a coarse **far ring** out to `far_extent`, 1200 m - past the camera's 1 km.
+The ring is stitched to the square's own edge vertices, so there is no seam; it has its own
+coarse collider, and the water reads its depth off it. A stamp whose reach crosses the edge
+shapes the ring too. `tests/far_seabed_check.gd` checks the stitch, the collider, the water and
+the far depth; `tests/seabed_view.gd` renders the border from above, the ship, the beach and
+three dives.
+
+| Seabed setting | Default | Meaning |
+|---|---|---|
+| `depth` | 4 m | water over the bed near the island - deeper than the shallows' reef band, so no coastal bed grows out on it |
+| `noise_height`, `noise` | 1 m | bumps on top, from a FastNoiseLite |
+| `shelf_radius` | 200 m | how far from the Terrain's middle the bed stays at `depth` |
+| `deepening_distance` | 350 m | over which it then drops to `far_depth` |
+| `far_depth` | 60 m | the open sea's depth, and the water's bed past the far ring |
+
+A Terrain with no Seabed child stands on a plain default one, and the editor warns about it.
 
 Everything on it is placed from `main.gd`: 40 rocks, 14 palms, 70 grass patches (about 1400
-tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, and 5 grunts.
+tufts in one MultiMesh), 5 barrels and 6 crates ashore with more afloat, 5 grunts, and about 450
+corals and weeds through the shallows in some twenty coral reefs and weed patches. The reef on
+the dive crater's floor is not main.gd's: it is a ScatterPatch under the crater (see Stamps).
+
+The shallows are `props/reef/reef.gd` again, told a band of water (0.9 to 2.8 m) instead of a
+crater, and it finds the coast by depth rather than from a list of beaches. They grow the way
+the real things do, **in beds of one kind**: a coral reef, or a patch of weed, 14 to 26 plants
+packed closer than they are wide, thinner and smaller toward the rim. How big a bed is and how
+tight it packs belongs to the family - `BED_RADIUS` and `BED_SPACING` in `coral.gd` and
+`seaweed.gd` - because weed is blades a handspan deep and needs a smaller, tighter patch than a
+reef to read as one. Each bed is a node (`CoralBed3`, `SeaweedBed7`) you can find, move or
+delete in the editor. Beds of the two kinds mixed, a metre apart, read as single plants dotted
+about.
+
+About half the beds go along the beach he starts on (`shallows_beds_here`, within
+`shallows_reach` of the spawn) and the rest round the island (`shallows_beds_round`), because
+the coast is 1.5 km long and filling all of it at a beach's density would be over a thousand
+plants. Weed grows from the foam line out; a reef only where all of it is past 1.4 m, where he
+is swimming rather than wading, because corals have no collider and walking through one reads
+as a bug. Nothing grows under the moored hull.
+
+**Near the beach the swell decides how big they can be.** The waves sum to 1.32 m and only
+flatten as the bed rises, so in 1.5 m of water the surface can fall to 0.64 m. Each growth is
+sized against the lowest the water gets where it stands (`Ocean.deepest_trough`), and the
+shallows ask for half of that trough (`trough_share = 0.5` in `_grow_shallows`): plants in a
+metre of water average 0.55 m tall rather than the 0.35 m the whole trough would allow, and
+the tallest tips show at the bottom of the biggest swells - the most exposed about 9% of the
+time. Lower `trough_share` for bigger plants and more showing, 1.0 for none ever showing. No
+setting lets one reach the still level, which is what keeps them off layer 20. Beyond 110 m from
+the camera they are not drawn (`visible_within`).
 
 Grass grows in **patches, not a scatter** — the patch centres are chosen first and each is
 filled with tufts crowded toward its middle, with the rocks handed in as extra centres so
 grass grows against a boulder the way it does in life. An even scatter reads as a texture
 rather than as plants, however many you use.
 
-Swapping the map means re-drawing any tunnel curve, since the curve is world-space geometry.
+Moving or swapping the island stamp means re-drawing any tunnel curve, since the curve is
+world-space geometry.
+
+**Heights are metres, and the sea is at y = 0** - the Terrain's own y, which is 0 in
+`main.tscn`. A height is how far above (or below) the sea something is, so a stamp at Y = 12 is
+a plateau 12 m up, and the shallows are 0 to 3 m down. `Terrain.sea_level()` returns 0 and is
+still what code asks, so that everything which needs the sea says so.
+
 Useful settings on the Terrain node:
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `world_size` | 400 | metres across |
-| `height_scale` | 60 | metres from lowest to highest |
+| `rock_heights` | 72, 126 | metres above the sea where the ground turns to rock, from starting to all rock |
 | `mesh_resolution` | 512 | quads per side (visual detail) |
+| `height_samples` | 1025 | height samples per side when the ground starts from a Seabed (2 x `mesh_resolution` + 1). An image stamp the ground's size with this many samples - the island - lands sample on sample and is applied without interpolating. |
 | `collision_resolution` | 513 | collision samples per side (match `mesh_resolution` + 1) |
 | `cut_edges` | on | cut the ground mesh along soft stamps' outlines and bank feet, so a sharp pad edge is a real edge. Off, sharp edges are drawn from the height field alone and come out saw-toothed; edges wider than about 2.5 m look the same either way. No cost per frame. |
+| `far_extent` | 1200 | how far out from the middle the far ring goes, in metres. Only with a Seabed. |
+| `far_cell` | 8 | detail quads per far ring cell (8 is 9.7 m on the island). Must divide `mesh_resolution` / 2. |
 | `chunk_quads` | 32 | quads per chunk side. The ground is built in chunks so an edit only rebuilds the chunks it touches: the whole island is about 3 s, one chunk about 10 ms, so a ticked stamp or tunnel follows the gizmo. Chunks are culled one by one too. |
 | `biome_path` | `terrain/island_biome.png` | the hand-painted overrides on the automatic biome. See Painting the biome below. |
 | `biome_palette_path` | `terrain/biome_palette.png` | the named colours `biome_path` indexes into. See Painting the biome below. |
+
+### Stamps
+
+The Seabed is laid down first, then every TerrainStamp under the Terrain in child order - the
+Island first, so the pads and the crater after it shape the island rather than being wiped out
+by it. Every stamp follows one rule. Its shape gives a value from -1 to 1 at each point, times
+its `height` in metres:
+
+| Mode | The ground becomes | For |
+|---|---|---|
+| Add | ground + value x height | details on whatever is there: dunes, ridges, craters |
+| Replace | the stamp's Y + value x height | exact set pieces - the island, a levelling pad |
+| Min | that, only where it is lower | canyons, rivers, coves |
+| Max | that, only where it is higher | raising ground up to a level |
+
+Then the stamp's mask, times its `opacity` and its `border_fade`, says how much of that lands:
+the ground is mix(ground, result, mask x opacity x fade), so 0 leaves it alone.
+
+A `.stamp` is raw: `STMP`, then version, columns and rows as little-endian uint32, then two
+little-endian uint16 per sample, row by row - the height, with 32768 as zero (brighter raises,
+darker lowers), and the mask. Raw rather than PNG because Godot's loader cuts a 16-bit PNG to
+8 bits. `tools/make_stamp.py` writes one from a 16-bit PNG or an old `.r16`, and `info`
+reports what one holds.
+
+Things that belong to a piece of ground go under it: the crater's reef is a **ScatterPatch**
+under the DiveCrater stamp, so it moves with the crater and replants when the ground under it
+changes. Things are found by **group**, and every group name is a constant in
+`systems/groups.gd` (`Groups.TERRAIN`, `Groups.CANNONS`, `Groups.WIND`) - no file spells one
+out, so a typo is a parse error rather than a query that quietly finds nothing.
 
 ## Painting the biome
 
@@ -383,8 +474,8 @@ the editor once **Preview** is ticked, and from then on it is live; the game bui
   the surface. The cut stops a little inside the wall (`cut_margin`), so ground and tube overlap
   instead of meeting exactly on one surface.
 - **The ground at a mouth is left as it is.** Where the floor comes out of a hillside is where
-  the entrance is; to make it walkable, shape the ground there with terrain stamps (Flatten,
-  Cut down, Fill up); a ticked tunnel follows as it is moved, like a ticked stamp.
+  the entrance is; to make it walkable, shape the ground there with terrain stamps (Replace,
+  Min, Max); a ticked tunnel follows as it is moved, like a ticked stamp.
 - **Sharp corners are mitred**: the section at the corner faces halfway round and is stretched
   across the bend, so the walls stay parallel through it instead of pinching shut on the inside.
 - **Tunnels that cross open into each other**: each one's walls are trimmed where they run
@@ -512,7 +603,13 @@ and a rock field up the beach with nothing between them but a signed water band.
 `coral_check` measures the reef on the crater floor: that the corals carry their size in the
 `.glb` rather than a gitignored `.import`, that every one sits on the seabed, and that none
 breaks the surface — which is what makes it correct for a coral to be the one prop here that
-stays off the ocean's layer 20. `coastal_smoke` checks the island builds and the captain stands
+stays off the ocean's layer 20 - and that moving the crater replants the reef on its new
+floor. It then measures the shallows the same way, but reads the sea
+itself - `surface_y` at every growth over three quarters of a minute - rather than trusting the
+trough the reef planted against: no tip may be out of the water more than an eighth of the
+time. It also checks each bed is one kind and packed like a patch, the corals stay out of
+wading depth, the beds reach round the island and thicken at the start, and nothing grows under
+the moored hull. `coastal_smoke` checks the island builds and the captain stands
 on it. `ambience_check` walks
 him from the sea to the hilltop and prints what every sound bed is doing, and checks the
 assumption underneath the mix — that on this island low ground *is* the shore (ground below
@@ -549,16 +646,16 @@ in `docs/` and the art in `art/references/` are data rather than textures, so ea
 `terrain/` must NOT carry one, whatever it looks like it saves. A `.gdignore` hides a folder
 from the exporter as well as from the editor, and no export filter reaches back in: `*.r16` in
 the preset looked right and shipped nothing, so the exported game opened with no island. The
-game reads `res://terrain/island.r16` with `FileAccess` at run time, and a file the exporter
-cannot see is a file the build does not have.
+game reads `res://terrain/island.stamp` with `FileAccess` at run time, and a file the exporter
+cannot see is a file the build does not have - so the preset needs `*.stamp`.
 
 If Working Copy says a pull was aborted because of uncommitted changes, check what they are
 first: if they are only `.import`/`.godot` files, discard them and pull again.
 
 ## Notes worth keeping
 
-- **Use the `.r16`, not the PNG.** Godot's image loader converts a 16-bit PNG down to 8-bit,
-  which shows up as terracing.
+- **Heights go in a `.stamp`, not a PNG.** Godot's image loader converts a 16-bit PNG down to
+  8-bit, which shows up as terracing; `tools/make_stamp.py` reads the PNG itself.
 - **Vertex colours are linear.** sRGB values need `srgb_to_linear()`, or the terrain looks
   washed out.
 - **Renderer is Mobile**, not Forward+, so it runs on iPad. SSAO is off for the same reason.

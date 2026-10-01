@@ -25,6 +25,13 @@ const STEP := 1.0 / 60.0
 const BUDGET_MS := 2.5
 
 var failures := 0
+## Every step the checks below simulate is watched for fish in the sand or in the air, not only
+## the last one - see _check_water_throughout.
+var _terrain: Node
+var _steps_watched := 0
+var _buried_steps := 0
+var _aired_steps := 0
+var _deepest := 0.0
 
 
 func _initialize() -> void:
@@ -45,6 +52,7 @@ func _run() -> void:
 		await process_frame
 
 	var terrain := scene.get_node("Terrain")
+	_terrain = terrain
 	var schools: Array[Node] = []
 	for node in scene.get_children():
 		if node.get_script() != null and node is MultiMeshInstance3D \
@@ -81,12 +89,14 @@ func _run() -> void:
 		school._wander()
 		school._hash()
 		school._steer(STEP)
+		_watch_water(school)
 
 	_check_placement(school)
 	_check_school(school)
 	_check_water(school, terrain)
 	_check_swim(school)
 	await _check_flight(school)
+	_check_water_throughout(school)
 	_check_cost(school)
 	_finish()
 
@@ -230,6 +240,7 @@ func _check_school(school: MultiMeshInstance3D) -> void:
 	for i in 900:
 		school._hash()
 		school._steer(STEP)
+		_watch_water(school)
 
 	var mean := Vector3.ZERO
 	for d in school._dir:
@@ -245,8 +256,9 @@ func _check_school(school: MultiMeshInstance3D) -> void:
 			% agreement + " they are milling rather than schooling, which is what dropping the"
 			+ " alignment term looks like")
 	# 3.0 sits between two measured numbers rather than being a round figure that sounded safe:
-	# with cohesion this settles at 2.3 to 2.6 m, and with weight_cohesion set to zero it settles
-	# at 3.6 to 3.7. The school's RNG is seeded, so both are repeatable to the centimetre.
+	# with cohesion this settles at 2.3 to 2.6 m, and with weight_cohesion set to zero it settled
+	# at 3.6 to 3.7 - at 5.8 since the fish were kept out of the seabed, 2.57 with cohesion. The
+	# school's RNG is seeded, so both are repeatable to the centimetre.
 	#
 	# The mean is what separates them. The WORST straggler does not - 8.1 m either way - because
 	# a fish that drifts past `perception` can no longer see the school at all and nothing local
@@ -278,6 +290,38 @@ func _check_water(school: MultiMeshInstance3D, terrain: Node) -> void:
 	check(buried == 0, "%d fish are inside the seabed" % buried)
 
 
+## The same question as _check_water, asked of every step rather than of wherever the school
+## happened to be when the simulation stopped.
+##
+## The check above looks at one frame, and one frame was not enough to see this. With the school
+## starting inside the sand put right and nothing else, it passed - while over the same run fish
+## had gone under the ground 221 times, a metre and more deep, and come back out. A fish that
+## dips into the seabed and out again is as visible as one that stays there.
+func _check_water_throughout(school: MultiMeshInstance3D) -> void:
+	print("watched %d steps of %d fish: %d fish-steps in the seabed (deepest %.2f m), %d above the"
+			% [_steps_watched, school.fish_count(), _buried_steps, _deepest, _aired_steps]
+			+ " surface")
+	check(_steps_watched > 1000, "only %d steps were watched, so this proved little" % _steps_watched)
+	check(_buried_steps == 0,
+			"%d times in %d steps a fish was inside the seabed, %.2f m deep at worst - the walls in"
+			% [_buried_steps, _steps_watched, _deepest]
+			+ " FishSchool._decide and _steer are not holding")
+	check(_aired_steps == 0,
+			"%d times in %d steps a fish was above the surface" % [_aired_steps, _steps_watched])
+
+
+func _watch_water(school: MultiMeshInstance3D) -> void:
+	_steps_watched += 1
+	var sea: float = _terrain.sea_level()
+	for p in school._pos:
+		var under: float = _terrain.height_at(p.x, p.z) - p.y
+		if under > 0.0:
+			_buried_steps += 1
+			_deepest = maxf(_deepest, under)
+		if p.y > sea:
+			_aired_steps += 1
+
+
 func _check_swim(school: MultiMeshInstance3D) -> void:
 	# The shader is handed a phase and an intensity per fish and nothing else. If the phase
 	# stops advancing every fish freezes mid-beat; if the intensity is pinned they all beat
@@ -286,6 +330,7 @@ func _check_swim(school: MultiMeshInstance3D) -> void:
 	for i in 12:
 		school._hash()
 		school._steer(STEP)
+		_watch_water(school)
 	var moved := 0
 	for i in before.size():
 		if absf(school._phase[i] - before[i]) > 0.0001:
@@ -333,6 +378,7 @@ func _check_flight(school: MultiMeshInstance3D) -> void:
 		shark.global_position = school.centre()
 		school._hash()
 		school._steer(STEP)
+		_watch_water(school)
 	var after := _within(school, shark.global_position, ring)
 	print("shark dropped in: %d fish within %.1f m of it, %d after a second and a half"
 			% [before, ring, after])

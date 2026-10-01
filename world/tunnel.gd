@@ -138,7 +138,7 @@ func _get_configuration_warnings() -> PackedStringArray:
 
 
 func _under_terrain() -> bool:
-	return get_parent() != null and get_parent().is_in_group(&"terrain")
+	return get_parent() != null and get_parent().is_in_group(Groups.TERRAIN)
 
 
 # --- called by the terrain ------------------------------------------------------------------

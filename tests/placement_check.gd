@@ -130,7 +130,7 @@ func _run() -> void:
 	# --- and the thing that started it: does the real cannon reach the ground ---
 	var landed := 0
 	var floating: Array[String] = []
-	for node in scene.get_tree().get_nodes_in_group("cannons"):
+	for node in scene.get_tree().get_nodes_in_group(Groups.CANNONS):
 		var gun := node as Node3D
 		if not gun.get("sit_on_ground"):
 			continue
@@ -188,7 +188,7 @@ func _check_patch(scene: Node3D, terrain: Node, spawn: Vector3, crater: Vector3)
 	for spot in wet:
 		var at: Vector3 = spot["at"]
 		shallowest = minf(shallowest, Ground.depth(terrain, at.x, at.z))
-		if at.y + ScatterPatch._height_of(reef.scenes[0]) * spot["basis"].get_scale().y 				+ reef.surface_clearance > sea:
+		if at.y + reef.height_of(reef.scenes[0]) * spot["basis"].get_scale().y 				+ reef.surface_clearance > sea:
 			proud += 1
 		for other in wet:
 			if other == spot:
@@ -265,7 +265,7 @@ func _check_patch(scene: Node3D, terrain: Node, spawn: Vector3, crater: Vector3)
 func _crater(terrain: Node) -> Vector3:
 	for child in terrain.get_children():
 		var stamp := child as TerrainStamp
-		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.strength >= 0.0:
+		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.height >= 0.0:
 			continue
 		var at := stamp.global_position
 		if terrain.height_at(at.x, at.z) < terrain.sea_level():

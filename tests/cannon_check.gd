@@ -45,7 +45,7 @@ func _run() -> void:
 	# this line is a fixture, and a fixture enters the tree long after main has finished wiring
 	# what it found - so asking whether one of them makes a noise asks about this test rather
 	# than about the game.
-	var placed: Array[Node] = scene.get_tree().get_nodes_in_group("cannons")
+	var placed: Array[Node] = scene.get_tree().get_nodes_in_group(Groups.CANNONS)
 
 	var gun := Cannon.new()
 	gun.name = "TestCannon"
@@ -533,7 +533,7 @@ func _check_heard(scene: Node3D, placed: Array[Node]) -> void:
 func _check_two_kinds(scene: Node3D) -> void:
 	var ship_guns: Array = []
 	var open_guns: Array = []
-	for node in scene.get_tree().get_nodes_in_group("cannons"):
+	for node in scene.get_tree().get_nodes_in_group(Groups.CANNONS):
 		if node.traverse_limit > 0.0:
 			ship_guns.append(node)
 		else:

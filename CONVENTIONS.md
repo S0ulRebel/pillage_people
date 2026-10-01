@@ -25,7 +25,8 @@ res://
 ├── props/                        things placed in the world
 │   ├── rock/       rock.gd  rock.tscn  rocks.gd
 │   ├── cargo/  palm/  grass/  waterfall/
-├── world/          terrain  ocean  tunnel  heightmaps
+├── world/          terrain  seabed  terrain_stamp  ocean  tunnel
+├── terrain/        island.stamp  the biome maps       data only
 ├── ui/             hud  health_bar  touch_controls  camera_rig
 ├── systems/        sfx  music  ambience
 ├── art/            models/  audio/  references/     data only
@@ -185,7 +186,9 @@ the strike window.
 
 **8. Prefer groups or a declared interface over probing for method names.** `has_method("x")`
 is a string-keyed contract the compiler cannot check; renaming the method fails silently.
-Godot's node groups are the normal way to ask "is this one of those".
+Godot's node groups are the normal way to ask "is this one of those". A group name is a string
+too, so every one is a constant in `systems/groups.gd` - `add_to_group(Groups.CANNONS)`, never
+`"cannons"` - and a misspelt one is a parse error instead of an empty list.
 
 *Currently:* seven method names are probed this way — `take_damage` in three files, plus
 `reel`, `is_dead`, `boarding` and `set_helming`.
@@ -214,9 +217,9 @@ wrong once, and the comment is what stops them being wrong again.
 
 ---
 
-## Part 5 — Directions
+## Part 5 — Directions and heights
 
-One rule, and it is not a matter of taste.
+Which way is up, where zero is, and which way a model faces. None of it is a matter of taste.
 
 ### Up means up
 
@@ -258,6 +261,14 @@ that applies its own rotation is how touch ended up ignoring the spyglass entire
 **An `invert` setting is a player preference, not a correction.** It flips every mode together.
 Two invert flags multiplied against each other is how the project reached a state where no
 combination of them produced up-means-up in both modes.
+
+### Heights are metres from the sea
+
+**The sea is at y = 0, and every height is in metres.** A stamp at Y = 12 is 12 m above the
+water, a reef bed 2 m under it is at -2. Nothing is a fraction of some height range - that is
+how the island's sea once sat at 18 m, and every height in the scene had 18 m hidden in it.
+Code still asks `Terrain.sea_level()` rather than writing 0, so that whatever needs the sea
+says so.
 
 ### Models point -Z
 

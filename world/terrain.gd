@@ -1,17 +1,20 @@
 @tool
 extends StaticBody3D
+## Builds a terrain mesh + collision: the heights of a Seabed child, with every TerrainStamp
+## child laid on top in order - the island is one of those stamps. Without a Seabed child the
+## ground is a plain default seabed, and the editor says so.
+##
+## Every height is in metres, and the sea is at the Terrain's own y - 0 in main.tscn - so a
+## height is also how far above or below the sea it is.
 
 const ShoreField = preload("res://world/shore_field.gd")
-## Builds a terrain mesh + collision from a 16-bit height map PNG.
-##
-## The image is read at runtime with Image.load_from_file, so Godot's texture importer
-## cannot quietly convert it to 8-bit or apply sRGB - both of which flatten the heights.
 
-## Raw 16-bit heights (make_heightmap.py writes these). Godot's Image loader converts a
-## 16-bit PNG down to 8-bit, which shows up as visible terracing, so the .r16 is preferred
-## and the PNG is only a fallback.
-@export_file("*.r16") var raw_path := "res://terrain/heightmap.r16"
-@export_file("*.png") var heightmap_path := "res://terrain/heightmap.png"
+## The heights are new: once when they are first laid down, and in the editor again after every
+## edit that rebuilds the ground. For things that stand on the ground and cannot be asked to sit
+## down again - a ScatterPatch replants on it. One placed under the Terrain is ready before the
+## Terrain is, since children are readied first, and without this it would read the ground
+## before there was any.
+signal reshaped
 
 ## Hand-painted overrides on top of the automatic biome (grass/sand/rock from height and
 ## slope): where a rock, or a patch of sand in the grass, is a choice rather than what the
@@ -48,16 +51,6 @@ const ShoreField = preload("res://world/shore_field.gd")
 @export var world_size := 400.0:   ## metres across
 	set(value):
 		world_size = value
-		_setting_changed()
-@export var height_scale := 60.0:  ## metres from lowest to highest point
-	set(value):
-		height_scale = value
-		_setting_changed()
-## Fraction of the height range that sits under water. make_heightmap.py bakes the same
-## number into the island, so it has to match or the shoreline lands in the wrong place.
-@export var sea_fraction := 0.10:
-	set(value):
-		sea_fraction = value
 		_setting_changed()
 ## The material, so its colours can be tuned in the inspector instead of only in the shader.
 ## Only the values that depend on the scene (sea level, sun) are written from here.
@@ -120,6 +113,12 @@ const ShoreField = preload("res://world/shore_field.gd")
 	set(value):
 		rock_colour = value
 		_push_colour("rock_colour", value)
+## Where the ground turns to rock with height, in metres above the sea: it starts at x and is
+## all rock by y. Baked into the mesh, so a change rebuilds it.
+@export var rock_heights := Vector2(72.0, 126.0):
+	set(value):
+		rock_heights = value
+		_setting_changed()
 
 @export_group("Caustics")
 @export_range(0.02, 4.0) var caustic_scale := 0.90:
@@ -169,6 +168,13 @@ func _push_colour(name: StringName, value: Variant) -> void:
 		mesh_resolution = value
 		_setting_changed()
 @export var collision_resolution := 513  ## samples per side for the collision shape (match mesh_resolution + 1)
+## Height samples per side. One mesh vertex on every second sample - so 2 x mesh_resolution
+## + 1. An island stamp the same size as the ground, with this many samples, lands sample on
+## sample.
+@export var height_samples := 1025:
+	set(value):
+		height_samples = maxi(value, 2)
+		_setting_changed()
 ## Quads per chunk side. The mesh is built as a grid of square chunks rather than one piece,
 ## so that a stamp or tunnel edited in the editor only rebuilds the chunks it touches: the whole
 ## island takes about 2.5 s, one chunk of 32 quads about 10 ms, and a small stamp follows the
@@ -191,6 +197,23 @@ func _push_colour(name: StringName, value: Variant) -> void:
 	set(value):
 		cut_edges = value
 		_setting_changed()
+
+@export_group("Far seabed")
+## How far out from the middle the ground goes on past the detailed square, in metres: a coarse
+## ring of seabed round it, with a collider, which is also the bed the water reads out there.
+## Past the camera's 1000 m, so the sea never shows where it stops. Only with a Seabed child.
+@export_range(0.0, 5000.0, 10.0, "suffix:m") var far_extent := 1200.0:
+	set(value):
+		far_extent = value
+		_setting_changed()
+## Detail mesh quads per far ring cell. A whole number of them, so every cell corner along the
+## square's edge is a vertex of the detailed mesh too - the ring is stitched to the detailed
+## edge vertex for vertex, and there is no crack to hide.
+@export_range(1, 64) var far_cell := 8:
+	set(value):
+		far_cell = maxi(value, 1)
+		_setting_changed()
+@export_group("")
 
 ## The Tunnel children being built: all of them in the game, the ticked ones in the editor.
 ## Each is asked where its tube is and the terrain is cut to exactly that shape - so an opening
@@ -235,6 +258,21 @@ var _nan_by_chunk: Array[PackedInt32Array] = []
 ## baked samples - see height_exact().
 var _active_stamps: Array[TerrainStamp] = []
 var _stamp_rects: Array[Rect2] = []
+## Each active stamp's own reach, in the same order: past the square every stamp is evaluated
+## where it reaches, and this is how the far ground skips the ones that do not.
+var _active_rects: Array[Rect2] = []
+## The Seabed the ground started from: the child, or with none the plain one below.
+var _bed: Seabed = null
+## A default seabed for a Terrain with no Seabed child - never in the tree, freed with us.
+var _plain_bed: Seabed = null
+## The far ring, as of the last build: heights over a grid `_far_count` samples a side,
+## `_far_step` apart and centred on the Terrain, in metres above it, NAN strictly inside the
+## detailed square, where the ground is the chunks'. Empty without a Seabed.
+var _far_heights := PackedFloat32Array()
+var _far_count := 0
+var _far_step := 0.0
+## Far cells from the middle to the square's edge.
+var _far_inner := 0
 var _chunks_per_side := 0
 ## The grid as it was built. Read instead of the exports by everything that maps ground to
 ## chunks, so a setting changed in the inspector cannot address the old chunks with the new
@@ -267,23 +305,20 @@ var last_rebuilt := 0
 func _init() -> void:
 	# TerrainStamp, Tunnel and GrassPatch check for this group to warn when placed outside
 	# the terrain.
-	add_to_group(&"terrain")
+	add_to_group(Groups.TERRAIN)
 
 
 func _ready() -> void:
-	var source := "raw" if _load_raw() else ("png" if _load_png() else "")
-	if source == "":
-		push_error("Could not load a height map (%s or %s)" % [raw_path, heightmap_path])
-		return
+	_read_base()
 	_biome_image = _load_biome_image()
 	_biome_palette_image = _load_biome_palette_image()
-	_base_heights = _heights.duplicate()
 	_built_quads = maxi(chunk_quads, 1)
 	_built_resolution = mesh_resolution
 	_chunks_per_side = ceili(float(_built_resolution) / _built_quads)
 	# Children are ready before their parent, so every stamp has read its file by now - and
 	# this runs before main.gd places anything on the ground, so props land on stamped ground.
 	_restamp(0, _size - 1, 0, _size - 1)
+	_read_far()
 	_stamp_order = _stamps()
 	child_entered_tree.connect(_on_child_entered)
 	child_exiting_tree.connect(_on_child_exiting)
@@ -296,6 +331,7 @@ func _ready() -> void:
 		_build_tunnels()
 		_plant_grass()
 		_build_ground()
+	reshaped.emit()
 
 
 ## Builds the tunnels, then the mesh and colliders cut for them. Any stamp edited since the
@@ -303,6 +339,7 @@ func _ready() -> void:
 ## calling this would otherwise get the ground as it was.
 func generate() -> void:
 	_restamp_changed()
+	_read_far()
 	_build_tunnels()
 	_plant_grass()
 	_build_ground()
@@ -319,7 +356,40 @@ func _plant_grass() -> void:
 
 ## The children whose edits reshape the ground or what stands on it.
 func _tracked(child: Node) -> bool:
-	return child is TerrainStamp or child is Tunnel or child is GrassPatch
+	return child is TerrainStamp or child is Tunnel or child is GrassPatch or child is Seabed
+
+
+## The Seabed child the ground starts from, or null. `leaving` is one on its way out.
+func _seabed(leaving: Node = null) -> Seabed:
+	for child in get_children():
+		if child is Seabed and child != leaving:
+			return child
+	return null
+
+
+## Lays the ground down before any stamp, into _base_heights, and sets _size: from the Seabed
+## child, or with none from a plain default one - a Terrain is never without ground.
+func _read_base(leaving: Node = null) -> void:
+	_bed = _seabed(leaving)
+	if _bed == null:
+		if _plain_bed == null:
+			_plain_bed = Seabed.new()
+		_bed = _plain_bed
+	_size = height_samples
+	_base_heights = _bed.fill(_size, world_size / float(_size - 1), -world_size * 0.5)
+	_heights = _base_heights.duplicate()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _plain_bed != null:
+		_plain_bed.free()
+
+
+func _get_configuration_warnings() -> PackedStringArray:
+	if _seabed() == null:
+		return ["No Seabed child, so the ground is a plain default seabed. Add a Seabed under "
+				+ "the Terrain to shape it, and stamps for the islands."]
+	return []
 
 
 ## Whether a stamp or tunnel is part of the terrain: always in the game, and in the editor
@@ -376,8 +446,8 @@ func _restamp(x0: int, x1: int, z0: int, z1: int) -> void:
 				_heights[row + gx] = _base_heights[row + gx]
 	var spacing := world_size / float(_size - 1)
 	var half := world_size * 0.5
-	# The map holds heights as a fraction of height_scale; the stamp works in world metres,
-	# so a levelling plane can be read straight off its position.
+	# The map holds metres above the Terrain; the stamp works in world metres, so a levelling
+	# plane can be read straight off its position.
 	var base := global_position.y
 	_refresh_stamps()
 	for stamp in _active_stamps:
@@ -389,28 +459,38 @@ func _restamp(x0: int, x1: int, z0: int, z1: int) -> void:
 		var sz1 := mini(z1, clampi(ceili((rect.end.y + half) / spacing), 0, _size - 1))
 		if sx0 > sx1 or sz0 > sz1:
 			continue
+		var offset := stamp.grid_offset(spacing, -half)
+		if offset != TerrainStamp.OFF_GRID:
+			# Sample on sample, as the island is: each ground sample is one image sample.
+			var cells := stamp.image_size()
+			_heights = stamp.reshape_grid(_heights, _size, offset,
+					maxi(sx0, offset.x), mini(sx1, offset.x + cells.x - 1),
+					maxi(sz0, offset.y), mini(sz1, offset.y + cells.y - 1), base)
+			continue
 		for gz in range(sz0, sz1 + 1):
 			var wz := gz * spacing - half
 			for gx in range(sx0, sx1 + 1):
 				var i := gz * _size + gx
-				var height := _heights[i] * height_scale + base
+				var height := _heights[i] + base
 				var reshaped := stamp.reshape(height, gx * spacing - half, wz)
-				# Written only when it changed: the round trip through metres is not exact, and
-				# ground a stamp leaves alone should stay bit-for-bit the island.
+				# Written only when it changed: the round trip through the Terrain's height is
+				# not exact, and ground a stamp leaves alone should stay bit-for-bit what it was.
 				if reshaped != height:
-					_heights[i] = (reshaped - base) / height_scale
+					_heights[i] = reshaped - base
 
 
 # --- edits -----------------------------------------------------------------------------------
 
 func _watch(child: Node) -> void:
-	if child is TerrainStamp or child is Tunnel:
+	if child is TerrainStamp or child is Tunnel or child is Seabed:
 		var on_changed := _on_child_changed.bind(child)
 		_connections[child] = on_changed
 		child.changed.connect(on_changed)
 
 
 func _on_child_entered(child: Node) -> void:
+	if child is Seabed and Engine.is_editor_hint():
+		update_configuration_warnings()
 	if not _tracked(child):
 		return
 	_watch(child)
@@ -421,6 +501,9 @@ func _on_child_entered(child: Node) -> void:
 
 
 func _on_child_exiting(child: Node) -> void:
+	if child is Seabed and Engine.is_editor_hint():
+		# Still a child until this returns.
+		update_configuration_warnings.call_deferred()
 	if not _tracked(child):
 		return
 	if _connections.has(child):
@@ -436,6 +519,15 @@ func _on_child_exiting(child: Node) -> void:
 
 func _on_child_changed(child: Node) -> void:
 	_mark(child)
+	_queue_rebuild()
+
+
+## The Seabed is under every sample, so any change to it - a setting, the noise, arriving or
+## leaving - is the whole ground again, like a Terrain setting.
+func _on_seabed_changed() -> void:
+	if not Engine.is_editor_hint() or not is_node_ready():
+		return
+	_full_rebuild_wanted = true
 	_queue_rebuild()
 
 
@@ -477,6 +569,8 @@ func _mark(child: Node, leaving := false) -> void:
 		_changed_tunnels[child] = not leaving
 	elif child is GrassPatch:
 		_changed_grass[child] = not leaving
+	elif child is Seabed:
+		_on_seabed_changed()
 
 
 ## Editor only: rebuilds what changed a moment after it did. A drag sends a change every
@@ -508,12 +602,17 @@ func rebuild_changed() -> void:
 	if _full_rebuild_wanted:
 		_full_rebuild_wanted = false
 		_forget_edits()
+		# Read again: a Seabed setting, or a Terrain one it depends on (the size, the sea
+		# level), changes every sample it laid down.
+		_read_base()
 		_restamp(0, _size - 1, 0, _size - 1)
+		_read_far()
 		_stamp_order = _stamps()
 		_build_tunnels()
 		_plant_grass()
 		_build_ground()
 		last_rebuilt = _chunks.size()
+		reshaped.emit()
 		return
 	var spacing := world_size / float(_size - 1)
 	# 1. The ground.
@@ -521,6 +620,7 @@ func rebuild_changed() -> void:
 	_stamp_order = _stamps()
 	if _chunks.is_empty():
 		_forget_edits()   # nothing built yet: the heights were all there was to do
+		reshaped.emit()
 		return
 
 	# 2. The tunnels: any edited, any standing on ground that moved (a tube is trimmed to the
@@ -591,6 +691,15 @@ func rebuild_changed() -> void:
 	for index in chunks:
 		_build_chunk(index)
 	last_rebuilt = chunks.size()
+	# The far ring, when the ground that moved reaches the square's edge: its inner row is
+	# stitched to the edge's own vertices, and past the edge a stamp shapes it directly.
+	var half := world_size * 0.5
+	for rect in moved_ground:
+		if rect.position.x <= -half or rect.position.y <= -half or rect.end.x >= half \
+				or rect.end.y >= half:
+			_read_far()
+			_build_far_mesh()
+			break
 
 	# 4. The grass: patches that changed, and patches on ground that did.
 	for child in get_children():
@@ -602,6 +711,7 @@ func rebuild_changed() -> void:
 			if _changed_grass.get(child, false) or on_moved_ground:
 				child.plant(self)
 	_forget_edits()
+	reshaped.emit()
 
 
 ## The ground under every stamp edit since the last build: put the island back and the stamps
@@ -623,16 +733,26 @@ func _restamp_changed() -> void:
 func _refresh_stamps(leaving: Node = null) -> void:
 	_active_stamps = []
 	_stamp_rects = []
+	_active_rects = []
 	# A sample's margin round the reach: just outside a fade the baked samples inside it still
 	# lean on what is read between them, so exact and baked only agree a sample further out.
 	# Without it a foot vertex right on the edge of the reach read baked ground, 0.3 m off.
-	var margin := world_size / float(maxi(_size - 1, 1)) + 0.15
+	var spacing := world_size / float(maxi(_size - 1, 1))
+	var margin := spacing + 0.15
 	for stamp in _stamps():
 		# not one on its way out, nor - when the terrain itself is leaving the tree, children
 		# first - one that has already gone
 		if stamp != leaving and stamp.is_inside_tree():
 			_active_stamps.append(stamp)
-			_stamp_rects.append(stamp.footprint().grow(margin))
+			_active_rects.append(stamp.footprint())
+			# Not an image that lands sample on sample on the grid: the baked samples are its
+			# own, and read between them the same way, so the exact path would add nothing - and
+			# the island is one, covering every sample, so it would send every lookup the slow
+			# way. Any other image keeps it: a sharp step in one sampled finer than the ground
+			# was 1.7 m out read off the baked grid.
+			if stamp.has_outline() \
+					or stamp.grid_offset(spacing, -world_size * 0.5) == TerrainStamp.OFF_GRID:
+				_stamp_rects.append(stamp.footprint().grow(margin))
 
 
 func _forget_edits() -> void:
@@ -718,36 +838,6 @@ func hole_field(world_x: float, world_z: float) -> float:
 		if tunnel.bounds().has_point(point):
 			best = minf(best, tunnel.distance_outside(point))
 	return best
-
-
-func _load_raw() -> bool:
-	var file := FileAccess.open(raw_path, FileAccess.READ)
-	if file == null:
-		return false
-	var bytes := file.get_buffer(file.get_length())
-	var count := bytes.size() / 2
-	_size = int(sqrt(float(count)))
-	if _size * _size != count:
-		push_error("%s is not square (%d samples)" % [raw_path, count])
-		return false
-	_heights = PackedFloat32Array()
-	_heights.resize(count)
-	for i in count:
-		_heights[i] = bytes.decode_u16(i * 2) / 65535.0
-	return true
-
-
-func _load_png() -> bool:
-	var image := Image.load_from_file(ProjectSettings.globalize_path(heightmap_path))
-	if image == null:
-		return false
-	_size = image.get_width()
-	_heights = PackedFloat32Array()
-	_heights.resize(_size * _size)
-	for y in _size:
-		for x in _size:
-			_heights[y * _size + x] = image.get_pixel(x, y).r
-	return true
 
 
 ## The default size of a freshly started biome map: fine enough for a small patch of sand in
@@ -851,7 +941,7 @@ func reload_biome_palette() -> void:
 
 ## Bilinear sample of the height map in 0..1 texture space.
 func sample_height(u: float, v: float) -> float:
-	return _bilinear(_heights, u, v) * height_scale
+	return _bilinear(_heights, u, v)
 
 
 func _bilinear(values: PackedFloat32Array, u: float, v: float) -> float:
@@ -870,12 +960,17 @@ func _bilinear(values: PackedFloat32Array, u: float, v: float) -> float:
 	return lerpf(lerpf(h00, h10, fx), lerpf(h01, h11, fx), fy)
 
 
-## A spawn point on gentle mid-altitude ground, so the view starts somewhere interesting
-## rather than on a peak or in a pit.
-## Sea level in metres, the single source of truth for the ocean plane and for swimming.
+## Sea level, in the Terrain's own metres: always 0, the sea is at the Terrain's y. Still asked
+## rather than assumed, so that everything which needs the sea says so.
 func sea_level() -> float:
-	return height_scale * sea_fraction
+	return 0.0
 
+
+## A spawn point on gentle mid-altitude ground, so the view starts somewhere interesting
+## rather than on a peak or in a pit: SPAWN_HEIGHT above the sea at best, worth nothing
+## SPAWN_HEIGHT_FALL higher or lower.
+const SPAWN_HEIGHT := 63.0
+const SPAWN_HEIGHT_FALL := 90.0
 
 func find_spawn() -> Vector3:
 	var best := Vector3.ZERO
@@ -884,10 +979,9 @@ func find_spawn() -> Vector3:
 		var wx := randf_range(-world_size, world_size) * 0.35
 		var wz := randf_range(-world_size, world_size) * 0.35
 		var h := height_at(wx, wz)
-		var t := h / height_scale
 		# prefer mid heights, and flat-ish ground (small difference to neighbours)
 		var slope: float = absf(height_at(wx + 4.0, wz) - h) + absf(height_at(wx, wz + 4.0) - h)
-		var score: float = 1.0 - absf(t - 0.45) * 2.0 - slope * 0.25
+		var score: float = 1.0 - absf(h - SPAWN_HEIGHT) / SPAWN_HEIGHT_FALL - slope * 0.25
 		if score > best_score:
 			best_score = score
 			best = Vector3(wx, h, wz)
@@ -927,6 +1021,214 @@ func _roughness(point: Vector3) -> float:
 	return total * 0.25
 
 
+# --- the far seabed --------------------------------------------------------------------------
+
+## Past the square, where there are no baked samples: the Seabed at the point itself, with every
+## stamp that reaches there on it - so a pad whose fade crosses the edge carries on across it.
+func _far_height(world_x: float, world_z: float) -> float:
+	var base := global_position.y
+	var height := _bed.height_at(world_x, world_z) + base
+	var point := Vector2(world_x, world_z)
+	for k in _active_stamps.size():
+		if _active_rects[k].has_point(point) and _active_stamps[k].is_inside_tree():
+			height = _active_stamps[k].reshape(height, world_x, world_z)
+	return height - base
+
+
+## The far ring's heights, read through height_at() so they are the ground everything else
+## reads. Nothing without a Seabed, or when far_extent does not reach past the square.
+func _read_far() -> void:
+	_far_heights = PackedFloat32Array()
+	_far_count = 0
+	var half := world_size * 0.5
+	if _bed == null or far_extent <= half:
+		return
+	# The square's edge has to fall on a far sample, or the ring cannot be stitched to it.
+	if _built_resolution % (2 * far_cell) != 0:
+		push_error("far_cell %d does not divide mesh_resolution %d into halves - no far seabed"
+				% [far_cell, _built_resolution])
+		return
+	_far_step = world_size / _built_resolution * far_cell
+	_far_inner = _built_resolution / (2 * far_cell)
+	var cells := _far_inner + ceili((far_extent - half) / _far_step)
+	_far_count = cells * 2 + 1
+	_far_heights.resize(_far_count * _far_count)
+	for j in _far_count:
+		var z := (j - cells) * _far_step
+		for i in _far_count:
+			var x := (i - cells) * _far_step
+			var inside := absf(x) < half and absf(z) < half
+			_far_heights[j * _far_count + i] = NAN if inside else height_at(x, z)
+
+
+## The far ring as ground you can see: a coarse grid from the square's edge out to far_extent,
+## coloured and shaded like the chunks. Its cells along the edge are stitched to the edge's
+## own vertices - a fan from each of the cell's two outer corners through the eight or so
+## detail vertices on its inner side - so nothing needs hiding where the two meet.
+func _build_far_mesh() -> void:
+	var old := get_node_or_null(^"FarSeabed")
+	if old != null:
+		remove_child(old)
+		old.queue_free()
+	if _far_count == 0:
+		return
+	var cells := (_far_count - 1) / 2
+	var detail := world_size / _built_resolution
+	var half := world_size * 0.5
+	var cuts := _edge_cuts()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for j in _far_count - 1:
+		var cj := j - cells
+		for i in _far_count - 1:
+			var ci := i - cells
+			var across_x := ci >= -_far_inner and ci < _far_inner
+			var across_z := cj >= -_far_inner and cj < _far_inner
+			if across_x and across_z:
+				continue                                 # inside the square: the chunks' ground
+			var a := _far_vertex(i, j)
+			var b := _far_vertex(i + 1, j)
+			var c := _far_vertex(i + 1, j + 1)
+			var d := _far_vertex(i, j + 1)
+			# A cell sharing a side with the square: that side is the detailed edge instead.
+			var inner: Array[Vector3] = []
+			var outer: Array[Vector3] = []
+			if across_z and ci == _far_inner:            # east of the square
+				inner = _edge_run(half, cj * _far_step, false, detail, cuts)
+				outer = [b, c]
+			elif across_z and ci == -_far_inner - 1:     # west
+				inner = _edge_run(-half, cj * _far_step, false, detail, cuts)
+				outer = [a, d]
+			elif across_x and cj == _far_inner:          # south
+				inner = _edge_run(ci * _far_step, half, true, detail, cuts)
+				outer = [d, c]
+			elif across_x and cj == -_far_inner - 1:     # north
+				inner = _edge_run(ci * _far_step, -half, true, detail, cuts)
+				outer = [a, b]
+			if inner.is_empty():
+				# Split from b to d, the way Jolt splits the collider's cells, so what is walked
+				# on out here is what is drawn.
+				_far_triangle(st, a, b, d)
+				_far_triangle(st, b, c, d)
+				continue
+			var middle := inner.size() / 2
+			for k in inner.size() - 1:
+				_far_triangle(st, inner[k], inner[k + 1], outer[0] if k < middle else outer[1])
+			_far_triangle(st, inner[middle], outer[1], outer[0])
+	st.index()
+	var instance := MeshInstance3D.new()
+	instance.name = "FarSeabed"
+	instance.material_override = material
+	instance.mesh = st.commit()
+	add_child(instance)
+
+
+## A far grid sample as a point on the ground.
+func _far_vertex(i: int, j: int) -> Vector3:
+	var cells := (_far_count - 1) / 2
+	return Vector3((i - cells) * _far_step, _far_heights[j * _far_count + i],
+			(j - cells) * _far_step)
+
+
+## The detailed mesh's own vertices along one far cell's side of the square's edge, from its
+## low end to its high end: at the chunks' positions, (k * detail - half), so they are the very
+## same points, and at height_at() there, which is what the chunks stand them at - and between
+## them any a stamp's cut line puts on the edge, from `cuts`.
+func _edge_run(x: float, z: float, along_x: bool, detail: float, cuts: PackedVector3Array) -> Array[Vector3]:
+	var half := world_size * 0.5
+	var start := roundi(((x if along_x else z) + half) / detail)
+	var run: Array[Vector3] = []
+	for k in range(start, start + far_cell + 1):
+		var t := k * detail - half
+		var point := Vector3(t, 0.0, z) if along_x else Vector3(x, 0.0, t)
+		point.y = height_at(point.x, point.z)
+		run.append(point)
+	var low := start * detail - half
+	var high := (start + far_cell) * detail - half
+	var added := false
+	for p in cuts:
+		var on_line := absf((p.z if along_x else p.x) - (z if along_x else x)) < 0.0001
+		var along := p.x if along_x else p.z
+		if on_line and along > low and along < high:
+			run.append(p)
+			added = true
+	if added:
+		if along_x:
+			run.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.x < b.x)
+		else:
+			run.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.z < b.z)
+		# A cut line through a grid vertex puts a second one on top of it.
+		for k in range(run.size() - 1, 0, -1):
+			if run[k].distance_to(run[k - 1]) < 0.0001:
+				run.remove_at(k)
+	return run
+
+
+## The vertices a stamp's cut lines put on the square's edge, off the grid's own: the chunks
+## have them, so the far ring has to as well or there is a crack at each. Read off the cut
+## geometry the border chunks keep for their collider, which is where every cut vertex is.
+func _edge_cuts() -> PackedVector3Array:
+	var half := world_size * 0.5
+	var cuts := PackedVector3Array()
+	var last := _chunks_per_side - 1
+	for index in _rim_by_chunk.size():
+		var cx := index % _chunks_per_side
+		var cz := index / _chunks_per_side
+		if cx != 0 and cx != last and cz != 0 and cz != last:
+			continue
+		for p in _rim_by_chunk[index]:
+			if absf(absf(p.x) - half) < 0.0001 or absf(absf(p.z) - half) < 0.0001:
+				cuts.append(p)
+	return cuts
+
+
+## One triangle of the far ring, wound the way the chunks wind theirs, with the chunks' colour
+## and a normal read off the ground itself, and its UV held to the square's edge - the biome map
+## has nothing painted out here, and read past its edge it would wrap round to the other side.
+func _far_triangle(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
+	if (b - a).cross(c - a).y > 0.0:
+		var swap := b
+		b = c
+		c = swap
+	for p in [a, b, c]:
+		st.set_uv(Vector2(clampf(p.x / world_size + 0.5, 0.0, 1.0),
+				clampf(p.z / world_size + 0.5, 0.0, 1.0)))
+		st.set_color(_terrain_colour(p.y))
+		st.set_normal(_surface_normal(p.x, p.z))
+		st.add_vertex(p)
+
+
+## The far ring's heights as a texture, for the water: metres above the Terrain. The square's
+## inside is filled in from the baked samples rather than left NAN, which filtering would
+## spread across the edge; the water reads the detailed texture in there anyway. Null without
+## a far ring.
+func far_texture() -> ImageTexture:
+	if _far_count == 0:
+		return null
+	var cells := (_far_count - 1) / 2
+	var bytes := PackedByteArray()
+	bytes.resize(_far_count * _far_count * 4)
+	for j in _far_count:
+		for i in _far_count:
+			var h := _far_heights[j * _far_count + i]
+			if is_nan(h):
+				h = height_at((i - cells) * _far_step, (j - cells) * _far_step)
+			bytes.encode_float((j * _far_count + i) * 4, h)
+	var image := Image.create_from_data(_far_count, _far_count, false, Image.FORMAT_RF, bytes)
+	return ImageTexture.create_from_image(image)
+
+
+## How many metres far_texture() spans, centred on the Terrain; 0 without a far ring.
+func far_size() -> float:
+	return (_far_count - 1) * _far_step if _far_count > 0 else 0.0
+
+
+## World height of the bed past the far ring: the Seabed's far depth under the sea.
+func far_floor() -> float:
+	var below := _bed.far_depth if _bed != null else 60.0
+	return global_position.y + sea_level() - below
+
+
 ## The height map as a texture, so a shader can read the seabed.
 ##
 ## The water needs to know how deep it is at every point - to flatten the swell as it shoals,
@@ -946,8 +1248,8 @@ func height_texture() -> ImageTexture:
 ## included, and again after any restamp. The sea's and the sand's foam both read it.
 func shore_field() -> ShoreField:
 	if _shore_field == null and not _heights.is_empty():
-		_shore_field = ShoreField.new().bake(_heights, _size, world_size, height_scale,
-				global_position.y, sea_level(),
+		_shore_field = ShoreField.new().bake(_heights, _size, world_size,
+				global_position.y, global_position.y + sea_level(),
 				Vector2(global_position.x, global_position.z))
 		print("shore field: %d x %d texels, %.2f m apart, baked in %d ms" % [int(_shore_field.rect.w),
 				int(_shore_field.rect.w), _shore_field.rect.z, _shore_field.bake_msec])
@@ -965,6 +1267,9 @@ func apply_shore_field(target: ShaderMaterial) -> void:
 
 ## World-space height under a point, for dropping things onto the ground.
 func height_at(world_x: float, world_z: float) -> float:
+	var half := world_size * 0.5
+	if _bed != null and (absf(world_x) > half or absf(world_z) > half):
+		return _far_height(world_x, world_z)
 	for rect in _stamp_rects:
 		if rect.has_point(Vector2(world_x, world_z)):
 			return height_exact(world_x, world_z)
@@ -980,7 +1285,7 @@ func height_at(world_x: float, world_z: float) -> float:
 func height_exact(world_x: float, world_z: float) -> float:
 	var base := global_position.y
 	var height := _bilinear(_base_heights, world_x / world_size + 0.5, world_z / world_size + 0.5) \
-			* height_scale + base
+			+ base
 	for stamp in _active_stamps:
 		if stamp.is_inside_tree():
 			height = stamp.reshape(height, world_x, world_z)
@@ -1013,6 +1318,7 @@ func _build_ground() -> void:
 		_nan_by_chunk.append(PackedInt32Array())
 	for index in count:
 		_build_chunk(index)
+	_build_far_mesh()
 	_forget_edits()
 
 
@@ -1536,7 +1842,7 @@ func _line_reach(p: Vector3, pads: Array[TerrainStamp]) -> float:
 func _setup_material() -> void:
 	if material == null:
 		material = load("res://world/terrain_material.tres")
-	material.set_shader_parameter("sea_y", sea_level())
+	material.set_shader_parameter("sea_y", global_position.y + sea_level())
 	for entry in [["caustic_colour", caustic_colour], ["seabed_colour", seabed_colour],
 			["deep_seabed_colour", deep_seabed_colour], ["seabed_weed", seabed_weed],
 			["seabed_rock_colour", seabed_rock_colour], ["dry_sand_colour", dry_sand_colour],
@@ -1619,7 +1925,7 @@ func _terrain_colour(height_m: float) -> Color:
 	var above := height_m - sea_level()
 	var c: Color = seabed.lerp(sand, smoothstep(-1.5, 0.3, above))
 	c = c.lerp(jungle, smoothstep(1.5, 6.0, above))
-	c = c.lerp(rock, smoothstep(height_scale * 0.50, height_scale * 0.80, height_m))
+	c = c.lerp(rock, smoothstep(rock_heights.x, rock_heights.y, above))
 	return c.srgb_to_linear()
 
 
@@ -1629,7 +1935,7 @@ func _terrain_colour(height_m: float) -> Color:
 func _build_collision() -> void:
 	# The previous build's shapes go first, or a second build stacks its own on top of them
 	# and the old rim keeps answering rays where the new one has nothing.
-	for name in [^"HeightField", ^"Rim"]:
+	for name in [^"HeightField", ^"Rim", ^"FarHeightField"]:
 		var old := get_node_or_null(name)
 		if old != null:
 			remove_child(old)
@@ -1675,3 +1981,16 @@ func _build_collision() -> void:
 	owner_node.scale = Vector3(world_size / (collision_resolution - 1), 1.0,
 			world_size / (collision_resolution - 1))
 	add_child(owner_node)
+	# The far ring's own, coarse: the square's inside is NAN, holes, and the height field above
+	# answers there. Its samples ON the edge are solid, so the cells just outside it are too
+	# and there is no gap to fall through between the two.
+	if _far_count > 0:
+		var far_shape := HeightMapShape3D.new()
+		far_shape.map_width = _far_count
+		far_shape.map_depth = _far_count
+		far_shape.map_data = _far_heights
+		var far_node := CollisionShape3D.new()
+		far_node.name = "FarHeightField"
+		far_node.shape = far_shape
+		far_node.scale = Vector3(_far_step, 1.0, _far_step)
+		add_child(far_node)

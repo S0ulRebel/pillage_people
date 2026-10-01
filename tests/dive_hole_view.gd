@@ -48,21 +48,25 @@ func _run() -> void:
 	var sea: float = terrain.sea_level()
 	scene.get_node("Player").set_physics_process(false)
 
-	# The island without any stamp, to say how much each hole dug. Built the way
-	# terrain_stamp_check builds its plain terrain.
+	# The ground without the holes, to say how much each one dug: the scene's own Seabed and
+	# every stamp on it - the island is one - but the ones that dig. It was the height file
+	# alone, when the island was the height file.
+	var diggers: Array[TerrainStamp] = []
+	for child in terrain.get_children():
+		var stamp := child as TerrainStamp
+		if stamp != null and stamp.mode == TerrainStamp.Mode.ADD and stamp.height < 0.0:
+			diggers.append(stamp)
 	var plain := StaticBody3D.new()
 	plain.set_script(load("res://world/terrain.gd"))
-	plain.raw_path = terrain.raw_path
 	plain.world_size = terrain.world_size
-	plain.height_scale = terrain.height_scale
+	for child in terrain.get_children():
+		if child is Seabed or (child is TerrainStamp and not diggers.has(child)):
+			plain.add_child(child.duplicate())
 	root.add_child(plain)
 	await process_frame
 
 	var holes: Array[TerrainStamp] = []
-	for child in terrain.get_children():
-		var stamp := child as TerrainStamp
-		if stamp == null or stamp.mode != TerrainStamp.Mode.ADD or stamp.strength >= 0.0:
-			continue
+	for stamp in diggers:
 		var at := stamp.global_position
 		if plain.height_at(at.x, at.z) < sea:
 			holes.append(stamp)
@@ -88,7 +92,7 @@ func _run() -> void:
 		var at := stamp.global_position
 		var before: float = sea - plain.height_at(at.x, at.z)
 		var after: float = sea - terrain.height_at(at.x, at.z)
-		var expected: float = -stamp.strength * stamp.value_at(at.x, at.z)
+		var expected: float = -stamp.height * stamp.value_at(at.x, at.z)
 		print("%s at (%.0f, %.0f): %.1f m of water before, %.1f m after (dug %.1f m, stamp says %.1f m)"
 				% [stamp.name, at.x, at.z, before, after, after - before, expected])
 		_check(absf((after - before) - expected) < 0.05,

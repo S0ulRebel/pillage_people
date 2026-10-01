@@ -7,7 +7,7 @@ extends SceneTree
 ## the tufts would stand where the ground used to be - so this one sits on a flatten stamp
 ## raised 6 m above the island, where that mistake would bury every tuft.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const STAMP := preload("res://world/terrain_stamp/terrain_stamp.tscn")
 const PATCH := preload("res://props/grass/grass_patch.tscn")
 
@@ -25,26 +25,19 @@ func check(condition: bool, message: String) -> void:
 
 
 func _run() -> void:
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	var terrain := ISLAND.make()
 	var at := Vector3(-60.0, 0.0, 40.0)
 
 	# A plain terrain first, only to read the island's height there.
-	var probe := StaticBody3D.new()
-	probe.set_script(TERRAIN)
-	probe.raw_path = terrain.raw_path
-	probe.world_size = terrain.world_size
-	probe.height_scale = terrain.height_scale
+	var probe := ISLAND.make()
 	root.add_child(probe)
 	await process_frame
 	var plateau: float = probe.height_at(at.x, at.z) + 6.0
 
 	var stamp := STAMP.instantiate() as TerrainStamp
-	stamp.mode = TerrainStamp.Mode.FLATTEN
+	stamp.mode = TerrainStamp.Mode.REPLACE
 	stamp.shape = TerrainStamp.Shape.SOFT_RECT
+	stamp.height = 0.0
 	stamp.length = 20.0
 	stamp.width = 20.0
 	stamp.edge_softness = 4.0

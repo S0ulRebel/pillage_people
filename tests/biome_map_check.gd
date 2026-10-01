@@ -15,7 +15,7 @@ extends SceneTree
 ## reload straight away. What the shader actually draws with them is checked in
 ## tests/biome_paint_view.gd, a real (non-headless) render.
 
-const TERRAIN := preload("res://world/terrain.gd")
+const ISLAND := preload("res://tests/island_terrain.gd")
 const TMP_BIOME := "res://tests/_tmp_biome.png"
 const TMP_PALETTE := "res://tests/_tmp_biome_palette.png"
 
@@ -39,11 +39,7 @@ func close(a: Color, b: Color) -> bool:
 
 
 func _make_terrain(biome_path: String, palette_path: String) -> Node:
-	var terrain := StaticBody3D.new()
-	terrain.set_script(TERRAIN)
-	terrain.raw_path = "res://terrain/island.r16"
-	terrain.world_size = 620.0
-	terrain.height_scale = 180.0
+	var terrain := ISLAND.make()
 	terrain.biome_path = biome_path
 	terrain.biome_palette_path = palette_path
 	root.add_child(terrain)

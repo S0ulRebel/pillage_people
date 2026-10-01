@@ -45,13 +45,13 @@ var _near_x := PackedFloat32Array()
 var _near_z := PackedFloat32Array()
 
 
-## Bakes the field from a height map: `heights` is `size` x `size` samples, each a fraction of
-## `height_scale`, laid over `world_size` metres centred on `centre`, with the ground `base_y`
-## below them and the sea at `sea_y`.
+## Bakes the field from a height map: `heights` is `size` x `size` samples, each in metres,
+## laid over `world_size` metres centred on `centre`, with the ground `base_y` below them and
+## the sea at `sea_y`.
 ## Returns this field, so `ShoreField.new().bake(...)` reads as one step.
-func bake(heights: PackedFloat32Array, size: int, world_size: float, height_scale: float,
-		base_y: float, sea_y: float, centre: Vector2, stride: int = 2) -> RefCounted:
-	_bake(heights, size, world_size, height_scale, base_y, sea_y, centre, maxi(stride, 1))
+func bake(heights: PackedFloat32Array, size: int, world_size: float, base_y: float,
+		sea_y: float, centre: Vector2, stride: int = 2) -> RefCounted:
+	_bake(heights, size, world_size, base_y, sea_y, centre, maxi(stride, 1))
 	return self
 
 
@@ -95,8 +95,8 @@ func nearest_shore(world_x: float, world_z: float) -> Vector2:
 	return Vector2(_near_x[i], _near_z[i])
 
 
-func _bake(heights: PackedFloat32Array, size: int, world_size: float, height_scale: float,
-		base_y: float, sea_y: float, centre: Vector2, stride: int) -> void:
+func _bake(heights: PackedFloat32Array, size: int, world_size: float, base_y: float,
+		sea_y: float, centre: Vector2, stride: int) -> void:
 	var started := Time.get_ticks_msec()
 	var n := (size - 1) / stride + 1
 	_cells = n
@@ -111,7 +111,7 @@ func _bake(heights: PackedFloat32Array, size: int, world_size: float, height_sca
 	for z in n:
 		var row := z * stride * size
 		for x in n:
-			above[z * n + x] = heights[row + x * stride] * height_scale + base_y - sea_y
+			above[z * n + x] = heights[row + x * stride] + base_y - sea_y
 
 	# Seeds: samples beside a sign change, each with the exact crossing point nearest to it,
 	# in sample units. seed_d is the squared distance from the sample to that point, so a
