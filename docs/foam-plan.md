@@ -510,3 +510,15 @@ material to compare against the net (0, still the default):
   the solid foam as it ages, spray dots in a ring just off the edge while it is young, and a
   pale halo round it. `whitecap_event` returns (cover, shade, halo); the shade fades out with
   distance, where the puffs are too small to read.
+
+### Step 8n: whitecaps on the lattice no longer cut
+
+Close up, the lattice's whitecaps were cut by straight lines and broken into blocks. The
+debug view (`whitecap_debug` 1: R the crest id, G the whitecaps' extent, B the depth below the
+crest; tests/foam_view.gd with FOAM_DEBUG=1 writes debug_low.png) showed why: the tile's crest
+id was per arc, and a row's overlapping arcs keep swapping which is nearest, so the id flipped
+every metre or so along a crest and every flip read as a crest ending. The id is now per row
+of crests. Along the way: the generator fills every pixel column a crest spans (it skipped
+some), the id and depth are read at full resolution (`textureLod` 0), whitecaps are tried on
+three stretches of crest and on both copies of the tile, and shrink toward a real handover
+rather than being dimmed. Open water from the gameplay camera: 3.5% white.
