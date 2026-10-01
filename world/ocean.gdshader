@@ -208,8 +208,8 @@ uniform float lattice_size : hint_range(4.0, 40.0) = 18.0;
 uniform float event_rate : hint_range(0.0, 1.0) = 0.3;
 uniform float event_period : hint_range(1.0, 30.0) = 7.0;
 // Draws what the lattice's whitecaps are placed by, for checking: 1 the raw values for the
-// first copy of the tile - R the id of the crest above, G the whitecaps' extent, B how far
-// below the crest.
+// copy of the tile that shows more - R the id of the crest row above, G the whitecaps'
+// extent, B how far below the crest.
 uniform int whitecap_debug : hint_range(0, 1) = 0;
 
 // ---- Object bands -----------------------------------------------------------------------
@@ -1087,7 +1087,7 @@ void fragment() {
                     }
                 }
                 float extent = smoothstep(1.0, 5.0, clear) * smoothstep(0.1, 0.6, weight);
-                if (whitecap_debug == 1 && c == 0) {
+                if (whitecap_debug == 1 && c == (pick > 0.5 ? 1 : 0)) {
                     // Raw: R the crest id, G the extent, B how far below the crest (of 2.6 m).
                     debug_colour = vec3(crest_id, extent, clamp(below / 2.6, 0.0, 1.0));
                 }

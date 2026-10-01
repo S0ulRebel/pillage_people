@@ -4,7 +4,9 @@
 # Painted wave lattice tile (option 1): rows of overlapping arched crests like the swatches.
 # R: white crest strokes, beads and clumps  G: face (0 just under a crest -> 1 a row below)
 # B: soft glow spilling down the face under the white
-# A: which crest is above this pixel (a random number per crest), for the whitecap events
+# A: which row of crests is above this pixel (a random number per row), for the whitecap
+#    events - per row, not per arc: a row's overlapping arcs keep swapping which is nearest,
+#    and each swap read as a crest ending, which cut the whitecaps
 import numpy as np, sys
 from PIL import Image
 from scipy.ndimage import gaussian_filter
@@ -40,6 +42,7 @@ row_h = N / ROWS
 connectors = []
 for r in range(ROWS):
     base = (r + 0.5) * row_h + rng.uniform(-0.15, 0.15) * row_h
+    crest_id = (r + 0.5) / ROWS
     u = rng.uniform(0, N)
     end = u + N
     while u < end:
@@ -58,7 +61,6 @@ for r in range(ROWS):
         col_v = np.interp(col_u, arc_u, arc_v)
         cols = col_u % N
         d = (vv - col_v[None, :]) % N
-        crest_id = rng.uniform(0.02, 0.98)
         closer = d < face[:, cols]
         face[:, cols] = np.where(closer, d, face[:, cols])
         owner[:, cols] = np.where(closer, crest_id, owner[:, cols])
