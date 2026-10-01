@@ -207,8 +207,9 @@ uniform float lattice_size : hint_range(4.0, 40.0) = 18.0;
 // The share of crest walls breaking in any whitecap cycle, and a cycle's seconds.
 uniform float event_rate : hint_range(0.0, 1.0) = 0.3;
 uniform float event_period : hint_range(1.0, 30.0) = 7.0;
-// Draws what the lattice's whitecaps are placed by, for checking: 1 the crest above each point
-// (a colour per crest) and how far below it (brightness), for the first copy of the tile.
+// Draws what the lattice's whitecaps are placed by, for checking: 1 the raw values for the
+// first copy of the tile - R the id of the crest above, G the whitecaps' extent, B how far
+// below the crest.
 uniform int whitecap_debug : hint_range(0, 1) = 0;
 
 // ---- Object bands -----------------------------------------------------------------------
@@ -1087,9 +1088,8 @@ void fragment() {
                 }
                 float extent = smoothstep(1.0, 5.0, clear) * smoothstep(0.1, 0.6, weight);
                 if (whitecap_debug == 1 && c == 0) {
-                    vec3 hue = 0.5 + 0.5 * cos(6.2832 * (crest_id * 7.31 + vec3(0.0, 0.33, 0.67)));
-                    debug_colour = hue * (1.0 - clamp(below / 2.6, 0.0, 1.0) * 0.8)
-                        * mix(0.4, 1.0, extent);
+                    // Raw: R the crest id, G the extent, B how far below the crest (of 2.6 m).
+                    debug_colour = vec3(crest_id, extent, clamp(below / 2.6, 0.0, 1.0));
                 }
                 vec3 one = lattice_event(uv.x * scale, below, crest_id, fine, coarse,
                     clock * wave_speed, extent);
